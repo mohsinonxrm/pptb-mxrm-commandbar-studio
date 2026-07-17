@@ -5,7 +5,7 @@ customizations** — the spiritual successor to [Ribbon Workbench](https://www.d
 reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 [Power Platform ToolBox](https://www.powerplatformtoolbox.com/).
 
-![Version](https://img.shields.io/badge/version-0.5.0--beta-orange)
+![Version](https://img.shields.io/badge/version-0.5.3--beta.1-orange)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript)
 ![Fluent UI](https://img.shields.io/badge/Fluent%20UI-v9-0078D4?logo=microsoft)
