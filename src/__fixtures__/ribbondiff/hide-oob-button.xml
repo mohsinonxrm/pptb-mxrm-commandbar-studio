@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Expected RibbonDiffXml output: HideCustomAction for OOB DeleteAccount button -->
+<RibbonDiffXml>
+  <CustomActions>
+    <HideCustomAction HideActionId="Contoso.account.HideDeleteAccount"
+                      Location="Mscrm.HomepageGrid.account.MainTab.Actions.Controls.DeleteAccount"/>
+  </CustomActions>
+  <Templates>
+    <RibbonTemplates Id="Mscrm.Templates"/>
+  </Templates>
+  <CommandDefinitions/>
+  <RuleDefinitions>
+    <TabDisplayRules/>
+    <DisplayRules/>
+    <EnableRules/>
+  </RuleDefinitions>
+  <LocLabels/>
+</RibbonDiffXml>

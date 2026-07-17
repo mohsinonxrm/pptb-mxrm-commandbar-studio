@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Expected RibbonDiffXml output: CustomAction overriding an OOB NewRecord button -->
+<RibbonDiffXml>
+  <CustomActions>
+    <CustomAction Id="Contoso.account.NewRecord.Override.CustomAction"
+                  Location="Mscrm.HomepageGrid.account.MainTab.New.Controls.NewRecord"
+                  Sequence="10">
+      <CommandUIDefinition>
+        <Button Id="Mscrm.HomepageGrid.account.MainTab.New.Controls.NewRecord"
+                Command="Contoso.account.NewRecord.Override.Command"
+                LabelText="$LocLabels:Contoso.account.NewRecord.Override.LabelText"
+                TemplateAlias="o1"
+                Sequence="10"
+                ModernImage="Add"/>
+      </CommandUIDefinition>
+    </CustomAction>
+  </CustomActions>
+  <Templates>
+    <RibbonTemplates Id="Mscrm.Templates"/>
+  </Templates>
+  <CommandDefinitions>
+    <CommandDefinition Id="Contoso.account.NewRecord.Override.Command">
+      <EnableRules>
+        <EnableRule Id="Mscrm.Enabled"/>
+      </EnableRules>
+      <DisplayRules>
+        <DisplayRule Id="Mscrm.Enabled"/>
+      </DisplayRules>
+      <Actions>
+        <JavaScriptFunction FunctionName="Contoso.Account.onNewRecord"
+                            Library="$webresource:contoso_/scripts/account.js">
+          <CrmParameter Value="PrimaryControl"/>
+        </JavaScriptFunction>
+      </Actions>
+    </CommandDefinition>
+  </CommandDefinitions>
+  <RuleDefinitions>
+    <TabDisplayRules/>
+    <DisplayRules/>
+    <EnableRules/>
+  </RuleDefinitions>
+  <LocLabels>
+    <LocLabel Id="Contoso.account.NewRecord.Override.LabelText">
+      <Titles>
+        <Title languagecode="1033" description="New Account"/>
+      </Titles>
+    </LocLabel>
+  </LocLabels>
+</RibbonDiffXml>

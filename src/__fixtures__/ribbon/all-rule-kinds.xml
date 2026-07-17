@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Fixture: all-rule-kinds.xml
+  Purpose: Exercises every RuleStep kind supported by the parser/generator.
+  Used by: xmlParser.test.ts round-trip tests.
+-->
+<RibbonDefinitions>
+  <RibbonDefinition Entity="account">
+    <Tabs>
+      <Tab Id="TestTab" Title="Test" Sequence="10" Command="TestTab.Command">
+        <Scaling Id="TestTab.Scaling"/>
+        <Groups Id="TestTab.Groups">
+          <Group Id="TestGroup" Title="Test Group" Sequence="10" Template="Mscrm.Templates.Flexible2">
+            <Controls Id="TestGroup.Controls">
+              <Button Id="TestButton" LabelText="Test Button" TemplateAlias="o1"
+                      Sequence="10"/>
+            </Controls>
+          </Group>
+        </Groups>
+      </Tab>
+    </Tabs>
+  </RibbonDefinition>
+  <!-- No CommandDefinitions block here: rule references inside CommandDefinition
+       use the same "EnableRules > EnableRule" path as rule definitions, which would
+       create ambiguous duplicate entries when parsing. The fixture only tests rule
+       step parsing — command wiring is tested via the account-full fixture. -->
+  <RuleDefinitions>
+    <!-- TabDisplayRules live HERE at document root, not inside <Tab> elements. -->
+    <TabDisplayRules>
+      <TabDisplayRule TabCommand="TestTab.Command">
+        <EntityRule AppliesTo="PrimaryEntity" Context="HomePageGrid"/>
+        <PageRule Address="http://example.com/testpage"/>
+      </TabDisplayRule>
+    </TabDisplayRules>
+
+    <DisplayRules>
+      <!-- DisplayRule: includes all kinds that are display-only plus shared ones -->
+      <DisplayRule Id="TestDisplayRule">
+        <!-- Display-only kinds -->
+        <EntityPrivilegeRule PrivilegeType="Read" PrivilegeDepth="Basic"
+                             AppliesTo="PrimaryEntity" EntityName="account"/>
+        <EntityPropertyRule PropertyName="HasNotes" PropertyValue="true"
+                            AppliesTo="PrimaryEntity"/>
+        <DeviceTypeRule Type="Web" InvertResult="false"/>
+        <OptionSetRule OptionSet="statuscode" StateCode="1" ObjectTypeCode="1"/>
+        <FormEntityContextRule EntityName="account"/>
+        <PageRule Address="http://example.com/page"/>
+        <RelationshipTypeRule AppliesTo="SelectedEntity" RelationshipType="OneToMany"
+                              AllowCustomRelationship="true" AllowSystemRelationship="false"/>
+        <ReferencingAttributeRequiredRule/>
+        <ShowOnQuickActionRule/>
+        <ShowOnGridAndQuickActionRule/>
+        <ShowOnGridRule/>
+        <OutlookRenderTypeRule Type="Outlook"/>
+        <CrmOutlookClientVersionRule Major="15" Minor="0" Build="0" Revision="0"/>
+        <!-- Shared kinds (valid in both Enable and Display) -->
+        <HideForTabletExperienceRule/>
+        <MiscellaneousPrivilegeRule PrivilegeName="ExportToExcel"/>
+        <OrganizationSettingRule Setting="IsSharepointEnabled"/>
+        <FormTypeRule Type="Main"/>
+        <FormStateRule State="Existing"/>
+        <CommandClientTypeRule Type="Refresh" Default="true"/>
+        <CrmClientTypeRule Type="Web"/>
+        <RecordPrivilegeRule PrivilegeType="Write" AppliesTo="PrimaryEntity"/>
+        <OutlookItemTrackingRule TrackedInCrm="true" AppliesTo="PrimaryEntity"/>
+        <OutlookVersionRule Version="2010"/>
+        <SkuRule Sku="Online"/>
+        <ValueRule Field="statuscode" Value="1"/>
+        <SelectionCountRule Minimum="1" Maximum="10" AppliesTo="SelectedEntity"/>
+        <EntityRule EntityName="account" AppliesTo="PrimaryEntity" Context="Form"/>
+        <CrmOfflineAccessStateRule State="Online"/>
+        <CrmOutlookClientTypeRule Type="CrmForOutlook"/>
+        <CustomRule Library="$webresource:test_/rules.js"
+                    FunctionName="TestRules.checkDisplay" Default="true"/>
+        <!-- OrRule (min 2 Or children per schema) -->
+        <OrRule>
+          <Or><EntityRule EntityName="account"/></Or>
+          <Or><SelectionCountRule Minimum="1"/></Or>
+        </OrRule>
+      </DisplayRule>
+    </DisplayRules>
+
+    <EnableRules>
+      <!-- EnableRule: only EnableRulesGroup kinds are valid per schema -->
+      <EnableRule Id="TestEnableRule">
+        <SelectionCountRule Minimum="1" AppliesTo="SelectedEntity"/>
+        <EntityRule EntityName="contact" AppliesTo="PrimaryEntity" Context="Form"/>
+        <FormStateRule State="Existing"/>
+        <CommandClientTypeRule Type="Legacy"/>
+        <CrmClientTypeRule Type="Web"/>
+        <CustomRule Library="$webresource:test_/rules.js"
+                    FunctionName="TestRules.checkEnable" Default="false"/>
+        <RecordPrivilegeRule PrivilegeType="Read" AppliesTo="PrimaryEntity"/>
+        <OutlookItemTrackingRule TrackedInCrm="false"/>
+        <OutlookVersionRule Version="2007"/>
+        <PageRule Address="http://example.com/enable"/>
+        <SkuRule Sku="OnPremise" InvertResult="true"/>
+        <ValueRule Field="statecode" Value="0"/>
+        <CrmOfflineAccessStateRule State="Offline"/>
+        <CrmOutlookClientTypeRule Type="CrmForOutlookOfflineAccess"/>
+        <MiscellaneousPrivilegeRule PrivilegeName="MailMerge"/>
+        <OrRule>
+          <Or><SelectionCountRule Minimum="1"/></Or>
+          <Or><EntityRule EntityName="contact"/></Or>
+        </OrRule>
+      </EnableRule>
+    </EnableRules>
+  </RuleDefinitions>
+  <LocLabels>
+    <LocLabel Id="TestButton.LabelText">
+      <Titles>
+        <Title languagecode="1033" description="Test Button"/>
+      </Titles>
+    </LocLabel>
+  </LocLabels>
+</RibbonDefinitions>

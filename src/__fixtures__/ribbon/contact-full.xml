@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Full merged ribbon XML for contact entity (HomepageGrid + Form) -->
+<RibbonDefinitions>
+  <RibbonDefinition Entity="contact" RibbonType="HomepageGrid">
+    <Ribbon>
+      <Tabs>
+        <Tab Id="Mscrm.HomepageGrid.contact.MainTab" Command="Mscrm.HomepageGrid.contact.MainTab.Command" Sequence="10" Title="$LocLabels:Mscrm.HomepageGrid.contact.MainTab.TabTitleText" Template="Mscrm.Templates.Ribbon.Flexible2">
+          <Scaling Id="Mscrm.HomepageGrid.contact.MainTab.Scaling">
+            <MaxSize Id="Mscrm.HomepageGrid.contact.MainTab.Scaling.MaxSize" GroupId="Mscrm.HomepageGrid.contact.MainTab.New" Size="LargeMedium" Sequence="10"/>
+            <MaxSize Id="Mscrm.HomepageGrid.contact.MainTab.Scaling.MaxSize2" GroupId="Mscrm.HomepageGrid.contact.MainTab.Actions" Size="LargeMedium" Sequence="20"/>
+          </Scaling>
+          <Groups>
+            <Group Id="Mscrm.HomepageGrid.contact.MainTab.New" Command="Mscrm.HomepageGrid.contact.MainTab.New.Command" Sequence="10" Title="$LocLabels:Mscrm.HomepageGrid.contact.MainTab.New.Label" Template="Mscrm.Templates.Flexible2">
+              <Controls Id="Mscrm.HomepageGrid.contact.MainTab.New.Controls">
+                <Button Id="Mscrm.HomepageGrid.contact.MainTab.New.Controls.NewRecord"
+                        Command="Mscrm.NewRecord"
+                        LabelText="$LocLabels:Mscrm.HomepageGrid.contact.NewRecord.LabelText"
+                        TemplateAlias="o1"
+                        Sequence="10"
+                        ModernImage="ContactCard"/>
+                <Button Id="Mscrm.HomepageGrid.contact.MainTab.New.Controls.QuickCreate"
+                        Command="Mscrm.QuickCreate"
+                        LabelText="$LocLabels:Mscrm.HomepageGrid.contact.QuickCreate.LabelText"
+                        TemplateAlias="o1"
+                        Sequence="20"
+                        ModernImage="Flash"/>
+              </Controls>
+            </Group>
+            <Group Id="Mscrm.HomepageGrid.contact.MainTab.Actions" Command="Mscrm.HomepageGrid.contact.MainTab.Actions.Command" Sequence="20" Title="$LocLabels:Mscrm.HomepageGrid.contact.MainTab.Actions.Label" Template="Mscrm.Templates.Flexible2">
+              <Controls Id="Mscrm.HomepageGrid.contact.MainTab.Actions.Controls">
+                <Button Id="Mscrm.HomepageGrid.contact.MainTab.Actions.Controls.SendEmail"
+                        Command="Mscrm.SendEmail"
+                        LabelText="$LocLabels:Mscrm.HomepageGrid.contact.SendEmail.LabelText"
+                        TemplateAlias="o1"
+                        Sequence="10"
+                        ModernImage="Mail"/>
+                <Button Id="Mscrm.HomepageGrid.contact.MainTab.Actions.Controls.DeleteContact"
+                        Command="Mscrm.DeleteSelected"
+                        LabelText="$LocLabels:Mscrm.HomepageGrid.contact.DeleteContact.LabelText"
+                        TemplateAlias="o1"
+                        Sequence="20"
+                        ModernImage="Delete"/>
+              </Controls>
+            </Group>
+          </Groups>
+        </Tab>
+      </Tabs>
+    </Ribbon>
+  </RibbonDefinition>
+  <CommandDefinitions>
+    <CommandDefinition Id="Mscrm.NewRecord">
+      <EnableRules><EnableRule Id="Mscrm.Enabled"/></EnableRules>
+      <DisplayRules><DisplayRule Id="Mscrm.Enabled"/></DisplayRules>
+      <Actions><JavaScriptFunction FunctionName="Mscrm.RibbonActions.newRecord" Library="$webresource:Main_system_library.js"/></Actions>
+    </CommandDefinition>
+    <CommandDefinition Id="Mscrm.DeleteSelected">
+      <EnableRules><EnableRule Id="Mscrm.SelectionCountAtLeastOne"/></EnableRules>
+      <DisplayRules><DisplayRule Id="Mscrm.Enabled"/></DisplayRules>
+      <Actions><JavaScriptFunction FunctionName="Mscrm.RibbonActions.deleteSelected" Library="$webresource:Main_system_library.js"/></Actions>
+    </CommandDefinition>
+  </CommandDefinitions>
+  <RuleDefinitions>
+    <DisplayRules>
+      <DisplayRule Id="Mscrm.Enabled"/>
+    </DisplayRules>
+    <EnableRules>
+      <EnableRule Id="Mscrm.Enabled"/>
+      <EnableRule Id="Mscrm.SelectionCountAtLeastOne">
+        <SelectionCountRule Minimum="1" AppliesTo="SelectedEntity"/>
+      </EnableRule>
+    </EnableRules>
+  </RuleDefinitions>
+  <LocLabels>
+    <LocLabel Id="Mscrm.HomepageGrid.contact.NewRecord.LabelText">
+      <Titles><Title languagecode="1033" description="New"/></Titles>
+    </LocLabel>
+    <LocLabel Id="Mscrm.HomepageGrid.contact.QuickCreate.LabelText">
+      <Titles><Title languagecode="1033" description="Quick Create"/></Titles>
+    </LocLabel>
+    <LocLabel Id="Mscrm.HomepageGrid.contact.SendEmail.LabelText">
+      <Titles><Title languagecode="1033" description="Send Email"/></Titles>
+    </LocLabel>
+    <LocLabel Id="Mscrm.HomepageGrid.contact.DeleteContact.LabelText">
+      <Titles><Title languagecode="1033" description="Delete"/></Titles>
+    </LocLabel>
+  </LocLabels>
+</RibbonDefinitions>

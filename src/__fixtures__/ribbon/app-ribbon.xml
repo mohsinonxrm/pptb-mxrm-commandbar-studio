@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Application ribbon XML — cross-entity, GlobalTab and BasicHomeTab -->
+<RibbonDefinitions>
+  <RibbonDefinition RibbonType="Application">
+    <Ribbon>
+      <Tabs>
+        <Tab Id="Mscrm.BasicHomeTab" Command="Mscrm.BasicHomeTab.Command" Sequence="10" Title="$LocLabels:Mscrm.BasicHomeTab.TabTitleText" Template="Mscrm.Templates.Ribbon.Flexible2">
+          <Groups>
+            <Group Id="Mscrm.BasicHomeTab.RecordManagement" Command="Mscrm.BasicHomeTab.RecordManagement.Command" Sequence="10" Title="$LocLabels:Mscrm.BasicHomeTab.RecordManagement.Label" Template="Mscrm.Templates.Flexible2">
+              <Controls Id="Mscrm.BasicHomeTab.RecordManagement.Controls">
+                <Button Id="Mscrm.BasicHomeTab.RecordManagement.Controls.Save"
+                        Command="Mscrm.SavePrimary"
+                        LabelText="$LocLabels:Mscrm.SavePrimary.LabelText"
+                        TemplateAlias="o1"
+                        Sequence="10"
+                        ModernImage="Save"/>
+              </Controls>
+            </Group>
+          </Groups>
+        </Tab>
+        <Tab Id="Mscrm.GlobalTab" Command="Mscrm.GlobalTab.Command" Sequence="20" Title="$LocLabels:Mscrm.GlobalTab.TabTitleText" Template="Mscrm.Templates.Ribbon.Flexible2">
+          <Groups>
+            <Group Id="Mscrm.GlobalTab.New" Command="Mscrm.GlobalTab.New.Command" Sequence="10" Title="$LocLabels:Mscrm.GlobalTab.New.Label" Template="Mscrm.Templates.Flexible2">
+              <Controls Id="Mscrm.GlobalTab.New.Controls">
+                <Button Id="Mscrm.GlobalTab.New.Controls.Home"
+                        Command="Mscrm.GlobalTab.Home"
+                        LabelText="$LocLabels:Mscrm.GlobalTab.Home.LabelText"
+                        TemplateAlias="o1"
+                        Sequence="10"
+                        ModernImage="Home"/>
+                <Button Id="Mscrm.GlobalTab.New.Controls.Recent"
+                        Command="Mscrm.GlobalTab.Recent"
+                        LabelText="$LocLabels:Mscrm.GlobalTab.Recent.LabelText"
+                        TemplateAlias="o1"
+                        Sequence="20"
+                        ModernImage="History"/>
+              </Controls>
+            </Group>
+          </Groups>
+        </Tab>
+      </Tabs>
+    </Ribbon>
+  </RibbonDefinition>
+  <CommandDefinitions>
+    <CommandDefinition Id="Mscrm.SavePrimary">
+      <EnableRules><EnableRule Id="Mscrm.Enabled"/></EnableRules>
+      <DisplayRules><DisplayRule Id="Mscrm.Enabled"/></DisplayRules>
+      <Actions><JavaScriptFunction FunctionName="Mscrm.RibbonActions.save" Library="$webresource:Main_system_library.js"/></Actions>
+    </CommandDefinition>
+    <CommandDefinition Id="Mscrm.GlobalTab.Home">
+      <EnableRules><EnableRule Id="Mscrm.Enabled"/></EnableRules>
+      <DisplayRules><DisplayRule Id="Mscrm.Enabled"/></DisplayRules>
+      <Actions><JavaScriptFunction FunctionName="Mscrm.GlobalTab.navigateHome" Library="$webresource:Main_system_library.js"/></Actions>
+    </CommandDefinition>
+  </CommandDefinitions>
+  <RuleDefinitions>
+    <DisplayRules>
+      <DisplayRule Id="Mscrm.Enabled"/>
+    </DisplayRules>
+    <EnableRules>
+      <EnableRule Id="Mscrm.Enabled"/>
+    </EnableRules>
+  </RuleDefinitions>
+  <LocLabels>
+    <LocLabel Id="Mscrm.SavePrimary.LabelText">
+      <Titles><Title languagecode="1033" description="Save"/></Titles>
+    </LocLabel>
+    <LocLabel Id="Mscrm.GlobalTab.Home.LabelText">
+      <Titles><Title languagecode="1033" description="Home"/></Titles>
+    </LocLabel>
+    <LocLabel Id="Mscrm.GlobalTab.Recent.LabelText">
+      <Titles><Title languagecode="1033" description="Recent"/></Titles>
+    </LocLabel>
+  </LocLabels>
+</RibbonDefinitions>

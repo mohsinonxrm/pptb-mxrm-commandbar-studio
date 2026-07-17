@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Expected RibbonDiffXml output: one new custom button added to account HomepageGrid -->
+<RibbonDiffXml>
+  <CustomActions>
+    <CustomAction Id="Contoso.account.CreditCheck.Button.CustomAction"
+                  Location="Mscrm.HomepageGrid.account.MainTab.New.Controls._children"
+                  Sequence="50">
+      <CommandUIDefinition>
+        <Button Id="Contoso.account.CreditCheck.Button"
+                Command="Contoso.account.CreditCheck.Command"
+                LabelText="$LocLabels:Contoso.account.CreditCheck.Button.LabelText"
+                TemplateAlias="o1"
+                Sequence="50"
+                ModernImage="CreditCard"/>
+      </CommandUIDefinition>
+    </CustomAction>
+  </CustomActions>
+  <Templates>
+    <RibbonTemplates Id="Mscrm.Templates"/>
+  </Templates>
+  <CommandDefinitions>
+    <CommandDefinition Id="Contoso.account.CreditCheck.Command">
+      <EnableRules>
+        <EnableRule Id="Contoso.account.CreditCheck.EnableRule"/>
+      </EnableRules>
+      <DisplayRules>
+        <DisplayRule Id="Mscrm.Enabled"/>
+      </DisplayRules>
+      <Actions>
+        <JavaScriptFunction FunctionName="Contoso.CreditCheck.run"
+                            Library="$webresource:contoso_/scripts/creditcheck.js">
+          <CrmParameter Value="PrimaryControl"/>
+          <CrmParameter Value="FirstPrimaryItemId"/>
+        </JavaScriptFunction>
+      </Actions>
+    </CommandDefinition>
+  </CommandDefinitions>
+  <RuleDefinitions>
+    <TabDisplayRules/>
+    <DisplayRules/>
+    <EnableRules>
+      <EnableRule Id="Contoso.account.CreditCheck.EnableRule">
+        <SelectionCountRule Minimum="1" AppliesTo="SelectedEntity"/>
+      </EnableRule>
+    </EnableRules>
+  </RuleDefinitions>
+  <LocLabels>
+    <LocLabel Id="Contoso.account.CreditCheck.Button.LabelText">
+      <Titles>
+        <Title languagecode="1033" description="Credit Check"/>
+      </Titles>
+    </LocLabel>
+  </LocLabels>
+</RibbonDiffXml>

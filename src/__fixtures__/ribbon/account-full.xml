@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RibbonDefinitions>
+  <Ribbon>
+    <Tabs>
+      <Tab Id="Mscrm.HomepageGrid.account.MainTab" Sequence="10" Title="Home">
+        <Groups>
+          <Group Id="Mscrm.HomepageGrid.account.MainTab.New" Sequence="10" Template="Mscrm.Templates.Flexible2">
+            <Controls DefaultHeight="Large">
+              <Button Id="Mscrm.HomepageGrid.account.MainTab.New.Controls.NewRecord"
+                      TemplateAlias="o1"
+                      Sequence="10"
+                      Command="Mscrm.NewRecordFromGrid"
+                      LabelText="$LocLabels:Mscrm.New.LabelText"
+                      ModernImage="Add"/>
+              <Button Id="Mscrm.HomepageGrid.account.MainTab.New.Controls.DeleteAccount"
+                      TemplateAlias="o2"
+                      Sequence="20"
+                      Command="Mscrm.DeletePrimaryRecord"
+                      LabelText="$LocLabels:Mscrm.Delete.LabelText"
+                      ModernImage="Delete"/>
+              <!-- Custom button added via CustomAction (appears in merged full ribbon) -->
+              <Button Id="Contoso.account.CreditCheck.Button"
+                      Command="Contoso.account.CreditCheck.Command"
+                      LabelText="$LocLabels:Contoso.account.CreditCheck.Button.LabelText"
+                      TemplateAlias="o1"
+                      Sequence="50"
+                      ModernImage="CreditCard"/>
+            </Controls>
+          </Group>
+          <Group Id="Mscrm.HomepageGrid.account.MainTab.Actions" Sequence="20" Template="Mscrm.Templates.Flexible2">
+            <Controls DefaultHeight="Large">
+              <Button Id="Mscrm.HomepageGrid.account.MainTab.Actions.Controls.Email"
+                      TemplateAlias="o1"
+                      Sequence="10"
+                      Command="Mscrm.SendEmail"
+                      LabelText="$LocLabels:Mscrm.Email.LabelText"
+                      ModernImage="Mail"/>
+            </Controls>
+          </Group>
+        </Groups>
+      </Tab>
+    </Tabs>
+  </Ribbon>
+  <!-- CustomAction: new custom button added by a previous CBS deploy -->
+  <CustomActions>
+    <CustomAction Id="Contoso.account.CreditCheck.Button.CustomAction"
+                  Location="Mscrm.HomepageGrid.account.MainTab.New.Controls._children"
+                  Sequence="50">
+      <CommandUIDefinition>
+        <Button Id="Contoso.account.CreditCheck.Button"
+                Command="Contoso.account.CreditCheck.Command"
+                LabelText="$LocLabels:Contoso.account.CreditCheck.Button.LabelText"
+                TemplateAlias="o1"
+                Sequence="50"
+                ModernImage="CreditCard"/>
+      </CommandUIDefinition>
+    </CustomAction>
+    <!-- HideCustomAction: EmailAccount OOB button hidden by a previous CBS deploy -->
+    <HideCustomAction HideActionId="Contoso.account.HideEmail"
+                      Location="Mscrm.HomepageGrid.account.MainTab.Actions.Controls.Email"/>
+  </CustomActions>
+  <CommandDefinitions>
+    <CommandDefinition Id="Mscrm.NewRecordFromGrid">
+      <EnableRules>
+        <EnableRule Id="Mscrm.Enabled"/>
+      </EnableRules>
+      <DisplayRules>
+        <DisplayRule Id="Mscrm.Enabled"/>
+      </DisplayRules>
+      <Actions>
+        <JavaScriptFunction FunctionName="Mscrm.RibbonActions.newRecord"
+                            Library="$webresource:Main_system_library.js">
+          <CrmParameter Value="PrimaryControl"/>
+        </JavaScriptFunction>
+      </Actions>
+    </CommandDefinition>
+    <CommandDefinition Id="Mscrm.DeletePrimaryRecord">
+      <EnableRules>
+        <EnableRule Id="Mscrm.SelectionCountAtLeastOne"/>
+      </EnableRules>
+      <DisplayRules>
+        <DisplayRule Id="Mscrm.Enabled"/>
+      </DisplayRules>
+      <Actions>
+        <JavaScriptFunction FunctionName="Mscrm.RibbonActions.deleteRecord"
+                            Library="$webresource:Main_system_library.js">
+          <CrmParameter Value="SelectedControlSelectedItemIds"/>
+        </JavaScriptFunction>
+      </Actions>
+    </CommandDefinition>
+    <CommandDefinition Id="Mscrm.SendEmail">
+      <EnableRules>
+        <EnableRule Id="Mscrm.Enabled"/>
+      </EnableRules>
+      <DisplayRules>
+        <DisplayRule Id="Mscrm.Enabled"/>
+      </DisplayRules>
+      <Actions>
+        <JavaScriptFunction FunctionName="Mscrm.RibbonActions.sendEmail"
+                            Library="$webresource:Main_system_library.js">
+          <CrmParameter Value="FirstPrimaryItemId"/>
+        </JavaScriptFunction>
+      </Actions>
+    </CommandDefinition>
+    <CommandDefinition Id="Contoso.account.CreditCheck.Command">
+      <EnableRules>
+        <EnableRule Id="Contoso.account.CreditCheck.EnableRule"/>
+      </EnableRules>
+      <DisplayRules>
+        <DisplayRule Id="Mscrm.Enabled"/>
+      </DisplayRules>
+      <Actions>
+        <JavaScriptFunction FunctionName="Contoso.CreditCheck.run"
+                            Library="$webresource:contoso_/scripts/creditcheck.js">
+          <CrmParameter Value="PrimaryControl"/>
+          <CrmParameter Value="FirstPrimaryItemId"/>
+        </JavaScriptFunction>
+      </Actions>
+    </CommandDefinition>
+  </CommandDefinitions>
+  <RuleDefinitions>
+    <DisplayRules>
+      <DisplayRule Id="Mscrm.Enabled"/>
+    </DisplayRules>
+    <EnableRules>
+      <EnableRule Id="Mscrm.Enabled"/>
+      <EnableRule Id="Mscrm.SelectionCountAtLeastOne">
+        <SelectionCountRule Minimum="1" AppliesTo="SelectedEntity"/>
+      </EnableRule>
+      <EnableRule Id="Contoso.account.CreditCheck.EnableRule">
+        <SelectionCountRule Minimum="1" AppliesTo="SelectedEntity"/>
+      </EnableRule>
+    </EnableRules>
+  </RuleDefinitions>
+  <LocLabels>
+    <LocLabel Id="Mscrm.New.LabelText">
+      <Titles>
+        <Title languagecode="1033" description="New"/>
+      </Titles>
+    </LocLabel>
+    <LocLabel Id="Mscrm.Delete.LabelText">
+      <Titles>
+        <Title languagecode="1033" description="Delete"/>
+      </Titles>
+    </LocLabel>
+    <LocLabel Id="Mscrm.Email.LabelText">
+      <Titles>
+        <Title languagecode="1033" description="Email a Link"/>
+      </Titles>
+    </LocLabel>
+    <LocLabel Id="Contoso.account.CreditCheck.Button.LabelText">
+      <Titles>
+        <Title languagecode="1033" description="Credit Check"/>
+        <Title languagecode="1031" description="Bonitätsprüfung"/>
+      </Titles>
+    </LocLabel>
+  </LocLabels>
+</RibbonDefinitions>
