@@ -26,7 +26,6 @@ npm-shrinkwrap.json
 # Private tooling — not for public repo
 .github/
 .claude/
-.husky/
 
 # Release-it temp files
 .release-it*

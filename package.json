@@ -1,6 +1,6 @@
 {
 	"name": "@mohsinonxrm/pptb-commandbar-studio",
-	"version": "0.5.0",
+	"version": "0.5.3-beta.1",
 	"displayName": "Command Bar Studio",
 	"description": "Visual designer for Dataverse classic ribbon / command bar customizations — the spiritual successor to Ribbon Workbench, built for Power Platform ToolBox",
 	"author": "Mohsin On xRM",
@@ -73,7 +73,7 @@
 		"release:dry": "release-it --dry-run",
 		"release:pre": "release-it --preRelease=beta",
 		"analyze": "vite build && start dist/stats.html",
-		"prepare": "husky"
+		"prepare": "if [ \"$CI\" = \"true\" ]; then echo 'Skipping Husky in CI'; else husky; fi"
 	},
 	"dependencies": {
 		"@dnd-kit/core": "^6.3.1",
