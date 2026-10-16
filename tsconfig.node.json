@@ -20,5 +20,10 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "commitlint.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "commitlint.config.ts",
+    "dev/harness/vite-plugin-dataverse-proxy.ts"
+  ]
 }
