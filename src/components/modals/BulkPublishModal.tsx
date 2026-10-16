@@ -209,7 +209,9 @@ export const BulkPublishModal: React.FC = () => {
 							enableRules,
 							locLabels,
 							solution: solutionInfo,
-							publishCustomizations: false,
+							// Publish mode: publishRibbon imports, publishes and runs the
+							// Unified Interface refresh pass. Save-only: import only.
+							publishCustomizations: mode === "publish",
 						},
 						(msg) => setProgressMessage(msg),
 					);
@@ -250,7 +252,9 @@ export const BulkPublishModal: React.FC = () => {
 							locLabels,
 							solution: solutionInfo,
 							ribbonCustomizationIds: solutionRibbonComponentIds ?? [],
-							publishCustomizations: false,
+							// Publish mode: publishRibbon imports, publishes and runs the
+							// Unified Interface refresh pass. Save-only: import only.
+							publishCustomizations: mode === "publish",
 						},
 						(msg) => setProgressMessage(msg),
 					);
@@ -335,8 +339,9 @@ export const BulkPublishModal: React.FC = () => {
 
 							<MessageBar intent="info">
 								<MessageBarBody>
-									Publishing typically takes 5-30 seconds per table. Open users will see the updated
-									ribbon on next page load. You have <strong>{mutationsSincePublish}</strong>{" "}
+									Publishing a table typically takes 1–4 minutes: the ribbon is imported, published and,
+									when buttons were added or changed, imported once more so Unified Interface picks them
+									up. Open users may need to refresh the page (or navigate away and back) to see it. You have <strong>{mutationsSincePublish}</strong>{" "}
 									change(s) since last publish.
 								</MessageBarBody>
 							</MessageBar>

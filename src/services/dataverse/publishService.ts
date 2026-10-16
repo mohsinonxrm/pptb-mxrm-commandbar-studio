@@ -128,7 +128,14 @@ export async function buildMergedRibbonDiffXml(
 		PublishRibbonInput,
 		"entity" | "locations" | "commands" | "enableRules" | "displayRules" | "locLabels"
 	>,
-): Promise<{ xml: string; elementCount: number; preservedCount: number; changedCount: number }> {
+): Promise<{
+	xml: string;
+	elementCount: number;
+	preservedCount: number;
+	changedCount: number;
+	/** CustomActions / HideCustomActions this session adds or replaces. */
+	changedCustomActionCount: number;
+}> {
 	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
 
 	let delta = emptyRibbonDiffParts();
@@ -153,6 +160,7 @@ export async function buildMergedRibbonDiffXml(
 		elementCount: countRibbonDiffParts(merged),
 		preservedCount: countRibbonDiffParts(existing),
 		changedCount: countRibbonDiffParts(delta),
+		changedCustomActionCount: delta.customActions.size,
 	};
 }
 
@@ -280,56 +288,86 @@ export async function publishRibbon(
 	}
 	const base64Zip = btoa(binaryStr);
 
-	onProgress?.(`Importing ${scopeLabel} ribbon…`);
-	// ImportSolution requires a client-generated ImportJobId (0x80048d19 otherwise).
-	const importJobId = crypto.randomUUID();
-	logs.logInfo("publish", `Importing solution (import job ${importJobId})…`);
-	await dataverseAPI.deploySolution(base64Zip, {
-		importJobId,
-		overwriteUnmanagedCustomizations: true,
-		publishWorkflows: false,
-	});
+	const importAndVerify = async (pass: string): Promise<string> => {
+		onProgress?.(`Importing ${scopeLabel} ribbon${pass}…`);
+		// ImportSolution requires a client-generated ImportJobId (0x80048d19 otherwise).
+		const importJobId = crypto.randomUUID();
+		logs.logInfo("publish", `Importing solution${pass} (import job ${importJobId})…`);
+		await dataverseAPI.deploySolution(base64Zip, {
+			importJobId,
+			overwriteUnmanagedCustomizations: true,
+			publishWorkflows: false,
+		});
 
-	// Ribbon imports take 20–50 s on a typical environment (measured live);
-	// allow up to 5 minutes before giving up.
-	const MAX_ATTEMPTS = 150;
-	const POLL_INTERVAL_MS = 2000;
-	let status = (await dataverseAPI.getImportJobStatus(importJobId)) as ImportStatus;
-	let attempts = 0;
-	while (!isImportComplete(status) && attempts < MAX_ATTEMPTS) {
-		await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-		status = (await dataverseAPI.getImportJobStatus(importJobId)) as ImportStatus;
-		attempts++;
-		if (attempts % 10 === 0) onProgress?.(`Still importing… (${attempts * 2}s elapsed)`);
-	}
-	if (!isImportComplete(status)) {
-		throw new Error(
-			`Solution import did not complete within ${(MAX_ATTEMPTS * POLL_INTERVAL_MS) / 1000} seconds. ` +
-				`Check Solutions › History for import job ${importJobId}.`,
+		// Ribbon imports take 20–50 s on a typical environment (measured live);
+		// allow up to 5 minutes before giving up.
+		const MAX_ATTEMPTS = 150;
+		const POLL_INTERVAL_MS = 2000;
+		let status = (await dataverseAPI.getImportJobStatus(importJobId)) as ImportStatus;
+		let attempts = 0;
+		while (!isImportComplete(status) && attempts < MAX_ATTEMPTS) {
+			await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+			status = (await dataverseAPI.getImportJobStatus(importJobId)) as ImportStatus;
+			attempts++;
+			if (attempts % 10 === 0) onProgress?.(`Still importing… (${attempts * 2}s elapsed)`);
+		}
+		if (!isImportComplete(status)) {
+			throw new Error(
+				`Solution import did not complete within ${(MAX_ATTEMPTS * POLL_INTERVAL_MS) / 1000} seconds. ` +
+					`Check Solutions › History for import job ${importJobId}.`,
+			);
+		}
+
+		onProgress?.("Verifying the import…");
+		const job = (await dataverseAPI.retrieve("importjob", importJobId, ["data"])) as { data?: string };
+		const verification = verifyRibbonImport(
+			job.data,
+			isApplication
+				? { kind: "application" }
+				: { kind: "entity", names: [entityName, input.entity!.logicalName] },
 		);
-	}
+		if (!verification.ok) {
+			logs.logError("publish", verification.message);
+			throw new Error(verification.message);
+		}
+		logs.logInfo("publish", verification.message);
+		return importJobId;
+	};
 
-	onProgress?.("Verifying the import…");
-	const job = (await dataverseAPI.retrieve("importjob", importJobId, ["data"])) as { data?: string };
-	const verification = verifyRibbonImport(
-		job.data,
-		isApplication
-			? { kind: "application" }
-			: { kind: "entity", names: [entityName, input.entity!.logicalName] },
-	);
-	if (!verification.ok) {
-		logs.logError("publish", verification.message);
-		throw new Error(verification.message);
-	}
-	logs.logInfo("publish", verification.message);
-
-	if (input.publishCustomizations !== false) {
+	const publishScope = async () => {
 		onProgress?.("Publishing customizations…");
 		if (isApplication) {
 			await dataverseAPI.publishCustomizations();
 		} else {
 			await dataverseAPI.publishCustomizations(input.entity!.logicalName);
 		}
+	};
+
+	const importJobId = await importAndVerify("");
+
+	if (input.publishCustomizations !== false) {
+		await publishScope();
+		// Unified Interface renders command bars from "ribbon client metadata",
+		// which an import rebuilds from the ribbon as PUBLISHED at that moment.
+		// So buttons added by this import only reach Unified Interface after a
+		// LATER import (verified live: import+publish left new buttons missing for
+		// hours; re-importing the same package after publishing made them appear).
+		// Re-import the identical package once and publish again so the change is
+		// actually visible to users.
+		if (merged.changedCustomActionCount > 0) {
+			logs.logInfo(
+				"publish",
+				"Refreshing Unified Interface command-bar metadata (second import of the same package)…",
+			);
+			await importAndVerify(" (refreshing Unified Interface metadata)");
+			await publishScope();
+		}
+	} else if (merged.changedCustomActionCount > 0) {
+		logs.logWarn(
+			"publish",
+			"Imported without publishing. New or changed buttons appear in Unified Interface only after " +
+				"you publish from Command Bar Studio (which re-imports once to refresh the command-bar metadata).",
+		);
 	}
 
 	onProgress?.(`${scopeLabel} ribbon published.`);

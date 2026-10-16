@@ -16,6 +16,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type { RibbonButton } from "@/types/ribbon";
 
 export const NewButtonModal: React.FC = () => {
@@ -66,9 +67,24 @@ export const NewButtonModal: React.FC = () => {
 		const id = `${stem}.Button`;
 		const commandId = `${stem}.Command`;
 
+		// Resolve the tab from the target group rather than trusting the
+		// selection: after switching location the selected tab id can still
+		// belong to the previous location, and createButton then silently
+		// dropped the new button.
+		const targetTabId =
+			ribbons[activeLocation].tabs.find((t) => t.groups.some((g) => g.id === newButtonGroupId))?.id ??
+			selectedTabId;
+		if (!ribbons[activeLocation].tabs.some((t) => t.id === targetTabId)) {
+			useRuntimeLogStore
+				.getState()
+				.logError("canvas", `Could not add the button: group ${newButtonGroupId} was not found.`);
+			closeNewButton();
+			return;
+		}
+
 		createButton({
 			location: activeLocation,
-			tabId: selectedTabId,
+			tabId: targetTabId,
 			groupId: newButtonGroupId,
 			button: {
 				id,
@@ -100,7 +116,7 @@ export const NewButtonModal: React.FC = () => {
 
 		// Select the newly-created button so it's immediately visible in the
 		// canvas / properties pane and the user can confirm it landed.
-		selectButtonInContext(activeLocation, selectedTabId, newButtonGroupId, id);
+		selectButtonInContext(activeLocation, targetTabId, newButtonGroupId, id);
 
 		setLabel("New Button");
 		setKind("button");
