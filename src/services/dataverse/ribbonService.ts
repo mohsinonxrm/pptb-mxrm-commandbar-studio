@@ -1,7 +1,8 @@
 import { decompressRibbonZip } from "@/utils/decompressRibbonZip";
 import { parseRibbonXml } from "@/services/xmlParser";
-import type { RibbonDefinition, RibbonLocation, RibbonTab } from "@/types/ribbon";
+import type { LocLabel, RibbonDefinition, RibbonLocation, RibbonTab } from "@/types/ribbon";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { fetchUnmanagedRibbonParts, locLabelsFromParts } from "@/services/dataverse/ribbonLayerService";
 
 const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
 
@@ -95,7 +96,10 @@ function splitTabsByLocation(
  */
 const RIBBON_LOCATION_FILTER_ALL = "Microsoft.Dynamics.CRM.RibbonLocationFilters'All'";
 
-export async function fetchEntityRibbonAllLocations(entityLogicalName: string): Promise<{
+export async function fetchEntityRibbonAllLocations(
+	entityLogicalName: string,
+	layerLocLabels: LocLabel[] = [],
+): Promise<{
 	ribbons: Record<EntityRibbonLocation, RibbonDefinition>;
 	commands: ReturnType<typeof parseRibbonXml>["commands"];
 	displayRules: ReturnType<typeof parseRibbonXml>["displayRules"];
@@ -116,7 +120,7 @@ export async function fetchEntityRibbonAllLocations(entityLogicalName: string): 
 
 	const xml = await decompressRibbonZip(result.CompressedEntityXml as string);
 	// Parse once with a neutral location; we'll bucket the tabs ourselves below.
-	const parsed = parseRibbonXml(xml, "HomepageGrid", entityLogicalName);
+	const parsed = parseRibbonXml(xml, "HomepageGrid", entityLogicalName, layerLocLabels);
 	const ribbons = splitTabsByLocation(parsed.ribbon.tabs, entityLogicalName);
 
 	useRuntimeLogStore
@@ -141,7 +145,7 @@ export async function fetchEntityRibbonAllLocations(entityLogicalName: string): 
 /**
  * Retrieves and parses the application ribbon (cross-entity + global tabs).
  */
-export async function fetchApplicationRibbon() {
+export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
 	useRuntimeLogStore.getState().logInfo("dataverse", "RetrieveApplicationRibbon()");
 	const result = await dataverseAPI.execute({
 		operationName: "RetrieveApplicationRibbon",
@@ -150,15 +154,24 @@ export async function fetchApplicationRibbon() {
 
 	const xml = await decompressRibbonZip(result.CompressedApplicationRibbonXml as string);
 	useRuntimeLogStore.getState().logInfo("dataverse", "RetrieveApplicationRibbon succeeded");
-	return parseRibbonXml(xml, "Application", "{!EntityLogicalName}");
+	return parseRibbonXml(xml, "Application", "{!EntityLogicalName}", layerLocLabels);
 }
 
 export async function fetchRibbonWorkspace(
 	entityLogicalName: string,
 ): Promise<RibbonWorkspaceData> {
+	// The merged ribbon carries no LocLabels, so read the unmanaged layers'
+	// labels first; otherwise every `$LocLabels:` caption shows (and would be
+	// republished) as its id (#12).
+	const [entityLayer, appLayer] = await Promise.all([
+		fetchUnmanagedRibbonParts(entityLogicalName).catch(() => null),
+		fetchUnmanagedRibbonParts(null).catch(() => null),
+	]);
+	const entityLabels = entityLayer ? locLabelsFromParts(entityLayer) : [];
+	const appLabels = appLayer ? locLabelsFromParts(appLayer) : [];
 	const [entity, application] = await Promise.all([
-		fetchEntityRibbonAllLocations(entityLogicalName),
-		fetchApplicationRibbon(),
+		fetchEntityRibbonAllLocations(entityLogicalName, [...entityLabels, ...appLabels]),
+		fetchApplicationRibbon(appLabels),
 	]);
 
 	return {

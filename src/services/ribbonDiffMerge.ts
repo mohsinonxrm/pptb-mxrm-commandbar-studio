@@ -237,3 +237,128 @@ ${join(parts.locLabels, "    ")}
 export function countRibbonDiffParts(parts: RibbonDiffParts): number {
 	return Object.values(parts).reduce((n, m: ElementMap) => n + m.size, 0);
 }
+
+// ---------------------------------------------------------------------------
+// Scope-aware merge (edits in place, removals, guards)
+// ---------------------------------------------------------------------------
+
+/** The control element (Button, FlyoutAnchor, …) defined by a CustomAction, if any. */
+function controlOf(customActionXml: string): Element | null {
+	const el = elementOf(customActionXml);
+	if (el.tagName !== "CustomAction") return null;
+	return firstChild(el, "CommandUIDefinition")?.firstElementChild ?? null;
+}
+
+function isChildrenLocation(location: string | null): boolean {
+	return !!location && location.endsWith("._children");
+}
+
+export interface ScopeMergeOptions {
+	/** Commands the user edited this session — only these may replace the layer's copy. */
+	editedCommandIds?: Iterable<string>;
+	/** Enable/display rules the user edited this session. */
+	editedRuleIds?: Iterable<string>;
+	/** Buttons deleted this session: their own CustomAction is removed from the layer. */
+	deletedControlIds?: Iterable<string>;
+	/** Buttons un-hidden this session: HideCustomActions targeting them are removed. */
+	unhiddenControlIds?: Iterable<string>;
+}
+
+/**
+ * Merges this session's delta into the existing unmanaged layer:
+ *  - an "override" CustomAction (Location = control id) for a control the layer
+ *    itself adds (Location = `…._children`) REPLACES that control in place,
+ *    keeping the layer's CustomAction id/location — two CustomActions defining
+ *    the same control made the result depend on row order (#11 review D2);
+ *  - commands / rules the user did not edit keep the layer's verbatim XML (the
+ *    parser's copy is lossy — CustomRule parameters etc.);
+ *  - a generated LocLabel whose text is just its own id never replaces a real one;
+ *  - deleted controls lose their CustomAction; un-hidden controls lose their hide.
+ */
+export function mergeScopeChanges(
+	existing: RibbonDiffParts,
+	delta: RibbonDiffParts,
+	options: ScopeMergeOptions = {},
+): RibbonDiffParts {
+	const editedCommands = new Set(options.editedCommandIds ?? []);
+	const editedRules = new Set(options.editedRuleIds ?? []);
+	const deleted = new Set(options.deletedControlIds ?? []);
+	const unhidden = new Set(options.unhiddenControlIds ?? []);
+	const s = serializer();
+
+	const merged = mergeRibbonDiffParts(existing, emptyRibbonDiffParts());
+
+	// Index the layer's own controls: control id → CustomAction key.
+	const ownControl = new Map<string, string>();
+	for (const [key, xml] of existing.customActions) {
+		const ctrl = controlOf(xml);
+		const ca = elementOf(xml);
+		if (ctrl?.getAttribute("Id") && isChildrenLocation(ca.getAttribute("Location"))) {
+			ownControl.set(ctrl.getAttribute("Id")!, key);
+		}
+	}
+
+	for (const [key, xml] of delta.customActions) {
+		const ca = elementOf(xml);
+		const ctrl = controlOf(xml);
+		const ctrlId = ctrl?.getAttribute("Id") ?? null;
+		const targetKey = ctrlId ? ownControl.get(ctrlId) : undefined;
+		if (ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !isChildrenLocation(ca.getAttribute("Location"))) {
+			// Edit of a control the layer owns → replace it inside its own CustomAction.
+			const target = elementOf(existing.customActions.get(targetKey)!);
+			const def = firstChild(target, "CommandUIDefinition")!;
+			const imported = target.ownerDocument.importNode(ctrl, true);
+			def.replaceChild(imported, def.firstElementChild!);
+			const seq = ctrl.getAttribute("Sequence");
+			if (seq) target.setAttribute("Sequence", seq);
+			merged.customActions.set(targetKey, s.serializeToString(target));
+			continue;
+		}
+		merged.customActions.set(key, xml);
+	}
+
+	// Removals.
+	for (const [key, xml] of Array.from(merged.customActions)) {
+		const el = elementOf(xml);
+		if (el.tagName === "HideCustomAction") {
+			if (unhidden.has(el.getAttribute("Location") ?? "")) merged.customActions.delete(key);
+			continue;
+		}
+		const ctrlId = controlOf(xml)?.getAttribute("Id");
+		if (ctrlId && deleted.has(ctrlId) && isChildrenLocation(el.getAttribute("Location"))) {
+			merged.customActions.delete(key);
+			for (const locId of Array.from(merged.locLabels.keys())) {
+				if (locId.startsWith(`${ctrlId}.`)) merged.locLabels.delete(locId);
+			}
+		}
+	}
+
+	const keepUnlessEdited = (key: "commandDefinitions" | "enableRules" | "displayRules", edited: Set<string>) => {
+		for (const [id, xml] of delta[key]) {
+			if (existing[key].has(id) && !edited.has(id)) continue;
+			merged[key].set(id, xml);
+		}
+	};
+	keepUnlessEdited("commandDefinitions", editedCommands);
+	keepUnlessEdited("enableRules", editedRules);
+	keepUnlessEdited("displayRules", editedRules);
+	for (const [id, xml] of delta.tabDisplayRules) merged.tabDisplayRules.set(id, xml);
+	for (const [id, xml] of delta.templates) merged.templates.set(id, xml);
+
+	for (const [id, xml] of delta.locLabels) {
+		const prev = existing.locLabels.get(id);
+		if (prev) {
+			const titles = Array.from(elementOf(xml).querySelectorAll("Title")).map((t) => t.getAttribute("description"));
+			if (titles.length > 0 && titles.every((d) => d === id)) continue;
+		}
+		merged.locLabels.set(id, xml);
+	}
+
+	return merged;
+}
+
+/** True for a CustomAction that targets an existing control id (an override), not `…._children`. */
+export function isOverrideCustomAction(xml: string): boolean {
+	const el = elementOf(xml);
+	return el.tagName === "CustomAction" && !isChildrenLocation(el.getAttribute("Location"));
+}

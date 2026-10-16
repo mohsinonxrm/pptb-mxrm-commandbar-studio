@@ -1,14 +1,22 @@
 import { zipSync, strToU8 } from "fflate";
-import { generateRibbonDiffXml, buildCustomizationsXml, escapeXml } from "@/services/xmlGenerator";
+import {
+	generateRibbonDiffXml,
+	buildCustomizationsXml,
+	escapeXml,
+	generateCommandDefinition,
+	generateEnableRule,
+	generateDisplayRule,
+} from "@/services/xmlGenerator";
 import {
 	emptyRibbonDiffParts,
 	mergeRibbonDiffParts,
 	parseRibbonDiffParts,
-	partsFromRibbonTables,
 	serializeRibbonDiffParts,
 	countRibbonDiffParts,
-	type RibbonTableRows,
+	mergeScopeChanges,
 } from "@/services/ribbonDiffMerge";
+import { fetchUnmanagedRibbonParts } from "@/services/dataverse/ribbonLayerService";
+import type { ScopePlan } from "@/services/publishPlan";
 import { verifyRibbonImport } from "@/services/importJobVerification";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type {
@@ -99,6 +107,8 @@ export interface PublishRibbonInput {
 	enableRules: EnableRule[];
 	displayRules: DisplayRule[];
 	locLabels: LocLabel[];
+	/** What changed in this scope (see publishPlan.planScope). */
+	plan: Pick<ScopePlan, "editedCommandIds" | "editedRuleIds" | "deletedButtonIds" | "unhiddenButtonIds">;
 	solution: PublishSolutionInfo;
 	/**
 	 * GUIDs of `ribboncustomization` components (`componenttype = 50`) in the
@@ -121,20 +131,20 @@ export interface PublishRibbonResult {
 /**
  * Builds the COMPLETE RibbonDiffXml for one ribbon scope: the existing
  * unmanaged layer (read from the ribbon component tables) with CBS's changes
- * for every location merged in by element Id.
+ * for every location merged in (see ribbonDiffMerge.mergeScopeChanges).
  */
 export async function buildMergedRibbonDiffXml(
 	input: Pick<
 		PublishRibbonInput,
-		"entity" | "locations" | "commands" | "enableRules" | "displayRules" | "locLabels"
+		"entity" | "locations" | "commands" | "enableRules" | "displayRules" | "locLabels" | "plan"
 	>,
 ): Promise<{
 	xml: string;
 	elementCount: number;
 	preservedCount: number;
 	changedCount: number;
-	/** CustomActions / HideCustomActions this session adds or replaces. */
-	changedCustomActionCount: number;
+	/** True when buttons/tabs/groups are added, changed, hidden, un-hidden or deleted. */
+	controlsChanged: boolean;
 }> {
 	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
 
@@ -153,55 +163,40 @@ export async function buildMergedRibbonDiffXml(
 		delta = mergeRibbonDiffParts(delta, parseRibbonDiffParts(xml));
 	}
 
+	// Commands / rules the user edited, even when no button changed (#25).
+	const extra = [
+		...input.commands.filter((c) => input.plan.editedCommandIds.includes(c.id)).map(generateCommandDefinition),
+	];
+	const extraRules = {
+		enable: input.enableRules.filter((r) => input.plan.editedRuleIds.includes(r.id)).map(generateEnableRule),
+		display: input.displayRules.filter((r) => input.plan.editedRuleIds.includes(r.id)).map(generateDisplayRule),
+	};
+	if (extra.length || extraRules.enable.length || extraRules.display.length) {
+		delta = mergeRibbonDiffParts(
+			delta,
+			parseRibbonDiffParts(
+				`<RibbonDiffXml><CommandDefinitions>${extra.join("")}</CommandDefinitions><RuleDefinitions><DisplayRules>${extraRules.display.join("")}</DisplayRules><EnableRules>${extraRules.enable.join("")}</EnableRules></RuleDefinitions></RibbonDiffXml>`,
+			),
+		);
+	}
+
 	const existing = await fetchUnmanagedRibbonParts(input.entity?.logicalName ?? null);
-	const merged = mergeRibbonDiffParts(existing, delta);
+	const merged = mergeScopeChanges(existing, delta, {
+		editedCommandIds: input.plan.editedCommandIds,
+		editedRuleIds: input.plan.editedRuleIds,
+		deletedControlIds: input.plan.deletedButtonIds,
+		unhiddenControlIds: input.plan.unhiddenButtonIds,
+	});
 	return {
 		xml: serializeRibbonDiffParts(merged),
 		elementCount: countRibbonDiffParts(merged),
 		preservedCount: countRibbonDiffParts(existing),
 		changedCount: countRibbonDiffParts(delta),
-		changedCustomActionCount: delta.customActions.size,
+		controlsChanged:
+			delta.customActions.size > 0 ||
+			input.plan.deletedButtonIds.length > 0 ||
+			input.plan.unhiddenButtonIds.length > 0,
 	};
-}
-
-/**
- * Reads the unmanaged ribbon layer for a table (or the application ribbon when
- * `entityLogicalName` is null) from `ribbondiffs` / `ribboncommands` /
- * `ribbonrules`. These reflect PUBLISHED state, which is why CBS always
- * publishes right after importing.
- */
-export async function fetchUnmanagedRibbonParts(entityLogicalName: string | null) {
-	const filter =
-		entityLogicalName === null
-			? "entity eq null and ismanaged eq false"
-			: `entity eq '${entityLogicalName.replace(/'/g, "''")}' and ismanaged eq false`;
-	const [diffs, commands, rules] = await Promise.all([
-		queryAll(`ribbondiffs?$select=diffid,difftype,rdx&$filter=${filter}`),
-		queryAll(`ribboncommands?$select=command,commanddefinition&$filter=${filter}`),
-		queryAll(`ribbonrules?$select=ruleid,ruletype,ruledefinition&$filter=${filter}`),
-	]);
-	return partsFromRibbonTables({
-		diffs: diffs as RibbonTableRows["diffs"],
-		commands: commands as RibbonTableRows["commands"],
-		rules: rules as RibbonTableRows["rules"],
-	});
-}
-
-/** queryData that follows `@odata.nextLink` so large unmanaged layers are read completely. */
-async function queryAll(query: string): Promise<Array<Record<string, unknown>>> {
-	const rows: Array<Record<string, unknown>> = [];
-	let next: string | undefined = query;
-	while (next) {
-		const page = (await dataverseAPI.queryData(next)) as {
-			value?: Array<Record<string, unknown>>;
-			"@odata.nextLink"?: string;
-		};
-		rows.push(...(page.value ?? []));
-		const link = page["@odata.nextLink"];
-		// PPTB's queryData takes a path relative to the Web API root.
-		next = link ? link.replace(/^.*\/api\/data\/v[\d.]+\//, "") : undefined;
-	}
-	return rows;
 }
 
 async function fetchOrganizationLanguageCode(): Promise<number> {
@@ -337,7 +332,13 @@ export async function publishRibbon(
 	const publishScope = async () => {
 		onProgress?.("Publishing customizations…");
 		if (isApplication) {
-			await dataverseAPI.publishCustomizations();
+			// Targeted publish of the application ribbon only — publishCustomizations()
+			// without a table runs PublishAllXml for the whole environment.
+			await dataverseAPI.execute({
+				operationName: "PublishXml",
+				operationType: "action",
+				parameters: { ParameterXml: "<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>" },
+			});
 		} else {
 			await dataverseAPI.publishCustomizations(input.entity!.logicalName);
 		}
@@ -354,15 +355,23 @@ export async function publishRibbon(
 		// hours; re-importing the same package after publishing made them appear).
 		// Re-import the identical package once and publish again so the change is
 		// actually visible to users.
-		if (merged.changedCustomActionCount > 0) {
+		if (merged.controlsChanged) {
 			logs.logInfo(
 				"publish",
 				"Refreshing Unified Interface command-bar metadata (second import of the same package)…",
 			);
-			await importAndVerify(" (refreshing Unified Interface metadata)");
-			await publishScope();
+			try {
+				await importAndVerify(" (refreshing Unified Interface metadata)");
+				await publishScope();
+			} catch (err) {
+				throw new Error(
+					`Your changes were imported and published, but refreshing Unified Interface's command-bar ` +
+						`metadata failed (${err instanceof Error ? err.message : String(err)}). New or changed buttons ` +
+						`may not appear in the app until you publish again.`,
+				);
+			}
 		}
-	} else if (merged.changedCustomActionCount > 0) {
+	} else if (merged.controlsChanged) {
 		logs.logWarn(
 			"publish",
 			"Imported without publishing. New or changed buttons appear in Unified Interface only after " +
@@ -370,7 +379,11 @@ export async function publishRibbon(
 		);
 	}
 
-	onProgress?.(`${scopeLabel} ribbon published.`);
+	onProgress?.(
+		input.publishCustomizations !== false
+			? `${scopeLabel} ribbon published.`
+			: `${scopeLabel} ribbon imported (not published).`,
+	);
 	return {
 		elementCount: merged.elementCount,
 		preservedCount: merged.preservedCount,

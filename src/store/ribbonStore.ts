@@ -31,6 +31,10 @@ export interface HistoryEntry {
 export type RibbonStoreState = {
 	ribbons: Record<RibbonLocation, RibbonDefinition>;
 	baseline: Record<RibbonLocation, RibbonDefinition>;
+	/** Commands / rules as loaded (or last published) — edits are detected against these. */
+	baselineCommands: CommandDefinition[];
+	baselineEnableRules: EnableRule[];
+	baselineDisplayRules: DisplayRule[];
 	commands: CommandDefinition[];
 	displayRules: DisplayRule[];
 	enableRules: EnableRule[];
@@ -121,7 +125,13 @@ export interface RibbonStore extends RibbonStoreState {
 	upsertEnableRule(rule: EnableRule): void;
 	renameEnableRuleId(oldId: string, newId: string): boolean;
 	upsertLocLabel(label: LocLabel): void;
-	markPublished(): void;
+	/**
+	 * Marks the given locations as published (their baseline becomes the
+	 * current state). Locations that were not published keep their pending
+	 * changes. Command / rule baselines advance only when every location was
+	 * published.
+	 */
+	markPublished(locations?: RibbonLocation[]): void;
 	setConflicts(entries: ConflictEntry[]): void;
 
 	// Load initial data
@@ -178,6 +188,9 @@ export const useRibbonStore = create<RibbonStore>()(
 	subscribeWithSelector((set, get) => ({
 		ribbons: cloneRibbons(EMPTY_RIBBONS),
 		baseline: cloneRibbons(EMPTY_RIBBONS),
+		baselineCommands: [],
+		baselineEnableRules: [],
+		baselineDisplayRules: [],
 		commands: [],
 		displayRules: [],
 		enableRules: [],
@@ -210,6 +223,9 @@ export const useRibbonStore = create<RibbonStore>()(
 				commands: [...seed.commands],
 				displayRules: [...seed.displayRules],
 				enableRules: [...seed.enableRules],
+				baselineCommands: JSON.parse(JSON.stringify(seed.commands)),
+				baselineDisplayRules: JSON.parse(JSON.stringify(seed.displayRules)),
+				baselineEnableRules: JSON.parse(JSON.stringify(seed.enableRules)),
 				locLabels: [...seed.locLabels],
 				templates: [...(seed.templates ?? [])],
 				conflicts: [...(seed.conflicts ?? [])],
@@ -250,6 +266,9 @@ export const useRibbonStore = create<RibbonStore>()(
 			const currentSnapshot: RibbonStoreState = {
 				ribbons: cloneRibbons(get().ribbons),
 				baseline: cloneRibbons(get().baseline),
+				baselineCommands: [...get().baselineCommands],
+				baselineEnableRules: [...get().baselineEnableRules],
+				baselineDisplayRules: [...get().baselineDisplayRules],
 				commands: [...get().commands],
 				displayRules: [...get().displayRules],
 				enableRules: [...get().enableRules],
@@ -984,11 +1003,29 @@ export const useRibbonStore = create<RibbonStore>()(
 			});
 		},
 
-		markPublished() {
-			set((state) => ({
-				baseline: cloneRibbons(state.ribbons),
-				mutationsSincePublish: 0,
-			}));
+		markPublished(locations) {
+			set((state) => {
+				const all = Object.keys(state.ribbons) as RibbonLocation[];
+				const published = locations ?? all;
+				const baseline = cloneRibbons(state.baseline);
+				const current = cloneRibbons(state.ribbons);
+				for (const loc of published) baseline[loc] = current[loc];
+				const everything = all.every((loc) => published.includes(loc));
+				const pending = all.some(
+					(loc) => JSON.stringify(baseline[loc]) !== JSON.stringify(current[loc]),
+				);
+				return {
+					baseline,
+					...(everything
+						? {
+								baselineCommands: JSON.parse(JSON.stringify(state.commands)),
+								baselineEnableRules: JSON.parse(JSON.stringify(state.enableRules)),
+								baselineDisplayRules: JSON.parse(JSON.stringify(state.displayRules)),
+							}
+						: {}),
+					mutationsSincePublish: pending ? Math.max(1, state.mutationsSincePublish) : 0,
+				};
+			});
 		},
 	})),
 );
