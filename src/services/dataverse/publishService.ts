@@ -1,6 +1,15 @@
 import { zipSync, strToU8 } from "fflate";
-import { generateRibbonDiffXml, wrapInCustomizationsXml, escapeXml } from "@/services/xmlGenerator";
-import { useSessionStore } from "@/store/sessionStore";
+import { generateRibbonDiffXml, buildCustomizationsXml, escapeXml } from "@/services/xmlGenerator";
+import {
+	emptyRibbonDiffParts,
+	mergeRibbonDiffParts,
+	parseRibbonDiffParts,
+	partsFromRibbonTables,
+	serializeRibbonDiffParts,
+	countRibbonDiffParts,
+	type RibbonTableRows,
+} from "@/services/ribbonDiffMerge";
+import { verifyRibbonImport } from "@/services/importJobVerification";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type {
 	RibbonDefinition,
@@ -47,36 +56,6 @@ function isImportComplete(status: ImportStatus): boolean {
 	return false;
 }
 
-interface PublishInput {
-	current: RibbonDefinition;
-	baseline: RibbonDefinition;
-	commands: CommandDefinition[];
-	enableRules: EnableRule[];
-	displayRules: DisplayRule[];
-	locLabels: LocLabel[];
-	entityLogicalName: string;
-	solutionUniqueName: string;
-	/** Publisher's `uniquename` (e.g. `mohsinonxrm`). Used for solution.xml's
-	 * `<Publisher><UniqueName>` so the import lands under the right publisher,
-	 * not the default "new" one. */
-	publisherUniqueName: string;
-	/** Publisher's display name (e.g. `MohsinOnXrm`). */
-	publisherName: string;
-	/** Publisher's `customizationprefix` (e.g. `mxrm`). */
-	publisherPrefix: string;
-	solutionVersion: string;
-	/**
-	 * GUIDs of `ribboncustomization` records that the solution declares as
-	 * components (`componenttype = 50`). Required when publishing
-	 * application-ribbon changes — each ID becomes a
-	 * `<RootComponent type="50" id="{guid}" behavior="0" />` entry in the
-	 * generated solution.xml so Dataverse accepts the import. Empty / omitted
-	 * for entity-scope publishes.
-	 */
-	ribbonCustomizationIds?: string[];
-	publishCustomizations?: boolean;
-}
-
 interface PublishXmlInput {
 	entityLogicalNames: string[];
 	includeApplicationRibbon: boolean;
@@ -88,101 +67,206 @@ interface PublishAllAsyncResult {
 	statusCode?: number;
 }
 
+export interface PublishLocationDelta {
+	current: RibbonDefinition;
+	baseline: RibbonDefinition;
+}
+
+export interface PublishSolutionInfo {
+	uniqueName: string;
+	/** Written as the solution's LocalizedName — must be the existing friendly
+	 * name, otherwise the import renames the solution (#15). */
+	friendlyName: string;
+	version: string;
+	/** Publisher's `uniquename` (e.g. `mohsinonxrm`). */
+	publisherUniqueName: string;
+	/** Publisher's display name (e.g. `MohsinOnXrm`). */
+	publisherName: string;
+	/** Publisher's `customizationprefix` (e.g. `mxrm`). */
+	publisherPrefix: string;
+	/** Publisher's `customizationoptionvalueprefix`. */
+	publisherOptionValuePrefix?: number;
+}
+
+export interface PublishRibbonInput {
+	/** The table whose ribbon is published, or `null` for the application ribbon. */
+	entity: { logicalName: string; schemaName?: string; displayName?: string } | null;
+	/** Every location of this ribbon scope that has changes. For a table that is
+	 * HomepageGrid / SubGrid / Form — they are published together in ONE import,
+	 * because each import replaces the table's whole unmanaged ribbon (#11). */
+	locations: PublishLocationDelta[];
+	commands: CommandDefinition[];
+	enableRules: EnableRule[];
+	displayRules: DisplayRule[];
+	locLabels: LocLabel[];
+	solution: PublishSolutionInfo;
+	/**
+	 * GUIDs of `ribboncustomization` components (`componenttype = 50`) in the
+	 * solution. The application ribbon can only be imported when the solution
+	 * contains Application Ribbons.
+	 */
+	ribbonCustomizationIds?: string[];
+	/** Run PublishXml for the table right after the import (default true). */
+	publishCustomizations?: boolean;
+}
+
+export interface PublishRibbonResult {
+	/** Number of elements in the RibbonDiffXml that was imported (existing + changed). */
+	elementCount: number;
+	/** Number of elements that came from the existing unmanaged layer. */
+	preservedCount: number;
+	importJobId: string;
+}
+
 /**
- * Generates RibbonDiffXml, packages it into a solution ZIP, imports it,
- * polls for completion, then publishes customizations.
+ * Builds the COMPLETE RibbonDiffXml for one ribbon scope: the existing
+ * unmanaged layer (read from the ribbon component tables) with CBS's changes
+ * for every location merged in by element Id.
+ */
+export async function buildMergedRibbonDiffXml(
+	input: Pick<
+		PublishRibbonInput,
+		"entity" | "locations" | "commands" | "enableRules" | "displayRules" | "locLabels"
+	>,
+): Promise<{ xml: string; elementCount: number; preservedCount: number; changedCount: number }> {
+	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
+
+	let delta = emptyRibbonDiffParts();
+	for (const loc of input.locations) {
+		const xml = generateRibbonDiffXml({
+			current: loc.current,
+			baseline: loc.baseline,
+			commands: input.commands,
+			enableRules: input.enableRules,
+			displayRules: input.displayRules,
+			locLabels: input.locLabels,
+			entityLogicalName,
+			location: loc.current.location,
+		});
+		delta = mergeRibbonDiffParts(delta, parseRibbonDiffParts(xml));
+	}
+
+	const existing = await fetchUnmanagedRibbonParts(input.entity?.logicalName ?? null);
+	const merged = mergeRibbonDiffParts(existing, delta);
+	return {
+		xml: serializeRibbonDiffParts(merged),
+		elementCount: countRibbonDiffParts(merged),
+		preservedCount: countRibbonDiffParts(existing),
+		changedCount: countRibbonDiffParts(delta),
+	};
+}
+
+/**
+ * Reads the unmanaged ribbon layer for a table (or the application ribbon when
+ * `entityLogicalName` is null) from `ribbondiffs` / `ribboncommands` /
+ * `ribbonrules`. These reflect PUBLISHED state, which is why CBS always
+ * publishes right after importing.
+ */
+export async function fetchUnmanagedRibbonParts(entityLogicalName: string | null) {
+	const filter =
+		entityLogicalName === null
+			? "entity eq null and ismanaged eq false"
+			: `entity eq '${entityLogicalName.replace(/'/g, "''")}' and ismanaged eq false`;
+	const [diffs, commands, rules] = await Promise.all([
+		queryAll(`ribbondiffs?$select=diffid,difftype,rdx&$filter=${filter}`),
+		queryAll(`ribboncommands?$select=command,commanddefinition&$filter=${filter}`),
+		queryAll(`ribbonrules?$select=ruleid,ruletype,ruledefinition&$filter=${filter}`),
+	]);
+	return partsFromRibbonTables({
+		diffs: diffs as RibbonTableRows["diffs"],
+		commands: commands as RibbonTableRows["commands"],
+		rules: rules as RibbonTableRows["rules"],
+	});
+}
+
+/** queryData that follows `@odata.nextLink` so large unmanaged layers are read completely. */
+async function queryAll(query: string): Promise<Array<Record<string, unknown>>> {
+	const rows: Array<Record<string, unknown>> = [];
+	let next: string | undefined = query;
+	while (next) {
+		const page = (await dataverseAPI.queryData(next)) as {
+			value?: Array<Record<string, unknown>>;
+			"@odata.nextLink"?: string;
+		};
+		rows.push(...(page.value ?? []));
+		const link = page["@odata.nextLink"];
+		// PPTB's queryData takes a path relative to the Web API root.
+		next = link ? link.replace(/^.*\/api\/data\/v[\d.]+\//, "") : undefined;
+	}
+	return rows;
+}
+
+async function fetchOrganizationLanguageCode(): Promise<number> {
+	try {
+		const res = (await dataverseAPI.queryData("organizations?$select=languagecode")) as {
+			value?: Array<{ languagecode?: number }>;
+		};
+		return res.value?.[0]?.languagecode ?? 1033;
+	} catch {
+		return 1033;
+	}
+}
+
+/**
+ * Publishes one ribbon scope (a table, or the application ribbon):
+ * read the existing unmanaged layer → merge CBS's edits from every location →
+ * import ONE complete RibbonDiffXml → verify Dataverse actually applied it →
+ * (optionally) PublishXml.
  */
 export async function publishRibbon(
-	input: PublishInput,
+	input: PublishRibbonInput,
 	onProgress?: (msg: string) => void,
-): Promise<void> {
+): Promise<PublishRibbonResult> {
 	const logs = useRuntimeLogStore.getState();
-	onProgress?.("Generating RibbonDiffXml…");
-	logs.logInfo("publish", `Generating RibbonDiffXml for ${input.entityLogicalName}.`);
+	const scopeLabel = input.entity ? input.entity.logicalName : "Application ribbon";
 
-	const ribbonDiffXml = generateRibbonDiffXml({
-		current: input.current,
-		baseline: input.baseline,
-		commands: input.commands,
-		enableRules: input.enableRules,
-		displayRules: input.displayRules,
-		locLabels: input.locLabels,
-		entityLogicalName: input.entityLogicalName,
-		location: input.current.location,
-	});
-
-	const formRibbonScope = useSessionStore.getState().formRibbonScope;
-	const selectedFormId = useSessionStore.getState().selectedFormId;
-	const scope =
-		input.current.location === "Application"
-			? "application"
-			: input.current.location === "Form" && formRibbonScope === "form"
-				? "form"
-				: "entity";
-	const customizationsXml = wrapInCustomizationsXml(
-		ribbonDiffXml,
-		input.entityLogicalName,
-		scope,
-		scope === "form" ? selectedFormId : undefined,
+	onProgress?.(`Reading existing ribbon customizations for ${scopeLabel}…`);
+	logs.logInfo("publish", `Reading unmanaged ribbon layer for ${scopeLabel}.`);
+	const merged = await buildMergedRibbonDiffXml(input);
+	logs.logInfo(
+		"publish",
+		`RibbonDiffXml for ${scopeLabel}: ${merged.preservedCount} existing element(s) preserved, ` +
+			`${merged.changedCount} element(s) from this session, ${merged.elementCount} total.`,
 	);
 
-	// Determine what root components to declare in solution.xml so Dataverse
-	// accepts the customizations we're packaging. Without these, the import
-	// fails with 0x8004803a "component is not declared in the solution file
-	// as a root component".
-	const rootComponents: RootComponentSpec[] = [];
-	if (scope === "entity" && input.entityLogicalName) {
-		// Entity-scope ribbon edit → declare the entity as a SHELL-ONLY root
-		// component (behavior=2 = "Include As Shell Only").
-		//
-		// This was previously behavior=0 ("Include Subcomponents"), which made
-		// the solution claim ownership of EVERY attribute / form / view /
-		// relationship of the entity. On import that drags all of them into the
-		// solution (and any later export carries them) — the reported
-		// "importing the ribbon pulls in all of account's components" bug.
-		//
-		// MS docs (export-prepare-edit-import-ribbon): "For the purpose of
-		// editing table ribbons, you do not have to include required
-		// components." behavior=2 adds just the entity shell so the
-		// RibbonDiffXml in customizations.xml has something to attach to,
-		// without pulling subcomponents.
-		rootComponents.push({
-			type: 1,
-			schemaName: input.entityLogicalName,
-			behavior: 2,
-		});
-	} else if (scope === "form" && input.entityLogicalName && selectedFormId) {
-		// Form-scope ribbon edit → declare the entity parent as a shell
-		// (behavior=2, same reasoning as above) plus the systemform, which is
-		// the actual ribbon carrier and so includes its own content (behavior=0).
-		rootComponents.push({
-			type: 1,
-			schemaName: input.entityLogicalName,
-			behavior: 2,
-		});
-		rootComponents.push({ type: 60, id: selectedFormId, behavior: 0 });
-	}
-	if (scope === "application" && input.ribbonCustomizationIds?.length) {
-		// Application-ribbon publish path. Declare each `ribboncustomization`
-		// component the user's solution owns so Dataverse accepts the import.
-		// The user adds these to their solution via maker.powerapps.com →
-		// Solutions → <solution> → Add existing → Application Ribbons.
-		for (const id of input.ribbonCustomizationIds) {
-			rootComponents.push({ type: 50, id, behavior: 0 });
-		}
+	const isApplication = input.entity === null;
+	if (isApplication && !input.ribbonCustomizationIds?.length) {
+		throw new Error(
+			"The selected solution does not contain Application Ribbons. Add it in make.powerapps.com " +
+				"(Solutions → your solution → Add existing → Application Ribbons) and reload the solution.",
+		);
 	}
 
+	const entityName = input.entity?.schemaName || input.entity?.logicalName || "";
+	const customizationsXml = isApplication
+		? buildCustomizationsXml({ applicationRibbonDiffXml: merged.xml })
+		: buildCustomizationsXml({
+				entities: [
+					{
+						schemaName: entityName,
+						localizedName: input.entity?.displayName || entityName,
+						ribbonDiffXml: merged.xml,
+					},
+				],
+			});
+
+	const rootComponents: RootComponentSpec[] = isApplication
+		? // Verified live: the application ribbon component is declared by this
+			// fixed schema name, exactly as maker exports write it.
+			[{ type: 50, schemaName: ":RibbonDiffXml", behavior: 0 }]
+		: // Shell only (behavior 2): the RibbonDiffXml needs the table as an
+			// anchor, but must not drag the table's columns/forms/views into the
+			// solution.
+			[{ type: 1, schemaName: input.entity!.logicalName, behavior: 2 }];
+
+	const languageCode = await fetchOrganizationLanguageCode();
 	const solutionXml = generateSolutionXml({
-		uniqueName: input.solutionUniqueName,
-		publisherUniqueName: input.publisherUniqueName,
-		publisherName: input.publisherName,
-		publisherPrefix: input.publisherPrefix,
-		version: input.solutionVersion,
+		...input.solution,
+		languageCode,
 		rootComponents,
 	});
 
 	onProgress?.("Packaging solution ZIP…");
-	logs.logInfo("publish", "Packaging solution ZIP...");
 	const zipBytes = zipSync({
 		"customizations.xml": strToU8(customizationsXml),
 		"solution.xml": strToU8(solutionXml),
@@ -190,43 +274,24 @@ export async function publishRibbon(
 			'<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>',
 		),
 	});
-
-	// Convert to base64
 	let binaryStr = "";
 	for (let i = 0; i < zipBytes.length; i++) {
 		binaryStr += String.fromCharCode(zipBytes[i]);
 	}
 	const base64Zip = btoa(binaryStr);
 
-	onProgress?.("Importing solution…");
-	logs.logInfo("publish", "Importing solution via deploySolution...");
-	// The Dataverse `ImportSolution` action requires the caller to supply a
-	// client-generated `ImportJobId` GUID — without it the request fails with
-	// 0x80048d19 ("One or more parameters of the operation 'ImportSolution'
-	// are missing from the request payload. The missing parameters are:
-	// ImportJobId."). PPTB's `deploySolution` types mark the option as
-	// optional, but Dataverse rejects the call when it's omitted.
-	const importJobId =
-		typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-			? crypto.randomUUID()
-			: // Fallback for runtimes without crypto.randomUUID (very old).
-				`${Date.now()}-${Math.random().toString(16).slice(2)}-${Math.random()
-					.toString(16)
-					.slice(2)}`;
-	logs.logInfo("publish", `Import job id: ${importJobId}`);
+	onProgress?.(`Importing ${scopeLabel} ribbon…`);
+	// ImportSolution requires a client-generated ImportJobId (0x80048d19 otherwise).
+	const importJobId = crypto.randomUUID();
+	logs.logInfo("publish", `Importing solution (import job ${importJobId})…`);
 	await dataverseAPI.deploySolution(base64Zip, {
 		importJobId,
 		overwriteUnmanagedCustomizations: true,
 		publishWorkflows: false,
 	});
 
-	onProgress?.("Waiting for import to complete…");
-	logs.logInfo("publish", `Polling import job ${importJobId}...`);
-	// Solution imports — especially ones that touch ribbon metadata — can
-	// legitimately take 2–5 minutes on busy environments. Previously we
-	// capped at 60 × 2s = 120s and reported a timeout even when the maker
-	// portal showed the import had succeeded. Bumped to 150 × 2s = 300s
-	// (5 minutes) and the completion check now accepts multiple signal shapes.
+	// Ribbon imports take 20–50 s on a typical environment (measured live);
+	// allow up to 5 minutes before giving up.
 	const MAX_ATTEMPTS = 150;
 	const POLL_INTERVAL_MS = 2000;
 	let status = (await dataverseAPI.getImportJobStatus(importJobId)) as ImportStatus;
@@ -235,150 +300,44 @@ export async function publishRibbon(
 		await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 		status = (await dataverseAPI.getImportJobStatus(importJobId)) as ImportStatus;
 		attempts++;
-		if (attempts % 15 === 0) {
-			// Surface a progress beat every 30s so the user can see we're
-			// still waiting and not stuck.
-			onProgress?.(`Still importing… (${attempts * 2}s elapsed)`);
-		}
+		if (attempts % 10 === 0) onProgress?.(`Still importing… (${attempts * 2}s elapsed)`);
+	}
+	if (!isImportComplete(status)) {
+		throw new Error(
+			`Solution import did not complete within ${(MAX_ATTEMPTS * POLL_INTERVAL_MS) / 1000} seconds. ` +
+				`Check Solutions › History for import job ${importJobId}.`,
+		);
 	}
 
-	if (!isImportComplete(status)) {
-		const elapsed = Math.round((MAX_ATTEMPTS * POLL_INTERVAL_MS) / 1000);
-		logs.logError(
-			"publish",
-			`Solution import did not complete within ${elapsed}s. Check Solutions › History in maker.powerapps.com for job ${importJobId} — the import may still succeed there.`,
-		);
-		throw new Error(
-			`Solution import did not signal completion within ${elapsed} seconds. Check Solutions › History for job ${importJobId}.`,
-		);
+	onProgress?.("Verifying the import…");
+	const job = (await dataverseAPI.retrieve("importjob", importJobId, ["data"])) as { data?: string };
+	const verification = verifyRibbonImport(
+		job.data,
+		isApplication
+			? { kind: "application" }
+			: { kind: "entity", names: [entityName, input.entity!.logicalName] },
+	);
+	if (!verification.ok) {
+		logs.logError("publish", verification.message);
+		throw new Error(verification.message);
 	}
+	logs.logInfo("publish", verification.message);
 
 	if (input.publishCustomizations !== false) {
 		onProgress?.("Publishing customizations…");
-		logs.logInfo("publish", "Publishing customizations...");
-		const publishStart = new Date();
-		if (input.entityLogicalName && input.entityLogicalName !== "{!EntityLogicalName}") {
-			await dataverseAPI.publishCustomizations(input.entityLogicalName);
-		} else {
+		if (isApplication) {
 			await dataverseAPI.publishCustomizations();
-		}
-		// Verify that the ribbon-metadata compile pipeline actually succeeded.
-		// publishCustomizations() returns when the customisation record is
-		// updated, but Dataverse processes the actual ribbon-metadata compilation
-		// asynchronously via the `ribbonmetadatasettoprocess` job queue. A
-		// schema-validation failure there is silent unless we poll for it.
-		await pollRibbonMetadataProcessing(input.entityLogicalName, publishStart, logs, onProgress);
-	}
-
-	onProgress?.("Published successfully!");
-	logs.logInfo("publish", "Publish completed successfully.");
-}
-
-/**
- * Polls the `ribbonmetadatasettoprocess` job-queue table for up to 30 s after
- * `publishCustomizations` returns.  The actual ribbon-metadata compilation runs
- * asynchronously in Dataverse; this is the only way to detect silent compile
- * failures (bad LocLabel refs, schema violations, etc.) that would otherwise
- * let CBS report "Success!" while the user's buttons never appear.
- *
- * The poll is best-effort: if the table is unavailable or no job row appears
- * within the window, we log a note and continue — the prior publish APIs
- * already confirmed the import completed.
- */
-async function pollRibbonMetadataProcessing(
-	entityLogicalName: string,
-	publishStart: Date,
-	logs: ReturnType<typeof useRuntimeLogStore.getState>,
-	onProgress?: (msg: string) => void,
-): Promise<void> {
-	const MAX_POLLS = 15;
-	const POLL_MS = 2000;
-	const entityFilter =
-		entityLogicalName && entityLogicalName !== "{!EntityLogicalName}"
-			? `entityname eq '${entityLogicalName}'`
-			: null;
-	// ISO timestamp (URL-safe, no fractional seconds)
-	const since = publishStart.toISOString().replace(/\.\d+Z$/, "Z");
-
-	// Base query — select only the fields we actually use.
-	const baseQuery =
-		`ribbonmetadatasettoprocess?$select=entityname,processedon,completedon,` +
-		`exceptionmessage,retrycount,status&$orderby=createdon desc&$top=10` +
-		`&$filter=createdon gt ${since}` +
-		(entityFilter ? ` and (${entityFilter})` : "");
-
-	for (let poll = 0; poll < MAX_POLLS; poll++) {
-		await new Promise((r) => setTimeout(r, POLL_MS));
-		try {
-			type MetaJob = {
-				entityname?: string;
-				status?: number;
-				completedon?: string | null;
-				processedon?: string | null;
-				exceptionmessage?: string | null;
-				retrycount?: number;
-			};
-			const resp = await dataverseAPI.queryData(baseQuery);
-			const jobs: MetaJob[] = Array.isArray(resp)
-				? resp
-				: Array.isArray(resp?.value)
-					? resp.value
-					: [];
-
-			if (jobs.length === 0) {
-				// No job created yet — Dataverse may still be queueing it.
-				continue;
-			}
-
-			// Check for failures first (exceptionmessage set).
-			const failedJob = jobs.find((j) => j.exceptionmessage);
-			if (failedJob) {
-				const entity = failedJob.entityname || entityLogicalName;
-				const msg = `Ribbon-metadata compile failed for ${entity}: ` + failedJob.exceptionmessage;
-				logs.logError("publish", msg);
-				onProgress?.(`⚠ ${msg}`);
-				// Throw so BulkPublishModal can surface this as an error rather
-				// than a silent success.
-				throw new Error(msg);
-			}
-
-			// Check for a successfully completed job.
-			const doneJob = jobs.find(
-				(j) => j.completedon || j.processedon || j.status === 4 /* Succeeded */,
-			);
-			if (doneJob) {
-				const entity = doneJob.entityname || entityLogicalName;
-				logs.logInfo("publish", `Ribbon metadata compiled successfully for ${entity}.`);
-				return;
-			}
-
-			if (poll === Math.floor(MAX_POLLS / 2)) {
-				onProgress?.("Waiting for ribbon-metadata compilation…");
-				logs.logInfo("publish", "Ribbon metadata job found; waiting for completion…");
-			}
-		} catch (err) {
-			if (err instanceof Error && err.message.includes("Ribbon-metadata compile failed")) {
-				throw err; // re-throw our own compile-error
-			}
-			// Any other error (permission denied, table not available in org,
-			// network blip) → log and give up gracefully without failing publish.
-			logs.logWarn(
-				"publish",
-				`Could not read ribbonmetadatasettoprocess (${err instanceof Error ? err.message : String(err)}). ` +
-					`Ribbon metadata verification skipped.`,
-			);
-			return;
+		} else {
+			await dataverseAPI.publishCustomizations(input.entity!.logicalName);
 		}
 	}
 
-	// Timed out without seeing a completed job — not necessarily an error;
-	// the compile may still succeed. The publish API calls already confirmed
-	// the import completed.
-	logs.logInfo(
-		"publish",
-		"Ribbon metadata job not observed within 30 s. The publish appears complete — " +
-			"open the entity to confirm your changes are live.",
-	);
+	onProgress?.(`${scopeLabel} ribbon published.`);
+	return {
+		elementCount: merged.elementCount,
+		preservedCount: merged.preservedCount,
+		importJobId,
+	};
 }
 
 function buildPublishXml(input: PublishXmlInput): string {
@@ -524,7 +483,7 @@ interface RootComponentSpec {
 	/** SolutionComponent type code — 1=Entity, 50=Ribbon Customization,
 	 * 60=SystemForm, 61=WebResource, etc. */
 	type: number;
-	/** Entity-type components use `schemaName` (logical name). */
+	/** Entity components use the logical name; the application ribbon uses `:RibbonDiffXml`. */
 	schemaName?: string;
 	/** Form / web resource / ribbon-customization components use the GUID `id`. */
 	id?: string;
@@ -532,12 +491,9 @@ interface RootComponentSpec {
 	behavior: 0 | 1 | 2;
 }
 
-interface SolutionXmlInput {
-	uniqueName: string;
-	publisherUniqueName: string;
-	publisherName: string;
-	publisherPrefix: string;
-	version: string;
+interface SolutionXmlInput extends PublishSolutionInfo {
+	/** Organization base language. The solution manifest must match it. */
+	languageCode: number;
 	rootComponents: RootComponentSpec[];
 }
 
@@ -548,6 +504,10 @@ function generateSolutionXml(input: SolutionXmlInput): string {
 	const pubUnique = input.publisherUniqueName?.trim() || "DefaultPublisher";
 	const pubName = input.publisherName?.trim() || pubUnique;
 	const pubPrefix = input.publisherPrefix?.trim() || "new";
+	const lang = input.languageCode || 1033;
+	// Keep the existing friendly name: the import overwrites the solution's
+	// display name with whatever LocalizedName we send (#15, verified live).
+	const friendly = input.friendlyName?.trim() || input.uniqueName;
 
 	const rootComponentsXml =
 		input.rootComponents.length === 0
@@ -565,11 +525,11 @@ function generateSolutionXml(input: SolutionXmlInput): string {
     </RootComponents>`;
 
 	return `<?xml version="1.0" encoding="utf-8"?>
-<ImportExportXml version="9.1.0.0" SolutionPackageVersion="9.1" languagecode="1033" generatedBy="CommandBarStudio">
+<ImportExportXml version="9.1.0.0" SolutionPackageVersion="9.1" languagecode="${lang}" generatedBy="CommandBarStudio">
   <SolutionManifest>
     <UniqueName>${escapeXml(input.uniqueName)}</UniqueName>
     <LocalizedNames>
-      <LocalizedName description="${escapeXml(input.uniqueName)}" languagecode="1033"/>
+      <LocalizedName description="${escapeXml(friendly)}" languagecode="${lang}"/>
     </LocalizedNames>
     <Descriptions/>
     <Version>${escapeXml(input.version)}</Version>
@@ -577,13 +537,13 @@ function generateSolutionXml(input: SolutionXmlInput): string {
     <Publisher>
       <UniqueName>${escapeXml(pubUnique)}</UniqueName>
       <LocalizedNames>
-        <LocalizedName description="${escapeXml(pubName)}" languagecode="1033"/>
+        <LocalizedName description="${escapeXml(pubName)}" languagecode="${lang}"/>
       </LocalizedNames>
       <Descriptions/>
       <EMailAddress/>
       <SupportingWebsiteUrl/>
       <CustomizationPrefix>${escapeXml(pubPrefix)}</CustomizationPrefix>
-      <CustomizationOptionValuePrefix>10000</CustomizationOptionValuePrefix>
+      <CustomizationOptionValuePrefix>${input.publisherOptionValuePrefix ?? 10000}</CustomizationOptionValuePrefix>
       <Addresses/>
     </Publisher>
     ${rootComponentsXml}

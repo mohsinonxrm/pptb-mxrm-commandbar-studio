@@ -122,6 +122,12 @@ export const BulkPublishModal: React.FC = () => {
 		setSolutionVersion(activeSolution?.version ?? "1.0.0.0");
 	}, [activeSolution?.version]);
 
+	// The modal stays mounted between openings, so re-seed the table selection
+	// with the table being edited every time it opens.
+	React.useEffect(() => {
+		if (bulkPublishOpen && activeEntity) setSelectedEntities([activeEntity.logicalName]);
+	}, [bulkPublishOpen, activeEntity]);
+
 	const toggleEntity = (logicalName: string) => {
 		setSelectedEntities((prev) =>
 			prev.includes(logicalName)
@@ -154,6 +160,15 @@ export const BulkPublishModal: React.FC = () => {
 		const errors: { scope: string; message: string }[] = [];
 		const logs = useRuntimeLogStore.getState();
 		const fmt = (e: unknown) => (e instanceof Error ? e.message : String(e));
+		const solutionInfo = {
+			uniqueName: activeSolution.uniqueName,
+			friendlyName: activeSolution.friendlyName,
+			version: incrementSolutionVersion ? nextVersion : solutionVersion,
+			publisherUniqueName: activeSolution.publisherUniqueName,
+			publisherName: activeSolution.publisherName,
+			publisherPrefix: activeSolution.publisherPrefix || publisherPrefix,
+			publisherOptionValuePrefix: activeSolution.publisherOptionValuePrefix,
+		};
 
 		if (activeEntity && selectedEntities.includes(activeEntity.logicalName)) {
 			setStatusMap((prev) => ({ ...prev, [activeEntity.logicalName]: "publishing" }));
@@ -171,30 +186,33 @@ export const BulkPublishModal: React.FC = () => {
 				setStatusMap((prev) => ({ ...prev, [activeEntity.logicalName]: "success" }));
 			} else {
 				try {
-					for (const location of entityScopesWithChanges) {
-						logs.logInfo(
-							"publish",
-							`Publishing ${location} ribbon for ${activeEntity.logicalName}…`,
-						);
-						await publishRibbon(
-							{
+					// One import for the whole table: each import REPLACES the table's
+					// unmanaged ribbon, so HomepageGrid / SubGrid / Form changes must
+					// travel together, merged onto the existing layer (#11).
+					logs.logInfo(
+						"publish",
+						`Publishing ${entityScopesWithChanges.join(", ")} ribbon changes for ${activeEntity.logicalName}…`,
+					);
+					await publishRibbon(
+						{
+							entity: {
+								logicalName: activeEntity.logicalName,
+								schemaName: activeEntity.schemaName,
+								displayName: activeEntity.displayName,
+							},
+							locations: entityScopesWithChanges.map((location) => ({
 								current: ribbons[location],
 								baseline: baseline[location],
-								commands,
-								displayRules,
-								enableRules,
-								locLabels,
-								entityLogicalName: activeEntity.logicalName,
-								solutionUniqueName: activeSolution.uniqueName,
-								publisherUniqueName: activeSolution.publisherUniqueName,
-								publisherName: activeSolution.publisherName,
-								publisherPrefix: activeSolution.publisherPrefix || publisherPrefix,
-								solutionVersion: incrementSolutionVersion ? nextVersion : solutionVersion,
-								publishCustomizations: false,
-							},
-							(msg) => setProgressMessage(msg),
-						);
-					}
+							})),
+							commands,
+							displayRules,
+							enableRules,
+							locLabels,
+							solution: solutionInfo,
+							publishCustomizations: false,
+						},
+						(msg) => setProgressMessage(msg),
+					);
 					setStatusMap((prev) => ({ ...prev, [activeEntity.logicalName]: "success" }));
 				} catch (err) {
 					hadError = true;
@@ -224,18 +242,13 @@ export const BulkPublishModal: React.FC = () => {
 				try {
 					await publishRibbon(
 						{
-							current: ribbons.Application,
-							baseline: baseline.Application,
+							entity: null,
+							locations: [{ current: ribbons.Application, baseline: baseline.Application }],
 							commands,
 							displayRules,
 							enableRules,
 							locLabels,
-							entityLogicalName: "{!EntityLogicalName}",
-							solutionUniqueName: activeSolution.uniqueName,
-							publisherUniqueName: activeSolution.publisherUniqueName,
-							publisherName: activeSolution.publisherName,
-							publisherPrefix: activeSolution.publisherPrefix || publisherPrefix,
-							solutionVersion: incrementSolutionVersion ? nextVersion : solutionVersion,
+							solution: solutionInfo,
 							ribbonCustomizationIds: solutionRibbonComponentIds ?? [],
 							publishCustomizations: false,
 						},
@@ -405,6 +418,11 @@ export const BulkPublishModal: React.FC = () => {
 									</div>
 									<Field label="Publish strategy">
 										<Dropdown
+											value={
+												publishStrategy === "targeted"
+													? "Targeted publish (PublishXml)"
+													: "Async publish all (PublishAllXmlAsync)"
+											}
 											selectedOptions={[publishStrategy]}
 											onOptionSelect={(_, data) => {
 												if (data.optionValue === "targeted" || data.optionValue === "allAsync") {

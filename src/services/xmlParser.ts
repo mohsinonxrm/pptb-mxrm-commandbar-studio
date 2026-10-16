@@ -350,7 +350,10 @@ function parseActionParams(el: Element): ActionParameter[] {
 
 function parseEnableRules(doc: Document): EnableRule[] {
 	const rules: EnableRule[] = [];
-	doc.querySelectorAll("EnableRules > EnableRule").forEach((rEl) => {
+	// Scope to RuleDefinitions: `EnableRules > EnableRule` alone also matches the
+	// `<EnableRule Id="…"/>` references inside every CommandDefinition, which produced
+	// empty duplicate definitions that won the dedupe and replaced the real ones (#39).
+	doc.querySelectorAll("RuleDefinitions > EnableRules > EnableRule").forEach((rEl) => {
 		const id = rEl.getAttribute("Id") ?? "";
 		if (!id) return;
 		const steps = parseRuleSteps(rEl);
@@ -361,7 +364,8 @@ function parseEnableRules(doc: Document): EnableRule[] {
 
 function parseDisplayRules(doc: Document): DisplayRule[] {
 	const rules: DisplayRule[] = [];
-	doc.querySelectorAll("DisplayRules > DisplayRule").forEach((rEl) => {
+	// Scoped to RuleDefinitions for the same reason as parseEnableRules (#39).
+	doc.querySelectorAll("RuleDefinitions > DisplayRules > DisplayRule").forEach((rEl) => {
 		const id = rEl.getAttribute("Id") ?? "";
 		if (!id) return;
 		const steps = parseRuleSteps(rEl);

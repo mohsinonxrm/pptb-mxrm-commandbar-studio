@@ -48,9 +48,23 @@ export const NewButtonModal: React.FC = () => {
 			sessionPublisherPrefix?.trim() ||
 			"new";
 		const entityName = activeEntity?.logicalName ?? "global";
-		const safeName = label.replace(/\s+/g, "");
-		const id = `${prefix}.${entityName}.${safeName}.Button`;
-		const commandId = `${prefix}.${entityName}.${safeName}.Command`;
+		const safeName = label.replace(/[^a-zA-Z0-9_]/g, "") || "Button";
+		// Include the location so the same label on the grid, sub-grid and form
+		// doesn't produce colliding ids in the table's single RibbonDiffXml, and
+		// de-duplicate against everything already loaded.
+		const ribbons = useRibbonStore.getState().ribbons;
+		const commands = useRibbonStore.getState().commands;
+		const existingIds = new Set<string>(commands.map((c) => c.id));
+		for (const r of Object.values(ribbons))
+			for (const t of r.tabs)
+				for (const g of t.groups) for (const b of g.buttons) existingIds.add(b.id);
+		const base = `${prefix}.${entityName}.${activeLocation}.${safeName}`;
+		let stem = base;
+		for (let n = 2; existingIds.has(`${stem}.Button`) || existingIds.has(`${stem}.Command`); n++) {
+			stem = `${base}${n}`;
+		}
+		const id = `${stem}.Button`;
+		const commandId = `${stem}.Command`;
 
 		createButton({
 			location: activeLocation,

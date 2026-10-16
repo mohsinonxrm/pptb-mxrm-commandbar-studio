@@ -194,8 +194,11 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 		...hideCustomActions,
 	];
 
-	// Collect tab display rules from all tabs that have them
+	// Tab display rules only for tabs this session created. Existing tabs' rules
+	// already live in the platform / unmanaged layer; re-emitting them copied
+	// Microsoft's rules into the customization (#40).
 	const tabDisplayRulesXml = current.tabs
+		.filter((t) => !baselineTabIds.has(t.id))
 		.filter((t) => t.tabDisplayRules && t.tabDisplayRules.length > 0)
 		.map(generateTabDisplayRulesForTab)
 		.join("\n      ");
@@ -205,7 +208,7 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// IMPORTANT — no `<?xml ?>` declaration here.
 	//
 	// This function returns a RibbonDiffXml *fragment* that is later embedded
-	// inside customizations.xml by `wrapInCustomizationsXml`, which supplies
+	// inside customizations.xml by `buildCustomizationsXml`, which supplies
 	// the single outer XML declaration the document is allowed to have.
 	// Including a declaration here causes Dataverse to reject the import:
 	//   0x8004801a: Unexpected XML declaration. The XML declaration must be
@@ -858,10 +861,10 @@ function generateTabDisplayRulesForTab(tab: import("@/types/ribbon").RibbonTab):
 				})
 				.filter(Boolean)
 				.join("\n          ");
+			// Rules are direct children of TabDisplayRule (RibbonCore.xsd) — no
+			// <DisplayRules> wrapper.
 			return `<TabDisplayRule TabCommand="${escapeXml(tdr.tabCommand)}">
-        <DisplayRules>
           ${stepsXml}
-        </DisplayRules>
       </TabDisplayRule>`;
 		})
 		.join("\n      ");
@@ -883,39 +886,52 @@ export function escapeXml(str: string): string {
 		.replace(/'/g, "&apos;");
 }
 
+export interface CustomizationsEntityRibbon {
+	/** Table SchemaName (e.g. `Account`). Dataverse matches it case-insensitively,
+	 * so the logical name is an acceptable fallback. */
+	schemaName: string;
+	/** Display name for the `<Name LocalizedName>` attribute. */
+	localizedName: string;
+	/** The COMPLETE RibbonDiffXml for the table (it replaces the table's whole
+	 * unmanaged ribbon customization on import — see #11). */
+	ribbonDiffXml: string;
+}
+
 /**
- * Wraps RibbonDiffXml into a full customizations.xml for solution import.
+ * Builds customizations.xml for a ribbon-only solution import.
+ *
+ * Entity ribbons go under `Entities/Entity`, identified by a `<Name>` CHILD
+ * element. The previous `<Entity Name="…" unmodified="0">` attribute form is
+ * not in the schema; Dataverse accepted the import but silently ignored the
+ * entity block, so every entity-ribbon publish was a no-op (#8, verified live).
+ * The application ribbon is a root-level `<RibbonDiffXml>`.
+ *
+ * Form-specific ribbons (`FormXml/forms/systemform/form/RibbonDiffXml`) are not
+ * supported on Unified Interface and a ribbon-only systemform import risks
+ * overwriting the form, so they are intentionally not produced (#14).
  */
-export function wrapInCustomizationsXml(
-	ribbonDiffXml: string,
-	entityLogicalName: string | null,
-	scope: "entity" | "application" | "form",
-	formId?: string,
-): string {
-	const entityBlock = entityLogicalName
-		? `
+export function buildCustomizationsXml(input: {
+	entities?: CustomizationsEntityRibbon[];
+	applicationRibbonDiffXml?: string;
+}): string {
+	const entities = input.entities ?? [];
+	const entityBlock =
+		entities.length === 0
+			? ""
+			: `
   <Entities>
-    <Entity Name="${escapeXml(entityLogicalName)}" unmodified="0">
-      ${scope === "entity" ? ribbonDiffXml : ""}
-      ${
-				scope === "form" && formId
-					? `
-      <FormXml>
-        <forms>
-          <systemform formid="${escapeXml(formId)}">
-            <form>${ribbonDiffXml}</form>
-          </systemform>
-        </forms>
-      </FormXml>`
-					: ""
-			}
-    </Entity>
-  </Entities>`
-		: "";
+${entities
+	.map(
+		(e) => `    <Entity>
+      <Name LocalizedName="${escapeXml(e.localizedName)}" OriginalName="${escapeXml(e.localizedName)}">${escapeXml(e.schemaName)}</Name>
+      ${e.ribbonDiffXml}
+    </Entity>`,
+	)
+	.join("\n")}
+  </Entities>`;
 
 	return `<?xml version="1.0" encoding="utf-8"?>
-<ImportExportXml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="9.1.0.0">
-  ${scope === "application" ? ribbonDiffXml : ""}
-  ${entityBlock}
+<ImportExportXml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">${entityBlock}
+  ${input.applicationRibbonDiffXml ?? ""}
 </ImportExportXml>`;
 }

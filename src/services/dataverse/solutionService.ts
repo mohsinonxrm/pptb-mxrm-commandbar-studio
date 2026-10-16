@@ -27,7 +27,7 @@ export async function fetchSolutions(): Promise<Solution[]> {
 	const query =
 		"solutions" +
 		"?$select=solutionid,uniquename,friendlyname,version,ismanaged,versionnumber,isvisible" +
-		"&$expand=publisherid($select=publisherid,uniquename,friendlyname,customizationprefix)" +
+		"&$expand=publisherid($select=publisherid,uniquename,friendlyname,customizationprefix,customizationoptionvalueprefix)" +
 		"&$filter=isvisible eq true and uniquename ne 'Active'" +
 		"&$orderby=friendlyname asc";
 
@@ -40,6 +40,7 @@ export async function fetchSolutions(): Promise<Solution[]> {
 			uniquename?: string;
 			friendlyname?: string;
 			customizationprefix?: string;
+			customizationoptionvalueprefix?: number;
 		};
 		return {
 			id: String(r["solutionid"] ?? ""),
@@ -51,6 +52,10 @@ export async function fetchSolutions(): Promise<Solution[]> {
 			publisherUniqueName: publisher.uniquename ?? "",
 			publisherName: publisher.friendlyname ?? "",
 			publisherPrefix: publisher.customizationprefix ?? "",
+			publisherOptionValuePrefix:
+				typeof publisher.customizationoptionvalueprefix === "number"
+					? publisher.customizationoptionvalueprefix
+					: undefined,
 			versionNumber: r["versionnumber"] as number | undefined,
 		};
 	});
