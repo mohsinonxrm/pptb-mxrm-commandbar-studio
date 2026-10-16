@@ -14,6 +14,7 @@ import {
 	serializeRibbonDiffParts,
 	countRibbonDiffParts,
 	mergeScopeChanges,
+	ownControlIds,
 } from "@/services/ribbonDiffMerge";
 import { fetchUnmanagedRibbonParts } from "@/services/dataverse/ribbonLayerService";
 import type { ScopePlan } from "@/services/publishPlan";
@@ -143,8 +144,6 @@ export async function buildMergedRibbonDiffXml(
 	elementCount: number;
 	preservedCount: number;
 	changedCount: number;
-	/** True when buttons/tabs/groups are added, changed, hidden, un-hidden or deleted. */
-	controlsChanged: boolean;
 }> {
 	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
 
@@ -180,8 +179,38 @@ export async function buildMergedRibbonDiffXml(
 		);
 	}
 
+	// The generator also emits the commands / rules of every button it writes
+	// (including managed and out-of-the-box ones, re-built from the parser's
+	// lossy model). Only definitions the user created or edited may enter the
+	// layer; everything else is already defined where it lives (#11 review N2, #13).
+	const keepOnly = (map: Map<string, string>, ids: string[]) => {
+		for (const id of Array.from(map.keys())) if (!ids.includes(id)) map.delete(id);
+	};
+	keepOnly(delta.commandDefinitions, input.plan.editedCommandIds);
+	keepOnly(delta.enableRules, input.plan.editedEnableRuleIds);
+	keepOnly(delta.displayRules, input.plan.editedDisplayRuleIds);
+
 	const existing = await fetchUnmanagedRibbonParts(input.entity?.logicalName ?? null);
+
+	// Only controls this table's unmanaged layer defines can be removed; anything
+	// else comes from a managed solution or the platform (#11 review N4).
+	const own = ownControlIds(existing);
+	const notOwn = input.plan.deletedButtonIds.filter((id) => !own.has(id));
+	if (notOwn.length > 0) {
+		throw new Error(
+			`Can't delete ${notOwn.join(", ")}: not defined in this table's unmanaged customizations ` +
+				`(it comes from a managed solution or the platform). Undo the delete and hide the button instead.`,
+		);
+	}
+
+	const retainedCommandIds = new Set<string>();
+	for (const loc of input.locations)
+		for (const tab of loc.current.tabs)
+			for (const group of tab.groups)
+				for (const button of group.buttons) if (button.commandId) retainedCommandIds.add(button.commandId);
+
 	const merged = mergeScopeChanges(existing, delta, {
+		retainedCommandIds,
 		editedCommandIds: input.plan.editedCommandIds,
 		editedEnableRuleIds: input.plan.editedEnableRuleIds,
 		editedDisplayRuleIds: input.plan.editedDisplayRuleIds,
@@ -193,10 +222,6 @@ export async function buildMergedRibbonDiffXml(
 		elementCount: countRibbonDiffParts(merged),
 		preservedCount: countRibbonDiffParts(existing),
 		changedCount: countRibbonDiffParts(delta),
-		controlsChanged:
-			delta.customActions.size > 0 ||
-			input.plan.deletedButtonIds.length > 0 ||
-			input.plan.unhiddenButtonIds.length > 0,
 	};
 }
 
@@ -355,8 +380,9 @@ export async function publishRibbon(
 		// LATER import (verified live: import+publish left new buttons missing for
 		// hours; re-importing the same package after publishing made them appear).
 		// Re-import the identical package once and publish again so the change is
-		// actually visible to users.
-		if (merged.controlsChanged) {
+		// actually visible to users. This applies to command and rule edits too
+		// (#11 review N1), so it always runs.
+		{
 			logs.logInfo(
 				"publish",
 				"Refreshing Unified Interface command-bar metadata (second import of the same package)…",
@@ -372,7 +398,7 @@ export async function publishRibbon(
 				);
 			}
 		}
-	} else if (merged.controlsChanged) {
+	} else {
 		logs.logWarn(
 			"publish",
 			"Imported without publishing. New or changed buttons appear in Unified Interface only after " +

@@ -415,6 +415,9 @@ export const useRibbonStore = create<RibbonStore>()(
 								...btn,
 								id: `${btn.id}_copy_${Date.now()}`,
 								label: `${btn.label} (copy)`,
+								// The copy is a new control: it must not reuse the original's
+								// LocLabel tokens / attributes (#11 review N5).
+								source: undefined,
 								custom: true,
 								oob: false,
 								managed: false,

@@ -3,6 +3,8 @@ import { parseRibbonXml } from "@/services/xmlParser";
 import type { LocLabel, RibbonDefinition, RibbonLocation, RibbonTab } from "@/types/ribbon";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { fetchUnmanagedRibbonParts, locLabelsFromParts } from "@/services/dataverse/ribbonLayerService";
+import { ownControlIds } from "@/services/ribbonDiffMerge";
+import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 
 const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
 
@@ -173,6 +175,11 @@ export async function fetchRibbonWorkspace(
 		fetchEntityRibbonAllLocations(entityLogicalName, [...entityLabels, ...appLabels]),
 		fetchApplicationRibbon(appLabels),
 	]);
+	if (entityLayer) {
+		const own = ownControlIds(entityLayer);
+		for (const def of Object.values(entity.ribbons)) applyLayerOwnership(def, own);
+	}
+	if (appLayer) applyLayerOwnership(application.ribbon, ownControlIds(appLayer));
 
 	return {
 		ribbons: {

@@ -53,7 +53,7 @@ const OOB_OVERRIDE_DIFF_FIELDS = [
 	"templateAlias",
 ] as const satisfies readonly (keyof RibbonButton)[];
 
-function hasOobOverrideChanges(base: RibbonButton, current: RibbonButton): boolean {
+export function hasOobOverrideChanges(base: RibbonButton, current: RibbonButton): boolean {
 	for (const field of OOB_OVERRIDE_DIFF_FIELDS) {
 		if ((base[field] ?? "") !== (current[field] ?? "")) return true;
 	}

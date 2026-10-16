@@ -1,4 +1,4 @@
-import { indexButtons, summarizeRibbonDiff } from "@/services/xmlGenerator";
+import { hasOobOverrideChanges, indexButtons, summarizeRibbonDiff } from "@/services/xmlGenerator";
 import type { CommandDefinition, DisplayRule, EnableRule, RibbonDefinition } from "@/types/ribbon";
 
 export interface PlanInput {
@@ -39,6 +39,10 @@ export interface ScopePlan {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+const isMenuKind = (kind?: string) => kind === "flyout" || kind === "splitButton";
+const isResourceIcon = (b: { icon?: string; image16?: string; image32?: string }) =>
+	[b.icon, b.image16, b.image32].some((v) => !!v && v.startsWith("$webresource:"));
+
 export function planScope(input: PlanInput): ScopePlan {
 	const unsupported: string[] = [];
 	const deleted: string[] = [];
@@ -65,14 +69,34 @@ export function planScope(input: PlanInput): ScopePlan {
 			const id = b.button.id;
 			const c = cur.get(key);
 			if (!c) {
-				const own = b.button.origin === "unmanaged" || (b.button.custom && !b.button.oob);
-				if (own) deleted.push(id);
+				// "unmanaged" is set from the table's unmanaged layer at load.
+				if (b.button.origin === "unmanaged") deleted.push(id);
 				else unsupported.push(`Removing "${b.button.label}" (${id}) — only your own unmanaged buttons can be deleted; hide it instead`);
 				continue;
 			}
 			if (b.button.hidden && !c.button.hidden) unhidden.push(id);
+			if ((c.button.kind ?? "button") !== (b.button.kind ?? "button")) {
+				unsupported.push(`Changing the kind of "${c.button.label}" (${id}) — not supported yet`);
+			}
+			const edited = hasOobOverrideChanges(b.button, c.button);
+			if (edited && isMenuKind(c.button.kind) && b.button.origin !== "unmanaged") {
+				unsupported.push(
+					`Editing the menu button "${c.button.label}" (${id}) — flyout / split buttons from other solutions can't be edited yet (#27)`,
+				);
+			}
+			if ((c.button.icon ?? "") !== (b.button.icon ?? "") && !isResourceIcon(c.button)) {
+				unsupported.push(
+					`Changing the icon of "${c.button.label}" (${id}) to a built-in icon — not supported yet; choose an SVG web resource`,
+				);
+			}
 			if (c.groupId !== b.groupId || c.button.sequence !== b.button.sequence) {
 				unsupported.push(`Moving or re-ordering "${c.button.label}" (${id}) — not supported yet`);
+			}
+		}
+
+		for (const [key, c] of cur) {
+			if (!base.has(key) && isMenuKind(c.button.kind)) {
+				unsupported.push(`New flyout / split button "${c.button.label}" — menus can't be published yet (#27)`);
 			}
 		}
 
@@ -94,6 +118,12 @@ export function planScope(input: PlanInput): ScopePlan {
 	const editedCommandIds = input.commands
 		.filter((c) => referencedCommandIds.has(c.id) && (!baseCmd.has(c.id) || !same(baseCmd.get(c.id), c)))
 		.map((c) => c.id);
+	for (const c of input.commands) {
+		if (!editedCommandIds.includes(c.id)) continue;
+		if (c.actions.some((a) => a.kind === "powerFx" || a.kind === "customApi")) {
+			unsupported.push(`Power Fx / Custom API action in command ${c.id} — can't be published yet (#28)`);
+		}
+	}
 
 	const enableInScope = new Set<string>();
 	const displayInScope = new Set<string>();
