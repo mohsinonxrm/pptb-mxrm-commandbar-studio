@@ -422,7 +422,7 @@ export async function publishUsingPublishXml(
 	logs.logInfo("publish", `PublishXml request for ${entities.length} table(s).`);
 
 	try {
-		await (dataverseAPI as any).execute({
+		await dataverseAPI.execute({
 			operationName: "PublishXml",
 			operationType: "action",
 			parameters: {
@@ -463,7 +463,7 @@ export async function publishAllAsync(
 	onProgress?.("Starting asynchronous publish (PublishAllXmlAsync)...");
 	logs.logInfo("publish", "Calling PublishAllXmlAsync action.");
 
-	const response = (await (dataverseAPI as any).execute({
+	const response = (await dataverseAPI.execute({
 		operationName: "PublishAllXmlAsync",
 		operationType: "action",
 	})) as { AsyncOperationId?: string };

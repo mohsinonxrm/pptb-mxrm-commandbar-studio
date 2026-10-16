@@ -2,11 +2,11 @@ import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
-import tseslint from "typescript-eslint";
 import jsxA11y from "eslint-plugin-jsx-a11y";
+import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-	{ ignores: ["dist", "coverage"] },
+	{ ignores: ["dist", "coverage", "node_modules"] },
 	{
 		extends: [js.configs.recommended, ...tseslint.configs.recommended],
 		files: ["**/*.{ts,tsx}"],
@@ -24,6 +24,13 @@ export default tseslint.config(
 			"react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
 			"@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
 			"@typescript-eslint/no-explicit-any": "error",
+		},
+	},
+	{
+		// Node-side config files (Vite, Vitest, commitlint, ESLint itself).
+		files: ["*.config.{js,ts}"],
+		languageOptions: {
+			globals: globals.node,
 		},
 	},
 	{
