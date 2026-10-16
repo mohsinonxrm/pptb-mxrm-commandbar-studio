@@ -1,11 +1,5 @@
-import { summarizeRibbonDiff } from "@/services/xmlGenerator";
-import type {
-	CommandDefinition,
-	DisplayRule,
-	EnableRule,
-	RibbonButton,
-	RibbonDefinition,
-} from "@/types/ribbon";
+import { indexButtons, summarizeRibbonDiff } from "@/services/xmlGenerator";
+import type { CommandDefinition, DisplayRule, EnableRule, RibbonDefinition } from "@/types/ribbon";
 
 export interface PlanInput {
 	locations: { current: RibbonDefinition; baseline: RibbonDefinition }[];
@@ -28,8 +22,13 @@ export interface ScopePlan {
 	hasChanges: boolean;
 	/** Commands that differ from their loaded version and are used by a button in this scope. */
 	editedCommandIds: string[];
-	/** Enable/display rules that differ from their loaded version and are used by those commands. */
-	editedRuleIds: string[];
+	/**
+	 * Enable / display rules that differ from their loaded version and are used
+	 * by those commands. Kept apart because Dataverse allows an EnableRule and a
+	 * DisplayRule to share an id (e.g. Mscrm.CanWritePrimary).
+	 */
+	editedEnableRuleIds: string[];
+	editedDisplayRuleIds: string[];
 	/** Unmanaged buttons removed this session. */
 	deletedButtonIds: string[];
 	/** Buttons hidden when loaded / last published and visible now. */
@@ -39,14 +38,6 @@ export interface ScopePlan {
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-
-function buttonsOf(def: RibbonDefinition) {
-	const out = new Map<string, { button: RibbonButton; groupId: string; tabId: string }>();
-	for (const tab of def.tabs)
-		for (const group of tab.groups)
-			for (const button of group.buttons) out.set(button.id, { button, groupId: group.id, tabId: tab.id });
-	return out;
-}
 
 export function planScope(input: PlanInput): ScopePlan {
 	const unsupported: string[] = [];
@@ -65,12 +56,14 @@ export function planScope(input: PlanInput): ScopePlan {
 		}
 		if (summary.scalingChanges > 0) unsupported.push(`Scaling changes on ${current.location} (not supported yet)`);
 
-		const cur = buttonsOf(current);
-		const base = buttonsOf(baseline);
+		// Keyed by occurrence: the application ribbon repeats control ids.
+		const cur = indexButtons(current);
+		const base = indexButtons(baseline);
 		for (const { button } of cur.values()) if (button.commandId) referencedCommandIds.add(button.commandId);
 
-		for (const [id, b] of base) {
-			const c = cur.get(id);
+		for (const [key, b] of base) {
+			const id = b.button.id;
+			const c = cur.get(key);
 			if (!c) {
 				const own = b.button.origin === "unmanaged" || (b.button.custom && !b.button.oob);
 				if (own) deleted.push(id);
@@ -102,28 +95,33 @@ export function planScope(input: PlanInput): ScopePlan {
 		.filter((c) => referencedCommandIds.has(c.id) && (!baseCmd.has(c.id) || !same(baseCmd.get(c.id), c)))
 		.map((c) => c.id);
 
-	const ruleIdsInScope = new Set<string>();
+	const enableInScope = new Set<string>();
+	const displayInScope = new Set<string>();
 	for (const c of input.commands) {
 		if (!referencedCommandIds.has(c.id)) continue;
-		c.enableRules.forEach((r) => ruleIdsInScope.add(r));
-		c.displayRules.forEach((r) => ruleIdsInScope.add(r));
+		c.enableRules.forEach((r) => enableInScope.add(r));
+		c.displayRules.forEach((r) => displayInScope.add(r));
 	}
-	const baseRule = new Map(
-		[...input.baselineEnableRules, ...input.baselineDisplayRules].map((r) => [r.id, r] as const),
-	);
-	const editedRuleIds = [...input.enableRules, ...input.displayRules]
-		.filter((r) => ruleIdsInScope.has(r.id) && (!baseRule.has(r.id) || !same(baseRule.get(r.id), r)))
-		.map((r) => r.id);
+	const editedRules = <R extends { id: string }>(rules: R[], baseline: R[], inScope: Set<string>) => {
+		const base = new Map(baseline.map((r) => [r.id, r] as const));
+		return rules
+			.filter((r) => inScope.has(r.id) && (!base.has(r.id) || !same(base.get(r.id), r)))
+			.map((r) => r.id);
+	};
+	const editedEnableRuleIds = editedRules(input.enableRules, input.baselineEnableRules, enableInScope);
+	const editedDisplayRuleIds = editedRules(input.displayRules, input.baselineDisplayRules, displayInScope);
 
 	return {
 		hasChanges:
 			generatorChange ||
 			editedCommandIds.length > 0 ||
-			editedRuleIds.length > 0 ||
+			editedEnableRuleIds.length > 0 ||
+			editedDisplayRuleIds.length > 0 ||
 			deleted.length > 0 ||
 			unhidden.length > 0,
 		editedCommandIds,
-		editedRuleIds,
+		editedEnableRuleIds,
+		editedDisplayRuleIds,
 		deletedButtonIds: deleted,
 		unhiddenButtonIds: unhidden,
 		unsupported: [...new Set(unsupported)],

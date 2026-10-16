@@ -60,24 +60,50 @@ function hasOobOverrideChanges(base: RibbonButton, current: RibbonButton): boole
 	return false;
 }
 
+export interface IndexedButton {
+	button: RibbonButton;
+	groupId: string;
+	tabId: string;
+}
+
+/**
+ * Indexes every button of a ribbon by `id#n`, where n counts earlier
+ * occurrences of the same id. Microsoft's application ribbon reuses control
+ * ids across tabs (e.g. MailApp.ViewEmailActivity.Button on the global and
+ * quick-create tabs), so pairing current and baseline buttons by id alone
+ * compares the wrong occurrences and reports phantom edits.
+ */
+export function indexButtons(def: RibbonDefinition): Map<string, IndexedButton> {
+	const out = new Map<string, IndexedButton>();
+	const seen = new Map<string, number>();
+	for (const tab of def.tabs)
+		for (const group of tab.groups)
+			for (const button of group.buttons) {
+				const n = seen.get(button.id) ?? 0;
+				seen.set(button.id, n + 1);
+				out.set(`${button.id}#${n}`, { button, groupId: group.id, tabId: tab.id });
+			}
+	return out;
+}
+
 export function generateRibbonDiffXml(input: GeneratorInput): string {
 	const { current, baseline, commands, enableRules, displayRules, locLabels } = input;
 
-	const baselineButtonsById = new Map<string, RibbonButton>();
-	const baselineHiddenIds = new Set<string>();
+	const baselineButtons = indexButtons(baseline);
 	const baselineTabIds = new Set<string>();
 	const baselineGroupIds = new Set<string>();
 
 	for (const baseTab of baseline.tabs) {
 		baselineTabIds.add(baseTab.id);
-		for (const baseGroup of baseTab.groups) {
-			baselineGroupIds.add(baseGroup.id);
-			for (const baseButton of baseGroup.buttons) {
-				baselineButtonsById.set(baseButton.id, baseButton);
-				if (baseButton.hidden) baselineHiddenIds.add(baseButton.id);
-			}
-		}
+		for (const baseGroup of baseTab.groups) baselineGroupIds.add(baseGroup.id);
 	}
+	// Pairs each current button with the same occurrence in the baseline.
+	const seenIds = new Map<string, number>();
+	const baselineFor = (button: RibbonButton): RibbonButton | undefined => {
+		const n = seenIds.get(button.id) ?? 0;
+		seenIds.set(button.id, n + 1);
+		return baselineButtons.get(`${button.id}#${n}`)?.button;
+	};
 
 	const tabCustomActions: string[] = [];
 	const groupCustomActions: string[] = [];
@@ -125,9 +151,9 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	for (const tab of current.tabs) {
 		for (const group of tab.groups) {
 			for (const button of group.buttons) {
-				const baseButton = baselineButtonsById.get(button.id);
+				const baseButton = baselineFor(button);
 
-				if (button.hidden && !baselineHiddenIds.has(button.id)) {
+				if (button.hidden && !baseButton?.hidden) {
 					// Visible button the user wants hidden.
 					hideCustomActions.push(generateHideCustomAction(button, group.id));
 				} else if (!baseButton) {
@@ -270,21 +296,21 @@ export function summarizeRibbonDiff(
 	current: RibbonDefinition,
 	baseline: RibbonDefinition,
 ): RibbonDiffSummary {
-	const baselineButtonsById = new Map<string, RibbonButton>();
-	const baselineHiddenIds = new Set<string>();
+	const baselineButtons = indexButtons(baseline);
 	const baselineTabIds = new Set<string>();
 	const baselineGroupIds = new Set<string>();
 
 	for (const baseTab of baseline.tabs) {
 		baselineTabIds.add(baseTab.id);
-		for (const baseGroup of baseTab.groups) {
-			baselineGroupIds.add(baseGroup.id);
-			for (const baseButton of baseGroup.buttons) {
-				baselineButtonsById.set(baseButton.id, baseButton);
-				if (baseButton.hidden) baselineHiddenIds.add(baseButton.id);
-			}
-		}
+		for (const baseGroup of baseTab.groups) baselineGroupIds.add(baseGroup.id);
 	}
+	// Pairs each current button with the same occurrence in the baseline.
+	const seenIds = new Map<string, number>();
+	const baselineFor = (button: RibbonButton): RibbonButton | undefined => {
+		const n = seenIds.get(button.id) ?? 0;
+		seenIds.set(button.id, n + 1);
+		return baselineButtons.get(`${button.id}#${n}`)?.button;
+	};
 
 	let newButtons = 0;
 	let overriddenButtons = 0;
@@ -301,8 +327,8 @@ export function summarizeRibbonDiff(
 		for (const group of tab.groups) {
 			if (!baselineGroupIds.has(group.id) && baselineTabIds.has(tab.id)) newGroups++;
 			for (const button of group.buttons) {
-				const baseButton = baselineButtonsById.get(button.id);
-				if (button.hidden && !baselineHiddenIds.has(button.id)) {
+				const baseButton = baselineFor(button);
+				if (button.hidden && !baseButton?.hidden) {
 					hiddenButtons++;
 				} else if (!baseButton) {
 					newButtons++;

@@ -256,8 +256,10 @@ function isChildrenLocation(location: string | null): boolean {
 export interface ScopeMergeOptions {
 	/** Commands the user edited this session — only these may replace the layer's copy. */
 	editedCommandIds?: Iterable<string>;
-	/** Enable/display rules the user edited this session. */
-	editedRuleIds?: Iterable<string>;
+	/** Enable rules the user edited this session. */
+	editedEnableRuleIds?: Iterable<string>;
+	/** Display rules the user edited this session (ids may repeat an enable rule's). */
+	editedDisplayRuleIds?: Iterable<string>;
 	/** Buttons deleted this session: their own CustomAction is removed from the layer. */
 	deletedControlIds?: Iterable<string>;
 	/** Buttons un-hidden this session: HideCustomActions targeting them are removed. */
@@ -281,7 +283,8 @@ export function mergeScopeChanges(
 	options: ScopeMergeOptions = {},
 ): RibbonDiffParts {
 	const editedCommands = new Set(options.editedCommandIds ?? []);
-	const editedRules = new Set(options.editedRuleIds ?? []);
+	const editedEnableRules = new Set(options.editedEnableRuleIds ?? []);
+	const editedDisplayRules = new Set(options.editedDisplayRuleIds ?? []);
 	const deleted = new Set(options.deletedControlIds ?? []);
 	const unhidden = new Set(options.unhiddenControlIds ?? []);
 	const s = serializer();
@@ -340,8 +343,8 @@ export function mergeScopeChanges(
 		}
 	};
 	keepUnlessEdited("commandDefinitions", editedCommands);
-	keepUnlessEdited("enableRules", editedRules);
-	keepUnlessEdited("displayRules", editedRules);
+	keepUnlessEdited("enableRules", editedEnableRules);
+	keepUnlessEdited("displayRules", editedDisplayRules);
 	for (const [id, xml] of delta.tabDisplayRules) merged.tabDisplayRules.set(id, xml);
 	for (const [id, xml] of delta.templates) merged.templates.set(id, xml);
 

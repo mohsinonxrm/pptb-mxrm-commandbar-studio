@@ -122,7 +122,8 @@ function publishXml(baseline: RibbonDefinition, current: RibbonDefinition, parse
 	);
 	const merged = mergeScopeChanges(LAYER, delta, {
 		editedCommandIds: plan.editedCommandIds,
-		editedRuleIds: plan.editedRuleIds,
+		editedEnableRuleIds: plan.editedEnableRuleIds,
+		editedDisplayRuleIds: plan.editedDisplayRuleIds,
 		deletedControlIds: plan.deletedButtonIds,
 		unhiddenControlIds: plan.unhiddenButtonIds,
 	});
@@ -309,5 +310,63 @@ describe("D6 — only published scopes are marked as published", () => {
 		expect(after.baseline.HomepageGrid).toEqual(after.ribbons.HomepageGrid);
 		expect(after.baseline.Application.tabs).toHaveLength(0);
 		expect(after.mutationsSincePublish).toBeGreaterThan(0);
+	});
+});
+
+describe("phantom changes found in live testing", () => {
+	// Microsoft's application ribbon repeats control ids across tabs.
+	const appRibbon = (): RibbonDefinition => {
+		const btn = (label: string) => ({
+			id: "MailApp.ViewEmailActivity.Button",
+			label,
+			commandId: "MailApp.ViewEmailActivity",
+			sequence: 10,
+			templateAlias: "o1",
+			hidden: false,
+		});
+		return {
+			location: "Application",
+			entityLogicalName: "",
+			tabs: [
+				{ id: "Mscrm.GlobalTab", label: "Global", sequence: 1, tabDisplayRules: [], groups: [
+					{ id: "Mscrm.GlobalTab.New", label: "New", sequence: 1, template: "t", buttons: [btn("Email (global)")] },
+				] },
+				{ id: "Mscrm.QuickForm.MainTab", label: "Quick", sequence: 2, tabDisplayRules: [], groups: [
+					{ id: "Mscrm.QuickForm.MainTab.Actions", label: "Actions", sequence: 1, template: "t", buttons: [btn("Email (quick)")] },
+				] },
+			],
+		} as unknown as RibbonDefinition;
+	};
+
+	it("an unchanged ribbon with repeated control ids has no changes and emits nothing", () => {
+		const base = appRibbon();
+		const cur = clone(base);
+		const plan = planScope({
+			locations: [{ current: cur, baseline: base }],
+			commands: [], baselineCommands: [], enableRules: [], baselineEnableRules: [], displayRules: [], baselineDisplayRules: [],
+		});
+		expect(plan.hasChanges).toBe(false);
+		expect(plan.unsupported).toEqual([]);
+		const xml = generateRibbonDiffXml({
+			current: cur, baseline: base, commands: [], enableRules: [], displayRules: [], locLabels: [],
+			entityLogicalName: "", location: "Application",
+		});
+		expect(xml).not.toContain("<CustomAction ");
+	});
+
+	it("an EnableRule and a DisplayRule sharing an id are not reported as edited", () => {
+		const enableRules = [{ id: "Mscrm.CanWritePrimary", steps: [{ kind: "RecordPrivilegeRule", privilegeType: "Write", appliesTo: "PrimaryEntity", invertResult: false }] }];
+		const displayRules = [{ id: "Mscrm.CanWritePrimary", steps: [{ kind: "EntityPrivilegeRule", privilegeType: "Write", privilegeDepth: "Basic", appliesTo: "PrimaryEntity", invertResult: false }] }];
+		const def = appRibbon();
+		const commands = [{ id: "MailApp.ViewEmailActivity", enableRules: ["Mscrm.CanWritePrimary"], displayRules: ["Mscrm.CanWritePrimary"], actions: [] }];
+		const plan = planScope({
+			locations: [{ current: clone(def), baseline: def }],
+			commands: commands as never, baselineCommands: clone(commands) as never,
+			enableRules: enableRules as never, baselineEnableRules: clone(enableRules) as never,
+			displayRules: displayRules as never, baselineDisplayRules: clone(displayRules) as never,
+		});
+		expect(plan.editedEnableRuleIds).toEqual([]);
+		expect(plan.editedDisplayRuleIds).toEqual([]);
+		expect(plan.hasChanges).toBe(false);
 	});
 });

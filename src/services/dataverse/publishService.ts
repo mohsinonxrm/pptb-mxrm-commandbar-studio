@@ -108,7 +108,7 @@ export interface PublishRibbonInput {
 	displayRules: DisplayRule[];
 	locLabels: LocLabel[];
 	/** What changed in this scope (see publishPlan.planScope). */
-	plan: Pick<ScopePlan, "editedCommandIds" | "editedRuleIds" | "deletedButtonIds" | "unhiddenButtonIds">;
+	plan: Pick<ScopePlan, "editedCommandIds" | "editedEnableRuleIds" | "editedDisplayRuleIds" | "deletedButtonIds" | "unhiddenButtonIds">;
 	solution: PublishSolutionInfo;
 	/**
 	 * GUIDs of `ribboncustomization` components (`componenttype = 50`) in the
@@ -168,8 +168,8 @@ export async function buildMergedRibbonDiffXml(
 		...input.commands.filter((c) => input.plan.editedCommandIds.includes(c.id)).map(generateCommandDefinition),
 	];
 	const extraRules = {
-		enable: input.enableRules.filter((r) => input.plan.editedRuleIds.includes(r.id)).map(generateEnableRule),
-		display: input.displayRules.filter((r) => input.plan.editedRuleIds.includes(r.id)).map(generateDisplayRule),
+		enable: input.enableRules.filter((r) => input.plan.editedEnableRuleIds.includes(r.id)).map(generateEnableRule),
+		display: input.displayRules.filter((r) => input.plan.editedDisplayRuleIds.includes(r.id)).map(generateDisplayRule),
 	};
 	if (extra.length || extraRules.enable.length || extraRules.display.length) {
 		delta = mergeRibbonDiffParts(
@@ -183,7 +183,8 @@ export async function buildMergedRibbonDiffXml(
 	const existing = await fetchUnmanagedRibbonParts(input.entity?.logicalName ?? null);
 	const merged = mergeScopeChanges(existing, delta, {
 		editedCommandIds: input.plan.editedCommandIds,
-		editedRuleIds: input.plan.editedRuleIds,
+		editedEnableRuleIds: input.plan.editedEnableRuleIds,
+		editedDisplayRuleIds: input.plan.editedDisplayRuleIds,
 		deletedControlIds: input.plan.deletedButtonIds,
 		unhiddenControlIds: input.plan.unhiddenButtonIds,
 	});
