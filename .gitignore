@@ -27,8 +27,6 @@ npm-shrinkwrap.json
 # Local Claude Code workspace
 .claude/
 
-# Release-it temp files
-.release-it*
 
 # Compiled config output (tsconfig.node.json emits here; never commit)
 vite.config.js

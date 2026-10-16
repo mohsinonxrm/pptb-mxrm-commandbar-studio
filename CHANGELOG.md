@@ -33,6 +33,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   style) plus `format` / `format:check` scripts. The codebase has not been
   mass-reformatted yet.
 
+### 🚀 CI/CD ([#21](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/21))
+
+- **CI** (`.github/workflows/ci.yml`) runs on PRs to `dev`/`main` and on pushes to
+  `dev`: typecheck, lint, tests with a coverage artifact, `pptb-validate`, build, and a
+  package contents/size check.
+- **Release** (`.github/workflows/release.yml`) runs on `v*` tags on `main`. It publishes
+  to npm through trusted publishing (OIDC + provenance, with `--tag beta` for
+  pre-releases) and creates the GitHub Release from this changelog.
+- **Dependabot** checks npm and GitHub Actions weekly and targets `dev`.
+- **release-it** is now configured in a committed `.release-it.json`. It only bumps the
+  version and moves `Unreleased` into a version section (`@release-it/keep-a-changelog`);
+  tagging and publishing happen in CI. See `RELEASING.md`.
+
 ## [0.5.0] - 2026-07-16
 
 ### 🎉 First Beta Release
