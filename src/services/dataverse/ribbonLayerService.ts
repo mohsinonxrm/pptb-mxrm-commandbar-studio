@@ -35,8 +35,9 @@ export async function fetchUnmanagedRibbonParts(entityLogicalName: string | null
 			: `entity eq '${entityLogicalName.replace(/'/g, "''")}' and ismanaged eq false`;
 	const [diffs, commands, rules] = await Promise.all([
 		// Ordered so element order (which decides between an original and an
-		// override CustomAction) is deterministic.
-		queryAll(`ribbondiffs?$select=diffid,difftype,rdx,sequence&$filter=${filter}&$orderby=difftype asc,sequence asc,diffid asc`),
+		// override CustomAction) is deterministic. Dataverse rejects $orderby on
+		// the difftype picklist (0x80040250); parts are bucketed by type anyway.
+		queryAll(`ribbondiffs?$select=diffid,difftype,rdx,sequence&$filter=${filter}&$orderby=sequence asc,diffid asc`),
 		queryAll(`ribboncommands?$select=command,commanddefinition&$filter=${filter}&$orderby=command asc`),
 		queryAll(`ribbonrules?$select=ruleid,ruletype,ruledefinition&$filter=${filter}&$orderby=ruleid asc`),
 	]);
