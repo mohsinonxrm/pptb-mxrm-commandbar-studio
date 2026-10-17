@@ -1,10 +1,40 @@
-import { defineConfig } from "vite";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
+/**
+ * Bundles the tool icon at dist/icons/icon.svg, where package.json's top-level
+ * `icon` points. PPTB resolves `icon` relative to the dist root, so the
+ * repo-root `icons/` folder is never seen by the host (#54). Prerelease
+ * versions (e.g. 0.6.0-beta.1) get the gold Insider variant; releases get the
+ * regular icon. Mirrors the sibling studios (FXS `fxs-tool-icon`, DRS
+ * `toolIcon()`). https://docs.powerplatformtoolbox.com/tool-development/publishing
+ */
+function toolIcon(): Plugin {
+	return {
+		name: "cbs-tool-icon",
+		apply: "build",
+		generateBundle() {
+			// Resolve against this config file, not the process cwd.
+			const fromRoot = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
+			const { version } = JSON.parse(readFileSync(fromRoot("package.json"), "utf8")) as {
+				version: string;
+			};
+			const source = version.includes("-") ? "icons/icon-insider.svg" : "icons/icon.svg";
+			this.emitFile({
+				type: "asset",
+				fileName: "icons/icon.svg",
+				source: readFileSync(fromRoot(source), "utf8"),
+			});
+		},
+	};
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
-	plugins: [react()],
+	plugins: [react(), toolIcon()],
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),

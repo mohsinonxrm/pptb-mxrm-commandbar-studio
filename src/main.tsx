@@ -40,8 +40,7 @@ async function bootstrap() {
 	setThemeMode(isDark ? "dark" : "light");
 	logInfo("startup", `Connected to ${connection.name} (${connection.environment}).`);
 
-	document.addEventListener("visibilitychange", () => {
-		if (document.visibilityState !== "visible") return;
+	const refreshTheme = () => {
 		void toolboxAPI.utils
 			.getCurrentTheme()
 			.then((nextTheme) => {
@@ -55,6 +54,14 @@ async function bootstrap() {
 						`Theme refresh failed: ${error instanceof Error ? error.message : String(error)}`,
 					);
 			});
+	};
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState === "visible") refreshTheme();
+	});
+	// PPTB raises `settings:updated` when the user changes the host theme while
+	// the tool is open (no visibility change in that case).
+	toolboxAPI.events?.on((_event, payload) => {
+		if (payload?.event === "settings:updated") refreshTheme();
 	});
 
 	const container = document.getElementById("root");

@@ -1,11 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- Variant K — "Clean hex split" / CBS
-       Same chassis as the sibling studios (FXS, DRS); tool glyph is a
-       command bar: a rounded bar holding three command buttons, with the
-       middle one selected. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="4 8 56 48" width="56" height="48">
+  <!-- Variant L — "Insider build" / CBS
+       Same K chassis + small gold triangle filling the top-right vertex of
+       the hex (Microsoft Insiders gold, #FFB900). Shipped for prerelease
+       versions (e.g. 0.6.0-beta.1); see the tool-icon plugin in vite.config.ts. -->
 
   <path d="M 18 8 L 46 8 L 60 32 L 46 56 L 18 56 L 4 32 Z" fill="#0E5A9C"/>
   <polygon points="46,8 60,32 46,56 18,56" fill="#2B8FD9"/>
+
+  <!-- Insider stamp — gold triangle in top-right vertex -->
+  <polygon points="46,8 40,8 49,15" fill="#FFB900"/>
 
   <!-- Tool glyph — command bar with three buttons, in white -->
   <rect x="14" y="23" width="36" height="18" rx="3.5" stroke="#fff" stroke-width="2.5" fill="none"/>
