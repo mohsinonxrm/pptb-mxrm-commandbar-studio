@@ -1,0 +1,70 @@
+name: 🐢 Performance issue
+description: Slow UI, slow ribbon/solution loading, slow publish, memory spikes, etc.
+title: "[Performance]: "
+labels: ["area: perf", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Performance reports are most useful with timings + dataset size.
+        🚫 Do NOT include tokens or Authorization headers.
+
+  - type: input
+    attributes:
+      label: Tool version
+      placeholder: "e.g., 0.5.3-beta.1"
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: PPTB version (if known)
+      placeholder: "e.g., 1.2.7"
+    validations:
+      required: false
+
+  - type: dropdown
+    attributes:
+      label: Where is it slow?
+      options:
+        - App startup / loading
+        - Loading solutions / tables
+        - Loading a ribbon (RetrieveEntityRibbon / RetrieveApplicationRibbon)
+        - Editing on the canvas / properties pane
+        - XML drawer / diff viewer
+        - Publishing (solution import / PublishXml)
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Rough timing
+      placeholder: "e.g., ribbon load ~20s; publish ~3 min"
+    validations:
+      required: false
+
+  - type: input
+    attributes:
+      label: Approx size
+      placeholder: "e.g., solution with 40 tables; ribbon with ~300 buttons"
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Notes / logs (optional)
+      description: Runtime log entries, screenshots, or network summaries (sanitize).
+    validations:
+      required: false

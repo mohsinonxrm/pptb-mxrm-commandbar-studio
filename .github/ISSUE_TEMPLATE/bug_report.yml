@@ -1,0 +1,142 @@
+name: 🐛 Bug report
+description: Something in Command Bar Studio isn't working as expected.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please provide enough detail so we can reproduce the issue.
+        **Do not include secrets** (tokens, client secrets, Authorization headers) or customer data.
+
+  - type: checkboxes
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I searched existing issues and discussions and didn't find a duplicate.
+          required: true
+        - label: I'm using the latest released version (or I've confirmed the issue exists on main).
+          required: true
+        - label: I can reproduce this consistently.
+          required: false
+
+  - type: input
+    attributes:
+      label: Command Bar Studio version
+      description: Version number or commit SHA.
+      placeholder: "e.g., 0.5.3-beta.1 or 1a2b3c4"
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: PPTB version
+      placeholder: "e.g., 1.2.7"
+    validations:
+      required: false
+
+  - type: input
+    attributes:
+      label: OS
+      placeholder: "e.g., Windows 11 / macOS 14"
+    validations:
+      required: false
+
+  - type: dropdown
+    attributes:
+      label: Area
+      options:
+        - Loading a solution / ribbon
+        - Ribbon canvas (Classic / Modern / List)
+        - Properties pane / command editor
+        - Rules (display / enable rules)
+        - Localization / icons / scaling
+        - XML drawer / diff viewer
+        - Publish (solution import / PublishXml)
+        - Other (please specify below)
+    validations:
+      required: true
+
+  - type: dropdown
+    attributes:
+      label: Ribbon location
+      options:
+        - HomepageGrid
+        - SubGrid
+        - Form
+        - Application ribbon
+        - Not location-specific
+    validations:
+      required: false
+
+  - type: input
+    attributes:
+      label: Table (logical name)
+      placeholder: "e.g., account"
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: "Describe what you observed..."
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      description: Provide minimal steps to reproduce the issue.
+      placeholder: |
+        1. Open Command Bar Studio in PPTB
+        2. Load solution...
+        3. Select button / command...
+        4. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Expected behavior
+      placeholder: "What should have happened?"
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Actual behavior
+      placeholder: "What actually happened?"
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: RibbonDiffXml (optional)
+      description: The smallest RibbonDiffXml snippet that reproduces the issue (redact names if needed).
+      render: xml
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Screenshots or recordings (optional)
+      description: Drag and drop images/video here.
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Runtime log / console output (optional)
+      description: Paste relevant entries from the bottom-panel runtime log or devtools (sanitize sensitive info).
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Anything else that might help.
+    validations:
+      required: false

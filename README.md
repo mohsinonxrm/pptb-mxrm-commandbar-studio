@@ -187,7 +187,23 @@ npm test
 
 # Run tests with coverage
 npm run test:coverage
+
+# Lint (zero warnings allowed)
+npm run lint
+
+# Check / apply Prettier formatting
+npm run format:check
+npm run format
+
+# Validate the PPTB tool manifest
+npm run validate
+
+# Bundle size report (writes dist/stats.html and opens it)
+npm run analyze
 ```
+
+`npm install` / `npm ci` install the husky git hooks via the `prepare` script.
+Set `HUSKY=0` to skip that (for example in CI).
 
 ### Standalone vs PPTB-embedded
 
