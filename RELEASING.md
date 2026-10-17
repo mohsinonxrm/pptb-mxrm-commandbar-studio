@@ -96,7 +96,6 @@ chore/... ────────────┘
   OIDC publish, consider setting *Publishing access* to "Require two-factor
   authentication and disallow tokens".
 - Trusted publishing requires **npm CLI ≥ 11.5.1** and **Node ≥ 22.14.0** on a
-  GitHub-hosted runner. The workflow uses Node 24 and pins npm to the 11.x line, because
-  npm 12 no longer packs `npm-shrinkwrap.json`.
+  GitHub-hosted runner. The workflow uses Node 24 with npm 11.
 - `package.json` → `repository.url` must keep pointing at this GitHub repository, or
   provenance and trusted publishing fail.

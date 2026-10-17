@@ -53,8 +53,7 @@
 		"LICENSE",
 		"README.md",
 		"CHANGELOG.md",
-		"SECURITY.md",
-		"npm-shrinkwrap.json"
+		"SECURITY.md"
 	],
 	"type": "module",
 	"scripts": {
@@ -75,9 +74,7 @@
 		"analyze": "vite build --mode analyze",
 		"prepare": "husky",
 		"format": "prettier --write .",
-		"format:check": "prettier --check .",
-		"prepack": "node -e \"require('fs').copyFileSync('package-lock.json','npm-shrinkwrap.json')\"",
-		"postpack": "node -e \"require('fs').rmSync('npm-shrinkwrap.json',{force:true})\""
+		"format:check": "prettier --check ."
 	},
 	"dependencies": {
 		"@dnd-kit/core": "^6.3.1",

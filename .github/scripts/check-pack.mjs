@@ -17,7 +17,6 @@ const REQUIRED = [
 	"CHANGELOG.md",
 	"LICENSE",
 	"SECURITY.md",
-	"npm-shrinkwrap.json",
 ];
 const FORBIDDEN = [
 	/^dist\/stats\.html$/,
@@ -29,9 +28,12 @@ const FORBIDDEN = [
 ];
 
 const raw = readFileSync(process.argv[2] ?? 0, "utf8");
-// Tolerate stray lifecycle-script output around the JSON array.
-const json = raw.slice(raw.indexOf("["), raw.lastIndexOf("]") + 1);
-const [pkg] = JSON.parse(json);
+// npm <= 11 prints an array of packages, npm 12 an object keyed by package name.
+// Tolerate stray lifecycle-script output around the JSON.
+const start = raw.search(/[[{]/);
+const end = Math.max(raw.lastIndexOf("]"), raw.lastIndexOf("}"));
+const parsed = JSON.parse(raw.slice(start, end + 1));
+const pkg = Array.isArray(parsed) ? parsed[0] : Object.values(parsed)[0];
 const files = pkg.files.map((f) => f.path.replace(/\\/g, "/"));
 
 const errors = [];

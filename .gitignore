@@ -17,10 +17,6 @@ Thumbs.db
 # Build analysis
 dist/stats.html
 
-# npm shrinkwrap (generated from package-lock.json by the prepack script and
-# removed again by postpack — package-lock.json is the committed lockfile)
-npm-shrinkwrap.json
-
 # TypeScript incremental build info
 *.tsbuildinfo
 
