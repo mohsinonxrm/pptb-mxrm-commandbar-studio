@@ -52,6 +52,24 @@ export interface RibbonButton {
 	solutionName?: string;
 	/** Owning publisher name (for managed buttons — e.g. "Microsoft Dynamics 365"). */
 	publisherName?: string;
+	/**
+	 * The button exactly as loaded from Dataverse: raw label/tooltip tokens
+	 * (`$Resources:…`, `$LocLabels:…`), the raw ModernImage value and every
+	 * other attribute. Lets the generator write unchanged values back verbatim
+	 * instead of re-deriving them from display text (#12). Absent for buttons
+	 * created in this session.
+	 */
+	source?: RibbonButtonSource;
+}
+
+export interface RibbonButtonSource {
+	labelToken?: string;
+	tooltipTitleToken?: string;
+	tooltipBodyToken?: string;
+	/** Raw ModernImage attribute (e.g. `New`, `$webresource:x.svg`). */
+	modernImage?: string;
+	/** Every attribute of the control element, as loaded. */
+	attributes: Record<string, string>;
 }
 
 export interface RibbonGroup {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateRibbonDiffXml, escapeXml, wrapInCustomizationsXml } from "@/services/xmlGenerator";
+import { generateRibbonDiffXml, escapeXml, buildCustomizationsXml } from "@/services/xmlGenerator";
 import { parseRibbonXml } from "@/services/xmlParser";
 import type {
 	RibbonDefinition,
@@ -827,11 +827,25 @@ describe("generateRibbonDiffXml — delta only", () => {
 		expect(doc.querySelector("parsererror")).toBeNull();
 	});
 
-	it("wraps RibbonDiffXml in entity customizations path via wrapInCustomizationsXml", () => {
-		const xml = "<RibbonDiffXml/>";
-		const wrapped = wrapInCustomizationsXml(xml, "account", "entity");
-		expect(wrapped).toContain("ImportExportXml");
-		expect(wrapped).toContain("account");
+	it("wraps an entity RibbonDiffXml under Entities/Entity with a <Name> child (#8)", () => {
+		const wrapped = buildCustomizationsXml({
+			entities: [{ schemaName: "Account", localizedName: "Account", ribbonDiffXml: "<RibbonDiffXml/>" }],
+		});
+		const doc = new DOMParser().parseFromString(wrapped, "application/xml");
+		expect(doc.querySelector("parsererror")).toBeNull();
+		const entity = doc.querySelector("ImportExportXml > Entities > Entity");
+		expect(entity).not.toBeNull();
+		// The attribute form <Entity Name="…"> is silently ignored by Dataverse.
+		expect(entity!.getAttribute("Name")).toBeNull();
+		expect(entity!.querySelector(":scope > Name")?.textContent).toBe("Account");
+		expect(entity!.querySelector(":scope > RibbonDiffXml")).not.toBeNull();
+	});
+
+	it("places the application ribbon RibbonDiffXml at the ImportExportXml root", () => {
+		const wrapped = buildCustomizationsXml({ applicationRibbonDiffXml: "<RibbonDiffXml/>" });
+		const doc = new DOMParser().parseFromString(wrapped, "application/xml");
+		expect(doc.querySelector("ImportExportXml > RibbonDiffXml")).not.toBeNull();
+		expect(doc.querySelector("Entities")).toBeNull();
 	});
 
 	it("does NOT include an <?xml ?> declaration (it's a fragment, not a document)", () => {
@@ -857,7 +871,9 @@ describe("generateRibbonDiffXml — delta only", () => {
 				tabs: [],
 			}),
 		);
-		const wrapped = wrapInCustomizationsXml(fragment, "account", "entity");
+		const wrapped = buildCustomizationsXml({
+			entities: [{ schemaName: "Account", localizedName: "Account", ribbonDiffXml: fragment }],
+		});
 		const declarations = wrapped.match(/<\?xml/g) ?? [];
 		expect(declarations.length).toBe(1);
 		// And the single declaration must be the very first non-whitespace.

@@ -27,6 +27,10 @@ export function parseRibbonXml(
 	xml: string,
 	location: RibbonLocation,
 	entityLogicalName: string,
+	/** LocLabels from the unmanaged layer (ribbondiffs difftype 3). The merged
+	 * RetrieveEntityRibbon output carries none, so without these every
+	 * `$LocLabels:` caption resolves to its id (#12). */
+	extraLocLabels: LocLabel[] = [],
 ): {
 	ribbon: RibbonDefinition;
 	commands: CommandDefinition[];
@@ -49,7 +53,8 @@ export function parseRibbonXml(
 	const commands = parseCommands(doc);
 	const enableRules = parseEnableRules(doc);
 	const displayRules = parseDisplayRules(doc);
-	const locLabels = parseLocLabels(doc);
+	const locLabels = [...parseLocLabels(doc)];
+	for (const l of extraLocLabels) if (!locLabels.some((x) => x.id === l.id)) locLabels.push(l);
 
 	// Build set of customized element IDs from CustomAction elements
 	const customActionIds = new Set<string>();
@@ -88,6 +93,11 @@ export function parseRibbonXml(
 					origin: heuristicOrigin(button.id, inCustomAction),
 				});
 				button.hidden = hideActionIds.has(button.id);
+				if (button.source) {
+					button.source.labelToken = button.source.attributes["LabelText"];
+					button.source.tooltipTitleToken = button.source.attributes["ToolTipTitle"];
+					button.source.tooltipBodyToken = button.source.attributes["ToolTipDescription"];
+				}
 				button.label = resolveDisplayLabel(button.label, locLabels);
 				if (button.tooltipTitle) {
 					button.tooltipTitle = resolveDisplayLabel(button.tooltipTitle, locLabels);
@@ -235,6 +245,10 @@ function parseButtonElement(el: Element, out: RibbonButton[]) {
 		tooltipBody: el.getAttribute("ToolTipDescription") ?? undefined,
 		image16: el.getAttribute("Image16by16") ?? undefined,
 		image32: el.getAttribute("Image32by32") ?? undefined,
+		source: {
+			modernImage: el.getAttribute("ModernImage") ?? undefined,
+			attributes: Object.fromEntries(Array.from(el.attributes).map((a) => [a.name, a.value])),
+		},
 	});
 }
 
@@ -350,7 +364,10 @@ function parseActionParams(el: Element): ActionParameter[] {
 
 function parseEnableRules(doc: Document): EnableRule[] {
 	const rules: EnableRule[] = [];
-	doc.querySelectorAll("EnableRules > EnableRule").forEach((rEl) => {
+	// Scope to RuleDefinitions: `EnableRules > EnableRule` alone also matches the
+	// `<EnableRule Id="…"/>` references inside every CommandDefinition, which produced
+	// empty duplicate definitions that won the dedupe and replaced the real ones (#39).
+	doc.querySelectorAll("RuleDefinitions > EnableRules > EnableRule").forEach((rEl) => {
 		const id = rEl.getAttribute("Id") ?? "";
 		if (!id) return;
 		const steps = parseRuleSteps(rEl);
@@ -361,7 +378,8 @@ function parseEnableRules(doc: Document): EnableRule[] {
 
 function parseDisplayRules(doc: Document): DisplayRule[] {
 	const rules: DisplayRule[] = [];
-	doc.querySelectorAll("DisplayRules > DisplayRule").forEach((rEl) => {
+	// Scoped to RuleDefinitions for the same reason as parseEnableRules (#39).
+	doc.querySelectorAll("RuleDefinitions > DisplayRules > DisplayRule").forEach((rEl) => {
 		const id = rEl.getAttribute("Id") ?? "";
 		if (!id) return;
 		const steps = parseRuleSteps(rEl);
