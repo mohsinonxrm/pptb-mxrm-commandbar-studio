@@ -602,6 +602,19 @@ function resolveButtonText(
 	return resolveLocalizedAttr(current, locId, storeLocLabels, sink);
 }
 
+/**
+ * The ModernImage value CBS writes for a button. Unchanged → the loaded value
+ * (out-of-the-box names like "New"). Otherwise the first `$webresource:` among
+ * image32 / image16 / icon — a Fluent icon picked in CBS is uploaded as an SVG
+ * web resource (#51); a bare Fluent name is a canvas-preview value only and is
+ * never written (it doesn't resolve).
+ */
+export function effectiveModernImage(button: RibbonButton): string | undefined {
+	const src = button.source;
+	if (src && normalizeModernImage(src.modernImage) === button.icon) return src.modernImage;
+	return [button.image32, button.image16, button.icon].find((v) => v?.startsWith("$webresource:"));
+}
+
 function generateButtonElement(
 	button: RibbonButton,
 	storeLocLabels: LocLabel[],
@@ -639,11 +652,7 @@ function generateButtonElement(
 	// "New", /_imgs/ paths). A bare Fluent icon name chosen in CBS is a
 	// canvas-preview value only and must never be emitted (it doesn't resolve).
 	const isResourceRef = (v?: string) => !!v && (v.startsWith("$webresource:") || v.includes("/") || v.includes("."));
-	const iconUnchanged = src && normalizeModernImage(src.modernImage) === button.icon;
-	const modernImage = iconUnchanged
-		? src?.modernImage
-		: [button.image32, button.image16, button.icon].find((v) => v?.startsWith("$webresource:"));
-	set("ModernImage", modernImage);
+	set("ModernImage", effectiveModernImage(button));
 	set("Image16by16", isResourceRef(button.image16) ? button.image16 : undefined);
 	set("Image32by32", isResourceRef(button.image32) ? button.image32 : undefined);
 

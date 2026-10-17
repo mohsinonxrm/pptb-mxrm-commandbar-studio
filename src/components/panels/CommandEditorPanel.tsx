@@ -271,7 +271,7 @@ export const CommandEditorPanel: React.FC = () => {
 				codeWebResourceName,
 				encodeUtf8Base64(codeValue),
 				inferWebResourceTypeCode(codeWebResourceName),
-				codeWebResourceName.split("/").pop(),
+				{ displayName: codeWebResourceName.split("/").pop() },
 			);
 			setCodeDirty(false);
 		} catch (error: unknown) {

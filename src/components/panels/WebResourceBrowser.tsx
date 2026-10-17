@@ -292,7 +292,9 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 					svg: 11,
 					resx: 12,
 				}[ext] ?? 4;
-			await saveWebResource(inferWebResourceName(file), content, typeCode, file.name);
+			await saveWebResource(inferWebResourceName(file), content, typeCode, {
+				displayName: file.name,
+			});
 			await reloadResources();
 		} finally {
 			setUploading(false);
