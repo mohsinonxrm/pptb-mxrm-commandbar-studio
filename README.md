@@ -5,13 +5,12 @@ customizations** — the spiritual successor to [Ribbon Workbench](https://www.d
 reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 [Power Platform ToolBox](https://www.powerplatformtoolbox.com/).
 
-![Version](https://img.shields.io/badge/version-0.5.3--beta.1-orange)
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript)
-![Fluent UI](https://img.shields.io/badge/Fluent%20UI-v9-0078D4?logo=microsoft)
-![PPTB Types](https://img.shields.io/badge/%40pptb%2Ftypes-1.2.3-orange)
-![License](https://img.shields.io/badge/license-AGPL--3.0--only-green)
-![Tests](https://img.shields.io/badge/tests-148%20passing-brightgreen)
+![Power Platform ToolBox 1.2.7 or later](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/pptb.svg)
+![@pptb/types 1.2.7](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/pptb-types.svg)
+![React 18](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/react.svg)
+![TypeScript 5.8](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/typescript.svg)
+![Fluent UI v9](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/fluent-ui.svg)
+![License AGPL-3.0-only](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/license.svg)
 
 > **Classic commands only.** CBS targets Dataverse `RibbonDiffXml` — the
 > classic commanding system. It does not modify Power Fx / Modern Commanding
@@ -148,12 +147,19 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 
 Command Bar Studio runs **inside [Power Platform ToolBox](https://www.powerplatformtoolbox.com/)**. It requires the PPTB host to be available — authentication and Dataverse connectivity are provided by the host.
 
-1. Install Power Platform ToolBox
+1. Install Power Platform ToolBox **1.2.7 or later**
 2. Connect to a Dataverse environment
 3. Open Command Bar Studio from the tool list
 4. Pick an unmanaged solution from the TopBar
 5. Select a table from the left pane
 6. Edit ribbon buttons visually; click **Publish** when done
+
+Icons you pick or upload, and scripts you save, are created as web resources and
+added to the selected solution. A Fluent icon is uploaded as an SVG web resource named
+`<prefix>_/icons/cbs/<icon>.svg`.
+
+If you turn on Dataverse impersonation for the tool in PPTB 1.2.7, web resources,
+the solution import and the publish run as the impersonated user.
 
 ---
 
@@ -222,7 +228,7 @@ CBS runs in two modes:
 | **@fluentui-contrib/react-data-grid-react-window** | 1.4 | Virtualized entity list + web resource browser |
 | **Zustand** | 5 | Global state (ribbons, selection, UI, session) |
 | **fflate** | 0.8 | ZIP compression for solution package + ribbon XML decompression |
-| **@pptb/types** | 1.2.3 | Power Platform ToolBox host API types (`window.dataverseAPI`, `window.toolboxAPI`) |
+| **@pptb/types** | 1.2.7 | Power Platform ToolBox host API types (`window.dataverseAPI`, `window.toolboxAPI`) |
 | **Vitest** | 3 | Test runner — 148 tests across 8 suites |
 
 ---

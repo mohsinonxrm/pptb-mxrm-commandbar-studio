@@ -43,3 +43,14 @@ locally.
   workflow `release.yml`. No npm token is needed.
 - `repository.url` in `package.json` must point at this GitHub repository, or
   provenance and trusted publishing fail.
+
+## Tool icon and README images
+
+- The tool icon is bundled at `dist/icons/icon.svg` by the `cbs-tool-icon` plugin in
+  `vite.config.ts` (PPTB resolves `package.json` `icon` relative to `dist/`). Versions
+  with a pre-release part get `icons/icon-insider.svg`, others `icons/icon.svg`.
+- PPTB shows the README in its main window, whose CSP only allows images from GitHub
+  and `*.githubusercontent.com`, and escapes raw HTML. Keep README images as files in
+  the repo (badges live in `assets/badges/`) referenced by absolute
+  `raw.githubusercontent.com/.../refs/heads/main/...` URLs, and don't use
+  `img.shields.io` or HTML tags. Update the badge SVGs when the versions they show change.
