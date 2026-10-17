@@ -18,6 +18,7 @@ import {
 	buttonTooltipBodyId,
 	locLabelRef,
 } from "@/utils/locLabelRef";
+import { resolveDisplayLabel } from "@/utils/displayLabel";
 
 interface GeneratorInput {
 	current: RibbonDefinition;
@@ -52,31 +53,57 @@ const OOB_OVERRIDE_DIFF_FIELDS = [
 	"templateAlias",
 ] as const satisfies readonly (keyof RibbonButton)[];
 
-function hasOobOverrideChanges(base: RibbonButton, current: RibbonButton): boolean {
+export function hasOobOverrideChanges(base: RibbonButton, current: RibbonButton): boolean {
 	for (const field of OOB_OVERRIDE_DIFF_FIELDS) {
 		if ((base[field] ?? "") !== (current[field] ?? "")) return true;
 	}
 	return false;
 }
 
+export interface IndexedButton {
+	button: RibbonButton;
+	groupId: string;
+	tabId: string;
+}
+
+/**
+ * Indexes every button of a ribbon by `id#n`, where n counts earlier
+ * occurrences of the same id. Microsoft's application ribbon reuses control
+ * ids across tabs (e.g. MailApp.ViewEmailActivity.Button on the global and
+ * quick-create tabs), so pairing current and baseline buttons by id alone
+ * compares the wrong occurrences and reports phantom edits.
+ */
+export function indexButtons(def: RibbonDefinition): Map<string, IndexedButton> {
+	const out = new Map<string, IndexedButton>();
+	const seen = new Map<string, number>();
+	for (const tab of def.tabs)
+		for (const group of tab.groups)
+			for (const button of group.buttons) {
+				const n = seen.get(button.id) ?? 0;
+				seen.set(button.id, n + 1);
+				out.set(`${button.id}#${n}`, { button, groupId: group.id, tabId: tab.id });
+			}
+	return out;
+}
+
 export function generateRibbonDiffXml(input: GeneratorInput): string {
 	const { current, baseline, commands, enableRules, displayRules, locLabels } = input;
 
-	const baselineButtonsById = new Map<string, RibbonButton>();
-	const baselineHiddenIds = new Set<string>();
+	const baselineButtons = indexButtons(baseline);
 	const baselineTabIds = new Set<string>();
 	const baselineGroupIds = new Set<string>();
 
 	for (const baseTab of baseline.tabs) {
 		baselineTabIds.add(baseTab.id);
-		for (const baseGroup of baseTab.groups) {
-			baselineGroupIds.add(baseGroup.id);
-			for (const baseButton of baseGroup.buttons) {
-				baselineButtonsById.set(baseButton.id, baseButton);
-				if (baseButton.hidden) baselineHiddenIds.add(baseButton.id);
-			}
-		}
+		for (const baseGroup of baseTab.groups) baselineGroupIds.add(baseGroup.id);
 	}
+	// Pairs each current button with the same occurrence in the baseline.
+	const seenIds = new Map<string, number>();
+	const baselineFor = (button: RibbonButton): RibbonButton | undefined => {
+		const n = seenIds.get(button.id) ?? 0;
+		seenIds.set(button.id, n + 1);
+		return baselineButtons.get(`${button.id}#${n}`)?.button;
+	};
 
 	const tabCustomActions: string[] = [];
 	const groupCustomActions: string[] = [];
@@ -124,9 +151,9 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	for (const tab of current.tabs) {
 		for (const group of tab.groups) {
 			for (const button of group.buttons) {
-				const baseButton = baselineButtonsById.get(button.id);
+				const baseButton = baselineFor(button);
 
-				if (button.hidden && !baselineHiddenIds.has(button.id)) {
+				if (button.hidden && !baseButton?.hidden) {
 					// Visible button the user wants hidden.
 					hideCustomActions.push(generateHideCustomAction(button, group.id));
 				} else if (!baseButton) {
@@ -194,8 +221,11 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 		...hideCustomActions,
 	];
 
-	// Collect tab display rules from all tabs that have them
+	// Tab display rules only for tabs this session created. Existing tabs' rules
+	// already live in the platform / unmanaged layer; re-emitting them copied
+	// Microsoft's rules into the customization (#40).
 	const tabDisplayRulesXml = current.tabs
+		.filter((t) => !baselineTabIds.has(t.id))
 		.filter((t) => t.tabDisplayRules && t.tabDisplayRules.length > 0)
 		.map(generateTabDisplayRulesForTab)
 		.join("\n      ");
@@ -205,7 +235,7 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// IMPORTANT — no `<?xml ?>` declaration here.
 	//
 	// This function returns a RibbonDiffXml *fragment* that is later embedded
-	// inside customizations.xml by `wrapInCustomizationsXml`, which supplies
+	// inside customizations.xml by `buildCustomizationsXml`, which supplies
 	// the single outer XML declaration the document is allowed to have.
 	// Including a declaration here causes Dataverse to reject the import:
 	//   0x8004801a: Unexpected XML declaration. The XML declaration must be
@@ -266,21 +296,21 @@ export function summarizeRibbonDiff(
 	current: RibbonDefinition,
 	baseline: RibbonDefinition,
 ): RibbonDiffSummary {
-	const baselineButtonsById = new Map<string, RibbonButton>();
-	const baselineHiddenIds = new Set<string>();
+	const baselineButtons = indexButtons(baseline);
 	const baselineTabIds = new Set<string>();
 	const baselineGroupIds = new Set<string>();
 
 	for (const baseTab of baseline.tabs) {
 		baselineTabIds.add(baseTab.id);
-		for (const baseGroup of baseTab.groups) {
-			baselineGroupIds.add(baseGroup.id);
-			for (const baseButton of baseGroup.buttons) {
-				baselineButtonsById.set(baseButton.id, baseButton);
-				if (baseButton.hidden) baselineHiddenIds.add(baseButton.id);
-			}
-		}
+		for (const baseGroup of baseTab.groups) baselineGroupIds.add(baseGroup.id);
 	}
+	// Pairs each current button with the same occurrence in the baseline.
+	const seenIds = new Map<string, number>();
+	const baselineFor = (button: RibbonButton): RibbonButton | undefined => {
+		const n = seenIds.get(button.id) ?? 0;
+		seenIds.set(button.id, n + 1);
+		return baselineButtons.get(`${button.id}#${n}`)?.button;
+	};
 
 	let newButtons = 0;
 	let overriddenButtons = 0;
@@ -297,8 +327,8 @@ export function summarizeRibbonDiff(
 		for (const group of tab.groups) {
 			if (!baselineGroupIds.has(group.id) && baselineTabIds.has(tab.id)) newGroups++;
 			for (const button of group.buttons) {
-				const baseButton = baselineButtonsById.get(button.id);
-				if (button.hidden && !baselineHiddenIds.has(button.id)) {
+				const baseButton = baselineFor(button);
+				if (button.hidden && !baseButton?.hidden) {
 					hiddenButtons++;
 				} else if (!baseButton) {
 					newButtons++;
@@ -532,64 +562,95 @@ function resolveLocalizedAttr(
 	return locLabelRef(conventionId);
 }
 
+/** Attributes RetrieveEntityRibbon adds to controls that are not valid in RibbonDiffXml. */
+const NON_DIFF_ATTRIBUTES = new Set(["SolutionUniqueName"]);
+
+/** Same normalisation the parser applies to ModernImage for the canvas preview. */
+function normalizeModernImage(name?: string): string | undefined {
+	if (!name) return undefined;
+	if (name.includes("_")) return name.toLowerCase();
+	return name
+		.replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+		.replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+		.toLowerCase();
+}
+
+/**
+ * A text field (label / tooltip) as a ribbon attribute value. When the button
+ * was loaded from Dataverse and the field is unchanged, the ORIGINAL token
+ * (`$Resources:…`, `$LocLabels:…`, literal) is written back verbatim (#12).
+ * An edited `$LocLabels:` field keeps its LocLabel id (other languages are
+ * preserved); anything else gets the convention id.
+ */
+function resolveButtonText(
+	current: string | undefined,
+	token: string | undefined,
+	conventionId: string,
+	storeLocLabels: LocLabel[],
+	sink: (label: LocLabel) => void,
+): string | undefined {
+	if (token !== undefined && (current ?? "") === resolveDisplayLabel(token, storeLocLabels)) {
+		if (token.startsWith("$LocLabels:")) {
+			const existing = storeLocLabels.find((l) => l.id === token.slice("$LocLabels:".length));
+			if (existing) sink(existing);
+			// Not loaded → the unmanaged layer's row is kept by the merge.
+		}
+		return token;
+	}
+	if (!current) return undefined;
+	const locId = token?.startsWith("$LocLabels:") ? token.slice("$LocLabels:".length) : conventionId;
+	return resolveLocalizedAttr(current, locId, storeLocLabels, sink);
+}
+
 function generateButtonElement(
 	button: RibbonButton,
 	storeLocLabels: LocLabel[],
 	sink: (label: LocLabel) => void,
 ): string {
 	const tag = buttonKindToTag(button.kind);
-	const labelAttr = resolveLocalizedAttr(
-		button.label,
-		buttonLabelId(button.id),
-		storeLocLabels,
-		sink,
-	);
-	// Icons MUST reference real web resources (`$webresource:…`). A bare Fluent
-	// icon name (e.g. "search") is a CBS-canvas-preview value only — emitting it
-	// as ModernImage/Image16by16/Image32by32 produces an unresolvable reference
-	// that breaks the ribbon compile and silently drops the button. So we emit
-	// icon attributes ONLY for `$webresource:` values, never bare names.
-	const isWebResourceRef = (v?: string): v is string => !!v && v.startsWith("$webresource:");
-	const modernImage = isWebResourceRef(button.image32)
-		? button.image32
-		: isWebResourceRef(button.image16)
-			? button.image16
-			: isWebResourceRef(button.icon)
-				? button.icon
-				: "";
-	const iconAttr = modernImage ? ` ModernImage="${escapeXml(modernImage)}"` : "";
-	const image16Attr = isWebResourceRef(button.image16)
-		? ` Image16by16="${escapeXml(button.image16)}"`
-		: "";
-	const image32Attr = isWebResourceRef(button.image32)
-		? ` Image32by32="${escapeXml(button.image32)}"`
-		: "";
-	const tooltipTitleAttr = button.tooltipTitle
-		? ` ToolTipTitle="${escapeXml(
-				resolveLocalizedAttr(
-					button.tooltipTitle,
-					buttonTooltipTitleId(button.id),
-					storeLocLabels,
-					sink,
-				),
-			)}"`
-		: "";
-	const tooltipBodyAttr = button.tooltipBody
-		? ` ToolTipDescription="${escapeXml(
-				resolveLocalizedAttr(
-					button.tooltipBody,
-					buttonTooltipBodyId(button.id),
-					storeLocLabels,
-					sink,
-				),
-			)}"`
-		: "";
-	const commandAttr = button.commandId ? ` Command="${escapeXml(button.commandId)}"` : "";
+	const src = button.source;
+	// Start from the control exactly as loaded so attributes CBS doesn't model
+	// (Alt, Description, PopulateDynamically, …) survive an edit.
+	const attrs = new Map<string, string>();
+	for (const [k, v] of Object.entries(src?.attributes ?? {})) {
+		if (!NON_DIFF_ATTRIBUTES.has(k)) attrs.set(k, v);
+	}
+	const set = (k: string, v: string | undefined) => (v === undefined || v === "" ? attrs.delete(k) : attrs.set(k, v));
 
-	return `<${tag} Id="${escapeXml(button.id)}"${commandAttr}
-      LabelText="${escapeXml(labelAttr)}"${tooltipTitleAttr}${tooltipBodyAttr}
-      TemplateAlias="${escapeXml(button.templateAlias)}"
-      Sequence="${button.sequence}"${iconAttr}${image16Attr}${image32Attr}/>`;
+	set("Id", button.id);
+	set("Command", button.commandId || undefined);
+	set(
+		"LabelText",
+		resolveButtonText(button.label, src?.labelToken, buttonLabelId(button.id), storeLocLabels, sink) ?? "",
+	);
+	if (!attrs.has("LabelText")) attrs.set("LabelText", "");
+	set(
+		"ToolTipTitle",
+		resolveButtonText(button.tooltipTitle, src?.tooltipTitleToken, buttonTooltipTitleId(button.id), storeLocLabels, sink),
+	);
+	set(
+		"ToolTipDescription",
+		resolveButtonText(button.tooltipBody, src?.tooltipBodyToken, buttonTooltipBodyId(button.id), storeLocLabels, sink),
+	);
+	set("TemplateAlias", button.templateAlias);
+	set("Sequence", String(button.sequence));
+
+	// Icons. Unchanged → keep the loaded value (out-of-the-box names like
+	// "New", /_imgs/ paths). A bare Fluent icon name chosen in CBS is a
+	// canvas-preview value only and must never be emitted (it doesn't resolve).
+	const isResourceRef = (v?: string) => !!v && (v.startsWith("$webresource:") || v.includes("/") || v.includes("."));
+	const iconUnchanged = src && normalizeModernImage(src.modernImage) === button.icon;
+	const modernImage = iconUnchanged
+		? src?.modernImage
+		: [button.image32, button.image16, button.icon].find((v) => v?.startsWith("$webresource:"));
+	set("ModernImage", modernImage);
+	set("Image16by16", isResourceRef(button.image16) ? button.image16 : undefined);
+	set("Image32by32", isResourceRef(button.image32) ? button.image32 : undefined);
+
+	const attrXml = Array.from(attrs.entries())
+		.map(([k, v]) => `${k}="${escapeXml(v)}"`)
+		.join(" ");
+	return `<${tag} ${attrXml}/>`;
 }
 
 /**
@@ -633,7 +694,14 @@ function buttonKindToTag(kind: RibbonButton["kind"]): string {
 // Command definition generators
 // ---------------------------------------------------------------------------
 
-function generateCommandDefinition(cmd: CommandDefinition): string {
+/** A bare web resource name (`new_/scripts/x.js`) needs the `$webresource:` directive. */
+function normalizeLibrary(library: string): string {
+	const v = (library ?? "").trim();
+	if (!v || v.startsWith("$webresource:") || /^https?:\/\//i.test(v) || v.startsWith("/")) return v;
+	return `$webresource:${v}`;
+}
+
+export function generateCommandDefinition(cmd: CommandDefinition): string {
 	const enableRulesXml = cmd.enableRules
 		.map((r) => `<EnableRule Id="${escapeXml(r)}"/>`)
 		.join("\n        ");
@@ -645,7 +713,7 @@ function generateCommandDefinition(cmd: CommandDefinition): string {
 			if (a.kind === "javascript") {
 				const paramsXml = a.params.map(generateActionParam).join("\n          ");
 				return `<JavaScriptFunction FunctionName="${escapeXml(a.functionName)}"
-          Library="${escapeXml(a.library)}">
+          Library="${escapeXml(normalizeLibrary(a.library))}">
           ${paramsXml}
         </JavaScriptFunction>`;
 			}
@@ -696,14 +764,14 @@ function generateActionParam(param: ActionParameter): string {
 // Rule generators
 // ---------------------------------------------------------------------------
 
-function generateEnableRule(rule: EnableRule): string {
+export function generateEnableRule(rule: EnableRule): string {
 	const steps = rule.steps.map(generateRuleStep).join("\n        ");
 	return `<EnableRule Id="${escapeXml(rule.id)}">
         ${steps}
       </EnableRule>`;
 }
 
-function generateDisplayRule(rule: DisplayRule): string {
+export function generateDisplayRule(rule: DisplayRule): string {
 	const steps = rule.steps.map(generateRuleStep).join("\n        ");
 	return `<DisplayRule Id="${escapeXml(rule.id)}">
         ${steps}
@@ -858,10 +926,10 @@ function generateTabDisplayRulesForTab(tab: import("@/types/ribbon").RibbonTab):
 				})
 				.filter(Boolean)
 				.join("\n          ");
+			// Rules are direct children of TabDisplayRule (RibbonCore.xsd) — no
+			// <DisplayRules> wrapper.
 			return `<TabDisplayRule TabCommand="${escapeXml(tdr.tabCommand)}">
-        <DisplayRules>
           ${stepsXml}
-        </DisplayRules>
       </TabDisplayRule>`;
 		})
 		.join("\n      ");
@@ -883,39 +951,52 @@ export function escapeXml(str: string): string {
 		.replace(/'/g, "&apos;");
 }
 
+export interface CustomizationsEntityRibbon {
+	/** Table SchemaName (e.g. `Account`). Dataverse matches it case-insensitively,
+	 * so the logical name is an acceptable fallback. */
+	schemaName: string;
+	/** Display name for the `<Name LocalizedName>` attribute. */
+	localizedName: string;
+	/** The COMPLETE RibbonDiffXml for the table (it replaces the table's whole
+	 * unmanaged ribbon customization on import — see #11). */
+	ribbonDiffXml: string;
+}
+
 /**
- * Wraps RibbonDiffXml into a full customizations.xml for solution import.
+ * Builds customizations.xml for a ribbon-only solution import.
+ *
+ * Entity ribbons go under `Entities/Entity`, identified by a `<Name>` CHILD
+ * element. The previous `<Entity Name="…" unmodified="0">` attribute form is
+ * not in the schema; Dataverse accepted the import but silently ignored the
+ * entity block, so every entity-ribbon publish was a no-op (#8, verified live).
+ * The application ribbon is a root-level `<RibbonDiffXml>`.
+ *
+ * Form-specific ribbons (`FormXml/forms/systemform/form/RibbonDiffXml`) are not
+ * supported on Unified Interface and a ribbon-only systemform import risks
+ * overwriting the form, so they are intentionally not produced (#14).
  */
-export function wrapInCustomizationsXml(
-	ribbonDiffXml: string,
-	entityLogicalName: string | null,
-	scope: "entity" | "application" | "form",
-	formId?: string,
-): string {
-	const entityBlock = entityLogicalName
-		? `
+export function buildCustomizationsXml(input: {
+	entities?: CustomizationsEntityRibbon[];
+	applicationRibbonDiffXml?: string;
+}): string {
+	const entities = input.entities ?? [];
+	const entityBlock =
+		entities.length === 0
+			? ""
+			: `
   <Entities>
-    <Entity Name="${escapeXml(entityLogicalName)}" unmodified="0">
-      ${scope === "entity" ? ribbonDiffXml : ""}
-      ${
-				scope === "form" && formId
-					? `
-      <FormXml>
-        <forms>
-          <systemform formid="${escapeXml(formId)}">
-            <form>${ribbonDiffXml}</form>
-          </systemform>
-        </forms>
-      </FormXml>`
-					: ""
-			}
-    </Entity>
-  </Entities>`
-		: "";
+${entities
+	.map(
+		(e) => `    <Entity>
+      <Name LocalizedName="${escapeXml(e.localizedName)}" OriginalName="${escapeXml(e.localizedName)}">${escapeXml(e.schemaName)}</Name>
+      ${e.ribbonDiffXml}
+    </Entity>`,
+	)
+	.join("\n")}
+  </Entities>`;
 
 	return `<?xml version="1.0" encoding="utf-8"?>
-<ImportExportXml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="9.1.0.0">
-  ${scope === "application" ? ribbonDiffXml : ""}
-  ${entityBlock}
+<ImportExportXml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">${entityBlock}
+  ${input.applicationRibbonDiffXml ?? ""}
 </ImportExportXml>`;
 }

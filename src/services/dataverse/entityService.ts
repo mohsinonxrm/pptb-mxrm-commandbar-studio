@@ -33,7 +33,7 @@ export async function fetchEntitiesByMetadataIds(
 		`Loading metadata for ${metadataIds.length} solution entit${metadataIds.length === 1 ? "y" : "ies"}...`,
 	);
 
-	const select = "MetadataId,LogicalName,DisplayName,IsCustomEntity,IsIntersect";
+	const select = "MetadataId,LogicalName,SchemaName,DisplayName,IsCustomEntity,IsIntersect";
 
 	const results: Array<EntityMetadata | null> = await Promise.all(
 		metadataIds.map(async (id): Promise<EntityMetadata | null> => {
@@ -44,6 +44,7 @@ export async function fetchEntitiesByMetadataIds(
 				const entity: EntityMetadata = {
 					metadataId: String(r["MetadataId"] ?? ""),
 					logicalName: String(r["LogicalName"] ?? ""),
+					schemaName: r["SchemaName"] ? String(r["SchemaName"]) : undefined,
 					displayName:
 						(r["DisplayName"] as { UserLocalizedLabel?: { Label?: string } })?.UserLocalizedLabel
 							?.Label ?? String(r["LogicalName"] ?? ""),

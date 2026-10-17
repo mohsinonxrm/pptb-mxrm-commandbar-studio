@@ -16,6 +16,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type { RibbonButton } from "@/types/ribbon";
 
 export const NewButtonModal: React.FC = () => {
@@ -48,13 +49,42 @@ export const NewButtonModal: React.FC = () => {
 			sessionPublisherPrefix?.trim() ||
 			"new";
 		const entityName = activeEntity?.logicalName ?? "global";
-		const safeName = label.replace(/\s+/g, "");
-		const id = `${prefix}.${entityName}.${safeName}.Button`;
-		const commandId = `${prefix}.${entityName}.${safeName}.Command`;
+		const safeName = label.replace(/[^a-zA-Z0-9_]/g, "") || "Button";
+		// Include the location so the same label on the grid, sub-grid and form
+		// doesn't produce colliding ids in the table's single RibbonDiffXml, and
+		// de-duplicate against everything already loaded.
+		const ribbons = useRibbonStore.getState().ribbons;
+		const commands = useRibbonStore.getState().commands;
+		const existingIds = new Set<string>(commands.map((c) => c.id));
+		for (const r of Object.values(ribbons))
+			for (const t of r.tabs)
+				for (const g of t.groups) for (const b of g.buttons) existingIds.add(b.id);
+		const base = `${prefix}.${entityName}.${activeLocation}.${safeName}`;
+		let stem = base;
+		for (let n = 2; existingIds.has(`${stem}.Button`) || existingIds.has(`${stem}.Command`); n++) {
+			stem = `${base}${n}`;
+		}
+		const id = `${stem}.Button`;
+		const commandId = `${stem}.Command`;
+
+		// Resolve the tab from the target group rather than trusting the
+		// selection: after switching location the selected tab id can still
+		// belong to the previous location, and createButton then silently
+		// dropped the new button.
+		const targetTabId =
+			ribbons[activeLocation].tabs.find((t) => t.groups.some((g) => g.id === newButtonGroupId))?.id ??
+			selectedTabId;
+		if (!ribbons[activeLocation].tabs.some((t) => t.id === targetTabId)) {
+			useRuntimeLogStore
+				.getState()
+				.logError("canvas", `Could not add the button: group ${newButtonGroupId} was not found.`);
+			closeNewButton();
+			return;
+		}
 
 		createButton({
 			location: activeLocation,
-			tabId: selectedTabId,
+			tabId: targetTabId,
 			groupId: newButtonGroupId,
 			button: {
 				id,
@@ -86,7 +116,7 @@ export const NewButtonModal: React.FC = () => {
 
 		// Select the newly-created button so it's immediately visible in the
 		// canvas / properties pane and the user can confirm it landed.
-		selectButtonInContext(activeLocation, selectedTabId, newButtonGroupId, id);
+		selectButtonInContext(activeLocation, targetTabId, newButtonGroupId, id);
 
 		setLabel("New Button");
 		setKind("button");

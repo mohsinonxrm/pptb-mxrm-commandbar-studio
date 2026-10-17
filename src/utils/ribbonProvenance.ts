@@ -43,6 +43,21 @@ export function heuristicOrigin(id: string, inCustomAction: boolean): RibbonOrig
 }
 
 /**
+ * Corrects "unmanaged" using the table's actual unmanaged ribbon layer: a
+ * control is yours only if that layer adds it. The parser can't tell (the
+ * merged ribbon contains no CustomActions), so first-party / ISV controls with
+ * their own prefixes were treated as yours and could be "deleted" (#11 review N4).
+ */
+export function applyLayerOwnership(def: RibbonDefinition, ownIds: Set<string>): void {
+	for (const tab of def.tabs)
+		for (const group of tab.groups)
+			for (const button of group.buttons) {
+				if (ownIds.has(button.id)) applyButtonOrigin(button, { origin: "unmanaged" });
+				else if (button.origin === "unmanaged") applyButtonOrigin(button, { origin: "managed" });
+			}
+}
+
+/**
  * Overlays authoritative solution-layer provenance onto every button in a set
  * of ribbons (mutates in place). Buttons not present in the map keep whatever
  * the parser's heuristic set.
