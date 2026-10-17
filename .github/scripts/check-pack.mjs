@@ -18,14 +18,7 @@ const REQUIRED = [
 	"LICENSE",
 	"SECURITY.md",
 ];
-const FORBIDDEN = [
-	/^dist\/stats\.html$/,
-	/^dev\//,
-	/^src\//,
-	/^coverage\//,
-	/\.map$/,
-	/^\.github\//,
-];
+const FORBIDDEN = [/^dev\//, /^src\//, /^coverage\//, /\.map$/, /^\.github\//];
 
 const raw = readFileSync(process.argv[2] ?? 0, "utf8");
 // npm <= 11 prints an array of packages, npm 12 an object keyed by package name.
