@@ -185,9 +185,6 @@ npm run preview
 # Run tests
 npm test
 
-# Run tests with coverage
-npm run test:coverage
-
 # Lint (zero warnings allowed)
 npm run lint
 
@@ -197,13 +194,7 @@ npm run format
 
 # Validate the PPTB tool manifest
 npm run validate
-
-# Bundle size report (writes dist/stats.html and opens it)
-npm run analyze
 ```
-
-`npm install` / `npm ci` install the husky git hooks via the `prepare` script.
-Set `HUSKY=0` to skip that (for example in CI).
 
 ### Standalone vs PPTB-embedded
 
@@ -285,8 +276,8 @@ src/
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read the [Conventional Commits](https://www.conventionalcommits.org/) guide —
-all commits must follow the format enforced by `commitlint`.
+Contributions are welcome! Please use [Conventional Commits](https://www.conventionalcommits.org/)
+style messages (`feat:`, `fix:`, `chore:` …).
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feat/my-feature`
