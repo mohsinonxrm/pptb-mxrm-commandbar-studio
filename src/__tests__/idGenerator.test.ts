@@ -78,3 +78,12 @@ describe("generateLocLabelId", () => {
 		expect(id).toBe("Contoso.account.Test.Button.ToolTip");
 	});
 });
+
+describe("ruleNameFromCommandId", () => {
+	it("uses the distinctive part of the command id", async () => {
+		const { ruleNameFromCommandId } = await import("@/utils/idGenerator");
+		expect(ruleNameFromCommandId("cbstest.contact.HomepageGrid.Approve.Command")).toBe("Approve");
+		expect(ruleNameFromCommandId("Mscrm.AssignSelectedRecord")).toBe("AssignSelectedRecord");
+		expect(ruleNameFromCommandId("")).toBe("Rule");
+	});
+});

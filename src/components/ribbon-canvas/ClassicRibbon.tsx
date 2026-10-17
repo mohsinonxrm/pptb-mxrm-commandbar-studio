@@ -819,11 +819,11 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 						hideOobButton(location, tab.id, hideWarning.groupId, hideWarning.button.id);
 						setHideWarning(null);
 					}}
+					commandId={hideWarning.button.commandId}
 					onConfirmDisplayRule={() => {
-						// Apply reversible hide via setButtonProp hidden flag (display rule approach)
-						setButtonProp(location, tab.id, hideWarning.groupId, hideWarning.button.id, {
-							hidden: true,
-						});
+						// Reversible hide: display rules on the button's command (not the hidden flag,
+						// which publishes a HideCustomAction).
+						useRibbonStore.getState().hideWithDisplayRules(hideWarning.button.commandId);
 						setHideWarning(null);
 					}}
 					onCancel={() => setHideWarning(null)}

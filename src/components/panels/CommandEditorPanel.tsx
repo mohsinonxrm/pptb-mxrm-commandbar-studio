@@ -298,7 +298,7 @@ export const CommandEditorPanel: React.FC = () => {
 	const addAction = (kind: ActionKind) => {
 		const newAction: RibbonAction =
 			kind === "javascript"
-				? { kind: "javascript", library: "$webresource:", functionName: "", params: [] }
+				? { kind: "javascript", library: "", functionName: "", params: [] }
 				: kind === "url"
 					? { kind: "url", address: "https://", passParams: false, params: [] }
 					: kind === "powerFx"
@@ -335,7 +335,15 @@ export const CommandEditorPanel: React.FC = () => {
 							<Input
 								style={{ flex: 1 }}
 								value={action.library}
-								onChange={(_, d) => updateAction(index, { ...action, library: d.value })}
+								onChange={(_, d) =>
+									updateAction(index, {
+										...action,
+										// Collapse a repeated `$webresource:` prefix (pasting a full
+										// reference into a pre-filled field produced
+										// `$webresource:$webresource:…`, which never resolves).
+										library: d.value.replace(/^(\s*\$webresource:\s*)+/i, "$webresource:"),
+									})
+								}
 								placeholder="$webresource:publisher_/scripts/myfile.js"
 							/>
 							<Button

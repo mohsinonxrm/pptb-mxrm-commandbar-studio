@@ -4,7 +4,7 @@ import { DismissRegular, AddRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
-import { generateRuleId } from "@/utils/idGenerator";
+import { generateRuleId, ruleNameFromCommandId } from "@/utils/idGenerator";
 
 const useStyles = makeStyles({
 	section: {
@@ -109,11 +109,7 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 
 		if (kind === "display") {
 			const existingIds = new Set(displayRules.map((r) => r.id));
-			const newRuleId = generateRuleId(
-				command.id.split(".").pop() || "Rule",
-				"Display",
-				existingIds,
-			);
+			const newRuleId = generateRuleId(ruleNameFromCommandId(command.id), "Display", existingIds);
 			upsertDisplayRule({ id: newRuleId, steps: [] });
 			upsertCommand({ ...command, displayRules: [...command.displayRules, newRuleId] });
 			openRuleEditor(newRuleId, "display");
@@ -121,7 +117,7 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 		}
 
 		const existingIds = new Set(enableRules.map((r) => r.id));
-		const newRuleId = generateRuleId(command.id.split(".").pop() || "Rule", "Enable", existingIds);
+		const newRuleId = generateRuleId(ruleNameFromCommandId(command.id), "Enable", existingIds);
 		upsertEnableRule({ id: newRuleId, steps: [] });
 		upsertCommand({ ...command, enableRules: [...command.enableRules, newRuleId] });
 		openRuleEditor(newRuleId, "enable");

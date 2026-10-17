@@ -37,6 +37,15 @@ export function generateRuleId(
 	return ensureUnique(base, existingIds);
 }
 
+/**
+ * The distinctive part of a command id, used to name rules created for it:
+ * `cbstest.contact.HomepageGrid.Approve.Command` → `Approve`,
+ * `Mscrm.AssignSelectedRecord` → `AssignSelectedRecord`.
+ */
+export function ruleNameFromCommandId(commandId: string): string {
+	return commandId.replace(/\.Command$/, "").split(".").pop() || "Rule";
+}
+
 export function generateLocLabelId(buttonId: string, part: "LabelText" | "ToolTip"): string {
 	return `${buttonId}.${part}`;
 }
