@@ -9,6 +9,7 @@ import { EnableRulesSection } from "./EnableRulesSection";
 import { ScalingSectionSummary } from "./ScalingSectionSummary";
 import { AdvancedSection } from "./AdvancedSection";
 import { ConflictBanner } from "./ConflictBanner";
+import { HiddenByCustomizationsSection } from "./HiddenByCustomizationsSection";
 
 const useStyles = makeStyles({
 	root: {
@@ -60,10 +61,13 @@ export function PropertiesPane() {
 			</div>
 
 			{!button ? (
-				<div className={styles.empty}>
-					<CursorHoverRegular fontSize={32} style={{ opacity: 0.4 }} />
-					<Text size={300}>Select a button to view its properties</Text>
-				</div>
+				<>
+					<div className={styles.empty}>
+						<CursorHoverRegular fontSize={32} style={{ opacity: 0.4 }} />
+						<Text size={300}>Select a button to view its properties</Text>
+					</div>
+					<HiddenByCustomizationsSection />
+				</>
 			) : (
 				<>
 					<ConflictBanner />

@@ -264,6 +264,8 @@ export function App() {
 					displayRules: workspace.displayRules,
 					enableRules: workspace.enableRules,
 					locLabels: workspace.locLabels,
+					layers: workspace.layers,
+					baseLanguageCode: workspace.baseLanguageCode,
 				});
 
 				// Snapshot the current selection at success-time via getState()

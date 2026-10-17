@@ -1,5 +1,26 @@
 import { hasOobOverrideChanges, indexButtons, summarizeRibbonDiff } from "@/services/xmlGenerator";
-import type { CommandDefinition, DisplayRule, EnableRule, RibbonDefinition } from "@/types/ribbon";
+import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
+import type {
+	CommandDefinition,
+	DisplayRule,
+	EnableRule,
+	LocLabel,
+	RibbonButton,
+	RibbonDefinition,
+} from "@/types/ribbon";
+import type { MovedControl } from "@/services/ribbonDiffMerge";
+
+/**
+ * What the scope's unmanaged ribbon layer owns, as read at load (or refreshed
+ * after a publish). Tabs / groups / labels outside it come from a managed
+ * solution or the platform and can't be removed or changed through the layer.
+ */
+export interface PlanLayerOwnership {
+	/** Tabs and groups the layer adds (ribbonDiffMerge.ownContainerIds). */
+	containerIds: ReadonlySet<string> | readonly string[];
+	/** LocLabels the layer defines. */
+	locLabelIds: ReadonlySet<string> | readonly string[];
+}
 
 export interface PlanInput {
 	locations: { current: RibbonDefinition; baseline: RibbonDefinition }[];
@@ -9,6 +30,17 @@ export interface PlanInput {
 	baselineEnableRules: EnableRule[];
 	displayRules: DisplayRule[];
 	baselineDisplayRules: DisplayRule[];
+	/** LocLabels now and as loaded / last published: translation-only edits (#49). */
+	locLabels?: LocLabel[];
+	baselineLocLabels?: LocLabel[];
+	/** The scope's unmanaged layer. Without it, tab / group deletes and label or tab-rule edits are reported as unsupported. */
+	layer?: PlanLayerOwnership;
+	/**
+	 * Controls hidden by a HideCustomAction of the layer that the user chose to
+	 * un-hide (#47). RetrieveEntityRibbon applies hides, so these controls are
+	 * not on the canvas at all.
+	 */
+	unhiddenLayerHideIds?: string[];
 	/**
 	 * Commands that belong to another scope and must not be published from this
 	 * one. The application ribbon passes the commands its table's buttons use:
@@ -40,6 +72,14 @@ export interface ScopePlan {
 	deletedButtonIds: string[];
 	/** Buttons hidden when loaded / last published and visible now. */
 	unhiddenButtonIds: string[];
+	/** Tabs and groups the layer adds that were removed this session (#48). */
+	deletedContainerIds: string[];
+	/** Buttons the layer adds that were moved or re-sequenced (#26). */
+	movedButtons: MovedControl[];
+	/** LocLabels the layer defines whose translations changed, used in this scope (#49). */
+	editedLocLabelIds: string[];
+	/** Tabs the layer adds whose TabDisplayRules changed (#49). */
+	editedTabIds: string[];
 	/** Human-readable descriptions of changes CBS cannot publish yet. */
 	unsupported: string[];
 }
@@ -49,13 +89,37 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const isMenuKind = (kind?: string) => kind === "flyout" || kind === "splitButton";
 const isResourceIcon = (b: { icon?: string; image16?: string; image32?: string }) =>
 	[b.icon, b.image16, b.image32].some((v) => !!v && v.startsWith("$webresource:"));
+const LOC_REF = /^\$LocLabels:(.+)$/;
+const locRef = (v: string | undefined) => (v ? (LOC_REF.exec(v)?.[1] ?? null) : null);
+const asSet = (v: ReadonlySet<string> | readonly string[] | undefined) => new Set<string>(v ?? []);
+
+/** `$LocLabels:` ids a button's attributes reference, as loaded. */
+function buttonLabelRefs(button: RibbonButton): string[] {
+	const out: string[] = [];
+	for (const v of Object.values(button.source?.attributes ?? {})) {
+		const id = locRef(v);
+		if (id) out.push(id);
+	}
+	return out;
+}
 
 export function planScope(input: PlanInput): ScopePlan {
 	const unsupported: string[] = [];
 	const deleted: string[] = [];
 	const unhidden: string[] = [];
+	const deletedContainers: string[] = [];
+	const moved: MovedControl[] = [];
+	const editedTabIds: string[] = [];
 	let generatorChange = false;
 	const referencedCommandIds = new Set<string>();
+	const ownContainers = asSet(input.layer?.containerIds);
+	const ownLabels = asSet(input.layer?.locLabelIds);
+	// LocLabels referenced by the scope as loaded, and the ones the generator
+	// writes anyway (new / edited buttons, new tabs and groups).
+	const referencedLabels = new Set<string>();
+	const generatorLabels = new Set<string>();
+	// Convention label ids of buttons that don't reference them (yet).
+	const unreferencedConventionLabels = new Map<string, RibbonButton>();
 
 	for (const { current, baseline } of input.locations) {
 		const summary = summarizeRibbonDiff(current, baseline);
@@ -71,6 +135,18 @@ export function planScope(input: PlanInput): ScopePlan {
 		const cur = indexButtons(current);
 		const base = indexButtons(baseline);
 		for (const { button } of cur.values()) if (button.commandId) referencedCommandIds.add(button.commandId);
+
+		for (const [key, { button }] of cur) {
+			const refs = buttonLabelRefs(button);
+			refs.forEach((id) => referencedLabels.add(id));
+			const b = base.get(key)?.button;
+			const emitted = !b || hasOobOverrideChanges(b, button);
+			for (const id of [buttonLabelId(button.id), buttonTooltipTitleId(button.id), buttonTooltipBodyId(button.id)]) {
+				if (emitted) generatorLabels.add(id);
+				else if (!refs.includes(id)) unreferencedConventionLabels.set(id, button);
+			}
+			if (emitted) refs.forEach((id) => generatorLabels.add(id));
+		}
 
 		for (const [key, b] of base) {
 			const id = b.button.id;
@@ -97,7 +173,15 @@ export function planScope(input: PlanInput): ScopePlan {
 				);
 			}
 			if (c.groupId !== b.groupId || c.button.sequence !== b.button.sequence) {
-				unsupported.push(`Moving or re-ordering "${c.button.label}" (${id}) — not supported yet`);
+				// Your own button: its CustomAction is moved in place. Anything else
+				// would need a hide plus a copy, which CBS doesn't write (yet).
+				if (b.button.origin === "unmanaged") {
+					moved.push({ id, groupId: c.groupId, sequence: c.button.sequence });
+				} else {
+					unsupported.push(
+						`Moving or re-ordering "${c.button.label}" (${id}) — only your own unmanaged buttons can be moved; hide it and add a new button instead`,
+					);
+				}
 			}
 		}
 
@@ -109,14 +193,51 @@ export function planScope(input: PlanInput): ScopePlan {
 
 		const baseGroups = new Map(baseline.tabs.flatMap((t) => t.groups.map((g) => [g.id, g] as const)));
 		const baseTabs = new Map(baseline.tabs.map((t) => [t.id, t] as const));
+		const curTabIds = new Set(current.tabs.map((t) => t.id));
+		const curGroupIds = new Set(current.tabs.flatMap((t) => t.groups.map((g) => g.id)));
 		for (const tab of current.tabs) {
+			const tabRef = locRef(tab.label);
+			if (tabRef) referencedLabels.add(tabRef);
 			const bt = baseTabs.get(tab.id);
+			if (!bt) generatorLabels.add(`${tab.id}.Title`);
 			if (bt && bt.label !== tab.label) unsupported.push(`Renaming tab ${tab.id} — not supported yet`);
+			if (bt && !same(bt.tabDisplayRules ?? [], tab.tabDisplayRules ?? [])) {
+				if (!ownContainers.has(tab.id)) {
+					unsupported.push(
+						`Changing the display rules of tab ${tab.id} — only tabs your unmanaged customizations add can be changed`,
+					);
+				} else if (!tab.commandId) {
+					unsupported.push(`Changing the display rules of tab ${tab.id} — the tab has no Command to attach them to`);
+				} else {
+					editedTabIds.push(tab.id);
+				}
+			}
 			for (const g of tab.groups) {
+				const groupRef = locRef(g.label);
+				if (groupRef) referencedLabels.add(groupRef);
 				const bg = baseGroups.get(g.id);
+				if (!bg) generatorLabels.add(`${g.id}.Title`);
 				if (bg && (bg.label !== g.label || bg.template !== g.template)) {
 					unsupported.push(`Renaming or re-templating group ${g.id} — not supported yet`);
 				}
+			}
+		}
+
+		// Deleted tabs and groups (#48). A group goes with its deleted tab.
+		const notOwn = (kind: string, id: string) =>
+			unsupported.push(
+				`Removing ${kind} ${id} — only tabs and groups your unmanaged customizations add can be deleted; hide it instead`,
+			);
+		for (const bt of baseline.tabs) {
+			if (!curTabIds.has(bt.id)) {
+				if (ownContainers.has(bt.id)) deletedContainers.push(bt.id);
+				else notOwn("tab", bt.id);
+				continue;
+			}
+			for (const bg of bt.groups) {
+				if (curGroupIds.has(bg.id)) continue;
+				if (ownContainers.has(bg.id)) deletedContainers.push(bg.id);
+				else notOwn("group", bg.id);
 			}
 		}
 	}
@@ -150,6 +271,37 @@ export function planScope(input: PlanInput): ScopePlan {
 	const editedEnableRuleIds = editedRules(input.enableRules, input.baselineEnableRules, enableInScope);
 	const editedDisplayRuleIds = editedRules(input.displayRules, input.baselineDisplayRules, displayInScope);
 
+	// Translation edits (#49). The generator writes the labels of new / edited
+	// buttons, tabs and groups itself; any other edited label is written on its
+	// own when the layer defines it (an unmanaged LocLabel with another
+	// solution's id isn't something CBS writes).
+	const editedLocLabelIds: string[] = [];
+	if (input.locLabels && input.baselineLocLabels) {
+		const baseLabels = new Map(input.baselineLocLabels.map((l) => [l.id, l] as const));
+		for (const label of input.locLabels) {
+			const prev = baseLabels.get(label.id);
+			if (prev && same(prev, label)) continue;
+			if (generatorLabels.has(label.id)) continue;
+			if (referencedLabels.has(label.id)) {
+				if (ownLabels.has(label.id)) editedLocLabelIds.push(label.id);
+				else {
+					unsupported.push(
+						`Translations of label ${label.id} — it is defined by another solution; change the text in the properties pane instead`,
+					);
+				}
+				continue;
+			}
+			const button = unreferencedConventionLabels.get(label.id);
+			if (button) {
+				unsupported.push(
+					`Translations for "${button.label}" (${button.id}) — its text isn't a translatable label yet; change the text in the properties pane first, then add translations`,
+				);
+			}
+		}
+	}
+
+	const unhiddenLayer = (input.unhiddenLayerHideIds ?? []).filter((id) => !unhidden.includes(id));
+
 	return {
 		hasChanges:
 			generatorChange ||
@@ -157,12 +309,21 @@ export function planScope(input: PlanInput): ScopePlan {
 			editedEnableRuleIds.length > 0 ||
 			editedDisplayRuleIds.length > 0 ||
 			deleted.length > 0 ||
-			unhidden.length > 0,
+			unhidden.length > 0 ||
+			unhiddenLayer.length > 0 ||
+			deletedContainers.length > 0 ||
+			moved.length > 0 ||
+			editedLocLabelIds.length > 0 ||
+			editedTabIds.length > 0,
 		editedCommandIds,
 		editedEnableRuleIds,
 		editedDisplayRuleIds,
 		deletedButtonIds: deleted,
-		unhiddenButtonIds: unhidden,
+		unhiddenButtonIds: [...unhidden, ...unhiddenLayer],
+		deletedContainerIds: deletedContainers,
+		movedButtons: moved,
+		editedLocLabelIds,
+		editedTabIds,
 		unsupported: [...new Set(unsupported)],
 	};
 }

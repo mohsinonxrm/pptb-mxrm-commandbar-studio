@@ -209,6 +209,9 @@ CBS runs in two modes:
 - **Standalone** (`npm run dev`) — opens in a regular browser tab. Useful for UI
   iteration. All Dataverse calls fail because `window.dataverseAPI` is absent; the
   canvas and editors can still be exercised with the restore-from-localStorage path.
+- **Dev harness** (`npm run dev:harness`) — the real UI in a browser tab against a
+  live Dataverse org, via a stubbed PPTB host and an Azure CLI–authenticated dev-server
+  proxy. See [CONTRIBUTING.md](CONTRIBUTING.md#running-against-a-live-org-dev-harness).
 - **Embedded in PPTB** — loads inside the PPTB iframe. The host injects
   `window.dataverseAPI` (typed) and `window.toolboxAPI`. All publish, load, and
   web-resource operations work against the active connection.

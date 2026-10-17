@@ -300,7 +300,7 @@ export const CommandEditorPanel: React.FC = () => {
 			kind === "javascript"
 				? { kind: "javascript", library: "", functionName: "", params: [] }
 				: kind === "url"
-					? { kind: "url", address: "https://", passParams: false, params: [] }
+					? { kind: "url", address: "https://", params: [] }
 					: kind === "powerFx"
 						? { kind: "powerFx", expression: "" }
 						: {
@@ -514,7 +514,7 @@ export const CommandEditorPanel: React.FC = () => {
 						<Button
 							appearance={action.passParams ? "primary" : "subtle"}
 							size="small"
-							onClick={() => updateAction(index, { ...action, passParams: !action.passParams })}
+							onClick={() => updateAction(index, { ...action, passParams: action.passParams ? undefined : true })}
 						>
 							{action.passParams ? "✓ PassParams ON" : "PassParams OFF"} — appends typename, type,
 							id, orgname…
@@ -631,6 +631,31 @@ export const CommandEditorPanel: React.FC = () => {
 							placeholder="ParamA=ValueA; ParamB=ValueB"
 						/>
 					</Field>
+				</div>
+			);
+		}
+
+		if (action.kind === "outlookCommand" || action.kind === "raw") {
+			// Not editable in CBS; kept exactly as loaded when the command is re-emitted.
+			return (
+				<div key={index} className={styles.actionCard}>
+					<div className={styles.actionHeader}>
+						<Badge appearance="outline" size="small">
+							{action.kind === "outlookCommand" ? "Outlook command" : action.tagName}
+						</Badge>
+						<Button
+							appearance="subtle"
+							size="small"
+							icon={<DismissRegular />}
+							onClick={() => removeAction(index)}
+							aria-label="Remove action"
+						/>
+					</div>
+					<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+						{action.kind === "outlookCommand"
+							? `ActionType="${action.actionType}"${action.data ? ` Data="${action.data}"` : ""}`
+							: action.xml}
+					</Text>
 				</div>
 			);
 		}

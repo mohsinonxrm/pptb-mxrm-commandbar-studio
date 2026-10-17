@@ -1,5 +1,61 @@
-import { partsFromRibbonTables, type RibbonDiffParts, type RibbonTableRows } from "@/services/ribbonDiffMerge";
-import type { LocLabel } from "@/types/ribbon";
+import {
+	hideActionsOf,
+	ownContainerIds,
+	ownControlIds,
+	partsFromRibbonTables,
+	type LayerHide,
+	type RibbonDiffParts,
+	type RibbonTableRows,
+} from "@/services/ribbonDiffMerge";
+import { parseRibbonXml } from "@/services/xmlParser";
+import type { CommandDefinition, DisplayRule, EnableRule, LocLabel } from "@/types/ribbon";
+
+/**
+ * What one scope's unmanaged ribbon layer owns, kept in the store so the
+ * publish plan can tell your own tabs / groups / labels from everyone else's
+ * and so hidden controls can be listed (#47, #48, #49).
+ */
+export interface LayerSnapshot {
+	/** Controls (and tabs / groups) the layer adds via `…._children`. */
+	controlIds: string[];
+	/** Tabs and groups the layer adds, including groups declared inside its tabs. */
+	containerIds: string[];
+	locLabelIds: string[];
+	/** HideCustomActions of the layer. */
+	hides: LayerHide[];
+}
+
+export function layerSnapshotFromParts(parts: RibbonDiffParts): LayerSnapshot {
+	return {
+		controlIds: [...ownControlIds(parts)],
+		containerIds: [...ownContainerIds(parts)],
+		locLabelIds: [...parts.locLabels.keys()],
+		hides: hideActionsOf(parts),
+	};
+}
+
+/** Reads a scope's layer and snapshots it; null when the layer can't be read. */
+export async function fetchLayerSnapshot(entityLogicalName: string | null): Promise<LayerSnapshot | null> {
+	try {
+		return layerSnapshotFromParts(await fetchUnmanagedRibbonParts(entityLogicalName));
+	} catch {
+		return null;
+	}
+}
+
+/** The layer's command / rule definitions in the CBS model. */
+export function definitionsFromParts(parts: RibbonDiffParts): {
+	commands: CommandDefinition[];
+	enableRules: EnableRule[];
+	displayRules: DisplayRule[];
+} {
+	const xml =
+		`<RibbonDiffXml><CommandDefinitions>${[...parts.commandDefinitions.values()].join("")}</CommandDefinitions>` +
+		`<RuleDefinitions><DisplayRules>${[...parts.displayRules.values()].join("")}</DisplayRules>` +
+		`<EnableRules>${[...parts.enableRules.values()].join("")}</EnableRules></RuleDefinitions></RibbonDiffXml>`;
+	const parsed = parseRibbonXml(xml, "HomepageGrid", "");
+	return { commands: parsed.commands, enableRules: parsed.enableRules, displayRules: parsed.displayRules };
+}
 
 function getDataverseAPI() {
 	return (window as Window & typeof globalThis).dataverseAPI!;

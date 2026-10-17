@@ -6,7 +6,7 @@ locally.
 
 ## Branches
 
-- Work happens on branches cut from `dev` and merged into `dev` by PR.
+- Work happens on branches cut from `dev` and squash-merged into `dev` by PR.
 - A release is a PR from `dev` into `main`. Merge it with a **merge commit**, so `main`
   and `dev` keep the same history.
 - CI (`ci.yml`) runs on every PR and on pushes to `dev` and `main`.

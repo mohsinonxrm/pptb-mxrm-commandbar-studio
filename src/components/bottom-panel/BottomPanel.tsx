@@ -345,7 +345,11 @@ export function BottomPanel() {
 																? "URL"
 																: a.kind === "powerFx"
 																	? "Fx"
-																	: "API"}
+																	: a.kind === "customApi"
+																		? "API"
+																		: a.kind === "outlookCommand"
+																			? "Outlook"
+																			: "XML"}
 													</span>
 												))}
 												{cmd.actions.length === 0 && (

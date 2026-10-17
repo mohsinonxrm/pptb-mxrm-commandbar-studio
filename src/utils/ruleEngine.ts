@@ -72,7 +72,8 @@ function evaluateStep(step: RuleStep, context: RuleContext): boolean {
 			break;
 		}
 		case "OrRule": {
-			result = step.rules.some((nested) => evaluateStep(nested, context));
+			// Each <Or> group is an AND of its steps; the OrRule is any group.
+			result = step.groups.some((group) => group.every((nested) => evaluateStep(nested, context)));
 			break;
 		}
 		default:
@@ -111,9 +112,17 @@ function summarizeStep(step: RuleStep): string {
 		case "CustomRule":
 			return `${inv}Custom rule: ${step.functionName}() from ${step.library}`;
 		case "OrRule": {
-			const nested = step.rules.map(summarizeStep).join(" OR ");
+			const nested = step.groups
+				.map((group) =>
+					group.length === 1 ? summarizeStep(group[0]) : `(${group.map(summarizeStep).join(" AND ")})`,
+				)
+				.join(" OR ");
 			return `(${nested})`;
 		}
+		case "FeatureControlRule":
+			return `${inv}Feature "${step.featureControlBit}" is ${step.expectedValue ? "on" : "off"}`;
+		case "RawRule":
+			return `${step.tagName} (kept as XML)`;
 		case "MiscellaneousPrivilegeRule": {
 			const depth = step.privilegeDepth ? ` at ${step.privilegeDepth} depth` : "";
 			return `${inv}User has "${step.privilegeName}" privilege${depth}`;
@@ -167,12 +176,6 @@ function summarizeStep(step: RuleStep): string {
 			return `${inv}Device type is "${step.type}"`;
 		case "OptionSetRule":
 			return `${inv}Option set "${step.optionSet}" state code is "${step.stateCode}"`;
-		case "ShowOnQuickActionRule":
-			return "Show on quick action (references Mscrm.ShowOnQuickAction)";
-		case "ShowOnGridAndQuickActionRule":
-			return "Show on grid and quick action (references Mscrm.ShowOnGridAndQuickAction)";
-		case "ShowOnGridRule":
-			return "Show on grid (references Mscrm.ShowOnGrid)";
 		default:
 			return "Unknown rule step";
 	}
