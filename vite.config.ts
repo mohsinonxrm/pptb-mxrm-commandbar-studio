@@ -1,10 +1,18 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import { dataverseProxy } from "./dev/harness/vite-plugin-dataverse-proxy";
 
 // https://vitejs.dev/config/
-export default defineConfig(() => ({
-	plugins: [react()],
+export default defineConfig(({ command }) => ({
+	plugins: [
+		react(),
+		// Dev harness only (`npm run dev:harness`): proxies /__dv/* to the org in
+		// CBS_HARNESS_ORG with an Azure CLI token. Never active for `vite build`.
+		...(command === "serve" && process.env.CBS_HARNESS_ORG
+			? [dataverseProxy({ orgUrl: process.env.CBS_HARNESS_ORG })]
+			: []),
+	],
 	resolve: {
 		alias: {
 			"@": path.resolve(__dirname, "./src"),

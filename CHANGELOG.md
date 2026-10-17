@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🧪 Dev harness ([#24](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/24))
+
+- **`npm run dev:harness`** runs the real UI in a normal browser against a live
+  Dataverse org (`CBS_HARNESS_ORG=https://<org>.crm.dynamics.com`). It uses a stub of the
+  PPTB host APIs that mirrors PPTB 1.2.7's request shaping, and a localhost-only Vite
+  proxy that attaches an Azure CLI token server-side. Dev-only, so it is not part of the
+  build or the npm package. See `CONTRIBUTING.md`.
+
 ### 🧰 Build, packaging & repo hygiene ([#20](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/20))
 
 - **Lint fixed** — ESLint now uses a flat `eslint.config.js` with the

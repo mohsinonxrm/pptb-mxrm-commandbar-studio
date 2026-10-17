@@ -1,0 +1,20 @@
+{
+	/* Type-checks the dev-only harness (dev/**). Not part of `tsc -b` / the
+     app build; run via `npm run typecheck`. */
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["ES2022", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"types": ["node", "@pptb/types", "vite/client"],
+		"isolatedModules": true,
+		"moduleDetection": "force",
+		"noEmit": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noFallthroughCasesInSwitch": true
+	},
+	"include": ["dev"]
+}
