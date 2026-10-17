@@ -109,9 +109,10 @@ export const BulkPublishModal: React.FC = () => {
 	}, [activeSolution?.version]);
 
 	const planFor = React.useCallback(
-		(locations: RibbonLocation[]): ScopePlan =>
+		(locations: RibbonLocation[], excludeCommandIds?: Set<string>): ScopePlan =>
 			planScope({
 				locations: locations.map((l) => ({ current: ribbons[l], baseline: baseline[l] })),
+				excludeCommandIds,
 				commands,
 				baselineCommands,
 				enableRules,
@@ -134,7 +135,19 @@ export const BulkPublishModal: React.FC = () => {
 		() => (activeEntity ? planFor(ENTITY_LOCATIONS) : null),
 		[activeEntity, planFor],
 	);
-	const appPlan = React.useMemo(() => planFor(["Application"]), [planFor]);
+	// Commands used by the table's buttons are published with the table only:
+	// most out-of-the-box commands are shared with the application ribbon, and
+	// an edit made for this table must not reach every table.
+	const appPlan = React.useMemo(() => {
+		const tableCommands = new Set<string>();
+		if (activeEntity) {
+			for (const l of ENTITY_LOCATIONS)
+				for (const tab of ribbons[l].tabs)
+					for (const group of tab.groups)
+						for (const button of group.buttons) if (button.commandId) tableCommands.add(button.commandId);
+		}
+		return planFor(["Application"], tableCommands);
+	}, [planFor, activeEntity, ribbons]);
 	const includeApplicationRibbon = appPlan.hasChanges && solutionSupportsAppRibbon;
 	const unsupported = [...(entityPlan?.unsupported ?? []), ...appPlan.unsupported];
 	const scopes = [

@@ -71,4 +71,27 @@ describe("hiding a button with display rules", () => {
 		});
 		expect(xml).not.toContain("HideCustomAction");
 	});
+
+	it("an out-of-the-box command edited for a table isn't published to the application ribbon", () => {
+		const parsed = parseRibbonXml(MERGED, "Form", "contact");
+		const appRibbon = JSON.parse(JSON.stringify(parsed.ribbon));
+		appRibbon.location = "Application";
+		appRibbon.tabs[0].groups[0].buttons[0].id = "Mscrm.Form.{!EntityLogicalName}.Deactivate";
+		const edited = parsed.commands.map((c) => ({ ...c, displayRules: [...c.displayRules, ...HIDE_DISPLAY_RULES] }));
+		const common = {
+			commands: edited,
+			baselineCommands: parsed.commands,
+			enableRules: parsed.enableRules,
+			baselineEnableRules: parsed.enableRules,
+			displayRules: parsed.displayRules,
+			baselineDisplayRules: parsed.displayRules,
+		};
+		const app = (excludeCommandIds?: Set<string>) =>
+			planScope({ ...common, locations: [{ current: appRibbon, baseline: appRibbon }], excludeCommandIds });
+		// Without the table's commands excluded, the shared command leaks into the application scope.
+		expect(app().editedCommandIds).toEqual(["Mscrm.Form.Deactivate"]);
+		const plan = app(new Set(["Mscrm.Form.Deactivate"]));
+		expect(plan.editedCommandIds).toEqual([]);
+		expect(plan.hasChanges).toBe(false);
+	});
 });

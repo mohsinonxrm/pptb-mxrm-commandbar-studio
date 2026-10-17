@@ -9,6 +9,13 @@ export interface PlanInput {
 	baselineEnableRules: EnableRule[];
 	displayRules: DisplayRule[];
 	baselineDisplayRules: DisplayRule[];
+	/**
+	 * Commands that belong to another scope and must not be published from this
+	 * one. The application ribbon passes the commands its table's buttons use:
+	 * most out-of-the-box commands are shared, and an edit made for one table
+	 * must not reach the application ribbon (and with it every table).
+	 */
+	excludeCommandIds?: Set<string>;
 }
 
 /**
@@ -113,6 +120,8 @@ export function planScope(input: PlanInput): ScopePlan {
 			}
 		}
 	}
+
+	for (const id of input.excludeCommandIds ?? []) referencedCommandIds.delete(id);
 
 	const baseCmd = new Map(input.baselineCommands.map((c) => [c.id, c]));
 	const editedCommandIds = input.commands
