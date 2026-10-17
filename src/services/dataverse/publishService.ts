@@ -220,7 +220,10 @@ export async function buildMergedRibbonDiffXml(
 	for (const loc of input.locations) {
 		for (const tab of loc.current.tabs) {
 			if (!plan.editedTabIds.includes(tab.id)) continue;
-			if (tab.tabDisplayRules.length > 0) tabRules.push(generateTabDisplayRulesForTab(tab));
+			if (tab.tabDisplayRules.length > 0) {
+				const xml = generateTabDisplayRulesForTab(tab, input.entity === null);
+				if (xml) tabRules.push(xml);
+			}
 			const now = new Set(tab.tabDisplayRules.map((r) => r.tabCommand));
 			for (const r of loc.baseline.tabs.find((t) => t.id === tab.id)?.tabDisplayRules ?? []) {
 				if (!now.has(r.tabCommand)) removedTabCommands.push(r.tabCommand);

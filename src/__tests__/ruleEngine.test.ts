@@ -133,19 +133,18 @@ describe("summarizeRule — individual rule kinds", () => {
 		expect(result).toContain("10");
 	});
 
-	it("summarizes ShowOnQuickActionRule", () => {
-		const step: RuleStep = { kind: "ShowOnQuickActionRule" };
-		expect(summarizeRule([step])).toContain("quick action");
+	it("summarizes FeatureControlRule", () => {
+		const step: RuleStep = {
+			kind: "FeatureControlRule",
+			featureControlBit: "FCB.Foo",
+			expectedValue: true,
+		};
+		expect(summarizeRule([step])).toContain("FCB.Foo");
 	});
 
-	it("summarizes ShowOnGridAndQuickActionRule", () => {
-		const step: RuleStep = { kind: "ShowOnGridAndQuickActionRule" };
-		expect(summarizeRule([step])).toContain("grid");
-	});
-
-	it("summarizes ShowOnGridRule", () => {
-		const step: RuleStep = { kind: "ShowOnGridRule" };
-		expect(summarizeRule([step])).toContain("grid");
+	it("summarizes a RawRule by its element name", () => {
+		const step: RuleStep = { kind: "RawRule", tagName: "HideIfDelveNotAvailableRule", xml: "<HideIfDelveNotAvailableRule/>" };
+		expect(summarizeRule([step])).toContain("HideIfDelveNotAvailableRule");
 	});
 
 	it("summarizes CrmOfflineAccessStateRule", () => {
@@ -197,15 +196,27 @@ describe("summarizeRule — OrRule nesting", () => {
 	it("handles OrRule with nested steps", () => {
 		const step: RuleStep = {
 			kind: "OrRule",
-			rules: [
-				{ kind: "FormStateRule", state: "Create" },
-				{ kind: "FormStateRule", state: "Existing" },
-			],
+			groups: [[{ kind: "FormStateRule", state: "Create" }], [{ kind: "FormStateRule", state: "Existing" }]],
 		};
 		const result = summarizeRule([step]);
 		expect(result).toContain("Create");
 		expect(result).toContain("Existing");
 		expect(result).toContain("OR");
+	});
+
+	it("shows an AND-group inside an OrRule", () => {
+		const step: RuleStep = {
+			kind: "OrRule",
+			groups: [
+				[
+					{ kind: "FormStateRule", state: "Create" },
+					{ kind: "SelectionCountRule", minimum: 1 },
+				],
+				[{ kind: "FormStateRule", state: "Existing" }],
+			],
+		};
+		const result = summarizeRule([step]);
+		expect(result).toMatch(/\(Form state is "Create" AND Selection count is at least 1\) OR Form state is "Existing"/);
 	});
 
 	it("joins multiple top-level steps with AND", () => {

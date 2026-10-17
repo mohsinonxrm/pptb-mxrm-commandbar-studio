@@ -132,7 +132,8 @@ export const ImportXmlModal: React.FC = () => {
 	const handleValidate = () => {
 		const errs = validateRibbonDiffXml(xmlText);
 		setErrors(errs);
-		return errs.length === 0;
+		// Warnings (e.g. rule placement the platform itself tolerates) don't block.
+		return errs.every((e) => e.severity === "warning");
 	};
 
 	const handleImport = () => {
@@ -180,7 +181,7 @@ export const ImportXmlModal: React.FC = () => {
 								style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "4px" }}
 							>
 								{errors.map((err, i) => (
-									<MessageBar key={i} intent="error">
+									<MessageBar key={i} intent={err.severity === "warning" ? "warning" : "error"}>
 										<MessageBarBody>
 											{err.message}
 											{err.lineHint ? ` (${err.lineHint})` : ""}
@@ -190,7 +191,7 @@ export const ImportXmlModal: React.FC = () => {
 							</div>
 						)}
 
-						{errors.length === 0 && xmlText && (
+						{errors.every((e) => e.severity === "warning") && xmlText && (
 							<MessageBar intent="success">
 								<MessageBarBody>XML is valid.</MessageBarBody>
 							</MessageBar>

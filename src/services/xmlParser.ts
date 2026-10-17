@@ -14,8 +14,14 @@ import type {
 	JavaScriptAction,
 	UrlAction,
 	RibbonAction,
+	RawAction,
+	RawRuleStep,
+	StandardRuleAttributes,
+	CrmParameterValue,
 	EntityProperty,
 } from "@/types/ribbon";
+import { generateAction, generateRuleStep } from "@/services/xmlGenerator";
+import { canonicalXml, parseXmlElement, sameXml } from "@/services/ribbonXmlCanonical";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { applyButtonOrigin, heuristicOrigin } from "@/utils/ribbonProvenance";
 
@@ -50,9 +56,11 @@ export function parseRibbonXml(
 	// TabDisplayRules live at document root under RuleDefinitions > TabDisplayRules,
 	// not inside <Tab> elements. Apply them after all tabs are built.
 	applyTabDisplayRules(doc, tabs);
-	const commands = parseCommands(doc);
-	const enableRules = parseEnableRules(doc);
-	const displayRules = parseDisplayRules(doc);
+	const verifier = new LosslessVerifier();
+	const commands = parseCommands(doc, verifier);
+	const enableRules = parseEnableRules(doc, verifier);
+	const displayRules = parseDisplayRules(doc, verifier);
+	verifier.flush();
 	const locLabels = [...parseLocLabels(doc)];
 	for (const l of extraLocLabels) if (!locLabels.some((x) => x.id === l.id)) locLabels.push(l);
 
@@ -264,97 +272,204 @@ function normalizeFluentIconName(iconName?: string): string | undefined {
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
+//
+// Fidelity contract (#29, #42): every action and rule step is parsed into the
+// model AND checked by regenerating it and comparing the canonical XML with the
+// source element (ribbonXmlCanonical.ts). Anything the model cannot reproduce
+// exactly — an unknown element, an unexpected attribute or child, a value the
+// parser would have to default — is kept as a raw passthrough (RawAction /
+// RawRule) holding the original XML, which the generator writes back verbatim.
+// Re-emitting a parsed command or rule therefore never changes its meaning.
 
-function parseCommands(doc: Document): CommandDefinition[] {
+const xmlSerializer = () => new XMLSerializer();
+
+function elementChildren(el: Element | null | undefined): Element[] {
+	if (!el) return [];
+	return Array.from(el.childNodes).filter((n): n is Element => n.nodeType === Node.ELEMENT_NODE);
+}
+
+interface PendingCheck {
+	source: Element;
+	/** Generates the model's XML; called at flush time, after nested replacements. */
+	generate: () => string;
+	/** Swaps the modelled item for its raw passthrough. */
+	fallback: () => void;
+	/** 0 = leaf steps and actions; 1 = OrRules (checked after their nested steps). */
+	phase: 0 | 1;
+}
+
+/**
+ * Collects every modelled action / rule step and checks them in bulk: the
+ * generated XML of a whole phase is parsed with ONE DOMParser call (parsing
+ * each step separately made loading a ribbon several times slower).
+ */
+class LosslessVerifier {
+	private pending: PendingCheck[] = [];
+
+	add(check: PendingCheck) {
+		this.pending.push(check);
+	}
+
+	flush() {
+		for (const phase of [0, 1] as const) {
+			const batch = this.pending.filter((p) => p.phase === phase);
+			if (batch.length === 0) continue;
+			const generated = batch.map((p) => p.generate());
+			let roots: Element[] | null = null;
+			try {
+				const wrapper = parseXmlElement(`<v>${generated.map((g) => `<i>${g}</i>`).join("")}</v>`);
+				roots = elementChildren(wrapper).map((i) => elementChildren(i)[0]);
+			} catch {
+				roots = null; // a malformed item: fall back to checking one by one
+			}
+			batch.forEach((p, i) => {
+				const ok = roots
+					? !!roots[i] && canonicalXml(roots[i]) === canonicalXml(p.source)
+					: sameXml(generated[i], p.source);
+				if (!ok) p.fallback();
+			});
+		}
+		this.pending = [];
+	}
+}
+
+function parseCommands(doc: Document, verifier: LosslessVerifier): CommandDefinition[] {
 	const commands: CommandDefinition[] = [];
 
 	doc.querySelectorAll("CommandDefinition").forEach((cmdEl) => {
 		const id = cmdEl.getAttribute("Id") ?? "";
 		if (!id) return;
 
-		const enableRules: string[] = [];
-		cmdEl.querySelectorAll("EnableRule").forEach((r) => {
-			const rid = r.getAttribute("Id");
-			if (rid) enableRules.push(rid);
-		});
+		const sections = elementChildren(cmdEl);
+		const section = (tag: string) => sections.find((c) => c.tagName === tag);
 
-		const displayRules: string[] = [];
-		cmdEl.querySelectorAll("DisplayRule").forEach((r) => {
-			const rid = r.getAttribute("Id");
-			if (rid) displayRules.push(rid);
-		});
+		const rawRuleRefs: NonNullable<CommandDefinition["rawRuleRefs"]> = [];
+		const refs = (container: "EnableRules" | "DisplayRules", tag: string): string[] => {
+			const ids: string[] = [];
+			elementChildren(section(container)).forEach((r, index) => {
+				const rid = r.getAttribute("Id");
+				// Only a plain `<EnableRule Id/>` / `<DisplayRule Id/>` is modelled.
+				if (r.tagName === tag && rid && r.attributes.length === 1 && elementChildren(r).length === 0) {
+					ids.push(rid);
+				} else {
+					rawRuleRefs.push({ container, index, xml: xmlSerializer().serializeToString(r) });
+				}
+			});
+			return ids;
+		};
+		const enableRules = refs("EnableRules", "EnableRule");
+		const displayRules = refs("DisplayRules", "DisplayRule");
 
+		// Actions in document order — a command may mix JavaScriptFunction, Url
+		// and OutlookCommand actions, and their order is significant.
 		const actions: RibbonAction[] = [];
-
-		cmdEl.querySelectorAll("JavaScriptFunction").forEach((fn) => {
-			const library = fn.getAttribute("Library") ?? "";
-			const functionName = fn.getAttribute("FunctionName") ?? "";
-			const params: ActionParameter[] = parseActionParams(fn);
-			const action: JavaScriptAction = { kind: "javascript", library, functionName, params };
+		elementChildren(section("Actions")).forEach((el, i) => {
+			const action = parseAction(el);
+			if (!action) {
+				actions.push(rawAction(el));
+				return;
+			}
 			actions.push(action);
+			verifier.add({
+				source: el,
+				generate: () => generateAction(action),
+				fallback: () => (actions[i] = rawAction(el)),
+				phase: 0,
+			});
 		});
 
-		cmdEl.querySelectorAll("Url").forEach((urlEl) => {
-			const address = urlEl.getAttribute("Address") ?? "";
-			const passParams =
-				urlEl.getAttribute("PassParams") === "1" || urlEl.getAttribute("PassParams") === "true";
-			const winMode = parseInt(urlEl.getAttribute("WinMode") ?? "0", 10) as 0 | 1 | 2;
-			const params: ActionParameter[] = parseActionParams(urlEl);
-			const action: UrlAction = { kind: "url", address, passParams, winMode, params };
-			actions.push(action);
+		commands.push({
+			id,
+			enableRules,
+			displayRules,
+			actions,
+			...(rawRuleRefs.length > 0 ? { rawRuleRefs } : {}),
 		});
-
-		commands.push({ id, enableRules, displayRules, actions });
 	});
 
 	return commands;
 }
 
-function parseActionParams(el: Element): ActionParameter[] {
-	const params: ActionParameter[] = [];
+function rawAction(el: Element): RawAction {
+	return { kind: "raw", tagName: el.tagName, xml: xmlSerializer().serializeToString(el) };
+}
 
-	el.childNodes.forEach((child) => {
-		if (child.nodeType !== Node.ELEMENT_NODE) return;
-		const c = child as Element;
+function parseAction(el: Element): RibbonAction | null {
+	switch (el.tagName) {
+		case "JavaScriptFunction": {
+			const params = parseActionParams(el);
+			if (!params) return null;
+			const action: JavaScriptAction = {
+				kind: "javascript",
+				library: el.getAttribute("Library") ?? "",
+				functionName: el.getAttribute("FunctionName") ?? "",
+				params,
+			};
+			return action;
+		}
+		case "Url": {
+			const params = parseActionParams(el);
+			if (!params) return null;
+			const winMode = el.getAttribute("WinMode");
+			const action: UrlAction = {
+				kind: "url",
+				address: el.getAttribute("Address") ?? "",
+				passParams: parseBool(el.getAttribute("PassParams")),
+				winMode: winMode === null ? undefined : (Number(winMode) as 0 | 1 | 2),
+				winParams: el.getAttribute("WinParams") ?? undefined,
+				params,
+			};
+			return action;
+		}
+		case "OutlookCommand":
+			return {
+				kind: "outlookCommand",
+				actionType: el.getAttribute("ActionType") ?? "",
+				data: el.getAttribute("Data") ?? undefined,
+			};
+		default:
+			return null;
+	}
+}
+
+/**
+ * xs:boolean: `true`/`1` and `false`/`0`. undefined when the attribute is
+ * absent (or not a boolean — the self-check then keeps the element raw).
+ */
+function parseBool(value: string | null): boolean | undefined {
+	if (value === null) return undefined;
+	const v = value.trim();
+	if (v === "true" || v === "1") return true;
+	if (v === "false" || v === "0") return false;
+	return undefined;
+}
+
+/** Parameter children of a JavaScriptFunction / Url / CustomRule; null if one is not a known parameter. */
+function parseActionParams(el: Element): ActionParameter[] | null {
+	const params: ActionParameter[] = [];
+	for (const c of elementChildren(el)) {
+		const name = c.getAttribute("Name") ?? undefined;
+		const value = c.getAttribute("Value") ?? "";
 		switch (c.tagName) {
 			case "CrmParameter":
-				params.push({
-					kind: "CrmParameter",
-					name: c.getAttribute("Name") ?? undefined,
-					value: c.getAttribute("Value") as import("@/types/ribbon").CrmParameterValue,
-				});
+				params.push({ kind: "CrmParameter", name, value: value as CrmParameterValue });
 				break;
 			case "BoolParameter":
-				params.push({
-					kind: "BoolParameter",
-					name: c.getAttribute("Name") ?? undefined,
-					value: c.getAttribute("Value") === "true",
-				});
+				params.push({ kind: "BoolParameter", name, value: parseBool(value) ?? false });
 				break;
 			case "IntParameter":
-				params.push({
-					kind: "IntParameter",
-					name: c.getAttribute("Name") ?? undefined,
-					value: parseInt(c.getAttribute("Value") ?? "0", 10),
-				});
+				params.push({ kind: "IntParameter", name, value: parseInt(value, 10) });
 				break;
 			case "DecimalParameter":
-				params.push({
-					kind: "DecimalParameter",
-					name: c.getAttribute("Name") ?? undefined,
-					value: parseFloat(c.getAttribute("Value") ?? "0"),
-				});
+				params.push({ kind: "DecimalParameter", name, value: parseFloat(value) });
 				break;
 			case "StringParameter":
-				params.push({
-					kind: "StringParameter",
-					name: c.getAttribute("Name") ?? undefined,
-					value: c.getAttribute("Value") ?? "",
-				});
+				params.push({ kind: "StringParameter", name, value });
 				break;
+			default:
+				return null;
 		}
-	});
-
+	}
 	return params;
 }
 
@@ -362,7 +477,7 @@ function parseActionParams(el: Element): ActionParameter[] {
 // Rules
 // ---------------------------------------------------------------------------
 
-function parseEnableRules(doc: Document): EnableRule[] {
+function parseEnableRules(doc: Document, verifier: LosslessVerifier): EnableRule[] {
 	const rules: EnableRule[] = [];
 	// Scope to RuleDefinitions: `EnableRules > EnableRule` alone also matches the
 	// `<EnableRule Id="…"/>` references inside every CommandDefinition, which produced
@@ -370,306 +485,239 @@ function parseEnableRules(doc: Document): EnableRule[] {
 	doc.querySelectorAll("RuleDefinitions > EnableRules > EnableRule").forEach((rEl) => {
 		const id = rEl.getAttribute("Id") ?? "";
 		if (!id) return;
-		const steps = parseRuleSteps(rEl);
-		rules.push({ id, steps });
+		rules.push({ id, steps: parseRuleSteps(rEl, verifier) });
 	});
 	return rules;
 }
 
-function parseDisplayRules(doc: Document): DisplayRule[] {
+function parseDisplayRules(doc: Document, verifier: LosslessVerifier): DisplayRule[] {
 	const rules: DisplayRule[] = [];
 	// Scoped to RuleDefinitions for the same reason as parseEnableRules (#39).
 	doc.querySelectorAll("RuleDefinitions > DisplayRules > DisplayRule").forEach((rEl) => {
 		const id = rEl.getAttribute("Id") ?? "";
 		if (!id) return;
-		const steps = parseRuleSteps(rEl);
-		rules.push({ id, steps });
+		rules.push({ id, steps: parseRuleSteps(rEl, verifier) });
 	});
 	return rules;
 }
 
-function parseRuleSteps(ruleEl: Element): RuleStep[] {
+/**
+ * The steps of a rule (or of one `<Or>` group). Each modelled step is queued
+ * for the lossless check; a step that fails it is replaced in place by a
+ * verbatim RawRule.
+ */
+function parseRuleSteps(parent: Element, verifier: LosslessVerifier): RuleStep[] {
 	const steps: RuleStep[] = [];
-	ruleEl.childNodes.forEach((child) => {
-		if (child.nodeType !== Node.ELEMENT_NODE) return;
-		const el = child as Element;
-		const invert =
-			el.getAttribute("InvertResult") === "1" || el.getAttribute("InvertResult") === "true";
-		const step = parseRuleStep(el, invert);
-		if (step) steps.push(step);
+	elementChildren(parent).forEach((el, i) => {
+		const step = parseRuleStep(el, verifier);
+		if (!step) {
+			steps.push(rawRule(el));
+			return;
+		}
+		steps.push(step);
+		verifier.add({
+			source: el,
+			generate: () => generateRuleStep(steps[i]),
+			fallback: () => (steps[i] = rawRule(el)),
+			phase: step.kind === "OrRule" ? 1 : 0,
+		});
 	});
 	return steps;
 }
 
-function parseRuleStep(el: Element, invertResult: boolean): RuleStep | null {
+function rawRule(el: Element): RawRuleStep {
+	return { kind: "RawRule", tagName: el.tagName, xml: xmlSerializer().serializeToString(el) };
+}
+
+/** `Default` / `InvertResult` (StandardRuleAttributes), only when present. */
+function standardAttributes(el: Element): StandardRuleAttributes {
+	const out: StandardRuleAttributes = {};
+	const def = parseBool(el.getAttribute("Default"));
+	const inv = parseBool(el.getAttribute("InvertResult"));
+	if (def !== undefined) out.default = def;
+	if (inv !== undefined) out.invertResult = inv;
+	return out;
+}
+
+function optInt(el: Element, name: string): number | undefined {
+	const v = el.getAttribute(name);
+	return v === null ? undefined : parseInt(v, 10);
+}
+
+function optStr<T extends string = string>(el: Element, name: string): T | undefined {
+	return (el.getAttribute(name) ?? undefined) as T | undefined;
+}
+
+function reqStr<T extends string = string>(el: Element, name: string): T {
+	return (el.getAttribute(name) ?? "") as T;
+}
+
+type AppliesTo = "PrimaryEntity" | "SelectedEntity";
+type PrivilegeType = Extract<RuleStep, { kind: "RecordPrivilegeRule" }>["privilegeType"];
+type PrivilegeDepth = Extract<RuleStep, { kind: "EntityPrivilegeRule" }>["privilegeDepth"];
+
+function parseRuleStep(el: Element, verifier: LosslessVerifier): RuleStep | null {
+	const std = standardAttributes(el);
 	switch (el.tagName) {
+		case "OrRule": {
+			// Each <Or> is an AND-group of one or more rules (RibbonTypes.xsd
+			// OrEnableRuleType / OrDisplayRuleType). Keeping the groups intact is
+			// what preserves `(A and B) or C` (#29).
+			const children = elementChildren(el);
+			if (children.some((c) => c.tagName !== "Or")) return null;
+			return {
+				kind: "OrRule",
+				groups: children.map((orEl) => parseRuleSteps(orEl, verifier)),
+			};
+		}
 		case "SelectionCountRule":
 			return {
 				kind: "SelectionCountRule",
-				minimum: el.getAttribute("Minimum") ? parseInt(el.getAttribute("Minimum")!, 10) : undefined,
-				maximum: el.getAttribute("Maximum") ? parseInt(el.getAttribute("Maximum")!, 10) : undefined,
-				appliesTo: el.getAttribute("AppliesTo") as "PrimaryEntity" | "SelectedEntity" | undefined,
-				invertResult,
+				minimum: optInt(el, "Minimum"),
+				maximum: optInt(el, "Maximum"),
+				appliesTo: optStr<AppliesTo>(el, "AppliesTo"),
+				...std,
 			};
 		case "EntityRule":
 			return {
 				kind: "EntityRule",
-				entityName: el.getAttribute("EntityName") ?? undefined,
-				context: el.getAttribute("Context") ?? undefined,
-				appliesTo: el.getAttribute("AppliesTo") as "PrimaryEntity" | "SelectedEntity" | undefined,
-				invertResult,
+				entityName: optStr(el, "EntityName"),
+				context: optStr(el, "Context"),
+				appliesTo: optStr<AppliesTo>(el, "AppliesTo"),
+				...std,
 			};
 		case "FormStateRule":
-			return {
-				kind: "FormStateRule",
-				state: el.getAttribute("State") as
-					| "Create"
-					| "Existing"
-					| "ReadOnly"
-					| "Disabled"
-					| "BulkEdit",
-				invertResult,
-			};
+			return { kind: "FormStateRule", state: reqStr(el, "State"), ...std };
 		case "CommandClientTypeRule":
-			return {
-				kind: "CommandClientTypeRule",
-				type: el.getAttribute("Type") as "Modern" | "Refresh" | "Legacy",
-				default: el.getAttribute("Default") === "true",
-				invertResult,
-			};
-		case "CustomRule":
+			return { kind: "CommandClientTypeRule", type: reqStr(el, "Type"), ...std };
+		case "CustomRule": {
+			const params = parseActionParams(el);
+			if (!params) return null;
 			return {
 				kind: "CustomRule",
-				library: el.getAttribute("Library") ?? "",
-				functionName: el.getAttribute("FunctionName") ?? "",
-				default: el.getAttribute("Default") === "true",
-				invertResult,
+				library: reqStr(el, "Library"),
+				functionName: reqStr(el, "FunctionName"),
+				...(params.length > 0 ? { params } : {}),
+				...std,
 			};
-		case "OrRule": {
-			const nested: RuleStep[] = [];
-			el.querySelectorAll("Or").forEach((orEl) => {
-				orEl.childNodes.forEach((c) => {
-					if (c.nodeType === Node.ELEMENT_NODE) {
-						const s = parseRuleStep(c as Element, false);
-						if (s) nested.push(s);
-					}
-				});
-			});
-			return { kind: "OrRule", rules: nested };
+		}
+		case "FeatureControlRule": {
+			const expected = parseBool(el.getAttribute("ExpectedValue"));
+			if (expected === undefined) return null;
+			return {
+				kind: "FeatureControlRule",
+				featureControlBit: reqStr(el, "FeatureControlBit"),
+				expectedValue: expected,
+				...std,
+			};
 		}
 		case "MiscellaneousPrivilegeRule":
 			return {
 				kind: "MiscellaneousPrivilegeRule",
-				privilegeName: el.getAttribute("PrivilegeName") ?? "",
-				invertResult,
+				privilegeName: reqStr(el, "PrivilegeName"),
+				privilegeDepth: optStr<PrivilegeDepth>(el, "PrivilegeDepth"),
+				...std,
 			};
 		case "CrmClientTypeRule":
-			return {
-				kind: "CrmClientTypeRule",
-				type: el.getAttribute("Type") as "Web" | "Outlook",
-				invertResult,
-			};
+			return { kind: "CrmClientTypeRule", type: reqStr(el, "Type"), ...std };
 		case "FormTypeRule":
-			return {
-				kind: "FormTypeRule",
-				type: el.getAttribute("Type") as
-					| "Main"
-					| "Preview"
-					| "AppointmentBook"
-					| "Dashboard"
-					| "Quick"
-					| "QuickCreate"
-					| "Card"
-					| "MainInteractionCentric",
-				invertResult,
-			};
+			return { kind: "FormTypeRule", type: reqStr(el, "Type"), ...std };
 		case "ValueRule":
-			return {
-				kind: "ValueRule",
-				field: el.getAttribute("Field") ?? "",
-				value: el.getAttribute("Value") ?? "",
-				invertResult,
-			};
+			return { kind: "ValueRule", field: reqStr(el, "Field"), value: reqStr(el, "Value"), ...std };
 		case "SkuRule":
-			return {
-				kind: "SkuRule",
-				sku: el.getAttribute("Sku") as "OnPremise" | "Online" | "Spla",
-				invertResult,
-			};
+			return { kind: "SkuRule", sku: reqStr(el, "Sku"), ...std };
 		case "HideForTabletExperienceRule":
-			return { kind: "HideForTabletExperienceRule", invertResult };
+			return { kind: "HideForTabletExperienceRule", ...std };
 		case "OrganizationSettingRule":
-			return {
-				kind: "OrganizationSettingRule",
-				setting: el.getAttribute("Setting") as
-					| "IsSharepointEnabled"
-					| "IsSOPIntegrationEnabled"
-					| "IsFiscalCalendarDefined"
-					| "IsReadFormModeDefined"
-					| "IsBPFEntityCustomizationFeatureEnabled",
-				invertResult,
-			};
-		// ── Display-rule-only kinds ─────────────────────────────────────────
+			return { kind: "OrganizationSettingRule", setting: reqStr(el, "Setting"), ...std };
 		case "EntityPrivilegeRule":
 			return {
 				kind: "EntityPrivilegeRule",
-				entityName: el.getAttribute("EntityName") ?? undefined,
-				appliesTo: (el.getAttribute("AppliesTo") ?? undefined) as
-					| "PrimaryEntity"
-					| "SelectedEntity"
-					| undefined,
-				privilegeType: el.getAttribute("PrivilegeType") as
-					| "Create"
-					| "Read"
-					| "Write"
-					| "Delete"
-					| "Assign"
-					| "Share"
-					| "Append"
-					| "AppendTo",
-				privilegeDepth: (el.getAttribute("PrivilegeDepth") ?? "Basic") as
-					| "None"
-					| "Basic"
-					| "Local"
-					| "Deep"
-					| "Global",
-				invertResult,
+				entityName: optStr(el, "EntityName"),
+				appliesTo: optStr<AppliesTo>(el, "AppliesTo"),
+				privilegeType: reqStr<PrivilegeType>(el, "PrivilegeType"),
+				// Required by the schema; a missing value fails the self-check → raw.
+				privilegeDepth: reqStr<PrivilegeDepth>(el, "PrivilegeDepth"),
+				...std,
 			};
-		case "EntityPropertyRule":
+		case "EntityPropertyRule": {
+			const value = parseBool(el.getAttribute("PropertyValue"));
+			if (value === undefined) return null;
 			return {
 				kind: "EntityPropertyRule",
-				entityName: el.getAttribute("EntityName") ?? undefined,
-				appliesTo: (el.getAttribute("AppliesTo") ?? undefined) as
-					| "PrimaryEntity"
-					| "SelectedEntity"
-					| undefined,
-				propertyName: el.getAttribute("PropertyName") as EntityProperty,
-				propertyValue:
-					el.getAttribute("PropertyValue") === "true" || el.getAttribute("PropertyValue") === "1",
-				invertResult,
+				entityName: optStr(el, "EntityName"),
+				appliesTo: optStr<AppliesTo>(el, "AppliesTo"),
+				propertyName: reqStr<EntityProperty>(el, "PropertyName"),
+				propertyValue: value,
+				...std,
 			};
+		}
 		case "DeviceTypeRule":
-			return {
-				kind: "DeviceTypeRule",
-				type: el.getAttribute("Type") as
-					| "None"
-					| "Phone"
-					| "Tablet"
-					| "Web"
-					| "Outlook"
-					| "InteractionCentric",
-				invertResult,
-			};
+			return { kind: "DeviceTypeRule", type: reqStr(el, "Type"), ...std };
 		case "OptionSetRule":
 			return {
 				kind: "OptionSetRule",
-				optionSet: el.getAttribute("OptionSet") ?? "",
-				stateCode: el.getAttribute("StateCode") ?? "",
-				objectTypeCode: el.getAttribute("ObjectTypeCode") ?? "",
-				invertResult,
+				optionSet: reqStr(el, "OptionSet"),
+				stateCode: reqStr(el, "StateCode"),
+				objectTypeCode: reqStr(el, "ObjectTypeCode"),
+				...std,
 			};
-		// ── Rules valid in both Enable and Display contexts ─────────────────
 		case "RecordPrivilegeRule":
 			return {
 				kind: "RecordPrivilegeRule",
-				privilegeType: el.getAttribute("PrivilegeType") as
-					| "Create"
-					| "Read"
-					| "Write"
-					| "Delete"
-					| "Assign"
-					| "Share"
-					| "Append"
-					| "AppendTo",
-				appliesTo: (el.getAttribute("AppliesTo") ?? undefined) as "PrimaryEntity" | undefined,
-				invertResult,
+				privilegeType: reqStr<PrivilegeType>(el, "PrivilegeType"),
+				appliesTo: optStr<"PrimaryEntity">(el, "AppliesTo"),
+				...std,
 			};
 		case "FormEntityContextRule":
-			return {
-				kind: "FormEntityContextRule",
-				entityName: el.getAttribute("EntityName") ?? "",
-				invertResult,
-			};
+			return { kind: "FormEntityContextRule", entityName: reqStr(el, "EntityName"), ...std };
 		case "PageRule":
-			return {
-				kind: "PageRule",
-				address: el.getAttribute("Address") ?? "",
-				invertResult,
-			};
+			return { kind: "PageRule", address: reqStr(el, "Address"), ...std };
 		case "RelationshipTypeRule":
 			return {
 				kind: "RelationshipTypeRule",
-				// Schema requires AppliesTo="SelectedEntity" — default if missing.
+				// Required (always SelectedEntity); a missing value fails the self-check → raw.
 				appliesTo: "SelectedEntity",
-				relationshipType: (el.getAttribute("RelationshipType") ?? undefined) as
-					| "OneToMany"
-					| "ManyToMany"
-					| "NoRelationship"
-					| undefined,
-				allowCustomRelationship: el.hasAttribute("AllowCustomRelationship")
-					? el.getAttribute("AllowCustomRelationship") !== "false"
-					: undefined,
-				allowSystemRelationship: el.hasAttribute("AllowSystemRelationship")
-					? el.getAttribute("AllowSystemRelationship") !== "false"
-					: undefined,
-				invertResult,
+				relationshipType: optStr<"OneToMany" | "ManyToMany" | "NoRelationship">(
+					el,
+					"RelationshipType",
+				),
+				allowCustomRelationship: parseBool(el.getAttribute("AllowCustomRelationship")),
+				allowSystemRelationship: parseBool(el.getAttribute("AllowSystemRelationship")),
+				...std,
 			};
 		case "ReferencingAttributeRequiredRule":
-			return { kind: "ReferencingAttributeRequiredRule", invertResult };
-		// ── Quick-action OOB rule references ───────────────────────────────
-		case "ShowOnQuickActionRule":
-			return { kind: "ShowOnQuickActionRule" };
-		case "ShowOnGridAndQuickActionRule":
-			return { kind: "ShowOnGridAndQuickActionRule" };
-		case "ShowOnGridRule":
-			return { kind: "ShowOnGridRule" };
-		// ── Outlook-specific rules ──────────────────────────────────────────
-		case "OutlookItemTrackingRule":
+			return { kind: "ReferencingAttributeRequiredRule", ...std };
+		case "OutlookItemTrackingRule": {
+			const tracked = parseBool(el.getAttribute("TrackedInCrm"));
+			if (tracked === undefined) return null;
 			return {
 				kind: "OutlookItemTrackingRule",
-				trackedInCrm:
-					el.getAttribute("TrackedInCrm") === "true" || el.getAttribute("TrackedInCrm") === "1",
-				appliesTo: (el.getAttribute("AppliesTo") ?? undefined) as "PrimaryEntity" | undefined,
-				invertResult,
+				trackedInCrm: tracked,
+				appliesTo: optStr<"PrimaryEntity">(el, "AppliesTo"),
+				...std,
 			};
+		}
 		case "OutlookRenderTypeRule":
-			return {
-				kind: "OutlookRenderTypeRule",
-				type: el.getAttribute("Type") as "Web" | "Outlook",
-				invertResult,
-			};
+			return { kind: "OutlookRenderTypeRule", type: reqStr(el, "Type"), ...std };
 		case "OutlookVersionRule":
-			return {
-				kind: "OutlookVersionRule",
-				version: el.getAttribute("Version") as "2003" | "2007" | "2010",
-				invertResult,
-			};
+			return { kind: "OutlookVersionRule", version: reqStr(el, "Version"), ...std };
 		case "CrmOfflineAccessStateRule":
-			return {
-				kind: "CrmOfflineAccessStateRule",
-				state: el.getAttribute("State") as "Offline" | "Online",
-				invertResult,
-			};
+			return { kind: "CrmOfflineAccessStateRule", state: reqStr(el, "State"), ...std };
 		case "CrmOutlookClientTypeRule":
-			return {
-				kind: "CrmOutlookClientTypeRule",
-				type: el.getAttribute("Type") as "CrmForOutlook" | "CrmForOutlookOfflineAccess",
-				invertResult,
-			};
+			return { kind: "CrmOutlookClientTypeRule", type: reqStr(el, "Type"), ...std };
 		case "CrmOutlookClientVersionRule":
 			return {
 				kind: "CrmOutlookClientVersionRule",
-				major: parseInt(el.getAttribute("Major") ?? "0", 10),
-				minor: el.hasAttribute("Minor") ? parseInt(el.getAttribute("Minor")!, 10) : undefined,
-				build: el.hasAttribute("Build") ? parseInt(el.getAttribute("Build")!, 10) : undefined,
-				revision: el.hasAttribute("Revision")
-					? parseInt(el.getAttribute("Revision")!, 10)
-					: undefined,
-				invertResult,
+				major: parseInt(reqStr(el, "Major"), 10),
+				minor: optInt(el, "Minor"),
+				build: optInt(el, "Build"),
+				revision: optInt(el, "Revision"),
+				...std,
 			};
 		default:
-			// Unknown rule kind — return null so it's silently skipped rather than
-			// corrupting the in-memory rule with an unrecognised step.
+			// Unmodelled (HideIf*Rule, IsExportToExcelOnlineEnabledRule,
+			// ContextTypeRule, …) → kept verbatim as a RawRule.
 			return null;
 	}
 }

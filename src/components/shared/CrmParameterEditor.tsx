@@ -17,6 +17,7 @@ import {
 	ArrowDownRegular,
 } from "@fluentui/react-icons";
 import type { ActionParameter, CrmParameterValue } from "@/types/ribbon";
+import { URL_INVALID_CRM_PARAMETER_VALUES } from "@/constants/crmParameters";
 
 const useStyles = makeStyles({
 	root: {
@@ -177,7 +178,10 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 								onChange={(_, d) => setParam(i, { ...param, value: d.value as CrmParameterValue })}
 							>
 								{CRM_PARAM_GROUPED.map((group) =>
-									group.values.map((v) => (
+									group.values
+										// Url parameters take CrmNamedParameterValue (no …ItemReferences) — #41.
+										.filter((v) => !urlMode || !URL_INVALID_CRM_PARAMETER_VALUES.has(v))
+										.map((v) => (
 										<option key={v} value={v}>
 											{v}
 										</option>
