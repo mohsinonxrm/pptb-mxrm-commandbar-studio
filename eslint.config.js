@@ -27,7 +27,7 @@ export default tseslint.config(
 		},
 	},
 	{
-		// Node-side config files (Vite, Vitest, commitlint, ESLint itself).
+		// Node-side config files (Vite, Vitest, ESLint itself).
 		files: ["*.config.{js,ts}"],
 		languageOptions: {
 			globals: globals.node,

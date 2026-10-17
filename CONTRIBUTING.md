@@ -6,15 +6,15 @@ Thanks for helping out! This file covers the local workflow. See
 ## Workflow
 
 1. Create a branch from `dev`: `feature/<issue>-short-slug` or `fix/<issue>-short-slug`.
-2. Use [Conventional Commits](https://www.conventionalcommits.org/). commitlint runs in
-   the `commit-msg` hook, and `npm test` runs in the `pre-commit` hook.
-3. Open a pull request into `dev` and fill in the PR template. PRs are merged with a
-   **merge commit**, not a squash.
+2. Use [Conventional Commits](https://www.conventionalcommits.org/) style messages
+   (`feat:`, `fix:`, `chore:` …).
+3. Open a pull request into `dev`. CI must pass; PRs into `dev` are squash-merged. The
+   release PR `dev → main` uses a **merge commit** (see [RELEASING.md](RELEASING.md)).
 
 ## Setup
 
 ```bash
-npm ci            # installs from the committed package-lock.json and sets up the husky hooks
+npm ci            # installs from the committed package-lock.json
 npm run typecheck # app + node configs + dev harness
 npm run lint      # zero warnings allowed
 npm test
