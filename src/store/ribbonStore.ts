@@ -16,6 +16,9 @@ import type {
 	ScalingDefinition,
 } from "@/types/ribbon";
 
+/** Platform display rules that are never both true: together they hide a button on every client. */
+export const HIDE_DISPLAY_RULES = ["Mscrm.HideOnModern", "Mscrm.ShowOnlyOnModern"] as const;
+
 export interface HistoryEntry {
 	ts: string;
 	userId: string;
@@ -119,6 +122,13 @@ export interface RibbonStore extends RibbonStoreState {
 		buttonId: string,
 	): void;
 	upsertCommand(cmd: CommandDefinition): void;
+	/**
+	 * Hides a button reversibly: adds the platform display rules
+	 * Mscrm.HideOnModern + Mscrm.ShowOnlyOnModern (never both true) to its
+	 * command. Every button that uses the command is hidden. Returns false when
+	 * the button has no loaded command.
+	 */
+	hideWithDisplayRules(buttonCommandId: string | undefined): boolean;
 	renameCommandId(oldId: string, newId: string): boolean;
 	upsertDisplayRule(rule: DisplayRule): void;
 	renameDisplayRuleId(oldId: string, newId: string): boolean;
@@ -822,6 +832,15 @@ export const useRibbonStore = create<RibbonStore>()(
 					},
 				),
 			);
+		},
+
+		hideWithDisplayRules(buttonCommandId) {
+			const cmd = buttonCommandId ? get().commands.find((c) => c.id === buttonCommandId) : undefined;
+			if (!cmd) return false;
+			const displayRules = [...cmd.displayRules];
+			for (const id of HIDE_DISPLAY_RULES) if (!displayRules.includes(id)) displayRules.push(id);
+			get().upsertCommand({ ...cmd, displayRules });
+			return true;
 		},
 
 		upsertCommand(cmd) {
