@@ -6,6 +6,7 @@ import {
 	generateCommandDefinition,
 	generateEnableRule,
 	generateDisplayRule,
+	generateTabDisplayRulesForTab,
 } from "@/services/xmlGenerator";
 import {
 	emptyRibbonDiffParts,
@@ -15,8 +16,17 @@ import {
 	countRibbonDiffParts,
 	mergeScopeChanges,
 	ownControlIds,
+	ownContainerIds,
+	compareRibbonDiffParts,
+	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
 import { fetchUnmanagedRibbonParts } from "@/services/dataverse/ribbonLayerService";
+import {
+	fetchOrganizationLanguageCode,
+	waitForEnvironmentIdle,
+	withBusyRetry,
+	type BusyWaitOptions,
+} from "@/services/dataverse/environmentService";
 import type { ScopePlan } from "@/services/publishPlan";
 import { verifyRibbonImport } from "@/services/importJobVerification";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
@@ -109,7 +119,10 @@ export interface PublishRibbonInput {
 	displayRules: DisplayRule[];
 	locLabels: LocLabel[];
 	/** What changed in this scope (see publishPlan.planScope). */
-	plan: Pick<ScopePlan, "editedCommandIds" | "editedEnableRuleIds" | "editedDisplayRuleIds" | "deletedButtonIds" | "unhiddenButtonIds">;
+	plan: Pick<ScopePlan, "editedCommandIds" | "editedEnableRuleIds" | "editedDisplayRuleIds" | "deletedButtonIds" | "unhiddenButtonIds"> &
+		Partial<Pick<ScopePlan, "deletedContainerIds" | "movedButtons" | "editedLocLabelIds" | "editedTabIds">>;
+	/** Organisation base language for edited labels (#50). Read from the organisation when omitted. */
+	languageCode?: number;
 	solution: PublishSolutionInfo;
 	/**
 	 * GUIDs of `ribboncustomization` components (`componenttype = 50`) in the
@@ -119,6 +132,20 @@ export interface PublishRibbonInput {
 	ribbonCustomizationIds?: string[];
 	/** Run PublishXml for the table right after the import (default true). */
 	publishCustomizations?: boolean;
+	/** Busy-environment waiting / retry options (tests inject a fake clock). */
+	busy?: BusyWaitOptions;
+	/** Delay between post-publish verification attempts (default 5 s). */
+	verifyDelayMs?: number;
+}
+
+/** Server-side check of what a publish left in the unmanaged layer (#46). */
+export interface PublishVerification {
+	ok: boolean;
+	/** Elements CBS imported that the published layer doesn't have (`part:id`). */
+	missing: string[];
+	/** Elements in the published layer that CBS didn't import. */
+	unexpected: string[];
+	message: string;
 }
 
 export interface PublishRibbonResult {
@@ -127,6 +154,15 @@ export interface PublishRibbonResult {
 	/** Number of elements that came from the existing unmanaged layer. */
 	preservedCount: number;
 	importJobId: string;
+	/** Present when the scope was published (the layer tables only show published state). */
+	verification?: PublishVerification;
+}
+
+function locLabelXml(label: LocLabel): string {
+	const titles = label.titles
+		.map((t) => `<Title languagecode="${t.languageCode}" description="${escapeXml(t.description)}"/>`)
+		.join("");
+	return `<LocLabel Id="${escapeXml(label.id)}"><Titles>${titles}</Titles></LocLabel>`;
 }
 
 /**
@@ -137,17 +173,31 @@ export interface PublishRibbonResult {
 export async function buildMergedRibbonDiffXml(
 	input: Pick<
 		PublishRibbonInput,
-		"entity" | "locations" | "commands" | "enableRules" | "displayRules" | "locLabels" | "plan"
+		"entity" | "locations" | "commands" | "enableRules" | "displayRules" | "locLabels" | "plan" | "languageCode"
 	>,
 ): Promise<{
 	xml: string;
+	parts: RibbonDiffParts;
 	elementCount: number;
 	preservedCount: number;
 	changedCount: number;
 }> {
 	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
+	const plan = {
+		deletedContainerIds: input.plan.deletedContainerIds ?? [],
+		movedButtons: input.plan.movedButtons ?? [],
+		editedLocLabelIds: input.plan.editedLocLabelIds ?? [],
+		editedTabIds: input.plan.editedTabIds ?? [],
+	};
 
-	let delta = emptyRibbonDiffParts();
+	// Translation-only edits (#49): labels the layer defines whose titles
+	// changed. Labels the generator writes (new / edited buttons) win below —
+	// they carry the edited text.
+	const labels = input.locLabels.filter((l) => plan.editedLocLabelIds.includes(l.id));
+	let delta = labels.length
+		? parseRibbonDiffParts(`<RibbonDiffXml><LocLabels>${labels.map(locLabelXml).join("")}</LocLabels></RibbonDiffXml>`)
+		: emptyRibbonDiffParts();
+
 	for (const loc of input.locations) {
 		const xml = generateRibbonDiffXml({
 			current: loc.current,
@@ -158,8 +208,32 @@ export async function buildMergedRibbonDiffXml(
 			locLabels: input.locLabels,
 			entityLogicalName,
 			location: loc.current.location,
+			languageCode: input.languageCode,
 		});
 		delta = mergeRibbonDiffParts(delta, parseRibbonDiffParts(xml));
+	}
+
+	// Display rules of existing tabs the layer adds (#49): the generator only
+	// writes them for tabs created this session (#40).
+	const removedTabCommands: string[] = [];
+	const tabRules: string[] = [];
+	for (const loc of input.locations) {
+		for (const tab of loc.current.tabs) {
+			if (!plan.editedTabIds.includes(tab.id)) continue;
+			if (tab.tabDisplayRules.length > 0) tabRules.push(generateTabDisplayRulesForTab(tab));
+			const now = new Set(tab.tabDisplayRules.map((r) => r.tabCommand));
+			for (const r of loc.baseline.tabs.find((t) => t.id === tab.id)?.tabDisplayRules ?? []) {
+				if (!now.has(r.tabCommand)) removedTabCommands.push(r.tabCommand);
+			}
+		}
+	}
+	if (tabRules.length > 0) {
+		delta = mergeRibbonDiffParts(
+			delta,
+			parseRibbonDiffParts(
+				`<RibbonDiffXml><RuleDefinitions><TabDisplayRules>${tabRules.join("")}</TabDisplayRules></RuleDefinitions></RibbonDiffXml>`,
+			),
+		);
 	}
 
 	// Commands / rules the user edited, even when no button changed (#25).
@@ -202,6 +276,20 @@ export async function buildMergedRibbonDiffXml(
 				`(it comes from a managed solution or the platform). Undo the delete and hide the button instead.`,
 		);
 	}
+	const ownContainers = ownContainerIds(existing);
+	const notOwnContainers = plan.deletedContainerIds.filter((id) => !ownContainers.has(id));
+	if (notOwnContainers.length > 0) {
+		throw new Error(
+			`Can't delete ${notOwnContainers.join(", ")}: not added by this table's unmanaged customizations ` +
+				`(it comes from a managed solution or the platform). Undo the delete.`,
+		);
+	}
+	const notOwnMoves = plan.movedButtons.filter((m) => !own.has(m.id)).map((m) => m.id);
+	if (notOwnMoves.length > 0) {
+		throw new Error(
+			`Can't move ${notOwnMoves.join(", ")}: not defined in this table's unmanaged customizations. Undo the move.`,
+		);
+	}
 
 	const retainedCommandIds = new Set<string>();
 	for (const loc of input.locations)
@@ -216,24 +304,57 @@ export async function buildMergedRibbonDiffXml(
 		editedDisplayRuleIds: input.plan.editedDisplayRuleIds,
 		deletedControlIds: input.plan.deletedButtonIds,
 		unhiddenControlIds: input.plan.unhiddenButtonIds,
+		deletedContainerIds: plan.deletedContainerIds,
+		movedControls: plan.movedButtons,
+		removedTabCommands,
 	});
 	return {
 		xml: serializeRibbonDiffParts(merged),
+		parts: merged,
 		elementCount: countRibbonDiffParts(merged),
 		preservedCount: countRibbonDiffParts(existing),
 		changedCount: countRibbonDiffParts(delta),
 	};
 }
 
-async function fetchOrganizationLanguageCode(): Promise<number> {
-	try {
-		const res = (await dataverseAPI.queryData("organizations?$select=languagecode")) as {
-			value?: Array<{ languagecode?: number }>;
-		};
-		return res.value?.[0]?.languagecode ?? 1033;
-	} catch {
-		return 1033;
+/**
+ * Compares the layer as published with what CBS imported (#46). The ribbon
+ * tables only show published state, so this runs after PublishXml; a short
+ * lag is tolerated by re-reading a few times.
+ */
+export async function verifyPublishedLayer(
+	entityLogicalName: string | null,
+	expected: RibbonDiffParts,
+	options: { attempts?: number; delayMs?: number } = {},
+): Promise<PublishVerification> {
+	const attempts = options.attempts ?? 3;
+	let last: { missing: string[]; unexpected: string[] } = { missing: [], unexpected: [] };
+	for (let i = 0; i < attempts; i++) {
+		if (i > 0) await new Promise((r) => setTimeout(r, options.delayMs ?? 5000));
+		try {
+			last = compareRibbonDiffParts(expected, await fetchUnmanagedRibbonParts(entityLogicalName));
+		} catch (err) {
+			return {
+				ok: false,
+				missing: [],
+				unexpected: [],
+				message: `Couldn't read the published ribbon layer to verify it (${err instanceof Error ? err.message : String(err)}).`,
+			};
+		}
+		if (last.missing.length === 0 && last.unexpected.length === 0) {
+			return { ok: true, ...last, message: "Verified: the published ribbon layer matches what was imported." };
+		}
 	}
+	const sample = (ids: string[]) => ids.slice(0, 5).join(", ") + (ids.length > 5 ? ", …" : "");
+	return {
+		ok: false,
+		...last,
+		message:
+			"The published ribbon layer doesn't match what was imported" +
+			(last.missing.length ? `; missing: ${sample(last.missing)}` : "") +
+			(last.unexpected.length ? `; unexpected: ${sample(last.unexpected)}` : "") +
+			". Reload the table and check before publishing again.",
+	};
 }
 
 /**
@@ -248,10 +369,12 @@ export async function publishRibbon(
 ): Promise<PublishRibbonResult> {
 	const logs = useRuntimeLogStore.getState();
 	const scopeLabel = input.entity ? input.entity.logicalName : "Application ribbon";
+	const busy: BusyWaitOptions = { onProgress, ...input.busy };
 
 	onProgress?.(`Reading existing ribbon customizations for ${scopeLabel}…`);
 	logs.logInfo("publish", `Reading unmanaged ribbon layer for ${scopeLabel}.`);
-	const merged = await buildMergedRibbonDiffXml(input);
+	const languageCode = input.languageCode ?? (await fetchOrganizationLanguageCode());
+	const merged = await buildMergedRibbonDiffXml({ ...input, languageCode });
 	logs.logInfo(
 		"publish",
 		`RibbonDiffXml for ${scopeLabel}: ${merged.preservedCount} existing element(s) preserved, ` +
@@ -288,7 +411,6 @@ export async function publishRibbon(
 			// solution.
 			[{ type: 1, schemaName: input.entity!.logicalName, behavior: 2 }];
 
-	const languageCode = await fetchOrganizationLanguageCode();
 	const solutionXml = generateSolutionXml({
 		...input.solution,
 		languageCode,
@@ -314,11 +436,18 @@ export async function publishRibbon(
 		// ImportSolution requires a client-generated ImportJobId (0x80048d19 otherwise).
 		const importJobId = crypto.randomUUID();
 		logs.logInfo("publish", `Importing solution${pass} (import job ${importJobId})…`);
-		await dataverseAPI.deploySolution(base64Zip, {
-			importJobId,
-			overwriteUnmanagedCustomizations: true,
-			publishWorkflows: false,
-		});
+		// Another import / publish / ribbon-metadata generation makes ImportSolution
+		// fail with 0x80071151: wait for it and retry (#46).
+		await withBusyRetry(
+			"Import",
+			() =>
+				dataverseAPI.deploySolution(base64Zip, {
+					importJobId,
+					overwriteUnmanagedCustomizations: true,
+					publishWorkflows: false,
+				}),
+			busy,
+		);
 
 		// Ribbon imports take 20–50 s on a typical environment (measured live);
 		// allow up to 5 minutes before giving up.
@@ -357,20 +486,30 @@ export async function publishRibbon(
 
 	const publishScope = async () => {
 		onProgress?.("Publishing customizations…");
-		if (isApplication) {
-			// Targeted publish of the application ribbon only — publishCustomizations()
-			// without a table runs PublishAllXml for the whole environment.
-			await dataverseAPI.execute({
-				operationName: "PublishXml",
-				operationType: "action",
-				parameters: { ParameterXml: "<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>" },
-			});
-		} else {
-			await dataverseAPI.publishCustomizations(input.entity!.logicalName);
-		}
+		await withBusyRetry(
+			"Publish",
+			async () => {
+				if (isApplication) {
+					// Targeted publish of the application ribbon only — publishCustomizations()
+					// without a table runs PublishAllXml for the whole environment.
+					await dataverseAPI.execute({
+						operationName: "PublishXml",
+						operationType: "action",
+						parameters: { ParameterXml: "<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>" },
+					});
+				} else {
+					await dataverseAPI.publishCustomizations(input.entity!.logicalName);
+				}
+			},
+			busy,
+		);
 	};
 
+	// Don't start while another solution operation runs (#46).
+	onProgress?.("Checking that no other solution operation is running…");
+	await waitForEnvironmentIdle(busy);
 	const importJobId = await importAndVerify("");
+	let verification: PublishVerification | undefined;
 
 	if (input.publishCustomizations !== false) {
 		await publishScope();
@@ -398,6 +537,12 @@ export async function publishRibbon(
 				);
 			}
 		}
+		onProgress?.("Verifying the published ribbon…");
+		verification = await verifyPublishedLayer(input.entity?.logicalName ?? null, merged.parts, {
+			delayMs: input.verifyDelayMs,
+		});
+		if (verification.ok) logs.logInfo("publish", verification.message);
+		else logs.logWarn("publish", verification.message);
 	} else {
 		logs.logWarn(
 			"publish",
@@ -415,6 +560,7 @@ export async function publishRibbon(
 		elementCount: merged.elementCount,
 		preservedCount: merged.preservedCount,
 		importJobId,
+		verification,
 	};
 }
 

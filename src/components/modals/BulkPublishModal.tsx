@@ -25,7 +25,12 @@ import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
-import { publishAllAsync, publishRibbon } from "@/services/dataverse/publishService";
+import {
+	publishAllAsync,
+	publishRibbon,
+	type PublishVerification,
+} from "@/services/dataverse/publishService";
+import { fetchLayerSnapshot } from "@/services/dataverse/ribbonLayerService";
 import { planScope, type ScopePlan } from "@/services/publishPlan";
 import type { RibbonLocation } from "@/types/ribbon";
 
@@ -72,6 +77,10 @@ export const BulkPublishModal: React.FC = () => {
 	const baselineEnableRules = useRibbonStore((s) => s.baselineEnableRules);
 	const baselineDisplayRules = useRibbonStore((s) => s.baselineDisplayRules);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const baselineLocLabels = useRibbonStore((s) => s.baselineLocLabels);
+	const layers = useRibbonStore((s) => s.layers);
+	const pendingUnhides = useRibbonStore((s) => s.pendingUnhides);
+	const setLayerSnapshot = useRibbonStore((s) => s.setLayerSnapshot);
 	const markPublished = useRibbonStore((s) => s.markPublished);
 	const mutationsSincePublish = useRibbonStore((s) => s.mutationsSincePublish);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
@@ -95,6 +104,7 @@ export const BulkPublishModal: React.FC = () => {
 	const [errorMessages, setErrorMessages] = useState<{ scope: string; message: string }[]>([]);
 	// Scopes being published in the current run (frozen when Publish is clicked).
 	const [runScopes, setRunScopes] = useState<string[]>([]);
+	const [verifications, setVerifications] = useState<{ scope: string; result: PublishVerification }[]>([]);
 
 	const nextVersion = React.useMemo(() => {
 		const base = solutionVersion || activeSolution?.version || "1.0.0.0";
@@ -109,10 +119,14 @@ export const BulkPublishModal: React.FC = () => {
 	}, [activeSolution?.version]);
 
 	const planFor = React.useCallback(
-		(locations: RibbonLocation[], excludeCommandIds?: Set<string>): ScopePlan =>
+		(locations: RibbonLocation[], scope: "entity" | "application", excludeCommandIds?: Set<string>): ScopePlan =>
 			planScope({
 				locations: locations.map((l) => ({ current: ribbons[l], baseline: baseline[l] })),
 				excludeCommandIds,
+				locLabels,
+				baselineLocLabels,
+				layer: layers[scope] ?? undefined,
+				unhiddenLayerHideIds: pendingUnhides[scope],
 				commands,
 				baselineCommands,
 				enableRules,
@@ -129,10 +143,14 @@ export const BulkPublishModal: React.FC = () => {
 			baselineEnableRules,
 			displayRules,
 			baselineDisplayRules,
+			locLabels,
+			baselineLocLabels,
+			layers,
+			pendingUnhides,
 		],
 	);
 	const entityPlan = React.useMemo(
-		() => (activeEntity ? planFor(ENTITY_LOCATIONS) : null),
+		() => (activeEntity ? planFor(ENTITY_LOCATIONS, "entity") : null),
 		[activeEntity, planFor],
 	);
 	// Commands used by the table's buttons are published with the table only:
@@ -146,7 +164,7 @@ export const BulkPublishModal: React.FC = () => {
 					for (const group of tab.groups)
 						for (const button of group.buttons) if (button.commandId) tableCommands.add(button.commandId);
 		}
-		return planFor(["Application"], tableCommands);
+		return planFor(["Application"], "application", tableCommands);
 	}, [planFor, activeEntity, ribbons]);
 	const includeApplicationRibbon = appPlan.hasChanges && solutionSupportsAppRibbon;
 	const unsupported = [...(entityPlan?.unsupported ?? []), ...appPlan.unsupported];
@@ -160,12 +178,14 @@ export const BulkPublishModal: React.FC = () => {
 		setPublishing(true);
 		setProgressMessage("");
 		setErrorMessages([]);
+		setVerifications([]);
 		setRunScopes(scopes);
 		setStatusMap(Object.fromEntries(scopes.map((s) => [s, "pending" as PublishStatus])));
 
 		let hadError = false;
 		const published: RibbonLocation[] = [];
 		const errors: { scope: string; message: string }[] = [];
+		const verified: { scope: string; result: PublishVerification }[] = [];
 		const logs = useRuntimeLogStore.getState();
 		const fmt = (e: unknown) => (e instanceof Error ? e.message : String(e));
 		const common = {
@@ -192,7 +212,7 @@ export const BulkPublishModal: React.FC = () => {
 				// One import for the whole table: each import REPLACES the table's
 				// unmanaged ribbon, so all locations travel together, merged onto
 				// the existing layer (#11).
-				await publishRibbon(
+				const result = await publishRibbon(
 					{
 						...common,
 						entity: {
@@ -206,6 +226,7 @@ export const BulkPublishModal: React.FC = () => {
 					(msg) => setProgressMessage(msg),
 				);
 				published.push(...ENTITY_LOCATIONS);
+				if (result.verification) verified.push({ scope, result: result.verification });
 				setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
 			} catch (err) {
 				hadError = true;
@@ -221,7 +242,7 @@ export const BulkPublishModal: React.FC = () => {
 			const scope = "Application ribbon";
 			setStatusMap((prev) => ({ ...prev, [scope]: "publishing" }));
 			try {
-				await publishRibbon(
+				const result = await publishRibbon(
 					{
 						...common,
 						entity: null,
@@ -232,6 +253,7 @@ export const BulkPublishModal: React.FC = () => {
 					(msg) => setProgressMessage(msg),
 				);
 				published.push("Application");
+				if (result.verification) verified.push({ scope, result: result.verification });
 				setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
 			} catch (err) {
 				hadError = true;
@@ -255,7 +277,16 @@ export const BulkPublishModal: React.FC = () => {
 		// Only scopes that were actually imported (or had nothing to import) are
 		// marked as published; anything else keeps its pending changes.
 		markPublished(published);
+		// Re-read the layers that were published so ownership, labels and the
+		// "Hidden by customizations" list match the server (#47, #48).
+		if (activeEntity && published.includes("HomepageGrid") && entityPlan?.hasChanges) {
+			setLayerSnapshot("entity", await fetchLayerSnapshot(activeEntity.logicalName));
+		}
+		if (published.includes("Application") && includeApplicationRibbon) {
+			setLayerSnapshot("application", await fetchLayerSnapshot(null));
+		}
 		if (!hadError) setProgressMessage("Done.");
+		setVerifications(verified);
 		setErrorMessages(errors);
 		setDone(!hadError);
 		setPublishing(false);
@@ -269,6 +300,7 @@ export const BulkPublishModal: React.FC = () => {
 		setDone(false);
 		setProgressMessage("");
 		setErrorMessages([]);
+		setVerifications([]);
 		closeBulkPublish();
 	};
 
@@ -400,6 +432,25 @@ export const BulkPublishModal: React.FC = () => {
 									</Button>
 								</>
 							)}
+
+							{done && (
+								<MessageBar intent="info" layout="multiline">
+									<MessageBarBody>
+										Unified Interface caches command bars by metadata version, and publishing a ribbon
+										doesn&apos;t always change that version. If the app still shows the old command bar,
+										hard-refresh the page (Ctrl+F5) or sign out and back in; it can take several minutes
+										to appear for users who already had the table open.
+									</MessageBarBody>
+								</MessageBar>
+							)}
+
+							{verifications.map((v) => (
+								<MessageBar key={v.scope} intent={v.result.ok ? "success" : "warning"} layout="multiline">
+									<MessageBarBody>
+										<strong>{v.scope}:</strong> {v.result.message}
+									</MessageBarBody>
+								</MessageBar>
+							))}
 
 							{(publishing || done) && (
 								<div className={styles.progressList}>

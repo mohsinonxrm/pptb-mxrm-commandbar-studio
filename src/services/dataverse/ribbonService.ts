@@ -2,9 +2,17 @@ import { decompressRibbonZip } from "@/utils/decompressRibbonZip";
 import { parseRibbonXml } from "@/services/xmlParser";
 import type { LocLabel, RibbonDefinition, RibbonLocation, RibbonTab } from "@/types/ribbon";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
-import { fetchUnmanagedRibbonParts, locLabelsFromParts } from "@/services/dataverse/ribbonLayerService";
-import { ownControlIds } from "@/services/ribbonDiffMerge";
+import {
+	definitionsFromParts,
+	fetchUnmanagedRibbonParts,
+	layerSnapshotFromParts,
+	locLabelsFromParts,
+	type LayerSnapshot,
+} from "@/services/dataverse/ribbonLayerService";
+import { fetchOrganizationLanguageCode } from "@/services/dataverse/environmentService";
+import { ownControlIds, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
+import { resolveDisplayLabel } from "@/utils/displayLabel";
 
 const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
 
@@ -16,6 +24,10 @@ export interface RibbonWorkspaceData {
 	displayRules: ReturnType<typeof parseRibbonXml>["displayRules"];
 	enableRules: ReturnType<typeof parseRibbonXml>["enableRules"];
 	locLabels: ReturnType<typeof parseRibbonXml>["locLabels"];
+	/** The table's and the application ribbon's unmanaged layers (null when unreadable). */
+	layers?: { entity: LayerSnapshot | null; application: LayerSnapshot | null };
+	/** Organisation base language (`organizations.languagecode`). */
+	baseLanguageCode?: number;
 }
 
 function dedupeById<T extends { id: string }>(items: T[]): T[] {
@@ -159,15 +171,86 @@ export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
 	return parseRibbonXml(xml, "Application", "{!EntityLogicalName}", layerLocLabels);
 }
 
+/**
+ * Fills in command / rule definitions the merged ribbon is missing but the
+ * unmanaged layer has (#52): right after a publish RetrieveEntityRibbon has been
+ * seen returning the new buttons without their CommandDefinitions for about a
+ * minute. Only buttons' commands that are missing are added (with their rules);
+ * nothing the merged ribbon returned is replaced. Returns the added command ids.
+ */
+export function reconcileWithLayer(
+	defs: RibbonDefinition[],
+	data: Pick<RibbonWorkspaceData, "commands" | "enableRules" | "displayRules">,
+	layer: RibbonDiffParts,
+): string[] {
+	const known = new Set(data.commands.map((c) => c.id));
+	const missing = new Set<string>();
+	for (const def of defs)
+		for (const tab of def.tabs)
+			for (const group of tab.groups)
+				for (const button of group.buttons)
+					if (button.commandId && !known.has(button.commandId) && layer.commandDefinitions.has(button.commandId))
+						missing.add(button.commandId);
+	if (missing.size === 0) return [];
+	const fromLayer = definitionsFromParts(layer);
+	const added = fromLayer.commands.filter((c) => missing.has(c.id));
+	data.commands.push(...added);
+	const haveEnable = new Set(data.enableRules.map((r) => r.id));
+	const haveDisplay = new Set(data.displayRules.map((r) => r.id));
+	for (const cmd of added) {
+		for (const id of cmd.enableRules) {
+			const rule = fromLayer.enableRules.find((r) => r.id === id);
+			if (rule && !haveEnable.has(id)) {
+				data.enableRules.push(rule);
+				haveEnable.add(id);
+			}
+		}
+		for (const id of cmd.displayRules) {
+			const rule = fromLayer.displayRules.find((r) => r.id === id);
+			if (rule && !haveDisplay.has(id)) {
+				data.displayRules.push(rule);
+				haveDisplay.add(id);
+			}
+		}
+	}
+	return added.map((c) => c.id);
+}
+
+/**
+ * Re-resolves `$LocLabels:` button texts in the organisation's base language
+ * (the parser resolves 1033), so what the canvas shows is what an edit
+ * replaces (#50).
+ */
+function resolveLabelsIn(defs: RibbonDefinition[], locLabels: LocLabel[], languageCode: number): void {
+	if (languageCode === 1033) return;
+	for (const def of defs)
+		for (const tab of def.tabs)
+			for (const group of tab.groups)
+				for (const button of group.buttons) {
+					const src = button.source;
+					if (!src) continue;
+					const pairs: Array<[string | undefined, "label" | "tooltipTitle" | "tooltipBody"]> = [
+						[src.labelToken, "label"],
+						[src.tooltipTitleToken, "tooltipTitle"],
+						[src.tooltipBodyToken, "tooltipBody"],
+					];
+					for (const [token, field] of pairs) {
+						if (token?.startsWith("$LocLabels:")) button[field] = resolveDisplayLabel(token, locLabels, languageCode);
+					}
+				}
+}
+
 export async function fetchRibbonWorkspace(
 	entityLogicalName: string,
 ): Promise<RibbonWorkspaceData> {
+	const logs = useRuntimeLogStore.getState();
 	// The merged ribbon carries no LocLabels, so read the unmanaged layers'
 	// labels first; otherwise every `$LocLabels:` caption shows (and would be
 	// republished) as its id (#12).
-	const [entityLayer, appLayer] = await Promise.all([
+	const [entityLayer, appLayer, baseLanguageCode] = await Promise.all([
 		fetchUnmanagedRibbonParts(entityLogicalName).catch(() => null),
 		fetchUnmanagedRibbonParts(null).catch(() => null),
+		fetchOrganizationLanguageCode(),
 	]);
 	const entityLabels = entityLayer ? locLabelsFromParts(entityLayer) : [];
 	const appLabels = appLayer ? locLabelsFromParts(appLayer) : [];
@@ -178,8 +261,22 @@ export async function fetchRibbonWorkspace(
 	if (entityLayer) {
 		const own = ownControlIds(entityLayer);
 		for (const def of Object.values(entity.ribbons)) applyLayerOwnership(def, own);
+		const added = reconcileWithLayer(Object.values(entity.ribbons), entity, entityLayer);
+		if (added.length > 0) {
+			logs.logWarn(
+				"ribbon",
+				`RetrieveEntityRibbon returned ${added.length} button command(s) without their definition ` +
+					`(it can lag right after a publish); loaded them from the unmanaged layer: ${added.join(", ")}.`,
+			);
+		}
 	}
-	if (appLayer) applyLayerOwnership(application.ribbon, ownControlIds(appLayer));
+	if (appLayer) {
+		applyLayerOwnership(application.ribbon, ownControlIds(appLayer));
+		reconcileWithLayer([application.ribbon], application, appLayer);
+	}
+
+	const locLabels = dedupeById([...entity.locLabels, ...application.locLabels]);
+	resolveLabelsIn([...Object.values(entity.ribbons), application.ribbon], locLabels, baseLanguageCode);
 
 	return {
 		ribbons: {
@@ -191,6 +288,11 @@ export async function fetchRibbonWorkspace(
 		commands: dedupeById([...entity.commands, ...application.commands]),
 		displayRules: dedupeById([...entity.displayRules, ...application.displayRules]),
 		enableRules: dedupeById([...entity.enableRules, ...application.enableRules]),
-		locLabels: dedupeById([...entity.locLabels, ...application.locLabels]),
+		locLabels,
+		layers: {
+			entity: entityLayer ? layerSnapshotFromParts(entityLayer) : null,
+			application: appLayer ? layerSnapshotFromParts(appLayer) : null,
+		},
+		baseLanguageCode,
 	};
 }

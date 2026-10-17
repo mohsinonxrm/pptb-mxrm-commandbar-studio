@@ -123,29 +123,43 @@ export const LocalizationEditor: React.FC = () => {
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const upsertLocLabel = useRibbonStore((s) => s.upsertLocLabel);
 
-	const labelId = buttonId ? `${buttonId}.LabelText` : null;
-	const tooltipTitleId = buttonId ? `${buttonId}.ToolTipTitle` : null;
-	const tooltipBodyId = buttonId ? `${buttonId}.ToolTipDescription` : null;
+	const ribbons = useRibbonStore((s) => s.ribbons);
+	const baseLcid = useRibbonStore((s) => s.baseLanguageCode);
+	// Edit the labels the button actually references (a Ribbon Workbench or
+	// solution label keeps its own id); the convention id otherwise (#49).
+	const source = React.useMemo(() => {
+		if (!buttonId) return undefined;
+		for (const def of Object.values(ribbons))
+			for (const tab of def.tabs)
+				for (const group of tab.groups)
+					for (const b of group.buttons) if (b.id === buttonId) return b.source;
+		return undefined;
+	}, [ribbons, buttonId]);
+	const refOr = (token: string | undefined, fallback: string) =>
+		token?.startsWith("$LocLabels:") ? token.slice("$LocLabels:".length) : fallback;
+	const labelId = buttonId ? refOr(source?.labelToken, `${buttonId}.LabelText`) : null;
+	const tooltipTitleId = buttonId ? refOr(source?.tooltipTitleToken, `${buttonId}.ToolTipTitle`) : null;
+	const tooltipBodyId = buttonId ? refOr(source?.tooltipBodyToken, `${buttonId}.ToolTipDescription`) : null;
 
 	const getLcidEntries = useCallback((): LcidEntry[] => {
 		const labelRecord = locLabels.find((l) => l.id === labelId);
 		const ttRecord = locLabels.find((l) => l.id === tooltipTitleId);
 		const tbRecord = locLabels.find((l) => l.id === tooltipBodyId);
 
-		const lcidSet = new Set<number>([1033]);
+		const lcidSet = new Set<number>([baseLcid]);
 		labelRecord?.titles.forEach((t) => lcidSet.add(t.languageCode));
 		ttRecord?.titles.forEach((t) => lcidSet.add(t.languageCode));
 		tbRecord?.titles.forEach((t) => lcidSet.add(t.languageCode));
 
 		return Array.from(lcidSet)
-			.sort((a, b) => (a === 1033 ? -1 : b === 1033 ? 1 : a - b))
+			.sort((a, b) => (a === baseLcid ? -1 : b === baseLcid ? 1 : a - b))
 			.map((lcid) => ({
 				lcid,
 				label: labelRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
 				tooltipTitle: ttRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
 				tooltipBody: tbRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
 			}));
-	}, [locLabels, labelId, tooltipTitleId, tooltipBodyId]);
+	}, [locLabels, labelId, tooltipTitleId, tooltipBodyId, baseLcid]);
 
 	const [entries, setEntries] = useState<LcidEntry[]>([]);
 	const [addingLcid, setAddingLcid] = useState<string>("");
@@ -180,7 +194,7 @@ export const LocalizationEditor: React.FC = () => {
 	};
 
 	const removeEntry = (lcid: number) => {
-		if (lcid === 1033) return;
+		if (lcid === baseLcid) return;
 		setEntries((prev) => prev.filter((e) => e.lcid !== lcid));
 	};
 
@@ -204,7 +218,7 @@ export const LocalizationEditor: React.FC = () => {
 		closeLocalizationEditor();
 	};
 
-	const baseEntry = entries.find((e) => e.lcid === 1033);
+	const baseEntry = entries.find((e) => e.lcid === baseLcid);
 
 	return (
 		<Dialog open={open} onOpenChange={(_, d) => !d.open && closeLocalizationEditor()}>
@@ -240,7 +254,7 @@ export const LocalizationEditor: React.FC = () => {
 										size="medium"
 									>
 										{info?.flag ?? "🌐"} {info?.name ?? `LCID ${e.lcid}`}
-										{e.lcid !== 1033 && (
+										{e.lcid !== baseLcid && (
 											<span
 												style={{ marginLeft: 4, cursor: "pointer", opacity: 0.7 }}
 												onClick={() => removeEntry(e.lcid)}
@@ -281,7 +295,7 @@ export const LocalizationEditor: React.FC = () => {
 						</div>
 
 						<div className={styles.noteBar}>
-							💡 LCID 1033 (English US) is the base language and cannot be removed. Use "Insert
+							💡 LCID {baseLcid} ({KNOWN_LCIDS[baseLcid]?.name ?? "base language"}) is the organisation's base language and cannot be removed. Use "Insert
 							&#x200b;&#x200b;" to force a line break in long labels.
 						</div>
 
@@ -333,7 +347,7 @@ export const LocalizationEditor: React.FC = () => {
 												/>
 											</td>
 											<td className={`${styles.td} ${styles.actionCell}`}>
-												{entry.lcid !== 1033 && (
+												{entry.lcid !== baseLcid && (
 													<Tooltip content="Remove this language" relationship="label">
 														<Button
 															appearance="subtle"

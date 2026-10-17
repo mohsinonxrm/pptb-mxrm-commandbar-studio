@@ -29,6 +29,11 @@ interface GeneratorInput {
 	locLabels: LocLabel[];
 	entityLogicalName: string;
 	location: RibbonLocation;
+	/**
+	 * Organisation base language: edited text is written as this language's
+	 * title, other languages are kept (#50). Defaults to 1033.
+	 */
+	languageCode?: number;
 }
 
 /**
@@ -88,6 +93,7 @@ export function indexButtons(def: RibbonDefinition): Map<string, IndexedButton> 
 
 export function generateRibbonDiffXml(input: GeneratorInput): string {
 	const { current, baseline, commands, enableRules, displayRules, locLabels } = input;
+	const lang = input.languageCode ?? 1033;
 
 	const baselineButtons = indexButtons(baseline);
 	const baselineTabIds = new Set<string>();
@@ -132,7 +138,7 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	//    Location="Mscrm.Tabs._children".
 	for (const tab of current.tabs) {
 		if (!baselineTabIds.has(tab.id)) {
-			tabCustomActions.push(generateTabCustomAction(tab, sink));
+			tabCustomActions.push(generateTabCustomAction(tab, sink, lang));
 		}
 	}
 
@@ -142,7 +148,7 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 		if (!baselineTabIds.has(tab.id)) continue;
 		for (const group of tab.groups) {
 			if (!baselineGroupIds.has(group.id)) {
-				groupCustomActions.push(generateGroupCustomAction(group, tab.id, sink));
+				groupCustomActions.push(generateGroupCustomAction(group, tab.id, sink, lang));
 			}
 		}
 	}
@@ -159,14 +165,14 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 				} else if (!baseButton) {
 					// Not in the loaded ribbon → user created it this session →
 					// emit as a new control under its group.
-					customActions.push(generateCustomAction(button, group.id, locLabels, sink));
+					customActions.push(generateCustomAction(button, group.id, locLabels, sink, lang));
 					emittedButtons.push(button);
 				} else if (hasOobOverrideChanges(baseButton, button)) {
 					// Present in the loaded ribbon AND modified (icon / label /
 					// tooltip / command etc.) → emit an override CustomAction
 					// (Location = the button's id). Works for an existing custom
 					// button or an OOB one alike.
-					customActions.push(generateOobOverrideCustomAction(button, locLabels, sink));
+					customActions.push(generateOobOverrideCustomAction(button, locLabels, sink, lang));
 					emittedButtons.push(button);
 				}
 				// else: unchanged vs. baseline → no diff emitted (correct; it's
@@ -410,13 +416,14 @@ function generateCustomAction(
 	groupId: string,
 	storeLocLabels: LocLabel[],
 	sink: (label: LocLabel) => void,
+	lang = 1033,
 ): string {
 	const location = `${groupId}.Controls._children`;
 	return `<CustomAction Id="${escapeXml(button.id)}.CustomAction"
     Location="${escapeXml(location)}"
     Sequence="${button.sequence}">
     <CommandUIDefinition>
-      ${generateButtonElement(button, storeLocLabels, sink)}
+      ${generateButtonElement(button, storeLocLabels, sink, lang)}
     </CommandUIDefinition>
   </CustomAction>`;
 }
@@ -425,6 +432,7 @@ function generateOobOverrideCustomAction(
 	button: RibbonButton,
 	storeLocLabels: LocLabel[],
 	sink: (label: LocLabel) => void,
+	lang = 1033,
 ): string {
 	// Override: Location = existing button ID (MS-documented pattern for
 	// "change the definition of an existing item").
@@ -432,7 +440,7 @@ function generateOobOverrideCustomAction(
     Location="${escapeXml(button.id)}"
     Sequence="${button.sequence}">
     <CommandUIDefinition>
-      ${generateButtonElement(button, storeLocLabels, sink)}
+      ${generateButtonElement(button, storeLocLabels, sink, lang)}
     </CommandUIDefinition>
   </CustomAction>`;
 }
@@ -452,14 +460,15 @@ function generateGroupCustomAction(
 	group: RibbonGroup,
 	tabId: string,
 	sink: (label: LocLabel) => void,
+	lang = 1033,
 ): string {
 	const titleId = `${group.id}.Title`;
-	sink({ id: titleId, titles: [{ languageCode: 1033, description: group.label }] });
+	sink({ id: titleId, titles: [{ languageCode: lang, description: group.label }] });
 	return `<CustomAction Id="${escapeXml(group.id)}.CustomAction"
     Location="${escapeXml(tabId)}.Groups._children"
     Sequence="${group.sequence}">
     <CommandUIDefinition>
-      ${generateGroupElement(group, sink, false)}
+      ${generateGroupElement(group, sink, false, lang)}
     </CommandUIDefinition>
   </CustomAction>`;
 }
@@ -471,11 +480,11 @@ function generateGroupCustomAction(
  * themselves are still emitted as separate CustomActions targeting
  * `{groupId}.Controls._children`.
  */
-function generateTabCustomAction(tab: RibbonTab, sink: (label: LocLabel) => void): string {
+function generateTabCustomAction(tab: RibbonTab, sink: (label: LocLabel) => void, lang = 1033): string {
 	const titleId = `${tab.id}.Title`;
-	sink({ id: titleId, titles: [{ languageCode: 1033, description: tab.label }] });
+	sink({ id: titleId, titles: [{ languageCode: lang, description: tab.label }] });
 	const commandAttr = tab.commandId ? ` Command="${escapeXml(tab.commandId)}"` : "";
-	const groupsXml = tab.groups.map((g) => generateGroupElement(g, sink, true)).join("\n        ");
+	const groupsXml = tab.groups.map((g) => generateGroupElement(g, sink, true, lang)).join("\n        ");
 	return `<CustomAction Id="${escapeXml(tab.id)}.CustomAction"
     Location="Mscrm.Tabs._children"
     Sequence="${tab.sequence}">
@@ -498,12 +507,13 @@ function generateGroupElement(
 	group: RibbonGroup,
 	sink: (label: LocLabel) => void,
 	nested: boolean,
+	lang = 1033,
 ): string {
 	const titleId = `${group.id}.Title`;
 	if (nested) {
 		// Group title LocLabel is registered by the caller for standalone groups;
 		// for nested (new-tab) groups, register it here.
-		sink({ id: titleId, titles: [{ languageCode: 1033, description: group.label }] });
+		sink({ id: titleId, titles: [{ languageCode: lang, description: group.label }] });
 	}
 	const template = normalizeGroupTemplate(group.template);
 	return `<Group Id="${escapeXml(group.id)}" Title="${escapeXml(locLabelRef(titleId))}" Sequence="${group.sequence}" Template="${escapeXml(template)}">
@@ -540,22 +550,23 @@ function resolveLocalizedAttr(
 	conventionId: string,
 	storeLocLabels: LocLabel[],
 	sink: (label: LocLabel) => void,
+	lang = 1033,
 ): string {
 	const value = rawValue ?? "";
 	if (value.startsWith("$LocLabels:")) {
 		const id = value.slice("$LocLabels:".length);
 		const existing = storeLocLabels.find((l) => l.id === id);
-		sink(existing ?? { id, titles: [{ languageCode: 1033, description: id }] });
+		sink(existing ?? { id, titles: [{ languageCode: lang, description: id }] });
 		return value;
 	}
 	if (value.startsWith("$Resources:")) {
 		return value;
 	}
-	const titles = [{ languageCode: 1033, description: value }];
+	const titles = [{ languageCode: lang, description: value }];
 	const existing = storeLocLabels.find((l) => l.id === conventionId);
 	if (existing) {
 		for (const t of existing.titles) {
-			if (t.languageCode !== 1033) titles.push(t);
+			if (t.languageCode !== lang) titles.push(t);
 		}
 	}
 	sink({ id: conventionId, titles });
@@ -588,8 +599,9 @@ function resolveButtonText(
 	conventionId: string,
 	storeLocLabels: LocLabel[],
 	sink: (label: LocLabel) => void,
+	lang = 1033,
 ): string | undefined {
-	if (token !== undefined && (current ?? "") === resolveDisplayLabel(token, storeLocLabels)) {
+	if (token !== undefined && (current ?? "") === resolveDisplayLabel(token, storeLocLabels, lang)) {
 		if (token.startsWith("$LocLabels:")) {
 			const existing = storeLocLabels.find((l) => l.id === token.slice("$LocLabels:".length));
 			if (existing) sink(existing);
@@ -599,13 +611,14 @@ function resolveButtonText(
 	}
 	if (!current) return undefined;
 	const locId = token?.startsWith("$LocLabels:") ? token.slice("$LocLabels:".length) : conventionId;
-	return resolveLocalizedAttr(current, locId, storeLocLabels, sink);
+	return resolveLocalizedAttr(current, locId, storeLocLabels, sink, lang);
 }
 
 function generateButtonElement(
 	button: RibbonButton,
 	storeLocLabels: LocLabel[],
 	sink: (label: LocLabel) => void,
+	lang = 1033,
 ): string {
 	const tag = buttonKindToTag(button.kind);
 	const src = button.source;
@@ -621,16 +634,16 @@ function generateButtonElement(
 	set("Command", button.commandId || undefined);
 	set(
 		"LabelText",
-		resolveButtonText(button.label, src?.labelToken, buttonLabelId(button.id), storeLocLabels, sink) ?? "",
+		resolveButtonText(button.label, src?.labelToken, buttonLabelId(button.id), storeLocLabels, sink, lang) ?? "",
 	);
 	if (!attrs.has("LabelText")) attrs.set("LabelText", "");
 	set(
 		"ToolTipTitle",
-		resolveButtonText(button.tooltipTitle, src?.tooltipTitleToken, buttonTooltipTitleId(button.id), storeLocLabels, sink),
+		resolveButtonText(button.tooltipTitle, src?.tooltipTitleToken, buttonTooltipTitleId(button.id), storeLocLabels, sink, lang),
 	);
 	set(
 		"ToolTipDescription",
-		resolveButtonText(button.tooltipBody, src?.tooltipBodyToken, buttonTooltipBodyId(button.id), storeLocLabels, sink),
+		resolveButtonText(button.tooltipBody, src?.tooltipBodyToken, buttonTooltipBodyId(button.id), storeLocLabels, sink, lang),
 	);
 	set("TemplateAlias", button.templateAlias);
 	set("Sequence", String(button.sequence));
@@ -906,7 +919,7 @@ function generateLocLabel(label: LocLabel): string {
     </LocLabel>`;
 }
 
-function generateTabDisplayRulesForTab(tab: import("@/types/ribbon").RibbonTab): string {
+export function generateTabDisplayRulesForTab(tab: import("@/types/ribbon").RibbonTab): string {
 	return tab.tabDisplayRules
 		.map((tdr) => {
 			const stepsXml = tdr.rules

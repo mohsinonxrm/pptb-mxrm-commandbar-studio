@@ -15,6 +15,10 @@ import type {
 	TabDisplayRule,
 	ScalingDefinition,
 } from "@/types/ribbon";
+import type { LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+
+/** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
+export type LayerScope = "entity" | "application";
 
 /** Platform display rules that are never both true: together they hide a button on every client. */
 export const HIDE_DISPLAY_RULES = ["Mscrm.HideOnModern", "Mscrm.ShowOnlyOnModern"] as const;
@@ -38,6 +42,17 @@ export type RibbonStoreState = {
 	baselineCommands: CommandDefinition[];
 	baselineEnableRules: EnableRule[];
 	baselineDisplayRules: DisplayRule[];
+	/** LocLabels as loaded (or last published): translation-only edits are detected against these (#49). */
+	baselineLocLabels: LocLabel[];
+	/** The unmanaged layers as loaded / last refreshed (null when unreadable). */
+	layers: Record<LayerScope, LayerSnapshot | null>;
+	/**
+	 * Controls hidden by a HideCustomAction of the layer that the user chose to
+	 * un-hide (#47). They are not on the canvas: RetrieveEntityRibbon applies hides.
+	 */
+	pendingUnhides: Record<LayerScope, string[]>;
+	/** Organisation base language (#50). */
+	baseLanguageCode: number;
 	commands: CommandDefinition[];
 	displayRules: DisplayRule[];
 	enableRules: EnableRule[];
@@ -57,6 +72,8 @@ export interface RibbonWorkspaceSeed {
 	locLabels: LocLabel[];
 	templates?: GroupTemplate[];
 	conflicts?: ConflictEntry[];
+	layers?: Partial<Record<LayerScope, LayerSnapshot | null>>;
+	baseLanguageCode?: number;
 }
 
 type DragSource = { groupId: string; buttonId: string; tabId: string; location: RibbonLocation };
@@ -135,6 +152,10 @@ export interface RibbonStore extends RibbonStoreState {
 	upsertEnableRule(rule: EnableRule): void;
 	renameEnableRuleId(oldId: string, newId: string): boolean;
 	upsertLocLabel(label: LocLabel): void;
+	/** Marks a control hidden by the layer (#47) to be un-hidden on publish, or keeps it hidden. */
+	setLayerHideUnhidden(scope: LayerScope, controlId: string, unhide: boolean): void;
+	/** Replaces a scope's layer snapshot (after a publish re-reads it). */
+	setLayerSnapshot(scope: LayerScope, snapshot: LayerSnapshot | null): void;
 	/**
 	 * Marks the given locations as published (their baseline becomes the
 	 * current state). Locations that were not published keep their pending
@@ -174,6 +195,26 @@ function commitMutation(
 	};
 }
 
+const NO_LAYERS: Record<LayerScope, LayerSnapshot | null> = { entity: null, application: null };
+const NO_UNHIDES: Record<LayerScope, string[]> = { entity: [], application: [] };
+const ENTITY_LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form"];
+
+/**
+ * A sequence for a button just placed between `prev` and `next` (#26): the
+ * canvas orders by position, publish by Sequence, so a move must change it.
+ * Keeps the current value when it already fits.
+ */
+export function sequenceBetween(current: number, prev?: number, next?: number): number {
+	const fits = (prev === undefined || current > prev) && (next === undefined || current < next);
+	if (fits) return current;
+	if (prev !== undefined && next !== undefined) {
+		return next - prev > 1 ? Math.floor((prev + next) / 2) : prev + 1;
+	}
+	if (prev !== undefined) return prev + 10;
+	if (next !== undefined) return Math.max(1, next - 10);
+	return current;
+}
+
 const EMPTY_RIBBONS: Record<RibbonLocation, RibbonDefinition> = {
 	HomepageGrid: { location: "HomepageGrid", entityLogicalName: "", tabs: [] },
 	SubGrid: { location: "SubGrid", entityLogicalName: "", tabs: [] },
@@ -201,6 +242,10 @@ export const useRibbonStore = create<RibbonStore>()(
 		baselineCommands: [],
 		baselineEnableRules: [],
 		baselineDisplayRules: [],
+		baselineLocLabels: [],
+		layers: { ...NO_LAYERS },
+		pendingUnhides: { entity: [], application: [] },
+		baseLanguageCode: 1033,
 		commands: [],
 		displayRules: [],
 		enableRules: [],
@@ -237,6 +282,10 @@ export const useRibbonStore = create<RibbonStore>()(
 				baselineDisplayRules: JSON.parse(JSON.stringify(seed.displayRules)),
 				baselineEnableRules: JSON.parse(JSON.stringify(seed.enableRules)),
 				locLabels: [...seed.locLabels],
+				baselineLocLabels: JSON.parse(JSON.stringify(seed.locLabels)),
+				layers: { ...NO_LAYERS, ...(seed.layers ?? {}) },
+				pendingUnhides: { ...NO_UNHIDES },
+				baseLanguageCode: seed.baseLanguageCode ?? 1033,
 				templates: [...(seed.templates ?? [])],
 				conflicts: [...(seed.conflicts ?? [])],
 				mutationsSincePublish: 0,
@@ -279,6 +328,10 @@ export const useRibbonStore = create<RibbonStore>()(
 				baselineCommands: [...get().baselineCommands],
 				baselineEnableRules: [...get().baselineEnableRules],
 				baselineDisplayRules: [...get().baselineDisplayRules],
+				baselineLocLabels: [...get().baselineLocLabels],
+				layers: { ...get().layers },
+				pendingUnhides: { ...get().pendingUnhides },
+				baseLanguageCode: get().baseLanguageCode,
 				commands: [...get().commands],
 				displayRules: [...get().displayRules],
 				enableRules: [...get().enableRules],
@@ -342,7 +395,13 @@ export const useRibbonStore = create<RibbonStore>()(
 						const insertIdx = dst.beforeButtonId
 							? dstGroup.buttons.findIndex((b) => b.id === dst.beforeButtonId)
 							: dstGroup.buttons.length;
-						dstGroup.buttons.splice(insertIdx < 0 ? dstGroup.buttons.length : insertIdx, 0, button);
+						const at = insertIdx < 0 ? dstGroup.buttons.length : insertIdx;
+						dstGroup.buttons.splice(at, 0, button);
+						button.sequence = sequenceBetween(
+							button.sequence,
+							dstGroup.buttons[at - 1]?.sequence,
+							dstGroup.buttons[at + 1]?.sequence,
+						);
 					},
 					{
 						ts: new Date().toISOString(),
@@ -1017,12 +1076,29 @@ export const useRibbonStore = create<RibbonStore>()(
 		upsertLocLabel(label) {
 			set((state) => {
 				const existing = state.locLabels.findIndex((l) => l.id === label.id);
+				if (existing >= 0 && JSON.stringify(state.locLabels[existing]) === JSON.stringify(label)) return {};
 				const locLabels =
 					existing >= 0
 						? state.locLabels.map((l, i) => (i === existing ? label : l))
 						: [...state.locLabels, label];
-				return { locLabels };
+				// Translation edits are publishable changes too (#49).
+				return { locLabels, mutationsSincePublish: state.mutationsSincePublish + 1 };
 			});
+		},
+
+		setLayerHideUnhidden(scope, controlId, unhide) {
+			set((state) => {
+				const ids = state.pendingUnhides[scope].filter((id) => id !== controlId);
+				if (unhide) ids.push(controlId);
+				return {
+					pendingUnhides: { ...state.pendingUnhides, [scope]: ids },
+					mutationsSincePublish: state.mutationsSincePublish + 1,
+				};
+			});
+		},
+
+		setLayerSnapshot(scope, snapshot) {
+			set((state) => ({ layers: { ...state.layers, [scope]: snapshot } }));
 		},
 
 		markPublished(locations) {
@@ -1033,16 +1109,34 @@ export const useRibbonStore = create<RibbonStore>()(
 				const current = cloneRibbons(state.ribbons);
 				for (const loc of published) baseline[loc] = current[loc];
 				const everything = all.every((loc) => published.includes(loc));
-				const pending = all.some(
-					(loc) => JSON.stringify(baseline[loc]) !== JSON.stringify(current[loc]),
-				);
+				// Un-hides of published scopes are done: drop them from the hidden list.
+				const layers = { ...state.layers };
+				const pendingUnhides = { ...state.pendingUnhides };
+				const scopes: [LayerScope, boolean][] = [
+					["entity", ENTITY_LOCATIONS.every((l) => published.includes(l))],
+					["application", published.includes("Application")],
+				];
+				for (const [scope, done] of scopes) {
+					if (!done || pendingUnhides[scope].length === 0) continue;
+					const snap = layers[scope];
+					if (snap) {
+						layers[scope] = { ...snap, hides: snap.hides.filter((h) => !pendingUnhides[scope].includes(h.location)) };
+					}
+					pendingUnhides[scope] = [];
+				}
+				const pending =
+					all.some((loc) => JSON.stringify(baseline[loc]) !== JSON.stringify(current[loc])) ||
+					pendingUnhides.entity.length + pendingUnhides.application.length > 0;
 				return {
 					baseline,
+					layers,
+					pendingUnhides,
 					...(everything
 						? {
 								baselineCommands: JSON.parse(JSON.stringify(state.commands)),
 								baselineEnableRules: JSON.parse(JSON.stringify(state.enableRules)),
 								baselineDisplayRules: JSON.parse(JSON.stringify(state.displayRules)),
+								baselineLocLabels: JSON.parse(JSON.stringify(state.locLabels)),
 							}
 						: {}),
 					mutationsSincePublish: pending ? Math.max(1, state.mutationsSincePublish) : 0,

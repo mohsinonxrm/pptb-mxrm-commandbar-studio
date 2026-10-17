@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🚀 Publish gaps ([#46](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/46), [#47](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/47), [#48](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/48), [#49](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/49), [#50](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/50), [#52](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/52), [#26](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/26))
+
+- **Hidden by customizations** — controls hidden by a `HideCustomAction` in the
+  table's (or application ribbon's) unmanaged layer are listed in the properties
+  pane, with **Unhide**; the hide is removed on the next publish.
+- **Deleting your own tabs and groups** removes them from the unmanaged layer,
+  together with the buttons placed in them, their labels, scaling, tab display
+  rules and commands nothing else uses. Deleting tabs / groups from other
+  solutions is reported instead of silently ignored.
+- **Translation-only edits** of labels your layer defines, and display-rule edits
+  of your own tabs, are published. Edits CBS can't write are reported.
+- **Base language** — edited labels are written in the organisation's base
+  language; other languages are kept. Labels show in the base language.
+- **Moving / re-ordering your own buttons** moves their CustomAction in place.
+- **Busy environments** — publish waits for running solution operations and
+  retries imports / publishes that fail with `0x80071151`; after publishing it
+  verifies the published ribbon layer and explains Unified Interface caching.
+- **Reload right after publish** fills in button commands missing from
+  `RetrieveEntityRibbon` from the unmanaged layer.
+
 ### 🧰 Build, packaging & repo hygiene ([#20](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/20))
 
 - **Lint fixed** — ESLint now uses a flat `eslint.config.js` with the
