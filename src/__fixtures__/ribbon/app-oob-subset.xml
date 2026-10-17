@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Fixture: app-oob-subset.xml
+  Source: RetrieveApplicationRibbon on a Dataverse online org (2026-10), unmodified apart from indentation; a subset: commands with Url / OutlookCommand actions and rules using kinds the contact fixture lacks.
+  Purpose: real out-of-the-box commands and rules for the lossless parse -> generate
+  round-trip tests (ruleRoundTrip.test.ts, #29 / #42).
+-->
+<RibbonDefinitions>
+<RibbonDefinition>
+<CommandDefinitions>
+<CommandDefinition Id="Mscrm.Promote">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.Promote" />
+          <DisplayRule Id="Mscrm.HideOnModern" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="Promote" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.SetRegarding">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.SetRegarding" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="SetRegarding" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.LegacyOfficeToolbar.GoOffline">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.GoOffline" />
+          <DisplayRule Id="Mscrm.HideOnModern" />
+          <DisplayRule Id="Mscrm.OutlookOfflineAccessOnline" />
+          <DisplayRule Id="Mscrm.OutlookShowForV5Client" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="GoOffline" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.LegacyOfficeToolbar.GoOnline">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.GoOffline" />
+          <DisplayRule Id="Mscrm.HideOnModern" />
+          <DisplayRule Id="Mscrm.OutlookOfflineAccessOffline" />
+          <DisplayRule Id="Mscrm.OutlookShowForV5Client" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="GoOffline" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.OpenFolderBasedTracking">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.NotOffline" />
+          <DisplayRule Id="Mscrm.OutlookSync" />
+          <DisplayRule Id="Mscrm.HideOnModern" />
+        </DisplayRules>
+        <Actions>
+          <Url Address="/tools/FolderBasedTracking/FolderBasedTracking.aspx" WinMode="1" WinParams="dialogWidth:640px;dialogHeight:658px" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.OutlookSync">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.OutlookSync" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="Sync" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.GoOffline">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.GoOffline" />
+          <DisplayRule Id="Mscrm.OutlookOfflineAccessOnline" />
+          <DisplayRule Id="Mscrm.OutlookShowForV5Client" />
+          <DisplayRule Id="Mscrm.HideOnModern" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="GoOffline" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.GoOnline">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.GoOffline" />
+          <DisplayRule Id="Mscrm.OutlookOfflineAccessOffline" />
+          <DisplayRule Id="Mscrm.OutlookShowForV5Client" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="GoOffline" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.ImportOutlookData">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.NotOffline" />
+          <DisplayRule Id="Mscrm.ImportData" />
+          <DisplayRule Id="Mscrm.OutlookShowContactImport" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="OutlookImport" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.PersonalSettings">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.HideOnModern" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="Settings" />
+          <JavaScriptFunction FunctionName="Mscrm.RibbonActions.openSettings" Library="/_static/_common/scripts/RibbonActions.js" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.OfflineData">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.GoOffline" />
+          <DisplayRule Id="Mscrm.NotOffline" />
+          <DisplayRule Id="Mscrm.OfflineData" />
+          <DisplayRule Id="Mscrm.HideOnModern" />
+        </DisplayRules>
+        <Actions>
+          <Url Address="/tools/OfflineData/dialogs/OfflineData.aspx?QueryType=offline" WinMode="1" WinParams="dialogWidth:780px;dialogHeight:540px" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.OutlookSyncFilters">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.OutlookSync" />
+          <DisplayRule Id="Mscrm.NotOffline" />
+        </DisplayRules>
+        <Actions>
+          <Url Address="/tools/OfflineData/dialogs/OfflineData.aspx?QueryType=outlook" WinMode="1" WinParams="dialogWidth:780px;dialogHeight:540px" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.ChangeOrg">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.HideOnModern" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="ConfigWizard" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.OutlookSignout">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.NotOffline" />
+          <DisplayRule Id="Mscrm.OutlookSignoutSupported" />
+          <DisplayRule Id="Mscrm.HideOnModern" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="SignOut" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.OutlookSignoutForgetMe">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.NotOffline" />
+          <DisplayRule Id="Mscrm.OutlookSignoutSupported" />
+          <DisplayRule Id="Mscrm.HideOnModern" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="SignOutForgetMe" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.CheckForUpdates">
+        <EnableRules />
+        <DisplayRules>
+          <DisplayRule Id="Mscrm.NotOffline" />
+          <DisplayRule Id="Mscrm.OutlookShowForV4Client" />
+          <DisplayRule Id="Mscrm.HideOnModern" />
+        </DisplayRules>
+        <Actions>
+          <OutlookCommand ActionType="CheckForUpdates" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.Sales.OpenCommunityForumCommand">
+        <EnableRules />
+        <DisplayRules />
+        <Actions>
+          <Url Address="https://community.dynamics.com/365/sales" WinMode="0" />
+        </Actions>
+      </CommandDefinition>
+<CommandDefinition Id="Mscrm.Sales.OpenIdeasPortalCommand">
+        <EnableRules />
+        <DisplayRules />
+        <Actions>
+          <Url Address="https://experience.dynamics.com/ideas/categories/?forum=5f82c7ac-92b0-e811-a96a-000d3a1bece3&amp;forumName=Dynamics%20365%20for%20Sales" WinMode="0" />
+        </Actions>
+      </CommandDefinition>
+</CommandDefinitions>
+<RuleDefinitions>
+<TabDisplayRules/>
+<DisplayRules>
+<DisplayRule Id="Mscrm.GoOffline">
+          <CrmClientTypeRule Type="Outlook" />
+          <CrmOutlookClientTypeRule Type="CrmForOutlookOfflineAccess" />
+          <MiscellaneousPrivilegeRule PrivilegeName="GoOffline" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.OutlookShowForV5Client">
+          <CrmOutlookClientVersionRule Major="5" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.OutlookShowForV4Client">
+          <CrmOutlookClientVersionRule Major="5" InvertResult="true" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.OutlookShowContactImport">
+          <CrmOutlookClientVersionRule Major="4" Minor="4" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.DisplayForFormTypeMainAndMainInteractionCentric">
+          <FormTypeRule Type="Main" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.ExcludeQuickForms">
+          <FormTypeRule Type="Quick" InvertResult="true" />
+          <FormTypeRule Type="QuickCreate" InvertResult="true" />
+          <FormTypeRule Type="Card" InvertResult="true" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.DoNotDisplayForFormTypeCardAndMainInteractionCentric">
+          <FormTypeRule Type="Card" InvertResult="true" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.DoNotDisplayForFormTypeCard">
+          <FormTypeRule Type="Card" InvertResult="true" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.FormEditorInsertTab">
+          <FormTypeRule Type="Card" InvertResult="true" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.DisplayForFormTypeMainAndQuickAndMainInteractionCentric">
+          <OrRule>
+            <Or>
+              <FormTypeRule Type="Main" />
+            </Or>
+            <Or>
+              <FormTypeRule Type="Quick" />
+            </Or>
+          </OrRule>
+        </DisplayRule>
+<DisplayRule Id="Mscrm.AreWebResourceAndIFrameEnabled">
+          <FormTypeRule Type="Main" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.DisplayForFormTypeMain">
+          <FormTypeRule Type="Main" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.HideIfNetBreezeNotAvailable">
+          <HideIfNetBreezeNotAvailableRule />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.HideIfSalesSolutionNotInstalled">
+          <HideIfSolutionNotInstalledRule SolutionName="msdynce_Sales" />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.HideIfPowerBITileNotAvailable">
+          <HideIfPowerBITileNotAvailableRule />
+        </DisplayRule>
+<DisplayRule Id="Mscrm.HideIfDelveNotAvailable">
+          <HideIfDelveNotAvailableRule />
+        </DisplayRule>
+</DisplayRules>
+<EnableRules>
+<EnableRule Id="Mscrm.Enable.AdvancedFind.IsButtonEnabled.New">
+          <CustomRule FunctionName="IsButtonEnabled" Library="/_static/advancedfind/AdvancedFindPage.js">
+            <IntParameter Value="16" />
+          </CustomRule>
+        </EnableRule>
+<EnableRule Id="Mscrm.Enable.AdvancedFind.IsButtonEnabled.Save">
+          <CustomRule FunctionName="IsButtonEnabled" Library="/_static/advancedfind/AdvancedFindPage.js">
+            <IntParameter Value="32" />
+          </CustomRule>
+        </EnableRule>
+<EnableRule Id="Mscrm.Enable.AdvancedFind.IsButtonEnabled.SaveAs">
+          <CustomRule FunctionName="IsButtonEnabled" Library="/_static/advancedfind/AdvancedFindPage.js">
+            <IntParameter Value="64" />
+          </CustomRule>
+        </EnableRule>
+<EnableRule Id="Mscrm.Enable.AdvancedFind.IsButtonEnabled.EditColumns">
+          <CustomRule FunctionName="IsButtonEnabled" Library="/_static/advancedfind/AdvancedFindPage.js">
+            <IntParameter Value="256" />
+          </CustomRule>
+        </EnableRule>
+<EnableRule Id="Mscrm.Enable.AdvancedFind.IsButtonEnabled.EditProperties">
+          <CustomRule FunctionName="IsButtonEnabled" Library="/_static/advancedfind/AdvancedFindPage.js">
+            <IntParameter Value="512" />
+          </CustomRule>
+        </EnableRule>
+<EnableRule Id="Mscrm.Enable.AdvancedFind.IsButtonEnabled.EditQueryHint">
+          <CustomRule FunctionName="IsButtonEnabled" Library="/_static/advancedfind/AdvancedFindPage.js">
+            <IntParameter Value="1024" />
+          </CustomRule>
+        </EnableRule>
+<EnableRule Id="Mscrm.Enable.AdvancedFind.IsButtonEnabled.Clear">
+          <CustomRule FunctionName="IsButtonEnabled" Library="/_static/advancedfind/AdvancedFindPage.js">
+            <IntParameter Value="128" />
+          </CustomRule>
+        </EnableRule>
+<EnableRule Id="Mscrm.Enable.AdvancedFind.IsButtonEnabled.GroupAnd">
+          <CustomRule FunctionName="IsButtonEnabled" Library="/_static/advancedfind/AdvancedFindPage.js">
+            <IntParameter Value="2" />
+          </CustomRule>
+        </EnableRule>
+<EnableRule Id="Mscrm.Enable.AdvancedFind.IsButtonEnabled.GroupOr">
+          <CustomRule FunctionName="IsButtonEnabled" Library="/_static/advancedfind/AdvancedFindPage.js">
+            <IntParameter Value="4" />
+          </CustomRule>
+        </EnableRule>
+<EnableRule Id="Mscrm.ShowOnQuickAction">
+          <ContextTypeRule ContextType="QuickActionCommand" />
+        </EnableRule>
+</EnableRules>
+</RuleDefinitions>
+</RibbonDefinition>
+</RibbonDefinitions>

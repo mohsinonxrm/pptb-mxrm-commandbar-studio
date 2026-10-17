@@ -278,7 +278,7 @@ export const RuleEditorPanel: React.FC = () => {
 										step={step}
 										onChange={(updated) => handleStepChange(i, updated)}
 										onRemove={() => handleStepRemove(i)}
-										disableEnableOnlyKinds={isEnable}
+										container={isEnable ? "enable" : "display"}
 									/>
 								</SortableRuleStep>
 							))}
@@ -302,7 +302,7 @@ export const RuleEditorPanel: React.FC = () => {
 						</Button>
 					</PopoverTrigger>
 					<PopoverSurface className={styles.pickerPopover}>
-						<RuleStepPicker onSelect={handleAddStep} disableEnableOnlyKinds={isEnable} />
+						<RuleStepPicker onSelect={handleAddStep} container={isEnable ? "enable" : "display"} />
 					</PopoverSurface>
 				</Popover>
 

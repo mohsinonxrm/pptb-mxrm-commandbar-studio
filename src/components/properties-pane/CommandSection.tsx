@@ -109,7 +109,11 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 											? `URL: ${a.address}`
 											: a.kind === "powerFx"
 												? `Fx: ${a.expression}`
-												: `API: ${a.actionName}`}
+												: a.kind === "customApi"
+													? `API: ${a.actionName}`
+													: a.kind === "outlookCommand"
+														? `Outlook: ${a.actionType}`
+														: `XML: ${a.tagName}`}
 								</Tag>
 							))}
 						</div>

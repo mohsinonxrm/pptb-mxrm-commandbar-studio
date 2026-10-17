@@ -199,15 +199,22 @@ describe("parseRibbonXml — all rule kinds fixture", () => {
 			"PageRule",
 			"RelationshipTypeRule",
 			"ReferencingAttributeRequiredRule",
-			"ShowOnQuickActionRule",
-			"ShowOnGridAndQuickActionRule",
-			"ShowOnGridRule",
 			"OutlookRenderTypeRule",
 			"CrmOutlookClientVersionRule",
 		];
 		for (const kind of displayOnlyKinds) {
 			expect(kinds).toContain(kind);
 		}
+	});
+
+	// ShowOn* are not schema elements (they are references to the OOB enable rules
+	// Mscrm.ShowOnGrid etc. — #41). If a document contains them anyway they are kept
+	// verbatim as RawRule steps instead of being modelled or dropped.
+	it("keeps non-schema ShowOn* elements verbatim as RawRule steps", () => {
+		const { displayRules } = parseRibbonXml(xml, "HomepageGrid", "account");
+		const rule = displayRules.find((r) => r.id === "TestDisplayRule")!;
+		const raw = rule.steps.filter((s) => s.kind === "RawRule").map((s) => (s.kind === "RawRule" ? s.tagName : ""));
+		expect(raw).toEqual(["ShowOnQuickActionRule", "ShowOnGridAndQuickActionRule", "ShowOnGridRule"]);
 	});
 
 	// Verify parsed attribute values on a sampling of kinds
@@ -306,7 +313,7 @@ describe("parseRibbonXml — all rule kinds fixture", () => {
 		const orStep = rule.steps.find((s) => s.kind === "OrRule");
 		expect(orStep).toBeDefined();
 		if (orStep?.kind === "OrRule") {
-			expect(orStep.rules.length).toBeGreaterThanOrEqual(2);
+			expect(orStep.groups.length).toBeGreaterThanOrEqual(2);
 		}
 	});
 
