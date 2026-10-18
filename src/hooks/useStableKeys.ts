@@ -19,7 +19,10 @@ export interface StableKeys {
 
 /**
  * Keys made for `items`. While `pending`, `items` is the list one of our own
- * changes was made to: the next different list is the one it produced.
+ * changes was made to, and the list of the next render is the one it produced
+ * (the change and the store update it causes render together). Pending lasts
+ * that one render only: when the store ignored the change (the same list
+ * comes back), a later list from elsewhere must not pass for ours (#22 review).
  */
 interface Tracked<T> {
 	scope: string;
@@ -45,9 +48,10 @@ export function useStableKeys<T>(scope: string, items: readonly T[]): StableKeys
 		tracked.scope === scope &&
 		tracked.keys.length === items.length &&
 		(tracked.items === items || tracked.pending);
-	// The list our own change produced: remember it, so a later list from
-	// elsewhere is recognised (adjusting state while rendering, as React documents).
-	if (ours && tracked.pending && tracked.items !== items) setTracked({ ...tracked, items, pending: false });
+	// The render after our own change: remember the list it produced (or keep
+	// the old one when the change didn't take), so a later list from elsewhere
+	// is recognised — adjusting state while rendering, as React documents.
+	if (tracked?.pending) setTracked({ ...tracked, items: ours ? items : tracked.items, pending: false });
 	const keys = ours ? tracked.keys : fresh;
 	const next = (k: string[]) => setTracked({ scope, items, pending: true, keys: k });
 	return {

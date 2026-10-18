@@ -3,7 +3,7 @@
  * Identity section, a solution switch resetting table-scoped state, and stable
  * React keys for rule steps.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { IdentitySection } from "@/components/properties-pane/IdentitySection";
@@ -18,6 +18,9 @@ import { buttonTranslationLcids } from "@/utils/locLabelRef";
 import type { LocLabel, RibbonButton, RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 import type { Solution } from "@/types/solution";
 import type { EntityMetadata } from "@/types/entity";
+
+// The first render of a Fluent drawer takes seconds when the full suite runs in parallel.
+vi.setConfig({ testTimeout: 30_000 });
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 // jsdom has no ResizeObserver; Fluent's drawer (the Command Editor) uses one.
@@ -226,14 +229,18 @@ describe("#22 review — useStableKeys", () => {
 		return null;
 	}
 	const render = (items: readonly string[]) => act(() => root.render(<Harness items={items} />));
+	/** Our change and the list the store makes of it, in one update (as in the panel's event handlers). */
+	const change = (op: () => void, items: readonly string[]) =>
+		act(() => {
+			op();
+			root.render(<Harness items={items} />);
+		});
 
 	it("keys follow a move, and are made anew when the list is replaced from elsewhere (undo)", () => {
 		const original = ["A", "B", "C"];
 		render(original);
 		const [kA, kB, kC] = api.keys;
-		// Our move, then the store's moved list.
-		act(() => api.move(0, 1));
-		render(["B", "A", "C"]);
+		change(() => api.move(0, 1), ["B", "A", "C"]);
 		expect(api.keys).toEqual([kB, kA, kC]);
 		// Undo restores the original list: no key may stay on the wrong item.
 		render(original);
@@ -246,9 +253,21 @@ describe("#22 review — useStableKeys", () => {
 	it("an edit in place keeps every key", () => {
 		render(["A", "B"]);
 		const keys = api.keys;
-		act(() => api.update());
-		render(["A2", "B"]);
+		change(() => api.update(), ["A2", "B"]);
 		expect(api.keys).toEqual(keys);
+	});
+
+	it("an edit the store ignores doesn't let the next list from elsewhere keep the keys", () => {
+		// e.g. a non-digit typed in a version field (no change), then Ctrl+Z of a move.
+		const list = ["A", "B"];
+		render(list);
+		const [kA, kB] = api.keys;
+		change(() => api.update(), list);
+		expect(api.keys).toEqual([kA, kB]);
+		render(["B", "A"]);
+		expect(api.keys[0]).not.toBe(kA);
+		expect(api.keys[1]).not.toBe(kB);
+		for (const k of api.keys) expect([kA, kB]).not.toContain(k);
 	});
 
 	it("re-rendering the same list keeps the keys", () => {
