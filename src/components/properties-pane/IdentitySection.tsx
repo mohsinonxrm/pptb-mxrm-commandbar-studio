@@ -18,6 +18,7 @@ import { ImageRegular, AddRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
 import FluentIcon from "@/components/shared/FluentIcon";
+import { effectiveModernImage } from "@/services/xmlGenerator";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
 
@@ -218,7 +219,9 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 			{button.icon && (
 				<Field label="ModernImage (auto)">
 					<Input
-						value={`${button.icon}_20_regular`}
+						// What Publish writes: a picked icon is referenced as its SVG web
+						// resource (#51); an untouched icon keeps its loaded value.
+						value={effectiveModernImage(button) ?? "(none)"}
 						readOnly
 						contentAfter={
 							<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>

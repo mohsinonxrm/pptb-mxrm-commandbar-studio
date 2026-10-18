@@ -48,8 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (Vite was loading `vite.config.js` ahead of `vite.config.ts`).
 - **Committed lockfile** — `package-lock.json` is now tracked. The package no longer
   ships `npm-shrinkwrap.json`.
-- **Tool icon shipped** — added `icons/command-bar-studio.svg` (referenced by the
-  manifest but missing from 0.5.x packages) and `SECURITY.md`.
+- **Tool icon shipped** — added the tool icon (referenced by the manifest but missing
+  from 0.5.x packages; now bundled under `dist/`, see #54) and `SECURITY.md`.
 - **GitHub templates** — bug and feature issue forms and a pull request template;
   `.github/` is no longer git-ignored.
 - **Prettier** — added `.prettierrc` (matching the existing tab/double-quote
@@ -67,6 +67,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Simpler tooling** — removed husky + commitlint (git hooks), release-it, Dependabot,
   coverage, the bundle analyzer and unused testing-library packages (12 dev dependencies
   in total).
+
+### 🧩 Power Platform ToolBox 1.2.7 ([#10](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/10))
+
+- **Requires PPTB 1.2.7 or later** — `features` is now `{ "connections": 1, "minAPI": "1.2.7" }`
+  (the legacy `multiConnection` field is deprecated; older PPTB builds don't understand
+  `connections`, so they show the tool as incompatible).
+- **`@pptb/types` ^1.2.7** (validator now in `@pptb/validate`); removed the last
+  `execute` type cast.
+- **Theme** follows the host when PPTB raises `settings:updated`, not only when the
+  tool becomes visible again.
+
+### 🖼️ Tool icon ([#54](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/54))
+
+- The icon is now bundled at `dist/icons/icon.svg` (PPTB resolves `icon` relative to
+  `dist/`); `package.json` `icon` is `icons/icon.svg` and the repo-root `icons/` folder
+  is no longer shipped. Pre-release versions get a gold-cornered **Insider** variant.
+- The `viewBox` is cropped to the hexagon so the icon fills PPTB's 20 px slot.
+
+### 📝 README images in PPTB ([#9](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/9))
+
+- The badges are now SVGs committed under `assets/badges/` and referenced by
+  `raw.githubusercontent.com` URL. PPTB's main window only allows images from GitHub,
+  so the `img.shields.io` badges never loaded there.
+
+### 🎨 Icons and web resources ([#19](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/19), [#51](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/51))
+
+- **Web resources are added to the active solution** — icons, uploads from the web
+  resource browser and scripts saved from the command editor are added to the active
+  unmanaged solution (`AddSolutionComponent`), so the ribbon's dependency travels with
+  the solution. Saving a web resource without an unmanaged solution selected shows a
+  warning (it only lands in the Default solution); the icon picker requires one.
+- **Fluent icons are published** — picking a Fluent icon uploads it as an SVG web
+  resource named `<prefix>_/icons/cbs/<icon>.svg` (`<icon>.filled.svg` for the filled
+  variant), reusing an existing one with that name, and the button's `ModernImage`
+  points at it. The web resource is published (retrying while another solution
+  operation runs) whenever it hasn't been published in this session yet, so an icon
+  whose first publish failed is published on the next pick.
+  The filled/regular switch is now honoured, also when the icon's name equals the
+  button's original `ModernImage`. If the upload fails the button is left
+  unchanged and the picker shows the error (previously the button kept a preview-only
+  icon that was never published). The properties pane shows the `ModernImage` that
+  Publish will write.
 
 ## [0.5.0] - 2026-07-16
 

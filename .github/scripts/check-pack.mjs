@@ -12,7 +12,7 @@ const REQUIRED = [
 	"package.json",
 	"index.html",
 	"dist/index.html",
-	"icons/command-bar-studio.svg",
+	"dist/icons/icon.svg",
 	"README.md",
 	"CHANGELOG.md",
 	"LICENSE",

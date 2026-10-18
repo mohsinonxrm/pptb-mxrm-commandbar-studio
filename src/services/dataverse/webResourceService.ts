@@ -1,3 +1,5 @@
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { useSessionStore } from "@/store/sessionStore";
 import type { WebResource, WebResourceType } from "@/types/webResource";
 
 function getHostDataverseApi(): DataverseAPI.API {
@@ -73,21 +75,78 @@ export async function getWebResourceContent(api: DataverseAPI.API, id: string): 
 	return result["content"] ? String(result["content"]) : "";
 }
 
+/** Solution component type of a web resource (`componenttype` 61). */
+export const WEB_RESOURCE_COMPONENT_TYPE = 61;
+
+export interface UpsertWebResourceOptions {
+	/** Friendly name shown in the maker portal. */
+	displayName?: string;
+	/**
+	 * Unique name of the unmanaged solution the web resource is added to
+	 * (AddSolutionComponent). Without it the web resource only lands in the
+	 * Default solution, and a ribbon that references it fails to import
+	 * elsewhere on a missing dependency (#19).
+	 */
+	solutionUniqueName?: string;
+	/**
+	 * Reuse a web resource that already has this name instead of overwriting
+	 * its content (it is still added to the solution).
+	 */
+	keepExisting?: boolean;
+}
+
+export interface UpsertWebResourceResult {
+	id: string;
+	/** True when a new web resource was created (false = an existing one was updated or reused). */
+	created: boolean;
+	/** True when the existing content was overwritten. */
+	updated: boolean;
+	/** The solution the web resource was added to, if any. */
+	solutionUniqueName?: string;
+	/** Set by saveWebResource when no unmanaged solution could be targeted. */
+	solutionWarning?: string;
+}
+
 /**
- * Upload (create) a new web resource, or update an existing one.
+ * Adds a web resource to an unmanaged solution. Idempotent: adding a component
+ * that is already in the solution succeeds. Uses AddSolutionComponent rather
+ * than the `MSCRM.SolutionUniqueName` header because PPTB 1.2.7 asks the user
+ * to consent to custom request headers.
+ */
+export async function addWebResourceToSolution(
+	api: DataverseAPI.API,
+	webResourceId: string,
+	solutionUniqueName: string,
+): Promise<void> {
+	await api.execute({
+		operationName: "AddSolutionComponent",
+		operationType: "action",
+		parameters: {
+			ComponentId: webResourceId,
+			ComponentType: WEB_RESOURCE_COMPONENT_TYPE,
+			SolutionUniqueName: solutionUniqueName,
+			AddRequiredComponents: false,
+		},
+	});
+}
+
+/**
+ * Upload (create) a new web resource, or update an existing one, and add it
+ * to the given unmanaged solution.
  * @param api       - DataverseAPI instance
  * @param name      - Unique name, e.g. "contoso_/scripts/myfile.js"
  * @param content   - Base64-encoded file content
  * @param typeCode  - Numeric webresourcetype code (3 = JS, 11 = SVG …)
- * @param displayName - Optional friendly name shown in UI
+ * @param options   - Display name, target solution, reuse behaviour
  */
 export async function upsertWebResource(
 	api: DataverseAPI.API,
 	name: string,
 	content: string,
 	typeCode: number,
-	displayName?: string,
-): Promise<{ id: string }> {
+	options: UpsertWebResourceOptions = {},
+): Promise<UpsertWebResourceResult> {
+	const { displayName, solutionUniqueName, keepExisting = false } = options;
 	// Check whether it already exists
 	const existing = await api.queryData(
 		`webresourceset?$select=webresourceid&$filter=name eq '${name.replace(/'/g, "''")}'&$top=1`,
@@ -100,15 +159,29 @@ export async function upsertWebResource(
 		...(displayName ? { displayname: displayName } : {}),
 	};
 
+	let result: UpsertWebResourceResult;
 	if (existing.value.length > 0) {
 		const rec = existing.value[0] as Record<string, unknown>;
 		const existingId = String(rec["webresourceid"] ?? "");
-		await api.update("webresource", existingId, payload);
-		return { id: existingId };
+		if (!keepExisting) await api.update("webresource", existingId, payload);
+		result = { id: existingId, created: false, updated: !keepExisting };
+	} else {
+		const created = await api.create("webresource", payload);
+		result = { id: String(created.id ?? ""), created: true, updated: false };
 	}
 
-	const created = await api.create("webresource", payload);
-	return { id: String(created.id ?? "") };
+	if (solutionUniqueName && result.id) {
+		try {
+			await addWebResourceToSolution(api, result.id, solutionUniqueName);
+		} catch (err) {
+			throw new Error(
+				`Web resource ${name} was saved but could not be added to solution ` +
+					`${solutionUniqueName}: ${err instanceof Error ? err.message : String(err)}`,
+			);
+		}
+		result.solutionUniqueName = solutionUniqueName;
+	}
+	return result;
 }
 
 export async function loadWebResources(typeFilter?: WebResourceType): Promise<WebResource[]> {
@@ -146,13 +219,37 @@ export async function loadWebResourceByName(name: string): Promise<WebResource |
 	};
 }
 
+/**
+ * Creates or updates a web resource through the PPTB host and adds it to the
+ * active unmanaged solution (#19). Pass `solutionUniqueName` to target another
+ * solution. With a managed or missing active solution the web resource is
+ * saved to the Default solution only; that is reported as `solutionWarning`
+ * and logged as a warning (a ribbon referencing it would not import elsewhere).
+ */
 export async function saveWebResource(
 	name: string,
 	content: string,
 	typeCode: number,
-	displayName?: string,
-): Promise<{ id: string }> {
-	return upsertWebResource(getHostDataverseApi(), name, content, typeCode, displayName);
+	options: UpsertWebResourceOptions = {},
+): Promise<UpsertWebResourceResult> {
+	const active = useSessionStore.getState().activeSolution;
+	const solutionUniqueName =
+		options.solutionUniqueName ?? (active && !active.isManaged ? active.uniqueName : undefined);
+	const result = await upsertWebResource(getHostDataverseApi(), name, content, typeCode, {
+		...options,
+		solutionUniqueName,
+	});
+	if (!solutionUniqueName) {
+		const why = active
+			? `the active solution ${active.uniqueName} is managed`
+			: "no solution is selected";
+		result.solutionWarning =
+			`Web resource ${name} was saved but not added to any solution because ${why}. ` +
+			`It is only in the Default solution — select an unmanaged solution and save it again ` +
+			`so it travels with your customizations.`;
+		useRuntimeLogStore.getState().logWarn("webresource", result.solutionWarning);
+	}
+	return result;
 }
 
 /**
@@ -163,7 +260,7 @@ export async function saveWebResource(
 export async function publishWebResource(id: string): Promise<void> {
 	const api = getHostDataverseApi();
 	const parameterXml = `<importexportxml><webresources><webresource>${id}</webresource></webresources></importexportxml>`;
-	await (api as unknown as { execute: (req: unknown) => Promise<unknown> }).execute({
+	await api.execute({
 		operationName: "PublishXml",
 		operationType: "action",
 		parameters: { ParameterXml: parameterXml },

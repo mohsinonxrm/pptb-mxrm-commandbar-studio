@@ -690,6 +690,35 @@ function resolveButtonText(
 	return resolveLocalizedAttr(current, locId, storeLocLabels, sink, lang);
 }
 
+/**
+ * The ModernImage value CBS writes for a button. Unchanged → the loaded value
+ * (out-of-the-box names like "New"). Otherwise the first `$webresource:` among
+ * image32 / image16 / icon — a Fluent icon picked in CBS is uploaded as an SVG
+ * web resource (#51); a bare Fluent name is a canvas-preview value only and is
+ * never written (it doesn't resolve).
+ *
+ * "Unchanged" needs both the icon name AND the image fields to match what was
+ * loaded: picking the filled variant of an icon whose name equals the loaded
+ * ModernImage (e.g. "Add" → `$webresource:…/add.filled.svg`) leaves `icon`
+ * as it was but points the images at a new web resource, which must win.
+ */
+export function effectiveModernImage(button: RibbonButton): string | undefined {
+	const src = button.source;
+	const isWebResource = (v?: string): v is string => !!v?.startsWith("$webresource:");
+	const pickedImages = (
+		[
+			[button.image32, "Image32by32"],
+			[button.image16, "Image16by16"],
+		] as const
+	)
+		.filter(([value, attr]) => isWebResource(value) && value !== src?.attributes[attr])
+		.map(([value]) => value);
+	if (src && normalizeModernImage(src.modernImage) === button.icon && pickedImages.length === 0) {
+		return src.modernImage;
+	}
+	return pickedImages[0] ?? [button.image32, button.image16, button.icon].find(isWebResource);
+}
+
 function generateButtonElement(
 	button: RibbonButton,
 	storeLocLabels: LocLabel[],
@@ -728,11 +757,7 @@ function generateButtonElement(
 	// "New", /_imgs/ paths). A bare Fluent icon name chosen in CBS is a
 	// canvas-preview value only and must never be emitted (it doesn't resolve).
 	const isResourceRef = (v?: string) => !!v && (v.startsWith("$webresource:") || v.includes("/") || v.includes("."));
-	const iconUnchanged = src && normalizeModernImage(src.modernImage) === button.icon;
-	const modernImage = iconUnchanged
-		? src?.modernImage
-		: [button.image32, button.image16, button.icon].find((v) => v?.startsWith("$webresource:"));
-	set("ModernImage", modernImage);
+	set("ModernImage", effectiveModernImage(button));
 	set("Image16by16", isResourceRef(button.image16) ? button.image16 : undefined);
 	set("Image32by32", isResourceRef(button.image32) ? button.image32 : undefined);
 

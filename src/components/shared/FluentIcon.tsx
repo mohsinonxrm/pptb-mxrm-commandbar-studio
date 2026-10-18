@@ -375,5 +375,8 @@ export async function fluentIconToSvg(
 		markup = markup.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
 	}
 	markup = markup.replace(/width="1em"/, `width="${size}"`).replace(/height="1em"/, `height="${size}"`);
+	// CBS-only styling hooks (Griffel class names, ARIA for the canvas) mean
+	// nothing inside a web-resource file.
+	markup = markup.replace(/\s(?:class|aria-hidden|focusable|data-fui-icon|font-size)="[^"]*"/g, "");
 	return markup;
 }

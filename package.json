@@ -23,7 +23,7 @@
 		"microsoft"
 	],
 	"main": "index.html",
-	"icon": "icons/command-bar-studio.svg",
+	"icon": "icons/icon.svg",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio.git"
@@ -35,8 +35,8 @@
 		}
 	],
 	"features": {
-		"multiConnection": "none",
-		"minAPI": "1.2.0"
+		"connections": 1,
+		"minAPI": "1.2.7"
 	},
 	"bugs": {
 		"url": "https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues"
@@ -48,7 +48,6 @@
 	},
 	"files": [
 		"dist",
-		"icons",
 		"index.html",
 		"LICENSE",
 		"README.md",
@@ -84,7 +83,7 @@
 	},
 	"devDependencies": {
 		"@eslint/js": "^9.25.0",
-		"@pptb/types": "^1.2.3",
+		"@pptb/types": "^1.2.7",
 		"@types/node": "^22.20.5",
 		"@types/react": "^18.3.21",
 		"@types/react-dom": "^18.3.5",
