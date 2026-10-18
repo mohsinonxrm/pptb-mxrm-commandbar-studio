@@ -17,6 +17,7 @@ import type {
 } from "@/types/ribbon";
 import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
 import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
+import { CONTROL_TAG_BY_KIND, controlCommandIds, isReadOnlyControlKind } from "@/utils/controlKinds";
 import { isOwnControl } from "@/utils/ribbonProvenance";
 import { OPEN_RECORD_ITEM_COMMAND_ID, openRecordCommandProblem } from "@/utils/openRecordItem";
 
@@ -168,6 +169,8 @@ function buttonLabelRefs(button: RibbonButton): string[] {
 		const id = locRef(v);
 		if (id) out.push(id);
 	}
+	// A control written verbatim (#42): the labels its children reference too.
+	for (const m of button.source?.xml?.matchAll(/\$LocLabels:([^"'\s<]+)/g) ?? []) if (!out.includes(m[1])) out.push(m[1]);
 	return out;
 }
 
@@ -294,7 +297,8 @@ export function planScope(input: PlanInput): ScopePlan {
 		// Keyed by occurrence: the application ribbon repeats control ids.
 		const cur = indexButtons(current);
 		const base = indexButtons(baseline);
-		for (const { button } of cur.values()) if (button.commandId) referencedCommandIds.add(button.commandId);
+		// Every command a control uses: a verbatim control's QueryCommand, … too (#42).
+		for (const { button } of cur.values()) for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
 
 		for (const [key, { button }] of cur) {
 			const refs = buttonLabelRefs(button);
@@ -321,6 +325,14 @@ export function planScope(input: PlanInput): ScopePlan {
 					);
 					continue;
 				}
+				// A read-only kind is written to its new location as loaded (#42):
+				// its <Menu> there also holds what other solutions add to it.
+				if (isReadOnlyControlKind(b.button.kind) && placedAnywhere.has(id) && /<Menu[\s>/]/.test(b.button.source?.xml ?? "")) {
+					unsupported.push(
+						`Moving the <${CONTROL_TAG_BY_KIND[b.button.kind]}> "${b.button.label}" (${id}) to another location — its menu may hold items of other solutions; move it within its location instead`,
+					);
+					continue;
+				}
 				// "unmanaged" is set from the table's unmanaged layer at load. The
 				// canvas deletes by the same rule (canDeleteControl, #17).
 				if (isOwnControl(b.button)) deleted.push(id);
@@ -332,6 +344,12 @@ export function planScope(input: PlanInput): ScopePlan {
 				unsupported.push(`Changing the kind of "${c.button.label}" (${id}) — not supported yet`);
 			}
 			const edited = hasOobOverrideChanges(b.button, c.button);
+			// ToggleButton, Label, DropDown, … are written back as loaded (#42).
+			if (edited && isReadOnlyControlKind(c.button.kind)) {
+				unsupported.push(
+					`Editing the <${CONTROL_TAG_BY_KIND[c.button.kind]}> "${c.button.label}" (${id}) — CBS shows it read-only; it can be hidden, or moved and deleted when it's your own`,
+				);
+			}
 			// Any control with a <Menu> (a ComboBox too): an override would drop it.
 			if (edited && (isMenuKind(c.button.kind) || !!c.button.menu) && b.button.origin !== "unmanaged") {
 				// An override replaces the whole control, menu included, and the

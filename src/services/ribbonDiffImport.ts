@@ -13,6 +13,7 @@ import { parseRibbonXml } from "@/services/xmlParser";
 import { hasOobOverrideChanges } from "@/services/xmlGenerator";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { applyButtonOrigin } from "@/utils/ribbonProvenance";
+import { controlCommandIds, isReadOnlyControlKind, KIND_BY_CONTROL_TAG } from "@/utils/controlKinds";
 
 /**
  * Applies a RibbonDiffXml (e.g. exported by Ribbon Workbench or from a
@@ -310,10 +311,18 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 	};
 
 	// ── Controls, groups and tabs as the parser models them ──
-	/** Parses a fragment (a Tab, or Groups / Controls content) with the loaded-ribbon parser. */
+	/**
+	 * Parses a fragment (a Tab, or Groups / Controls content) with the
+	 * loaded-ribbon parser: placed where a ribbon's tabs are (the parser reads
+	 * no tab from a CustomAction, #42), with the XML's TabDisplayRules.
+	 */
+	const tabDisplayRulesXml = elementChildren(root.querySelector(":scope > RuleDefinitions > TabDisplayRules"))
+		.map((e) => serializer.serializeToString(e))
+		.join("");
 	const parseFragment = (tabXml: string): RibbonTab | undefined =>
 		parseRibbonXml(
-			`<RibbonDiffXml>${tabXml}</RibbonDiffXml>`,
+			`<RibbonDiffXml><UI><Ribbon><Tabs>${tabXml}</Tabs></Ribbon></UI>` +
+				`<RuleDefinitions><TabDisplayRules>${tabDisplayRulesXml}</TabDisplayRules></RuleDefinitions></RibbonDiffXml>`,
 			input.activeLocation,
 			entity,
 			locLabels,
@@ -333,8 +342,9 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		if (src.tooltipBodyToken) button.tooltipBody = text(src.tooltipBodyToken, "");
 	};
 	/** `$LocLabels:` references neither the XML nor the session defines: the import would fail. */
-	const checkLabels = (item: { id: string; source?: { attributes: Record<string, string> } }) => {
-		for (const v of Object.values(item.source?.attributes ?? {}))
+	const checkLabels = (item: { id: string; source?: { attributes: Record<string, string>; xml?: string } }) => {
+		// A control kept verbatim (#42): its children's references too.
+		for (const v of item.source?.xml ? [item.source.xml] : Object.values(item.source?.attributes ?? {}))
 			for (const [, id] of v.matchAll(LOC_LABEL_REF))
 				if (!locLabels.some((l) => l.id === id)) {
 					notApplied.push(
@@ -521,6 +531,11 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 			);
 			for (const control of elementChildren(el.querySelector(":scope > Controls"))) {
 				if (CONTROL_TAGS.has(control.tagName)) addControl(ca, control, id, undefined);
+				else if (isReadOnlyControlKind(KIND_BY_CONTROL_TAG[control.tagName])) {
+					notApplied.push(
+						`${control.getAttribute("Id") ?? "(no Id)"}: adding a <${control.tagName}> to an existing group isn't supported — Command Bar Studio shows it read-only.`,
+					);
+				}
 			}
 			return;
 		}
@@ -542,8 +557,8 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		if (!id)
 			return notApplied.push(`CustomAction ${ca.getAttribute("Id")}: the tab has no Id.`);
 		if (findTab(id)) return notApplied.push(`Tab ${id} already exists — it was left as is.`);
-		// The full-document parse carries the tab's TabDisplayRules.
-		const parsedTab = parsed.ribbon.tabs.find((t) => t.id === id);
+		// Parsed with the XML's TabDisplayRules, which bind to its Command.
+		const parsedTab = parseFragment(xmlOf(el));
 		if (!parsedTab) return notApplied.push(`Tab ${id}: couldn't read the <Tab>.`);
 		const contexts = parsedTab.tabDisplayRules.flatMap((r) =>
 			r.rules.map((s) => (s.kind === "EntityRule" ? contextLocation(s.context) : undefined)),
@@ -676,7 +691,7 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 	for (const location of LOCATIONS)
 		for (const tab of ribbons[location].tabs)
 			for (const group of tab.groups)
-				for (const b of group.buttons) if (b.commandId) usedCommands.add(b.commandId);
+				for (const b of group.buttons) for (const id of controlCommandIds(b)) usedCommands.add(id);
 	for (const c of addedTabCommands) usedCommands.add(c);
 	const usedEnable = new Set<string>();
 	const usedDisplay = new Set<string>();
