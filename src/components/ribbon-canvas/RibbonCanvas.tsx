@@ -285,7 +285,7 @@ export function RibbonCanvas({
 				))}
 				<div className={styles.spacer} />
 				<div style={{ display: "flex", alignItems: "center", gap: tokens.spacingHorizontalS }}>
-					{ribbonViewStyle !== "classic" && <ModernAppFilter />}
+					<ModernAppFilter />
 					<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
 						View as:
 					</Text>

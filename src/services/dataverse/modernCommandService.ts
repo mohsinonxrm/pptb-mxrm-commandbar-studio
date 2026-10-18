@@ -13,6 +13,7 @@ import {
 	CLASSIC_RULES_NAV,
 	buildAppList,
 	mapAppActionRows,
+	scopeToContainingApps,
 	type ModernTable,
 } from "@/services/modernCommands";
 
@@ -25,8 +26,11 @@ const errorText = (err: unknown) => (err instanceof Error ? err.message : String
 /** queryData that follows `@odata.nextLink` (PPTB doesn't page for us). */
 async function queryAll(query: string): Promise<Array<Record<string, unknown>>> {
 	const rows: Array<Record<string, unknown>> = [];
+	const seen = new Set<string>();
 	let next: string | undefined = query;
-	while (next) {
+	// A repeated nextLink would loop forever; stop instead.
+	while (next && !seen.has(next)) {
+		seen.add(next);
 		const page = (await getDataverseAPI().queryData(next)) as {
 			value?: Array<Record<string, unknown>>;
 			"@odata.nextLink"?: string;
@@ -36,6 +40,13 @@ async function queryAll(query: string): Promise<Array<Record<string, unknown>>> 
 		next = link ? link.replace(/^.*\/api\/data\/v[\d.]+\//, "") : undefined;
 	}
 	return rows;
+}
+
+/** 401 / 403 / missing read privilege — retrying (e.g. without the expand) won't help. */
+export function isPermissionError(err: unknown): boolean {
+	return /\b40[13]\b|0x80040220|prvRead|privilege|unauthori[sz]ed|forbidden|not have permission/i.test(
+		errorText(err),
+	);
 }
 
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -65,7 +76,8 @@ export function buildAppActionQuery(table: ModernTable, withClassicRules: boolea
 /**
  * Reads the table's modern commands. The classic rules of migrated commands
  * are expanded when the org allows it; if the expand is rejected the query is
- * retried without it. Throws only when `appaction` itself can't be read.
+ * retried without it — unless the failure is a permission error. Throws only
+ * when `appaction` itself can't be read.
  */
 export async function fetchModernCommands(table: ModernTable): Promise<ModernCommand[]> {
 	const logs = useRuntimeLogStore.getState();
@@ -73,6 +85,7 @@ export async function fetchModernCommands(table: ModernTable): Promise<ModernCom
 	try {
 		rows = await queryAll(buildAppActionQuery(table, true));
 	} catch (err) {
+		if (isPermissionError(err)) throw err;
 		logs.logInfo(
 			"dataverse",
 			`Modern commands: classic rules couldn't be expanded (${errorText(err)}); retrying without them.`,
@@ -152,7 +165,7 @@ export async function fetchAppModules(table: ModernTable): Promise<{
 
 export interface ModernCommandData {
 	commands: ModernCommand[];
-	/** Apps to offer in the App filter (containing the table, or having commands for it). */
+	/** Apps to offer in the App filter (containing the table; or, if unknown, having commands for it). */
 	apps: ModernAppModule[];
 	/** Set when the commands themselves couldn't be read. */
 	error?: string;
@@ -174,7 +187,9 @@ export async function loadModernCommandData(table: ModernTable): Promise<ModernC
 		const message = errorText(commandsResult.reason);
 		logs.logWarn(
 			"dataverse",
-			`Modern commands unavailable for ${table.logicalName}: ${message}`,
+			isPermissionError(commandsResult.reason)
+				? `No permission to read modern commands (appaction) for ${table.logicalName}; the canvas shows classic commands only. (${message})`
+				: `Modern commands unavailable for ${table.logicalName}: ${message}`,
 		);
 		return { commands: [], apps: [], error: message };
 	}
@@ -186,7 +201,8 @@ export async function loadModernCommandData(table: ModernTable): Promise<ModernC
 	}
 	const { apps, containingAppIds } =
 		appsResult.status === "fulfilled" ? appsResult.value : { apps: [], containingAppIds: null };
-	const commands = commandsResult.value;
+	// App-specific commands of apps without this table never show for it.
+	const commands = scopeToContainingApps(commandsResult.value, containingAppIds);
 	logs.logInfo(
 		"dataverse",
 		`Loaded ${commands.length} modern command${commands.length === 1 ? "" : "s"} for ${table.logicalName}.`,

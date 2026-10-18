@@ -91,3 +91,13 @@ export const useModernCommandStore = create<ModernCommandStore>()((set, get) => 
 		set({ selectedCommandId: id });
 	},
 }));
+
+// Selecting a classic button, or moving to another tab / location, ends the
+// modern selection so it can't reappear later. (A table change clears it in beginLoad.)
+useSelectionStore.subscribe((s, prev) => {
+	if (!useModernCommandStore.getState().selectedCommandId) return;
+	const classicSelected = !!s.selectedButtonId && s.selectedButtonId !== prev.selectedButtonId;
+	if (classicSelected || s.location !== prev.location || s.tabId !== prev.tabId) {
+		useModernCommandStore.setState({ selectedCommandId: null });
+	}
+});

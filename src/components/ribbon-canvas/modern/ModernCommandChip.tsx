@@ -1,5 +1,6 @@
 import { makeStyles, tokens, Text, Badge, Tooltip, mergeClasses } from "@fluentui/react-components";
 import { ChevronDownRegular, EyeOffRegular, LockClosedRegular } from "@fluentui/react-icons";
+import type { DragEvent } from "react";
 import FluentIcon from "@/components/shared/FluentIcon";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useSelectionStore } from "@/store/selectionStore";
@@ -88,11 +89,14 @@ export function ModernCommandChip({
 	node,
 	appNames,
 	showApp,
+	onDragRejected,
 }: {
 	node: ModernCommandNode;
 	appNames: ReadonlyMap<string, string>;
 	/** Badge the app (when the App filter shows every app). */
 	showApp: boolean;
+	/** Called when something is dragged over / dropped on the chip (which accepts nothing). */
+	onDragRejected?: () => void;
 }) {
 	const styles = useStyles();
 	const cmd = node.command;
@@ -102,6 +106,15 @@ export function ModernCommandChip({
 	const isSelected = selectedId === cmd.id && !classicSelected;
 	const hasMenu = cmd.type === "dropdown" || cmd.type === "split" || node.children.length > 0;
 	const icon = cmd.fontIcon && !cmd.fontIcon.startsWith("$") ? cmd.fontIcon : "apps_add_in";
+	const status = `${cmd.hidden ? " — hidden" : ""}${cmd.disabled ? " — disabled" : ""}`;
+	// Read-only: never a drop target, and the drop must not reach the command
+	// bar lane (which would move / create a classic button).
+	const rejectDrag = (e: DragEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		e.dataTransfer.dropEffect = "none";
+		onDragRejected?.();
+	};
 
 	return (
 		<Tooltip
@@ -118,9 +131,11 @@ export function ModernCommandChip({
 					cmd.hidden && styles.hidden,
 				)}
 				aria-pressed={isSelected}
-				aria-label={`${cmd.label} — modern command (read-only)${cmd.hidden ? " — hidden" : ""}`}
+				aria-label={`${cmd.label} — modern command (read-only), ${appLabel(cmd, appNames)}${status}`}
 				onClick={() => selectCommand(cmd.id)}
 				onDragStart={(e) => e.preventDefault()}
+				onDragOver={rejectDrag}
+				onDrop={rejectDrag}
 				onContextMenu={(e) => {
 					e.preventDefault();
 					selectCommand(cmd.id);

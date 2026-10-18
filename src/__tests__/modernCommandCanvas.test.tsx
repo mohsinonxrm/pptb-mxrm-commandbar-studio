@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { ModernCommandBar } from "@/components/ribbon-canvas/ModernCommandBar";
 import { PropertiesPane } from "@/components/properties-pane/PropertiesPane";
+import { ModernCommandsTable } from "@/components/ribbon-canvas/modern/ModernCommandsTable";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
@@ -188,10 +189,10 @@ describe("modern commands on the canvas", () => {
 	it("interleaves read-only modern chips by sequence and flags the classic button a migrated command hides", () => {
 		render(<ModernCommandBar tab={tab()} location="HomepageGrid" />);
 		expect(labels()).toEqual([
-			"New",
-			"Send survey — modern command (read-only)",
-			"Refresh",
-			"Tail command — modern command (read-only)",
+			"New — modern (migrated)",
+			"Send survey — modern command (read-only), Sales Hub",
+			"Refresh — hidden by modern command Refresh in Sales Hub",
+			"Tail command — modern command (read-only), All apps",
 		]);
 		const chip = [...container.querySelectorAll("button")].find((b) =>
 			b.textContent?.includes("Send survey"),
@@ -214,7 +215,11 @@ describe("modern commands on the canvas", () => {
 	it("hides other apps' commands when an app is picked, and shows the selection read-only", () => {
 		useModernCommandStore.getState().setAppFilter("33333333-3333-3333-3333-333333333333");
 		render(<ModernCommandBar tab={tab()} location="HomepageGrid" />);
-		expect(labels()).toEqual(["New", "Refresh", "Tail command — modern command (read-only)"]);
+		expect(labels()).toEqual([
+			"New — modern (migrated)",
+			"Refresh",
+			"Tail command — modern command (read-only), All apps",
+		]);
 
 		useModernCommandStore.getState().setAppFilter("all");
 		render(
@@ -266,7 +271,7 @@ describe("modern commands on the canvas", () => {
 		const s = useModernCommandStore.getState();
 		const loaded = s.commands;
 		s.finishLoad(s.beginLoad("contact"), {
-			apps: [],
+			apps: [{ id: SALES, name: "Sales Hub" }],
 			commands: [
 				...loaded,
 				...mapAppActionRows([
@@ -287,7 +292,7 @@ describe("modern commands on the canvas", () => {
 		const [charts, main] = useRibbonStore.getState().ribbons.HomepageGrid.tabs;
 
 		render(<ModernCommandBar tab={charts} location="HomepageGrid" />);
-		expect(labels()).toEqual(["Edit Chart"]);
+		expect(labels()).toEqual(["Edit Chart — modern (migrated)"]);
 		expect(
 			container.querySelector(
 				'[aria-label="Rendered as modern command Edit Chart in all apps (migrated)"]',
@@ -296,10 +301,10 @@ describe("modern commands on the canvas", () => {
 
 		render(<ModernCommandBar tab={main} location="HomepageGrid" />);
 		expect(labels()).toEqual([
-			"New",
-			"Send survey — modern command (read-only)",
-			"Refresh",
-			"Tail command — modern command (read-only)",
+			"New — modern (migrated)",
+			"Send survey — modern command (read-only), Sales Hub",
+			"Refresh — hidden by modern command Refresh in Sales Hub",
+			"Tail command — modern command (read-only), All apps",
 		]);
 	});
 
@@ -367,5 +372,69 @@ describe("modern commands on the canvas", () => {
 		act(() => s.finishLoad(s.beginLoad("contact"), { apps: [], commands: designerAndMatched }));
 		render(<ModernCommandBar tab={tab()} location="HomepageGrid" />);
 		expect(diagnostics()).toEqual([]);
+	});
+
+	it("a drop on a modern chip changes nothing (it never reaches the command bar lane)", () => {
+		render(<ModernCommandBar tab={tab()} location="HomepageGrid" />);
+		const before = JSON.stringify(useRibbonStore.getState().ribbons);
+		const chip = [...container.querySelectorAll("button")].find((b) =>
+			b.textContent?.includes("Send survey"),
+		)!;
+		const dataTransfer = {
+			types: ["application/x-rw-btn"],
+			dropEffect: "move",
+			getData: (type: string) =>
+				type === "application/x-rw-btn"
+					? JSON.stringify({
+							groupId: "G",
+							buttonId: "Mscrm.HomepageGrid.contact.NewRecord",
+						})
+					: "",
+		};
+		for (const type of ["dragover", "drop"]) {
+			const ev = new Event(type, { bubbles: true, cancelable: true });
+			Object.defineProperty(ev, "dataTransfer", { value: dataTransfer });
+			act(() => {
+				chip.dispatchEvent(ev);
+			});
+			expect(ev.defaultPrevented).toBe(true);
+		}
+		expect(dataTransfer.dropEffect).toBe("none");
+		expect(JSON.stringify(useRibbonStore.getState().ribbons)).toBe(before);
+		expect(useRibbonStore.getState().mutationsSincePublish).toBe(0);
+	});
+
+	it("doesn't match the next table's commands against the previous table's ribbon while it loads", () => {
+		// Ribbon store still holds contact; the user has moved on to account.
+		useSessionStore.setState({
+			activeEntity: {
+				metadataId: "70816501-edb9-4740-a16c-6a5efbc05d84",
+				logicalName: "account",
+				displayName: "Account",
+				isCustomEntity: false,
+				isIntersect: false,
+			},
+		});
+		const s = useModernCommandStore.getState();
+		const loaded = s.commands;
+		s.finishLoad(s.beginLoad("account"), { apps: [], commands: loaded });
+		render(<ModernCommandBar tab={tab()} location="HomepageGrid" />);
+		// The global Refresh command would loosely match contact's control; no
+		// badge and no chips until account's own ribbon is loaded.
+		expect(labels()).toEqual(["New", "Refresh"]);
+	});
+
+	it("modern command rows in the list view are keyboard-selectable", () => {
+		render(<ModernCommandsTable tab={tab()} location="HomepageGrid" />);
+		const row = [...container.querySelectorAll("tr")].find((r) =>
+			r.textContent?.includes("Send survey"),
+		)!;
+		expect(row.getAttribute("tabindex")).toBe("0");
+		act(() => {
+			row.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+		});
+		expect(useModernCommandStore.getState().selectedCommandId).toBe(
+			"aaaaaaaa-0000-0000-0000-000000000001",
+		);
 	});
 });

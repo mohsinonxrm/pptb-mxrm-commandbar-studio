@@ -34,6 +34,7 @@ import { resolveDisplayLabel } from "@/utils/displayLabel";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
+import { overrideNote } from "@/services/modernCommands";
 import { ModernCommandChip } from "./modern/ModernCommandChip";
 import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
 
@@ -181,8 +182,15 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 	const modernAppNames = useModernAppNames();
 	const showModernApp = useModernCommandStore((s) => s.appFilter === "all");
 	const modernChip = (n: (typeof modern.nodes)[number]) => (
-		<ModernCommandChip key={n.command.id} node={n} appNames={modernAppNames} showApp={showModernApp} />
+		<ModernCommandChip
+			key={n.command.id}
+			node={n}
+			appNames={modernAppNames}
+			showApp={showModernApp}
+			onDragRejected={() => setDropOver(null)}
+		/>
 	);
+	const modernNote = (b: RibbonButton) => overrideNote(modern.overrides.get(b.id), modernAppNames);
 
 	const isGlobalOobReadOnly = (button: RibbonButton) =>
 		location === "Application" && tab.id === "Mscrm.GlobalTab" && button.oob && !button.custom;
@@ -306,7 +314,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							content={
 								isGlobalOobReadOnly(button)
 									? "OOB global command bar buttons cannot be customized."
-									: `${resolveDisplayLabel(button.label, locLabels)}${button.hidden ? " — hidden" : ""}`
+									: `${resolveDisplayLabel(button.label, locLabels)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`
 							}
 							relationship="label"
 						>
@@ -321,7 +329,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									.filter(Boolean)
 									.join(" ")}
 								aria-selected={selectedButtonId === button.id}
-								aria-label={`${resolveDisplayLabel(button.label, locLabels)}${button.hidden ? " — hidden" : ""}`}
+								aria-label={`${resolveDisplayLabel(button.label, locLabels)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`}
 								onClick={() => selectButtonInContext(location, tab.id, groupId, button.id)}
 								onContextMenu={(e) => {
 									e.preventDefault();

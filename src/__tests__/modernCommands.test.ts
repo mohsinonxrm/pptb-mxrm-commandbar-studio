@@ -14,7 +14,9 @@ import {
 	mapAppActionRow,
 	mapAppActionRows,
 	modernLocationsFor,
+	overrideNote,
 	placeModernCommands,
+	scopeToContainingApps,
 } from "@/services/modernCommands";
 import type { ModernCommand } from "@/types/modernCommand";
 
@@ -515,6 +517,70 @@ describe("buildModernLocationModel (whole location)", () => {
 	});
 });
 
+describe("review fixes (#74)", () => {
+	it("puts global-header commands on the global tab of the application ribbon, not a templated MainTab", () => {
+		expect(
+			commandBarTabId(
+				[
+					{ id: "Mscrm.HomepageGrid.{!EntityLogicalName}.MainTab" },
+					{ id: "Mscrm.GlobalTab" },
+				],
+				"Application",
+				"contact",
+			),
+		).toBe("Mscrm.GlobalTab");
+	});
+
+	it("keeps a designer child of a matched migrated command in that control's menu, not as a chip", () => {
+		const parent = cmd({
+			uniquename: "msdyn_Mscrm.HomepageGrid.{!EntityLogicalName}.ExportToExcel!1",
+			buttonlabeltext: "Export to Excel",
+			origin: 1,
+			type: 2,
+			context: 0,
+			_contextentity_value: null,
+			contextvalue: null,
+		});
+		const child = cmd({ buttonlabeltext: "Export CSV", _parentappactionid_value: parent.id });
+		const grandchild = cmd({
+			buttonlabeltext: "Export TSV",
+			_parentappactionid_value: child.id,
+		});
+		const model = buildModernLocationModel({
+			commands: [parent, child, grandchild],
+			tabs: [
+				{
+					id: "Mscrm.HomepageGrid.contact.MainTab",
+					groups: [{ buttons: [{ id: "Mscrm.HomepageGrid.contact.ExportToExcel" }] }],
+				},
+			],
+			location: "HomepageGrid",
+			entityLogicalName: "contact",
+		});
+		expect(model.nodes).toEqual([]);
+		const [o] = model.overrides.get("Mscrm.HomepageGrid.contact.ExportToExcel")!;
+		expect(o.items?.map((i) => i.label).sort()).toEqual(["Export CSV", "Export TSV"]);
+		expect(describeOverride(o)).toMatch(/its menu also has Export/);
+	});
+
+	it("gives the classic button an accessible note matching its badge", () => {
+		const refresh = cmd({
+			uniquename: "msdyn_Mscrm.HomepageGrid.contact.RefreshModernButton!contact!1",
+			buttonlabeltext: "Refresh",
+			origin: 1,
+		});
+		const ids = ["Mscrm.HomepageGrid.contact.RefreshModernButton"];
+		expect(overrideNote(findClassicOverrides([refresh], ids, "contact").get(ids[0]))).toBe(
+			" — modern (migrated)",
+		);
+		const hidden = { ...refresh, hidden: true };
+		expect(overrideNote(findClassicOverrides([hidden], ids, "contact").get(ids[0]))).toBe(
+			" — hidden by modern command Refresh in all apps",
+		);
+		expect(overrideNote(undefined)).toBe("");
+	});
+});
+
 describe("placeModernCommands", () => {
 	it("puts each modern command before the first classic button with a higher sequence", () => {
 		const classic = [
@@ -543,7 +609,7 @@ describe("placeModernCommands", () => {
 });
 
 describe("buildAppList / describeModernCommand", () => {
-	it("lists apps containing the table plus apps that have commands, sorted by name", () => {
+	it("lists only the apps containing the table; falls back to apps with commands when unknown", () => {
 		const commands: ModernCommand[] = [
 			cmd({ _appmoduleid_value: SERVICE }),
 			cmd({
@@ -557,15 +623,21 @@ describe("buildAppList / describeModernCommand", () => {
 			{ id: SERVICE, name: "Customer Service Hub" },
 			{ id: "44444444-4444-4444-4444-444444444444", name: "Not containing" },
 		];
-		expect(buildAppList(commands, apps, new Set([SALES])).map((a) => a.name)).toEqual([
+		expect(buildAppList(commands, apps, new Set([SALES, SERVICE])).map((a) => a.name)).toEqual([
 			"Customer Service Hub",
 			"Sales Hub",
-			"Zeta",
 		]);
 		expect(buildAppList(commands, apps, null).map((a) => a.name)).toEqual([
 			"Customer Service Hub",
 			"Zeta",
 		]);
+		// Commands of apps without the table never show for it, not even under "All apps".
+		expect(
+			scopeToContainingApps(commands, new Set([SALES, SERVICE.toUpperCase()])).map(
+				(c) => c.appModuleId,
+			),
+		).toEqual([SERVICE, null]);
+		expect(scopeToContainingApps(commands, null)).toBe(commands);
 	});
 
 	it("describes app, location, type and the Power Fx / JavaScript references", () => {
@@ -593,9 +665,12 @@ describe("buildAppList / describeModernCommand", () => {
 			"Visible (Power Fx)": "Grid.Btn_Visible (component library lib1)",
 			"OnSelect (Power Fx)": "Btn_OnSelect",
 		});
-		expect(
-			describeModernCommand(cmd({ isdisabled: true })).find((r) => r.label === "Status")
-				?.value,
-		).toMatch(/classic/);
+		const status = (over: Record<string, unknown>) =>
+			describeModernCommand(cmd({ isdisabled: true, ...over })).find(
+				(r) => r.label === "Status",
+			)?.value;
+		// Only a migrated command has a classic (ribbon) equivalent to fall back to.
+		expect(status({ origin: 1 })).toMatch(/classic/);
+		expect(status({ origin: 0 })).toBe("Disabled");
 	});
 });

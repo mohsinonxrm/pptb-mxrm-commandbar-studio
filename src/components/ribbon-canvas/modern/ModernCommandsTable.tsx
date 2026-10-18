@@ -117,7 +117,14 @@ export function ModernCommandsTable({
 								key={cmd.id}
 								className={mergeClasses(styles.row, selected && styles.rowSelected)}
 								aria-selected={selected}
+								tabIndex={0}
 								onClick={() => selectCommand(cmd.id)}
+								onKeyDown={(e) => {
+									if (e.key === "Enter" || e.key === " ") {
+										e.preventDefault();
+										selectCommand(cmd.id);
+									}
+								}}
 							>
 								<TableCell>{cmd.sequence}</TableCell>
 								<TableCell>

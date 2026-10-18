@@ -404,10 +404,14 @@ export function commandBarTabId(
 ): string | undefined {
 	const lower = (s: string) => s.toLowerCase();
 	const own = `mscrm.${lower(location)}.${lower(entityLogicalName)}.maintab`;
+	// The application ribbon also carries templated `…{!EntityLogicalName}.MainTab`
+	// tabs; global-header commands belong on the global tab.
+	const globalTab = tabs.find((t) => t.id === "Mscrm.GlobalTab")?.id;
+	if (location === "Application" && globalTab) return globalTab;
 	return (
 		tabs.find((t) => lower(t.id) === own)?.id ??
 		tabs.find((t) => /maintab$/i.test(t.id) && !/\.allentities\./i.test(t.id))?.id ??
-		tabs.find((t) => t.id === "Mscrm.GlobalTab")?.id ??
+		globalTab ??
 		tabs[0]?.id
 	);
 }
@@ -442,7 +446,38 @@ export function buildModernLocationModel(input: {
 		includeDisabled: true,
 	});
 	const matchedIds = new Set([...matched.values()].flat().map((o) => o.command.id));
-	const unmatched = commands.filter((c) => !matchedIds.has(c.id));
+
+	// Commands nested (at any depth) under a matched migrated command live in
+	// that classic control's menu: no chip of their own; they're listed on the
+	// control's override instead.
+	const byId = new Map(commands.map((c) => [c.id, c]));
+	const matchedAncestor = (c: ModernCommand): string | undefined => {
+		const seen = new Set<string>();
+		for (let p = c.parentId; p && !seen.has(p); p = byId.get(p)?.parentId ?? null) {
+			seen.add(p);
+			if (matchedIds.has(p)) return p;
+		}
+		return undefined;
+	};
+	const itemsOf = new Map<string, ModernCommand[]>();
+	const unmatched: ModernCommand[] = [];
+	for (const c of commands) {
+		if (matchedIds.has(c.id)) continue;
+		const ancestor = matchedAncestor(c);
+		if (!ancestor) {
+			unmatched.push(c);
+			continue;
+		}
+		const list = itemsOf.get(ancestor) ?? [];
+		list.push(c);
+		itemsOf.set(ancestor, list);
+	}
+	for (const list of overrides.values()) {
+		for (const o of list) {
+			const items = itemsOf.get(o.command.id);
+			if (items) o.items = [...items].sort(bySequence);
+		}
+	}
 	return {
 		commandBarTabId: commandBarTabId(tabs, location, entityLogicalName),
 		nodes: buildModernTree(unmatched),
@@ -492,11 +527,25 @@ export function describeFormula(ref: ModernFormulaRef | undefined): string | und
 }
 
 /**
- * Apps for the App filter: the apps that contain the table, plus any app that
- * has a command for it (a command can outlive the table's removal from an
- * app). Names come from `appmodule`, else the command's formatted lookup
- * value, else the id. When `containingAppIds` is unknown (null), only apps
- * with commands are listed. Sorted by name.
+ * Drops app-specific commands of apps that don't contain the table — Unified
+ * Interface never shows them for this table (e.g. a `context` = All command of
+ * an app without it). App-less commands are kept. No-op when the containing
+ * apps are unknown (null).
+ */
+export function scopeToContainingApps(
+	commands: ModernCommand[],
+	containingAppIds: ReadonlySet<string> | null,
+): ModernCommand[] {
+	if (!containingAppIds) return commands;
+	const ids = new Set([...containingAppIds].map((id) => id.toLowerCase()));
+	return commands.filter((c) => c.appModuleId === null || ids.has(c.appModuleId));
+}
+
+/**
+ * Apps for the App filter: the apps that contain the table. Names come from
+ * `appmodule`. When the containing apps are unknown (null), the apps that have
+ * a command for the table are listed instead, named from `appmodule`, the
+ * command's formatted lookup value or the id. Sorted by name.
  */
 export function buildAppList(
 	commands: ModernCommand[],
@@ -508,6 +557,11 @@ export function buildAppList(
 	for (const id of containingAppIds ?? []) {
 		const app = known.get(id.toLowerCase());
 		if (app) out.set(app.id.toLowerCase(), app);
+	}
+	if (containingAppIds) {
+		return [...out.values()].sort(
+			(a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id),
+		);
 	}
 	for (const c of commands) {
 		if (!c.appModuleId || out.has(c.appModuleId)) continue;
@@ -534,9 +588,24 @@ export function describeOverride(
 ): string {
 	const app = appLabel(o.command, appNames);
 	const where = o.command.appModuleId === null ? "in all apps" : `in ${app}`;
-	return o.effect === "hidden"
-		? `Hidden by modern command ${o.command.label} ${where}`
-		: `Rendered as modern command ${o.command.label} ${where} (migrated)`;
+	const text =
+		o.effect === "hidden"
+			? `Hidden by modern command ${o.command.label} ${where}`
+			: `Rendered as modern command ${o.command.label} ${where} (migrated)`;
+	return o.items?.length
+		? `${text}; its menu also has ${o.items.map((i) => i.label).join(", ")}`
+		: text;
+}
+
+/** Suffix for a classic button's accessible name / tooltip, e.g. " — modern (migrated)". */
+export function overrideNote(
+	overrides: ClassicModernOverride[] | undefined,
+	appNames?: ReadonlyMap<string, string>,
+): string {
+	if (!overrides?.length) return "";
+	const hidden = overrides.find((o) => o.effect === "hidden");
+	if (hidden) return ` — ${describeOverride(hidden, appNames).replace(/^Hidden/, "hidden")}`;
+	return " — modern (migrated)";
 }
 
 const TYPE_LABELS: Record<ModernCommand["type"], string> = {
@@ -571,7 +640,11 @@ export function describeModernCommand(
 	else if (cmd.disabled)
 		rows.push({
 			label: "Status",
-			value: "Disabled — the classic (ribbon) equivalent is shown",
+			// isdisabled shows the ribbon equivalent — only a migrated command has one.
+			value:
+				cmd.origin === "default"
+					? "Disabled"
+					: "Disabled — the classic (ribbon) equivalent is shown",
 		});
 
 	if (cmd.visibility === "formula") {

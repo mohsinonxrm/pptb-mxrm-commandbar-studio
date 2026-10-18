@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { planScope } from "@/services/publishPlan";
 import { generateRibbonDiffXml } from "@/services/xmlGenerator";
 import {
@@ -132,6 +133,61 @@ describe("modern command loading", () => {
 		expect(data.error).toMatch(/prvReadappaction/);
 	});
 
+	it("doesn't retry on a permission error and logs one clear warning", async () => {
+		const queries: string[] = [];
+		setApi(async (q) => {
+			queries.push(q);
+			if (q.startsWith("appactions")) throw new Error("403: Forbidden");
+			return { value: [] };
+		});
+		useRuntimeLogStore.getState().clear();
+		const data = await loadModernCommandData({
+			logicalName: "contact",
+			metadataId: CONTACT_MD,
+		});
+		expect(data.commands).toEqual([]);
+		expect(queries.filter((q) => q.startsWith("appactions"))).toHaveLength(1);
+		const logs = useRuntimeLogStore.getState().entries;
+		expect(logs.filter((e) => e.level === "warn").map((e) => e.message)).toEqual([
+			"No permission to read modern commands (appaction) for contact; the canvas shows classic commands only. (403: Forbidden)",
+		]);
+		expect(logs.some((e) => e.message.includes("retrying"))).toBe(false);
+	});
+
+	it("drops commands of apps that don't contain the table and stops on a repeated nextLink", async () => {
+		const OTHER = "22222222-2222-2222-2222-222222222222";
+		setApi(async (q) => {
+			if (q.startsWith("appactions"))
+				return {
+					value: [
+						APPACTION,
+						{
+							...APPACTION,
+							appactionid: "aaaaaaaa-0000-0000-0000-00000000000b",
+							_appmoduleid_value: OTHER,
+							context: 0,
+						},
+					],
+					// A broken server repeating its own nextLink must not loop forever.
+					"@odata.nextLink": `https://org.crm.dynamics.com/api/data/v9.2/${q}`,
+				};
+			if (q.startsWith("appmodulecomponents"))
+				return { value: [{ _appmoduleidunique_value: "unique-sales" }] };
+			return {
+				value: [
+					{ appmoduleid: SALES, appmoduleidunique: "unique-sales", name: "Sales Hub" },
+					{ appmoduleid: OTHER, appmoduleidunique: "unique-other", name: "Other" },
+				],
+			};
+		});
+		const data = await loadModernCommandData({
+			logicalName: "contact",
+			metadataId: CONTACT_MD,
+		});
+		expect(data.commands.map((c) => c.appModuleId)).toEqual([SALES]);
+		expect(data.apps.map((a) => a.name)).toEqual(["Sales Hub"]);
+	});
+
 	it("keeps the commands when only the app list fails, naming apps from the lookup's formatted value", async () => {
 		setApi(async (q) => {
 			if (q.startsWith("appactions"))
@@ -225,6 +281,23 @@ describe("modern command store", () => {
 		expect(useModernCommandStore.getState().selectedCommandId).toBe(APPACTION.appactionid);
 	});
 
+	it("ends the modern selection on a classic selection or a tab / location change", () => {
+		const modern = () => useModernCommandStore.getState().selectedCommandId;
+		const select = () => useModernCommandStore.getState().selectCommand(APPACTION.appactionid);
+		select();
+		useSelectionStore.getState().selectButton("G", "Mscrm.HomepageGrid.contact.NewRecord");
+		expect(modern()).toBeNull();
+		select();
+		useSelectionStore.getState().setTabId("Mscrm.HomepageGrid.contact.View");
+		expect(modern()).toBeNull();
+		select();
+		useSelectionStore.getState().setLocation("Form");
+		expect(modern()).toBeNull();
+		select();
+		useSelectionStore.getState().clearSelection();
+		expect(modern()).toBe(APPACTION.appactionid);
+	});
+
 	it("is isolated from the ribbon store: loading modern commands changes nothing that is published", async () => {
 		useRibbonStore.getState().loadWorkspace({
 			ribbons: {
@@ -255,7 +328,17 @@ describe("modern command store", () => {
 							},
 						],
 					}
-				: { value: [] },
+				: q.startsWith("appmodulecomponents")
+					? { value: [{ _appmoduleidunique_value: "unique-sales" }] }
+					: {
+							value: [
+								{
+									appmoduleid: SALES,
+									appmoduleidunique: "unique-sales",
+									name: "Sales Hub",
+								},
+							],
+						},
 		);
 		const s = useModernCommandStore.getState();
 		const token = s.beginLoad("contact");

@@ -127,4 +127,6 @@ export interface ClassicModernOverride {
 	buttonId: string;
 	command: ModernCommand;
 	effect: "hidden" | "replaced";
+	/** Commands nested under the migrated command (they show in the classic control's menu, not as chips). */
+	items?: ModernCommand[];
 }

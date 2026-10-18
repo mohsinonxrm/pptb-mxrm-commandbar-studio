@@ -99,26 +99,27 @@ export function useModernLocation(location: RibbonLocation): ModernLocationModel
 	const modernTable = useModernCommandStore((s) =>
 		s.status === "loaded" ? s.tableLogicalName : null,
 	);
+	// The ribbon store still holds the previous table's tabs while the new
+	// table's ribbon loads: match (and place chips) only against this table's.
+	const ribbonReady =
+		(tabs?.length ?? 0) > 0 &&
+		(location === "Application" || ribbonTable.toLowerCase() === logicalName.toLowerCase());
 	const model = useMemo(
 		() =>
 			buildModernLocationModel({
 				commands,
-				tabs: tabs ?? [],
+				tabs: ribbonReady ? (tabs ?? []) : [],
 				location,
 				entityLogicalName: logicalName,
 			}),
-		[commands, tabs, location, logicalName],
+		[commands, tabs, ribbonReady, location, logicalName],
 	);
 
 	// Diagnostics: migrated commands with no classic control anywhere in the
 	// location (the unique-name convention is undocumented). Only once both the
 	// table's classic ribbon and its modern commands are loaded — before that
 	// nothing can match — and logged once per list.
-	const ready =
-		!!logicalName &&
-		modernTable === logicalName &&
-		(tabs?.length ?? 0) > 0 &&
-		(location === "Application" || ribbonTable.toLowerCase() === logicalName.toLowerCase());
+	const ready = !!logicalName && modernTable === logicalName && ribbonReady;
 	const unmatched = ready ? model.unmatchedMigrated.map((c) => c.uniqueName).join(", ") : "";
 	useEffect(() => {
 		const key = `${logicalName}|${location}|${unmatched}`;
