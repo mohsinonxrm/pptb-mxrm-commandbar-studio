@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
 	makeStyles,
 	tokens,
@@ -24,6 +24,7 @@ import type { RuleStep, EnableRule, DisplayRule } from "@/types/ribbon";
 import RuleStepEditor from "@/components/shared/RuleStepEditor";
 import RuleStepPicker from "@/components/shared/RuleStepPicker";
 import { summarizeRule } from "@/utils/ruleEngine";
+import { useStableKeys } from "@/hooks/useStableKeys";
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -129,7 +130,10 @@ export const RuleEditorPanel: React.FC = () => {
 		if (activeRule) setDraftRuleId(activeRule.id);
 	}, [activeRule]);
 
-	const sortableIds = useMemo(() => activeRule?.steps.map((_, i) => `step-${i}`) ?? [], [activeRule]);
+	// Steps have no id: keys that stay with a step when another one is removed
+	// or moved, so its inputs and local state don't jump to a neighbour (#22).
+	const stepKeys = useStableKeys(`${ruleEditorKind}:${activeRule?.id ?? ""}`, activeRule?.steps.length ?? 0);
+	const sortableIds = stepKeys.keys;
 
 	const usedBy = commands.filter((c) =>
 		isEnable
@@ -151,6 +155,7 @@ export const RuleEditorPanel: React.FC = () => {
 	const handleStepRemove = (index: number) => {
 		if (!activeRule) return;
 		const newSteps = activeRule.steps.filter((_, i) => i !== index);
+		stepKeys.remove(index);
 		if (isEnable) {
 			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
 		} else {
@@ -161,6 +166,7 @@ export const RuleEditorPanel: React.FC = () => {
 	const handleAddStep = (step: RuleStep) => {
 		if (!activeRule) return;
 		const newSteps = [...activeRule.steps, step];
+		stepKeys.add();
 		if (isEnable) {
 			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
 		} else {
@@ -176,6 +182,7 @@ export const RuleEditorPanel: React.FC = () => {
 		if (oldIndex < 0 || newIndex < 0) return;
 
 		const newSteps = arrayMove(activeRule.steps, oldIndex, newIndex);
+		stepKeys.move(oldIndex, newIndex);
 		if (isEnable) {
 			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
 		} else {

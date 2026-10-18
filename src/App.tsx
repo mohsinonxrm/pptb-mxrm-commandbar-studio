@@ -209,7 +209,13 @@ export function App() {
 	// ----- When the user picks an entity (inside an active solution),
 	// load the ribbon workspace.
 	useEffect(() => {
-		if (!activeEntity?.logicalName) return;
+		// No table (e.g. after switching solution, which also empties the ribbon
+		// store, #22): a previous table's load error or spinner doesn't apply.
+		if (!activeEntity?.logicalName) {
+			setRibbonLoadState("idle");
+			setRibbonLoadError(null);
+			return;
+		}
 
 		let cancelled = false;
 		setRibbonLoadState("loading");

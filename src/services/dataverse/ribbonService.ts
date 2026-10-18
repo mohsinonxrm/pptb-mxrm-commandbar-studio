@@ -19,6 +19,7 @@ import {
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { groupControls, removeMenuItem } from "@/utils/ribbonMenu";
+import { OPEN_RECORD_ITEM_COMMAND_ID } from "@/utils/openRecordItem";
 
 const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
 
@@ -216,15 +217,21 @@ export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
  * unmanaged layer has (#52): right after a publish RetrieveEntityRibbon has been
  * seen returning the new buttons without their CommandDefinitions for about a
  * minute. Only buttons' commands that are missing are added (with their rules);
- * nothing the merged ribbon returned is replaced. Returns the added command ids.
+ * nothing the merged ribbon returned is replaced. `alsoCommandIds` are added
+ * the same way even when no button uses them (Mscrm.OpenRecordItem, #22: the
+ * merged ribbon carries only the commands its controls use). Returns the added
+ * command ids.
  */
 export function reconcileWithLayer(
 	defs: RibbonDefinition[],
 	data: Pick<RibbonWorkspaceData, "commands" | "enableRules" | "displayRules">,
 	layer: RibbonDiffParts,
+	alsoCommandIds: readonly string[] = [],
 ): string[] {
 	const known = new Set(data.commands.map((c) => c.id));
-	const missing = new Set<string>();
+	const missing = new Set<string>(
+		alsoCommandIds.filter((id) => !known.has(id) && layer.commandDefinitions.has(id)),
+	);
 	for (const def of defs)
 		for (const tab of def.tabs)
 			for (const group of tab.groups)
@@ -388,7 +395,7 @@ export async function fetchRibbonWorkspace(
 		if (tabs.length > 0) logs.logInfo("ribbon", `Loaded tab(s) ${tabs.join(", ")} from the table's unmanaged layer.`);
 		const own = ownControlIds(entityLayer);
 		for (const def of Object.values(entity.ribbons)) applyLayerOwnership(def, own);
-		const added = reconcileWithLayer(Object.values(entity.ribbons), entity, entityLayer);
+		const added = reconcileWithLayer(Object.values(entity.ribbons), entity, entityLayer, [OPEN_RECORD_ITEM_COMMAND_ID]);
 		if (added.length > 0) {
 			logs.logWarn(
 				"ribbon",

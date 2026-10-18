@@ -19,7 +19,7 @@ import type {
 import { locLabelsFromParts, type LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
 import { applyPublishedLayer, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
 import { defaultTabDisplayRules, newTabCommandId } from "@/services/xmlGenerator";
-import { generateRibbonId } from "@/utils/idGenerator";
+import { generateRibbonId, newButtonIds } from "@/utils/idGenerator";
 import {
 	copyControl,
 	findGroupControl,
@@ -32,6 +32,16 @@ import {
 } from "@/utils/ribbonMenu";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { onSolutionSwitch } from "@/store/sessionStore";
+import { useSelectionStore } from "@/store/selectionStore";
+import {
+	OPEN_RECORD_ITEM_COMMAND_ID,
+	OPEN_RECORD_ITEM_LOCATIONS,
+	canRemoveOpenRecordCarriers,
+	defaultOpenRecordCommand,
+	openRecordCarrierPlacement,
+	openRecordCarriers,
+} from "@/utils/openRecordItem";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -260,6 +270,18 @@ export interface RibbonStore extends RibbonStoreState {
 	/** Discards this session's customise / uncustomise / edits of a command (back to as loaded). */
 	discardCommandChanges(commandId: string): void;
 	/**
+	 * Turns the override of opening a grid row (Mscrm.OpenRecordItem, #22) on
+	 * or off for the home grid or the sub-grid (see utils/openRecordItem). On:
+	 * a button using the command (the carrier Microsoft's recipe adds) goes on
+	 * the location's main tab, and the command is added with a placeholder
+	 * JavaScript action unless it is loaded already. Off: the location's
+	 * carriers are deleted, and the command too when no carrier is left and it
+	 * was created this session; the layer's copy is removed by the publish with
+	 * its last carrier. One undo step. Returns false when it can't be done: no
+	 * group to put the carrier in, or a carrier that isn't yours.
+	 */
+	setOpenRecordOverride(location: RibbonLocation, enabled: boolean, idPrefix: string): boolean;
+	/**
 	 * Hides a button reversibly: adds the platform display rules
 	 * Mscrm.HideOnModern + Mscrm.ShowOnlyOnModern (never both true) to its
 	 * command. Every button that uses the command is hidden. Returns false when
@@ -301,6 +323,8 @@ export interface RibbonStore extends RibbonStoreState {
 	// Load initial data
 	loadRibbons(ribbons: Record<RibbonLocation, RibbonDefinition>): void;
 	loadWorkspace(seed: RibbonWorkspaceSeed): void;
+	/** Empties the workspace (no table loaded): a solution switch ends the table being edited (#22). */
+	resetWorkspace(): void;
 }
 
 const MAX_HISTORY = 80;
@@ -686,6 +710,10 @@ export const useRibbonStore = create<RibbonStore>()(
 				future: [],
 			});
 			if (openBatch) openBatch = { snapshot: workspaceOf(get()), meta: null };
+		},
+
+		resetWorkspace() {
+			get().loadWorkspace({ ribbons: EMPTY_RIBBONS, commands: [], displayRules: [], enableRules: [], locLabels: [] });
 		},
 
 		undo() {
@@ -1573,6 +1601,64 @@ export const useRibbonStore = create<RibbonStore>()(
 			);
 		},
 
+		setOpenRecordOverride(location, enabled, idPrefix) {
+			if (!OPEN_RECORD_ITEM_LOCATIONS.includes(location)) return false;
+			const state = get();
+			const ribbon = state.ribbons[location];
+			const carriers = openRecordCarriers(ribbon);
+			if (enabled) {
+				if (carriers.length > 0) return true;
+				const at = openRecordCarrierPlacement(ribbon);
+				if (!at) return false;
+				const taken = workspaceIds(state, state.ribbons);
+				for (const c of state.commands) taken.add(c.id);
+				const { id } = newButtonIds(idPrefix, ribbon.entityLogicalName, location, "OpenRecordItem", taken);
+				get().batch(() => {
+					get().createButton({
+						location,
+						tabId: at.tabId,
+						groupId: at.groupId,
+						button: {
+							id,
+							label: "Open record",
+							tooltipTitle: "Open record",
+							tooltipBody: `Runs the table's ${OPEN_RECORD_ITEM_COMMAND_ID} action for the selected row, as opening a row does.`,
+							kind: "button",
+							templateAlias: "o1",
+							commandId: OPEN_RECORD_ITEM_COMMAND_ID,
+							hidden: false,
+							oob: false,
+							custom: true,
+							managed: false,
+						},
+					});
+					if (!get().commands.some((c) => c.id === OPEN_RECORD_ITEM_COMMAND_ID)) {
+						get().upsertCommand(defaultOpenRecordCommand());
+					}
+				});
+				return true;
+			}
+			if (carriers.length === 0) return true;
+			if (!canRemoveOpenRecordCarriers(carriers)) return false;
+			get().batch(() => {
+				for (const c of carriers) get().deleteButton(location, c.tabId, c.groupId, c.button.id);
+				const s = get();
+				const inUse = Object.values(s.ribbons).some((r) => openRecordCarriers(r).length > 0);
+				// A command the layer defines stays in the session: the publish
+				// removes it from the layer together with its last carrier.
+				if (!inUse && !s.baselineCommands.some((c) => c.id === OPEN_RECORD_ITEM_COMMAND_ID)) {
+					set((st) =>
+						record(
+							st,
+							{ commands: st.commands.filter((c) => c.id !== OPEN_RECORD_ITEM_COMMAND_ID) },
+							historyMeta("removed", OPEN_RECORD_ITEM_COMMAND_ID, "grid open override", "delete", "danger"),
+						),
+					);
+				}
+			});
+			return true;
+		},
+
 		hideWithDisplayRules(buttonCommandId) {
 			const cmd = buttonCommandId ? get().commands.find((c) => c.id === buttonCommandId) : undefined;
 			if (!cmd) return false;
@@ -1872,3 +1958,11 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 	})),
 );
+
+// Switching solution ends the table being edited (#22): its ribbon, commands
+// and history must not stay on the canvas (or reach a publish into the new
+// solution). App.tsx loads the next table when one is picked.
+onSolutionSwitch(() => {
+	useRibbonStore.getState().resetWorkspace();
+	useSelectionStore.getState().clearSelection();
+});

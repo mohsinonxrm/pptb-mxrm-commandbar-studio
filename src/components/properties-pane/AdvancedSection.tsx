@@ -10,7 +10,15 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
 import type { CommandDefinition, DisplayRule, RuleStep } from "@/types/ribbon";
+import { useSessionStore } from "@/store/sessionStore";
 import { findGroupControl } from "@/utils/ribbonMenu";
+import {
+	OPEN_RECORD_ITEM_COMMAND_ID,
+	OPEN_RECORD_ITEM_LOCATIONS,
+	canRemoveOpenRecordCarriers,
+	openRecordCarrierPlacement,
+	openRecordCarriers,
+} from "@/utils/openRecordItem";
 
 const useStyles = makeStyles({
 	section: {
@@ -50,34 +58,32 @@ export const AdvancedSection: React.FC = () => {
 	const commands = useRibbonStore((s) => s.commands);
 	const displayRules = useRibbonStore((s) => s.displayRules);
 	const openCommandEditor = useUIStore((s) => s.openCommandEditor);
+	const setOpenRecordOverride = useRibbonStore((s) => s.setOpenRecordOverride);
+	const clearSelection = useSelectionStore((s) => s.clearSelection);
+	const activeSolution = useSessionStore((s) => s.activeSolution);
+	const sessionPrefix = useSessionStore((s) => s.publisherPrefix);
 
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
 	const group = tab?.groups.find((g) => g.id === selectedGroupId);
 	const button = findGroupControl(group, selectedButtonId);
-	const showOpenRecordItemToggle = location === "HomepageGrid" || location === "SubGrid";
+	const showOpenRecordItemToggle = OPEN_RECORD_ITEM_LOCATIONS.includes(location);
 
-	const hasOpenRecordOverride = commands.some((c) => c.id === "Mscrm.OpenRecordItem");
+	// The override is on for this location while a control here uses the
+	// command (the carrier, see utils/openRecordItem) — that is also what
+	// comes back from the layer on reload (#22).
+	const openRecordCarrierList = openRecordCarriers(ribbon);
+	const hasOpenRecordOverride = openRecordCarrierList.length > 0;
+	const openRecordLocked = hasOpenRecordOverride && !canRemoveOpenRecordCarriers(openRecordCarrierList);
+	const openRecordNoGroup = !hasOpenRecordOverride && !openRecordCarrierPlacement(ribbon);
 
 	const handleOpenRecordToggle = (checked: boolean) => {
-		if (checked && !hasOpenRecordOverride) {
-			upsertCommand({
-				id: "Mscrm.OpenRecordItem",
-				enableRules: [],
-				displayRules: [],
-				actions: [
-					{
-						kind: "javascript",
-						library: "$webresource:",
-						functionName: "YourNamespace.openRecord",
-						params: [{ kind: "CrmParameter", value: "PrimaryControl" }],
-					},
-				],
-			});
-			// Open the Command Editor immediately so the user can set the real
-			// library path and function name.
-			openCommandEditor("Mscrm.OpenRecordItem");
-		}
+		const prefix = activeSolution?.publisherPrefix?.trim() || sessionPrefix?.trim() || "new";
+		if (!checked && openRecordCarrierList.some((c) => c.button.id === selectedButtonId)) clearSelection();
+		if (!setOpenRecordOverride(location, checked, prefix) || !checked) return;
+		// Open the Command Editor immediately so the user can set the real
+		// library path and function name.
+		openCommandEditor(OPEN_RECORD_ITEM_COMMAND_ID);
 	};
 
 	const getSelectedCommand = (): CommandDefinition | undefined => {
@@ -147,16 +153,33 @@ export const AdvancedSection: React.FC = () => {
 			{showOpenRecordItemToggle && (
 				<div>
 					<Switch
-						label="Override default record open behavior (Mscrm.OpenRecordItem)"
+						label={`Override default record open behavior on the ${location === "SubGrid" ? "sub-grid" : "home grid"} (Mscrm.OpenRecordItem)`}
 						checked={hasOpenRecordOverride}
+						disabled={openRecordLocked || openRecordNoGroup}
 						onChange={(_, d) => handleOpenRecordToggle(d.checked)}
 					/>
 					<Text size={100} className={styles.note}>
-						When enabled, creates a CommandDefinition with Id=&quot;Mscrm.OpenRecordItem&quot; whose
-						JavaScript action overrides what happens when a user double-clicks a grid row or presses
-						Enter on a selected row. <strong>Unified Interface only.</strong> The Command Editor
-						will open so you can set the real web resource and function name.
+						When enabled, the table gets a CommandDefinition with Id=&quot;Mscrm.OpenRecordItem&quot;
+						whose action runs instead of opening the record when a user double-clicks a row of this
+						table&apos;s {location === "SubGrid" ? "sub-grids (on any form)" : "home grid"}, selects
+						its primary column link or presses Enter on it. As in Microsoft&apos;s recipe, an
+						&quot;Open record&quot; button using the command is added to this location&apos;s
+						command bar — the override only reaches a grid through a button there; don&apos;t
+						hide that button. <strong>Unified Interface only.</strong> The Command Editor will open
+						so you can set the real web resource and function name; Publish is blocked until you
+						do. Turning it off removes the button, and the command once no button uses it.
 					</Text>
+					{openRecordLocked && (
+						<Text size={100} className={styles.note}>
+							A button from another solution uses Mscrm.OpenRecordItem here, so the override can&apos;t
+							be turned off from your customizations.
+						</Text>
+					)}
+					{openRecordNoGroup && (
+						<Text size={100} className={styles.note}>
+							This location has no group to put the button in.
+						</Text>
+					)}
 				</div>
 			)}
 

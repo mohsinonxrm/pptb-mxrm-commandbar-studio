@@ -19,6 +19,7 @@ import { DismissRegular, AddRegular, DeleteRegular, TextAddRegular } from "@flue
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { groupControls } from "@/utils/ribbonMenu";
+import { buttonLocLabelIds } from "@/utils/locLabelRef";
 
 const KNOWN_LCIDS: Record<number, { name: string; flag: string }> = {
 	1033: { name: "English (US)", flag: "🇺🇸" },
@@ -137,11 +138,10 @@ export const LocalizationEditor: React.FC = () => {
 					for (const b of groupControls(group)) if (b.id === buttonId) return b.source;
 		return undefined;
 	}, [ribbons, buttonId]);
-	const refOr = (token: string | undefined, fallback: string) =>
-		token?.startsWith("$LocLabels:") ? token.slice("$LocLabels:".length) : fallback;
-	const labelId = buttonId ? refOr(source?.labelToken, `${buttonId}.LabelText`) : null;
-	const tooltipTitleId = buttonId ? refOr(source?.tooltipTitleToken, `${buttonId}.ToolTipTitle`) : null;
-	const tooltipBodyId = buttonId ? refOr(source?.tooltipBodyToken, `${buttonId}.ToolTipDescription`) : null;
+	const ids = buttonId ? buttonLocLabelIds(buttonId, source) : null;
+	const labelId = ids?.label ?? null;
+	const tooltipTitleId = ids?.tooltipTitle ?? null;
+	const tooltipBodyId = ids?.tooltipBody ?? null;
 
 	const getLcidEntries = useCallback((): LcidEntry[] => {
 		const labelRecord = locLabels.find((l) => l.id === labelId);
