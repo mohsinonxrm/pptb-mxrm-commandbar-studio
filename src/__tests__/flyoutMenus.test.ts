@@ -1,0 +1,870 @@
+/**
+ * Flyout / split-button menus (#27): parsed into a nested Menu model instead of
+ * being flattened into the group, written back losslessly, published as one
+ * CustomAction for a new flyout, per item for an existing menu, and merged in
+ * place for a flyout your unmanaged layer adds.
+ */
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { parseRibbonXml } from "@/services/xmlParser";
+import { generateRibbonDiffXml, indexButtons, summarizeRibbonDiff } from "@/services/xmlGenerator";
+import { validateRibbonDiffXml } from "@/services/xmlValidator";
+import { canonicalXml, parseXmlElement } from "@/services/ribbonXmlCanonical";
+import {
+	partsFromRibbonTables,
+	ownControlIds,
+	mergeScopeChanges,
+	parseRibbonDiffParts,
+	type RibbonDiffParts,
+} from "@/services/ribbonDiffMerge";
+import { planScope, type PlanInput } from "@/services/publishPlan";
+import { layerSnapshotFromParts } from "@/services/dataverse/ribbonLayerService";
+import { applyLayerOwnership } from "@/utils/ribbonProvenance";
+import { groupControls, menuItemsOf } from "@/utils/ribbonMenu";
+import { useRibbonStore } from "@/store/ribbonStore";
+import type { RibbonButton, RibbonDefinition, RibbonGroup, RibbonLocation } from "@/types/ribbon";
+
+vi.setConfig({ testTimeout: 30_000 });
+
+let layer: RibbonDiffParts;
+vi.mock("@/services/dataverse/ribbonLayerService", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/services/dataverse/ribbonLayerService")>()),
+	fetchUnmanagedRibbonParts: vi.fn(async () => layer),
+}));
+
+const fixture = (name: string) =>
+	readFileSync(resolve(__dirname, "../__fixtures__/ribbon", name), "utf-8");
+const clone = <V>(v: V): V => JSON.parse(JSON.stringify(v));
+
+const OOB = fixture("contact-homepage-menus.xml");
+const SEND = "Mscrm.HomepageGrid.contact.Send";
+const COLLABORATE = "Mscrm.HomepageGrid.contact.MainTab.Collaborate";
+
+const controls = (def: RibbonDefinition) =>
+	def.tabs.flatMap((t) => t.groups.flatMap(groupControls));
+const ctl = (def: RibbonDefinition, id: string) => controls(def).find((b) => b.id === id)!;
+const group = (def: RibbonDefinition, id: string) =>
+	def.tabs.flatMap((t) => t.groups).find((g) => g.id === id)!;
+
+function generate(current: RibbonDefinition, baseline: RibbonDefinition, parsed = parseOob()) {
+	return generateRibbonDiffXml({
+		current,
+		baseline,
+		commands: parsed.commands,
+		enableRules: parsed.enableRules,
+		displayRules: parsed.displayRules,
+		locLabels: parsed.locLabels,
+		entityLogicalName: "contact",
+		location: current.location,
+	});
+}
+
+function parseOob() {
+	return parseRibbonXml(OOB, "HomepageGrid", "contact");
+}
+
+function planOf(
+	current: RibbonDefinition,
+	baseline: RibbonDefinition,
+	extra: Partial<PlanInput> = {},
+) {
+	return planScope({
+		locations: [{ current, baseline }],
+		commands: [],
+		baselineCommands: [],
+		enableRules: [],
+		baselineEnableRules: [],
+		displayRules: [],
+		baselineDisplayRules: [],
+		...extra,
+	});
+}
+
+const doc = (xml: string) => new DOMParser().parseFromString(xml, "application/xml");
+const customActions = (xml: string) =>
+	Array.from(doc(xml).querySelectorAll("CustomActions > CustomAction"));
+
+/** A source element without the attributes RetrieveEntityRibbon adds that RibbonDiffXml doesn't allow. */
+function withoutSolutionNames(el: Element): Element {
+	const copy = el.cloneNode(true) as Element;
+	for (const e of [copy, ...Array.from(copy.getElementsByTagName("*"))])
+		e.removeAttribute("SolutionUniqueName");
+	return copy;
+}
+
+const item = (
+	id: string,
+	sequence: number,
+	extra: Partial<RibbonButton> = {},
+): Pick<RibbonButton, "id" | "label" | "commandId" | "sequence"> & Partial<RibbonButton> => ({
+	id,
+	label: id.split(".").pop()!,
+	commandId: `${id}.Command`,
+	sequence,
+	...extra,
+});
+
+// ---------------------------------------------------------------------------
+
+describe("#27 parse — menus stay inside their flyout / split button", () => {
+	const { ribbon } = parseOob();
+
+	it("doesn't flatten menu items into the group (the descendant-selector bug)", () => {
+		const collaborate = group(ribbon, COLLABORATE);
+		const top = collaborate.buttons.map((b) => b.id);
+		expect(top).toContain(SEND);
+		expect(top).not.toContain(`${SEND}.Selected`);
+		expect(top).not.toContain(`${SEND}.View`);
+		// Every modelled top-level control is a direct child of a group's <Controls>
+		// (ToggleButton isn't modelled; it was skipped before #27 too).
+		const direct = Array.from(doc(OOB).querySelectorAll("Group > Controls > *"))
+			.filter((e) => e.tagName !== "ToggleButton")
+			.map((e) => e.getAttribute("Id"));
+		expect(
+			ribbon.tabs.flatMap((t) => t.groups.flatMap((g) => g.buttons.map((b) => b.id))),
+		).toEqual(direct);
+	});
+
+	it("models Mscrm.HomepageGrid.contact.Send (split button) with its Send.Menu", () => {
+		const send = ctl(ribbon, SEND);
+		expect(send.kind).toBe("splitButton");
+		expect(send.menu?.id).toBe(`${SEND}.Menu`);
+		expect(send.menu?.sections).toHaveLength(1);
+		const [section] = send.menu!.sections;
+		expect(section).toMatchObject({
+			id: `${SEND}.MenuSection`,
+			sequence: 10,
+			displayMode: "Menu16",
+			controlsId: `${SEND}.Controls`,
+		});
+		expect(section.controls.map((c) => [c.id, c.commandId, c.kind])).toEqual([
+			[`${SEND}.Selected`, "Mscrm.SendShortcutSelected", "button"],
+			[`${SEND}.View`, "Mscrm.SendShortcutView", "button"],
+		]);
+		expect(section.controls[0].origin).toBe("oob");
+	});
+
+	it("models nested flyouts, and keeps dynamic population attributes", () => {
+		const flows = ctl(ribbon, "Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar.Flows");
+		const nested = flows.menu!.sections[0].controls;
+		expect(nested.map((c) => c.kind)).toEqual(["flyout", "flyout", "flyout"]);
+		expect(nested[1].source?.attributes).toMatchObject({
+			PopulateDynamically: "true",
+			PopulateQueryCommand: "Mscrm.DynamicMenu.Grid.Flows.PopulateFlowMenu",
+		});
+		expect(nested[1].menu).toBeUndefined();
+		const dynamic = ctl(ribbon, "Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar");
+		expect(dynamic.menu).toBeUndefined();
+		expect(dynamic.source?.attributes["PopulateQueryCommand"]).toBe(
+			"Mscrm.DynamicMenu.Grid.Flows.PopulateMenu",
+		);
+	});
+
+	it("keeps a section without Sequence / DisplayMode as it is", () => {
+		const dummy = ctl(ribbon, "AIBuilder.contact.Flyout.Dummy");
+		const [section] = dummy.menu!.sections;
+		expect(section.displayMode).toBeUndefined();
+		expect(section.attributes).toEqual({
+			Id: "AIBuilder.contact.Flyout.Menu.MenuSection.Dummy",
+		});
+		expect(section.controls).toHaveLength(2);
+	});
+
+	it("an unchanged load publishes nothing", () => {
+		const parsed = parseOob();
+		expect(customActions(generate(parsed.ribbon, parseOob().ribbon))).toHaveLength(0);
+		const plan = planOf(parsed.ribbon, parseOob().ribbon);
+		expect(plan.hasChanges).toBe(false);
+		expect(plan.unsupported).toEqual([]);
+	});
+});
+
+describe("#27 round trip — parse → model → generate on the real menus", () => {
+	const source = doc(OOB);
+	const withMenus = Array.from(source.querySelectorAll("Group > Controls > *")).filter((e) =>
+		Array.from(e.children).some((c) => c.tagName === "Menu"),
+	);
+
+	it("the fixture has the expected menus", () => {
+		expect(withMenus.map((e) => e.tagName)).toEqual(
+			expect.arrayContaining(["SplitButton", "FlyoutAnchor"]),
+		);
+		expect(withMenus.map((e) => e.getAttribute("Id"))).toEqual(
+			expect.arrayContaining([
+				SEND,
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.ExportToExcel",
+			]),
+		);
+	});
+
+	it.each(withMenus.map((e) => [e.getAttribute("Id")!, e] as const))(
+		"%s is written back with its whole <Menu>, losslessly",
+		(id, sourceEl) => {
+			const parsed = parseOob();
+			// Treat the control as new (absent from the baseline), which writes it in full.
+			const baseline = clone(parsed.ribbon);
+			for (const g of baseline.tabs.flatMap((t) => t.groups))
+				g.buttons = g.buttons.filter((b) => b.id !== id);
+			const xml = generate(parsed.ribbon, baseline, parsed);
+			const cas = customActions(xml);
+			expect(cas).toHaveLength(1);
+			const written = cas[0].querySelector("CommandUIDefinition")!.firstElementChild!;
+			expect(canonicalXml(written)).toBe(canonicalXml(withoutSolutionNames(sourceEl)));
+			// Items of a new menu are never written twice.
+			expect(cas[0].getAttribute("Location")).toMatch(/\.Controls\._children$/);
+		},
+	);
+});
+
+describe("#27 a new flyout created in CBS", () => {
+	function storeWith(items: number) {
+		const parsed = parseOob();
+		const s = useRibbonStore.getState();
+		s.loadWorkspace({
+			ribbons: {
+				HomepageGrid: parsed.ribbon,
+				SubGrid: { location: "SubGrid", entityLogicalName: "contact", tabs: [] },
+				Form: { location: "Form", entityLogicalName: "contact", tabs: [] },
+				Application: { location: "Application", entityLogicalName: "", tabs: [] },
+			},
+			commands: parsed.commands,
+			displayRules: [],
+			enableRules: [],
+			locLabels: [],
+		});
+		const tabId = parsed.ribbon.tabs[0].id;
+		useRibbonStore.getState().createButton({
+			location: "HomepageGrid",
+			tabId,
+			groupId: COLLABORATE,
+			button: {
+				id: "cbs.contact.Fly.Button",
+				label: "Approvals",
+				kind: "flyout",
+				sequence: 900,
+				templateAlias: "o1",
+				commandId: "cbs.contact.Fly.Command",
+				hidden: false,
+				oob: false,
+				custom: true,
+				managed: false,
+			},
+		});
+		for (let i = 1; i <= items; i++) {
+			useRibbonStore.getState().addMenuItem({
+				location: "HomepageGrid",
+				tabId,
+				groupId: COLLABORATE,
+				parentId: "cbs.contact.Fly.Button",
+				// No sequence: the store appends after the last item.
+				item: {
+					id: `cbs.contact.Fly.Item${i}.Button`,
+					label: `Item ${i}`,
+					commandId: `cbs.contact.Item${i}.Command`,
+				},
+			});
+		}
+		return {
+			current: useRibbonStore.getState().ribbons.HomepageGrid,
+			baseline: useRibbonStore.getState().baseline.HomepageGrid,
+		};
+	}
+
+	it("is written as ONE CustomAction holding its whole menu", () => {
+		const { current, baseline } = storeWith(2);
+		const xml = generate(current, baseline);
+		const cas = customActions(xml);
+		expect(cas).toHaveLength(1);
+		expect(cas[0].getAttribute("Location")).toBe(`${COLLABORATE}.Controls._children`);
+		const fly = cas[0].querySelector("CommandUIDefinition > FlyoutAnchor")!;
+		expect(fly.getAttribute("Id")).toBe("cbs.contact.Fly.Button");
+		const menu = fly.querySelector(":scope > Menu")!;
+		expect(menu.getAttribute("Id")).toBe("cbs.contact.Fly.Button.Menu");
+		const section = menu.querySelector(":scope > MenuSection")!;
+		expect(section.getAttribute("DisplayMode")).toBe("Menu16");
+		expect(section.getAttribute("Sequence")).toBe("10");
+		const items = Array.from(section.querySelectorAll(":scope > Controls > Button"));
+		expect(
+			items.map((b) => [
+				b.getAttribute("Id"),
+				b.getAttribute("Sequence"),
+				b.getAttribute("Command"),
+			]),
+		).toEqual([
+			["cbs.contact.Fly.Item1.Button", "10", "cbs.contact.Item1.Command"],
+			["cbs.contact.Fly.Item2.Button", "20", "cbs.contact.Item2.Command"],
+		]);
+		// Menu items take their size from the section, not a TemplateAlias.
+		expect(items[0].hasAttribute("TemplateAlias")).toBe(false);
+		// Every $LocLabels reference has its LocLabel.
+		const labels = Array.from(doc(xml).querySelectorAll("LocLabels > LocLabel")).map((l) =>
+			l.getAttribute("Id"),
+		);
+		expect(labels).toEqual(
+			expect.arrayContaining([
+				"cbs.contact.Fly.Button.LabelText",
+				"cbs.contact.Fly.Item1.Button.LabelText",
+				"cbs.contact.Fly.Item2.Button.LabelText",
+			]),
+		);
+		expect(
+			validateRibbonDiffXml(xml, baseline).filter((e) => !/Location/.test(e.message)),
+		).toEqual([]);
+	});
+
+	it("is planned without unsupported changes; an empty one is reported", () => {
+		const ok = storeWith(2);
+		const plan = planOf(ok.current, ok.baseline);
+		expect(plan.hasChanges).toBe(true);
+		expect(plan.unsupported).toEqual([]);
+		const empty = storeWith(0);
+		expect(planOf(empty.current, empty.baseline).unsupported).toEqual([
+			'New flyout / split button "Approvals" has no menu items — add at least one item to its menu',
+		]);
+	});
+
+	it("summarizes as one new control", () => {
+		const { current, baseline } = storeWith(2);
+		expect(summarizeRibbonDiff(current, baseline).newButtons).toBe(1);
+	});
+});
+
+describe("#27 an existing out-of-the-box menu", () => {
+	const editOob = (edit: (def: RibbonDefinition) => void) => {
+		const baseline = parseOob().ribbon;
+		const current = clone(baseline);
+		edit(current);
+		return {
+			current,
+			baseline,
+			xml: generate(current, baseline),
+			plan: planOf(current, baseline),
+		};
+	};
+
+	it("a new item goes to the menu section's Controls (Location = …Send.Controls._children)", () => {
+		const { xml, plan } = editOob((def) => {
+			ctl(def, SEND).menu!.sections[0].controls.push({
+				...item("cbs.contact.SendTeams.Button", 30, { label: "Send to Teams" }),
+				kind: "button",
+				templateAlias: "",
+				hidden: false,
+				oob: false,
+				custom: true,
+				managed: false,
+				origin: "unmanaged",
+			});
+		});
+		const cas = customActions(xml);
+		expect(cas.map((c) => c.getAttribute("Location"))).toEqual([`${SEND}.Controls._children`]);
+		expect(cas[0].querySelector("CommandUIDefinition > Button")?.getAttribute("Id")).toBe(
+			"cbs.contact.SendTeams.Button",
+		);
+		expect(plan.unsupported).toEqual([]);
+		expect(plan.hasChanges).toBe(true);
+	});
+
+	it("an edited item is overridden by its own id; a hidden one gets a HideCustomAction", () => {
+		const { xml, plan } = editOob((def) => {
+			ctl(def, `${SEND}.Selected`).label = "Email a link to the selection";
+			ctl(def, `${SEND}.View`).hidden = true;
+		});
+		const cas = customActions(xml);
+		expect(cas.map((c) => c.getAttribute("Location"))).toEqual([`${SEND}.Selected`]);
+		expect(cas[0].querySelector("CommandUIDefinition > Button")?.getAttribute("Command")).toBe(
+			"Mscrm.SendShortcutSelected",
+		);
+		const hides = Array.from(doc(xml).querySelectorAll("HideCustomAction")).map((h) =>
+			h.getAttribute("Location"),
+		);
+		expect(hides).toEqual([`${SEND}.View`]);
+		expect(plan.unsupported).toEqual([]);
+	});
+
+	it("deleting an out-of-the-box item, editing the split button itself or its sections is reported, not dropped", () => {
+		const del = editOob((def) => {
+			const s = ctl(def, SEND).menu!.sections[0];
+			s.controls = s.controls.filter((c) => c.id !== `${SEND}.View`);
+		});
+		expect(del.plan.unsupported).toEqual([
+			expect.stringMatching(
+				/^Removing ".*" \(Mscrm\.HomepageGrid\.contact\.Send\.View\) — only your own/,
+			),
+		]);
+		const anchor = editOob((def) => {
+			ctl(def, SEND).label = "Share";
+		});
+		expect(anchor.plan.unsupported).toEqual([
+			expect.stringMatching(/^Editing the flyout \/ split button "Share"/),
+		]);
+		const sections = editOob((def) => {
+			ctl(def, SEND).menu!.sections[0].displayMode = "Menu32";
+		});
+		expect(sections.plan.unsupported).toEqual([expect.stringMatching(/menu sections of/)]);
+	});
+
+	it("re-ordering an out-of-the-box item is reported", () => {
+		const { plan } = editOob((def) => {
+			ctl(def, `${SEND}.View`).sequence = 5;
+		});
+		expect(plan.unsupported).toEqual([expect.stringMatching(/^Moving or re-ordering/)]);
+	});
+});
+
+describe("#27 duplicate control ids are paired by occurrence", () => {
+	const fly = (id: string, itemLabel: string): RibbonButton => ({
+		id,
+		label: id,
+		kind: "flyout",
+		sequence: 10,
+		templateAlias: "o1",
+		commandId: "",
+		hidden: false,
+		oob: true,
+		custom: false,
+		managed: false,
+		menu: {
+			id: `${id}.Menu`,
+			sections: [
+				{
+					id: `${id}.Section`,
+					sequence: 10,
+					displayMode: "Menu16",
+					controlsId: `${id}.Controls`,
+					controls: [{ ...fly0("Mscrm.Dup.Item"), label: itemLabel }],
+				},
+			],
+		},
+	});
+	const fly0 = (id: string): RibbonButton => ({
+		id,
+		label: id,
+		kind: "button",
+		sequence: 10,
+		templateAlias: "",
+		commandId: "Mscrm.Dup",
+		hidden: false,
+		oob: true,
+		custom: false,
+		managed: false,
+	});
+	const def = (): RibbonDefinition => ({
+		location: "Application",
+		entityLogicalName: "",
+		tabs: ["T1", "T2"].map((t, i) => ({
+			id: `Mscrm.${t}`,
+			label: t,
+			sequence: i,
+			tabDisplayRules: [],
+			groups: [
+				{
+					id: `Mscrm.${t}.G`,
+					label: "G",
+					sequence: 10,
+					template: "Mscrm.Templates.Flexible",
+					buttons: [fly(`Mscrm.${t}.Fly`, "Same")],
+				},
+			],
+		})),
+	});
+
+	it("indexes each occurrence of a repeated menu item id", () => {
+		const keys = [...indexButtons(def()).keys()];
+		expect(keys).toEqual([
+			"Mscrm.T1.Fly#0",
+			"Mscrm.Dup.Item#0",
+			"Mscrm.T2.Fly#0",
+			"Mscrm.Dup.Item#1",
+		]);
+		const second = indexButtons(def()).get("Mscrm.Dup.Item#1")!;
+		expect(second.menu).toMatchObject({
+			parentId: "Mscrm.T2.Fly",
+			controlsId: "Mscrm.T2.Fly.Controls",
+		});
+		expect(second.groupId).toBe("Mscrm.T2.G");
+	});
+
+	it("an edit of the second occurrence only overrides that one", () => {
+		const baseline = def();
+		const current = def();
+		current.tabs[1].groups[0].buttons[0].menu!.sections[0].controls[0].label = "Changed";
+		expect(summarizeRibbonDiff(current, baseline)).toMatchObject({
+			overriddenButtons: 1,
+			newButtons: 0,
+		});
+		expect(planOf(current, baseline).unsupported).toEqual([]);
+		expect(customActions(generate(current, baseline))).toHaveLength(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// A flyout your unmanaged layer adds (CBS / Ribbon Workbench write the menu
+// inline in the flyout's CustomAction), with one more item added to it by a
+// separate `._children` CustomAction.
+
+const T = "contact";
+const G = `Mscrm.HomepageGrid.${T}.MainTab.Management`;
+const MERGED = `<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs>
+  <Tab Id="Mscrm.HomepageGrid.${T}.MainTab" Command="Mscrm.HomepageGrid.${T}.MainTab" Sequence="10">
+    <Groups Id="Mscrm.HomepageGrid.${T}.MainTab.Groups">
+      <Group Id="${G}" Sequence="10" Template="Mscrm.Templates.Flexible2">
+        <Controls Id="${G}.Controls">
+          <Button Id="Mscrm.HomepageGrid.${T}.NewRecord" Command="Mscrm.NewRecordFromGrid" Sequence="10" LabelText="$Resources:New" TemplateAlias="o1" />
+          <FlyoutAnchor Id="cbs.Fly" Command="cbs.Fly.Command" Sequence="900" LabelText="$LocLabels:cbs.Fly.LabelText" TemplateAlias="o1">
+            <Menu Id="cbs.Fly.Menu">
+              <MenuSection Id="cbs.Fly.Section" Sequence="10" DisplayMode="Menu16">
+                <Controls Id="cbs.Fly.Section.Controls">
+                  <Button Id="cbs.Fly.A" Command="cbs.A.Command" Sequence="10" LabelText="$LocLabels:cbs.Fly.A.LabelText" />
+                  <Button Id="cbs.Fly.B" Command="cbs.B.Command" Sequence="20" LabelText="$LocLabels:cbs.Fly.B.LabelText" />
+                  <Button Id="cbs.Fly.C" Command="cbs.A.Command" Sequence="30" LabelText="Three" />
+                </Controls>
+              </MenuSection>
+            </Menu>
+          </FlyoutAnchor>
+        </Controls>
+      </Group>
+    </Groups>
+  </Tab>
+</Tabs></Ribbon></UI>
+<CommandDefinitions>
+  <CommandDefinition Id="cbs.A.Command"><EnableRules/><DisplayRules/><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="A"/></Actions></CommandDefinition>
+  <CommandDefinition Id="cbs.B.Command"><EnableRules><EnableRule Id="cbs.B.Rule"/></EnableRules><DisplayRules/><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="B"/></Actions></CommandDefinition>
+</CommandDefinitions>
+<RuleDefinitions><TabDisplayRules/><DisplayRules/><EnableRules><EnableRule Id="cbs.B.Rule"><SelectionCountRule Minimum="1"/></EnableRule></EnableRules></RuleDefinitions>
+</RibbonDefinition></RibbonDefinitions>`;
+
+const ca = (id: string, location: string, seq: number, inner: string) =>
+	`<CustomAction Id="${id}" Location="${location}" Sequence="${seq}"><CommandUIDefinition>${inner}</CommandUIDefinition></CustomAction>`;
+const label = (id: string, text: string) =>
+	`<LocLabel Id="${id}"><Titles><Title languagecode="1033" description="${text}" /></Titles></LocLabel>`;
+
+const LAYER_ROWS = {
+	diffs: [
+		{
+			difftype: 0,
+			rdx: ca(
+				"cbs.Fly.CustomAction",
+				`${G}.Controls._children`,
+				900,
+				`<FlyoutAnchor Id="cbs.Fly" Command="cbs.Fly.Command" Sequence="900" LabelText="$LocLabels:cbs.Fly.LabelText" TemplateAlias="o1"><Menu Id="cbs.Fly.Menu"><MenuSection Id="cbs.Fly.Section" Sequence="10" DisplayMode="Menu16"><Controls Id="cbs.Fly.Section.Controls"><Button Id="cbs.Fly.A" Command="cbs.A.Command" Sequence="10" LabelText="$LocLabels:cbs.Fly.A.LabelText" /><Button Id="cbs.Fly.B" Command="cbs.B.Command" Sequence="20" LabelText="$LocLabels:cbs.Fly.B.LabelText" /></Controls></MenuSection></Menu></FlyoutAnchor>`,
+			),
+		},
+		{
+			difftype: 0,
+			rdx: ca(
+				"cbs.Fly.C.CustomAction",
+				"cbs.Fly.Section.Controls._children",
+				30,
+				`<Button Id="cbs.Fly.C" Command="cbs.A.Command" Sequence="30" LabelText="Three" />`,
+			),
+		},
+		{ difftype: 3, rdx: label("cbs.Fly.LabelText", "Approvals") },
+		{ difftype: 3, rdx: label("cbs.Fly.A.LabelText", "One") },
+		{ difftype: 3, rdx: label("cbs.Fly.B.LabelText", "Two") },
+	],
+	commands: [
+		{
+			command: "cbs.A.Command",
+			commanddefinition:
+				'<CommandDefinition Id="cbs.A.Command"><EnableRules /><DisplayRules /><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="A" /></Actions></CommandDefinition>',
+		},
+		{
+			command: "cbs.B.Command",
+			commanddefinition:
+				'<CommandDefinition Id="cbs.B.Command"><EnableRules><EnableRule Id="cbs.B.Rule" /></EnableRules><DisplayRules /><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="B" /></Actions></CommandDefinition>',
+		},
+	],
+	rules: [
+		{
+			ruleid: "cbs.B.Rule",
+			ruletype: 1,
+			ruledefinition:
+				'<EnableRule Id="cbs.B.Rule"><SelectionCountRule Minimum="1" /></EnableRule>',
+		},
+	],
+};
+
+const layerParts = () => partsFromRibbonTables(LAYER_ROWS);
+
+function loadOwn() {
+	const parts = layerParts();
+	const labels = Array.from(parts.locLabels.entries()).map(([id, xml]) => ({
+		id,
+		titles: [
+			{
+				languageCode: 1033,
+				description: parseXmlElement(xml)
+					.querySelector("Title")!
+					.getAttribute("description")!,
+			},
+		],
+	}));
+	const parsed = parseRibbonXml(MERGED, "HomepageGrid", T, labels);
+	applyLayerOwnership(parsed.ribbon, ownControlIds(parts));
+	return parsed;
+}
+
+const fly = (def: RibbonDefinition) => ctl(def, "cbs.Fly");
+const section = (def: RibbonDefinition) => fly(def).menu!.sections[0];
+
+async function buildOwn(edit: (def: RibbonDefinition) => void) {
+	const { buildMergedRibbonDiffXml } = await import("@/services/dataverse/publishService");
+	const parsed = loadOwn();
+	const baseline = loadOwn().ribbon;
+	edit(parsed.ribbon);
+	const plan = planScope({
+		locations: [{ current: parsed.ribbon, baseline }],
+		commands: parsed.commands,
+		baselineCommands: loadOwn().commands,
+		enableRules: parsed.enableRules,
+		baselineEnableRules: loadOwn().enableRules,
+		displayRules: parsed.displayRules,
+		baselineDisplayRules: loadOwn().displayRules,
+		locLabels: parsed.locLabels,
+		baselineLocLabels: loadOwn().locLabels,
+		layer: layerSnapshotFromParts(layerParts()),
+	});
+	const result = await buildMergedRibbonDiffXml({
+		entity: { logicalName: T, schemaName: T },
+		locations: [{ current: parsed.ribbon, baseline }],
+		commands: parsed.commands,
+		enableRules: parsed.enableRules,
+		displayRules: parsed.displayRules,
+		locLabels: parsed.locLabels,
+		plan,
+	});
+	const d = doc(result.xml);
+	const flyCa = d.querySelector('CustomAction[Id="cbs.Fly.CustomAction"]');
+	return { plan, d, flyCa, cas: Array.from(d.querySelectorAll("CustomActions > CustomAction")) };
+}
+
+const itemIds = (el: Element | null) =>
+	Array.from(el?.querySelectorAll("MenuSection > Controls > Button") ?? []).map((b) =>
+		b.getAttribute("Id"),
+	);
+
+beforeEach(() => {
+	layer = layerParts();
+});
+
+describe("#27 your own flyout — merged into the layer", () => {
+	it("its menu items are yours (owned through the flyout's CustomAction or their own)", () => {
+		const own = ownControlIds(layerParts());
+		expect([...own].sort()).toEqual(["cbs.Fly", "cbs.Fly.A", "cbs.Fly.B", "cbs.Fly.C"]);
+		const { ribbon } = loadOwn();
+		expect(menuItemsOf(fly(ribbon)).map((b) => b.origin)).toEqual([
+			"unmanaged",
+			"unmanaged",
+			"unmanaged",
+		]);
+		expect(menuItemsOf(fly(ribbon)).map((b) => b.label)).toEqual(["One", "Two", "Three"]);
+	});
+
+	it("editing an item replaces it inside the flyout's CustomAction (no second definition)", async () => {
+		const { plan, flyCa, cas } = await buildOwn((def) => {
+			section(def).controls[0].label = "Uno";
+		});
+		expect(plan.unsupported).toEqual([]);
+		expect(cas.map((c) => c.getAttribute("Location"))).not.toContain("cbs.Fly.A");
+		expect(itemIds(flyCa)).toEqual(["cbs.Fly.A", "cbs.Fly.B"]);
+		// The edited label keeps its LocLabel id; the other item is untouched.
+		expect(flyCa!.querySelector('Button[Id="cbs.Fly.A"]')!.getAttribute("LabelText")).toBe(
+			"$LocLabels:cbs.Fly.A.LabelText",
+		);
+		const d = flyCa!.ownerDocument;
+		expect(
+			d
+				.querySelector('LocLabel[Id="cbs.Fly.A.LabelText"] Title')!
+				.getAttribute("description"),
+		).toBe("Uno");
+		expect(d.querySelector('CustomAction[Id="cbs.Fly.C.CustomAction"]')).not.toBeNull();
+	});
+
+	it("deleting an inline item removes it in place, with its now-unused command and rule", async () => {
+		const { plan, flyCa, d } = await buildOwn((def) => {
+			section(def).controls = section(def).controls.filter((c) => c.id !== "cbs.Fly.B");
+		});
+		expect(plan.deletedButtonIds).toEqual(["cbs.Fly.B"]);
+		expect(plan.unsupported).toEqual([]);
+		expect(itemIds(flyCa)).toEqual(["cbs.Fly.A"]);
+		expect(d.querySelector('CommandDefinition[Id="cbs.B.Command"]')).toBeNull();
+		expect(d.querySelector('EnableRule[Id="cbs.B.Rule"]')).toBeNull();
+		expect(d.querySelector('LocLabel[Id="cbs.Fly.B.LabelText"]')).toBeNull();
+		// Still used by A and C.
+		expect(d.querySelector('CommandDefinition[Id="cbs.A.Command"]')).not.toBeNull();
+	});
+
+	it("deleting an item added by its own CustomAction removes that CustomAction", async () => {
+		const { plan, cas, flyCa } = await buildOwn((def) => {
+			section(def).controls = section(def).controls.filter((c) => c.id !== "cbs.Fly.C");
+		});
+		expect(plan.deletedButtonIds).toEqual(["cbs.Fly.C"]);
+		expect(cas.map((c) => c.getAttribute("Id"))).not.toContain("cbs.Fly.C.CustomAction");
+		expect(itemIds(flyCa)).toEqual(["cbs.Fly.A", "cbs.Fly.B"]);
+	});
+
+	it("a new item is added to the section's Controls", async () => {
+		const { plan, cas } = await buildOwn((def) => {
+			section(def).controls.push({
+				...item("cbs.Fly.D", 40, { label: "Four" }),
+				kind: "button",
+				templateAlias: "",
+				hidden: false,
+				oob: false,
+				custom: true,
+				managed: false,
+				origin: "unmanaged",
+			});
+		});
+		expect(plan.unsupported).toEqual([]);
+		const added = cas.find((c) => c.getAttribute("Id") === "cbs.Fly.D.CustomAction")!;
+		expect(added.getAttribute("Location")).toBe("cbs.Fly.Section.Controls._children");
+	});
+
+	it("re-sequencing an inline item updates it in place", async () => {
+		const { plan, flyCa } = await buildOwn((def) => {
+			section(def).controls[0].sequence = 25;
+		});
+		expect(plan.movedButtons).toEqual([
+			{ id: "cbs.Fly.A", groupId: G, sequence: 25, controlsId: "cbs.Fly.Section.Controls" },
+		]);
+		expect(flyCa!.querySelector('Button[Id="cbs.Fly.A"]')!.getAttribute("Sequence")).toBe("25");
+		expect(flyCa!.getAttribute("Sequence")).toBe("900");
+	});
+
+	it("editing the flyout itself keeps its menu", async () => {
+		const { plan, flyCa } = await buildOwn((def) => {
+			fly(def).label = "Approvals!";
+		});
+		expect(plan.unsupported).toEqual([]);
+		expect(itemIds(flyCa)).toEqual(["cbs.Fly.A", "cbs.Fly.B"]);
+	});
+
+	it("deleting the flyout removes it with every item (inline and its own CustomActions)", async () => {
+		const { plan, cas, d } = await buildOwn((def) => {
+			const g = group(def, G);
+			g.buttons = g.buttons.filter((b) => b.id !== "cbs.Fly");
+		});
+		expect(plan.unsupported).toEqual([]);
+		expect(plan.deletedButtonIds.sort()).toEqual([
+			"cbs.Fly",
+			"cbs.Fly.A",
+			"cbs.Fly.B",
+			"cbs.Fly.C",
+		]);
+		expect(cas).toHaveLength(0);
+		expect(d.querySelectorAll("CommandDefinition")).toHaveLength(0);
+	});
+
+	it("an inline item moved to another section of the same flyout moves inside the CustomAction", () => {
+		const delta = parseRibbonDiffParts("<RibbonDiffXml/>");
+		const parts = layerParts();
+		const xml = parts.customActions
+			.get("ca:cbs.Fly.CustomAction")!
+			.replace(
+				"</MenuSection></Menu>",
+				'</MenuSection><MenuSection Id="cbs.Fly.Section2" Sequence="20" DisplayMode="Menu16"><Controls Id="cbs.Fly.Section2.Controls" /></MenuSection></Menu>',
+			);
+		parts.customActions.set("ca:cbs.Fly.CustomAction", xml);
+		const merged = mergeScopeChanges(parts, delta, {
+			movedControls: [
+				{
+					id: "cbs.Fly.B",
+					groupId: G,
+					sequence: 10,
+					controlsId: "cbs.Fly.Section2.Controls",
+				},
+			],
+		});
+		const out = parseXmlElement(merged.customActions.get("ca:cbs.Fly.CustomAction")!);
+		expect(itemIds(out.querySelector('MenuSection[Id="cbs.Fly.Section"]'))).toEqual([
+			"cbs.Fly.A",
+		]);
+		expect(itemIds(out.querySelector('MenuSection[Id="cbs.Fly.Section2"]'))).toEqual([
+			"cbs.Fly.B",
+		]);
+	});
+});
+
+describe("#27 store — menu items are edited like buttons", () => {
+	function load(): { tabId: string; groupId: string } {
+		const parsed = loadOwn();
+		const ribbons: Record<RibbonLocation, RibbonDefinition> = {
+			HomepageGrid: parsed.ribbon,
+			SubGrid: { location: "SubGrid", entityLogicalName: T, tabs: [] },
+			Form: { location: "Form", entityLogicalName: T, tabs: [] },
+			Application: { location: "Application", entityLogicalName: "", tabs: [] },
+		};
+		useRibbonStore
+			.getState()
+			.loadWorkspace({
+				ribbons,
+				commands: parsed.commands,
+				displayRules: [],
+				enableRules: [],
+				locLabels: parsed.locLabels,
+			});
+		return { tabId: parsed.ribbon.tabs[0].id, groupId: G };
+	}
+	const cur = () => useRibbonStore.getState().ribbons.HomepageGrid;
+	const grp = (): RibbonGroup => group(cur(), G);
+
+	it("setButtonProp / deleteButton reach a menu item", () => {
+		const { tabId, groupId } = load();
+		useRibbonStore
+			.getState()
+			.setButtonProp("HomepageGrid", tabId, groupId, "cbs.Fly.B", { label: "Deux" });
+		expect(ctl(cur(), "cbs.Fly.B").label).toBe("Deux");
+		useRibbonStore.getState().deleteButton("HomepageGrid", tabId, groupId, "cbs.Fly.B");
+		expect(menuItemsOf(fly(cur())).map((b) => b.id)).toEqual(["cbs.Fly.A", "cbs.Fly.C"]);
+		expect(grp().buttons.map((b) => b.id)).toEqual([
+			"Mscrm.HomepageGrid.contact.NewRecord",
+			"cbs.Fly",
+		]);
+		useRibbonStore.getState().undo();
+		expect(menuItemsOf(fly(cur())).map((b) => b.id)).toEqual([
+			"cbs.Fly.A",
+			"cbs.Fly.B",
+			"cbs.Fly.C",
+		]);
+	});
+
+	it("duplicating a flyout gives its menu and items new ids", () => {
+		const { tabId, groupId } = load();
+		useRibbonStore.getState().duplicateButton("HomepageGrid", tabId, groupId, "cbs.Fly");
+		const copy = grp().buttons.find((b) => b.id.startsWith("cbs.Fly_copy_"))!;
+		const ids = [
+			copy.menu!.id,
+			copy.menu!.sections[0].id,
+			copy.menu!.sections[0].controlsId,
+			...menuItemsOf(copy).map((b) => b.id),
+		];
+		for (const id of ids) expect(id.startsWith(copy.id)).toBe(true);
+		expect(menuItemsOf(copy).every((b) => b.origin === "unmanaged" && !b.source)).toBe(true);
+		// Unique across the ribbon.
+		const all = controls(cur()).map((b) => b.id);
+		expect(new Set(all).size).toBe(all.length);
+	});
+
+	it("sections can be added, changed and removed", () => {
+		const { tabId, groupId } = load();
+		const s = useRibbonStore.getState();
+		s.addMenuSection("HomepageGrid", tabId, groupId, "cbs.Fly", "More");
+		expect(fly(cur()).menu!.sections.map((x) => [x.id, x.title, x.controlsId])).toEqual([
+			["cbs.Fly.Section", undefined, "cbs.Fly.Section.Controls"],
+			["cbs.Fly.MenuSection2", "More", "cbs.Fly.MenuSection2.Controls"],
+		]);
+		useRibbonStore
+			.getState()
+			.setMenuSectionProp("HomepageGrid", tabId, groupId, "cbs.Fly", "cbs.Fly.MenuSection2", {
+				displayMode: "Menu32",
+			});
+		expect(fly(cur()).menu!.sections[1].displayMode).toBe("Menu32");
+		useRibbonStore
+			.getState()
+			.deleteMenuSection("HomepageGrid", tabId, groupId, "cbs.Fly", "cbs.Fly.MenuSection2");
+		expect(fly(cur()).menu!.sections).toHaveLength(1);
+	});
+});

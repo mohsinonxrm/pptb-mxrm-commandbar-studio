@@ -9,6 +9,7 @@ import type {
 	RibbonDefinition,
 } from "@/types/ribbon";
 import type { MovedControl } from "@/services/ribbonDiffMerge";
+import { isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 
 /**
  * What the scope's unmanaged ribbon layer owns, as read at load (or refreshed
@@ -86,7 +87,6 @@ export interface ScopePlan {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-const isMenuKind = (kind?: string) => kind === "flyout" || kind === "splitButton";
 const isResourceIcon = (b: { icon?: string; image16?: string; image32?: string }) =>
 	[b.icon, b.image16, b.image32].some((v) => !!v && v.startsWith("$webresource:"));
 const LOC_REF = /^\$LocLabels:(.+)$/;
@@ -101,6 +101,17 @@ function buttonLabelRefs(button: RibbonButton): string[] {
 		if (id) out.push(id);
 	}
 	return out;
+}
+
+/** The sections of a button's menu, as compared for "did the menu's structure change" (#27). */
+function sectionShape(button: RibbonButton) {
+	return (button.menu?.sections ?? []).map((s) => ({
+		id: s.id,
+		title: s.title ?? "",
+		sequence: s.sequence,
+		displayMode: s.displayMode ?? "",
+		controlsId: s.controlsId,
+	}));
 }
 
 export function planScope(input: PlanInput): ScopePlan {
@@ -163,8 +174,15 @@ export function planScope(input: PlanInput): ScopePlan {
 			}
 			const edited = hasOobOverrideChanges(b.button, c.button);
 			if (edited && isMenuKind(c.button.kind) && b.button.origin !== "unmanaged") {
+				// An override replaces the whole control, menu included, and the
+				// loaded menu also holds what other solutions add to it (#27).
 				unsupported.push(
-					`Editing the menu button "${c.button.label}" (${id}) — flyout / split buttons from other solutions can't be edited yet (#27)`,
+					`Editing the flyout / split button "${c.button.label}" (${id}) itself — only your own can be edited; its menu items can be edited, hidden or added to`,
+				);
+			}
+			if (!same(sectionShape(b.button), sectionShape(c.button))) {
+				unsupported.push(
+					`Adding, removing or changing menu sections of "${c.button.label}" (${id}) — not supported yet for an existing menu; add, edit or remove its items instead`,
 				);
 			}
 			if ((c.button.icon ?? "") !== (b.button.icon ?? "") && !isResourceIcon(c.button)) {
@@ -172,11 +190,21 @@ export function planScope(input: PlanInput): ScopePlan {
 					`Changing the icon of "${c.button.label}" (${id}) to a built-in icon — not supported yet; choose an SVG web resource`,
 				);
 			}
-			if (c.groupId !== b.groupId || c.button.sequence !== b.button.sequence) {
+			if (
+				c.groupId !== b.groupId ||
+				c.button.sequence !== b.button.sequence ||
+				c.menu?.controlsId !== b.menu?.controlsId
+			) {
 				// Your own button: its CustomAction is moved in place. Anything else
-				// would need a hide plus a copy, which CBS doesn't write (yet).
+				// would need a hide plus a copy, which CBS doesn't write (yet). A menu
+				// item moves within its menu section's Controls (#27).
 				if (b.button.origin === "unmanaged") {
-					moved.push({ id, groupId: c.groupId, sequence: c.button.sequence });
+					moved.push({
+						id,
+						groupId: c.groupId,
+						sequence: c.button.sequence,
+						...(c.menu ? { controlsId: c.menu.controlsId } : {}),
+					});
 				} else {
 					unsupported.push(
 						`Moving or re-ordering "${c.button.label}" (${id}) — only your own unmanaged buttons can be moved; hide it and add a new button instead`,
@@ -185,9 +213,12 @@ export function planScope(input: PlanInput): ScopePlan {
 			}
 		}
 
+		// A new flyout / split button is published with its whole menu (#27);
+		// one without items (and not populated dynamically) would be empty.
 		for (const [key, c] of cur) {
-			if (!base.has(key) && isMenuKind(c.button.kind)) {
-				unsupported.push(`New flyout / split button "${c.button.label}" — menus can't be published yet (#27)`);
+			const dynamic = c.button.source?.attributes["PopulateDynamically"]?.toLowerCase() === "true";
+			if (!base.has(key) && isMenuKind(c.button.kind) && !dynamic && !menuItemsOf(c.button).some((b) => !b.hidden)) {
+				unsupported.push(`New flyout / split button "${c.button.label}" has no menu items — add at least one item to its menu`);
 			}
 		}
 

@@ -18,6 +18,7 @@ import {
 import { DismissRegular, AddRegular, DeleteRegular, TextAddRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
+import { groupControls } from "@/utils/ribbonMenu";
 
 const KNOWN_LCIDS: Record<number, { name: string; flag: string }> = {
 	1033: { name: "English (US)", flag: "🇺🇸" },
@@ -132,7 +133,7 @@ export const LocalizationEditor: React.FC = () => {
 		for (const def of Object.values(ribbons))
 			for (const tab of def.tabs)
 				for (const group of tab.groups)
-					for (const b of group.buttons) if (b.id === buttonId) return b.source;
+					for (const b of groupControls(group)) if (b.id === buttonId) return b.source;
 		return undefined;
 	}, [ribbons, buttonId]);
 	const refOr = (token: string | undefined, fallback: string) =>

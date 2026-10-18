@@ -33,6 +33,7 @@ import {
 import { fetchLayerSnapshot } from "@/services/dataverse/ribbonLayerService";
 import { planScope, type ScopePlan } from "@/services/publishPlan";
 import type { RibbonLocation } from "@/types/ribbon";
+import { groupControls } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	content: {
@@ -162,7 +163,7 @@ export const BulkPublishModal: React.FC = () => {
 			for (const l of ENTITY_LOCATIONS)
 				for (const tab of ribbons[l].tabs)
 					for (const group of tab.groups)
-						for (const button of group.buttons) if (button.commandId) tableCommands.add(button.commandId);
+						for (const button of groupControls(group)) if (button.commandId) tableCommands.add(button.commandId);
 		}
 		return planFor(["Application"], "application", tableCommands);
 	}, [planFor, activeEntity, ribbons]);

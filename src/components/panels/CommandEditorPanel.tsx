@@ -31,6 +31,7 @@ import {
 	saveWebResource,
 } from "@/services/dataverse/webResourceService";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
+import { groupControls } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	drawer: {
@@ -211,7 +212,7 @@ export const CommandEditorPanel: React.FC = () => {
 		return Object.entries(ribbons).flatMap(([location, ribbon]) =>
 			ribbon.tabs.flatMap((tab) =>
 				tab.groups.flatMap((group) =>
-					group.buttons
+					groupControls(group)
 						.filter((b) => b.commandId === commandEditorId)
 						.map((button) => ({ location, tab, group, button })),
 				),

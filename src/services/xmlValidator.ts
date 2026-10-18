@@ -6,6 +6,7 @@ import {
 	type RuleKind,
 } from "@/constants/ruleKinds";
 import { CRM_PARAMETER_VALUE_SET, isNamedCrmParameterValue } from "@/constants/crmParameters";
+import { groupControls } from "@/utils/ribbonMenu";
 
 export interface ValidationError {
 	message: string;
@@ -114,8 +115,15 @@ export function validateRibbonDiffXml(
 			baselineIds.add(tab.id);
 			for (const group of tab.groups) {
 				baselineIds.add(group.id);
-				for (const button of group.buttons) {
+				for (const button of groupControls(group)) {
 					baselineIds.add(button.id);
+					// Menus (#27): new items go to `{section Controls}._children`.
+					if (button.menu) baselineIds.add(button.menu.id);
+					for (const section of button.menu?.sections ?? []) {
+						baselineIds.add(section.id);
+						baselineIds.add(section.controlsId);
+						baselineIds.add(section.controlsId.replace(/\.Controls$/, ""));
+					}
 				}
 			}
 		}

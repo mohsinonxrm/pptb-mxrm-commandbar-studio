@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { groupControls } from "@/utils/ribbonMenu";
 
 export function useKeyboardShortcuts() {
 	const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
@@ -152,7 +153,7 @@ export function useKeyboardShortcuts() {
 					const activeTab = ribbons[activeLocation].tabs.find((t) => t.id === selectedTabId);
 					const orderedButtons =
 						activeTab?.groups.flatMap((group) =>
-							group.buttons.map((button) => ({ groupId: group.id, buttonId: button.id })),
+							groupControls(group).map((button) => ({ groupId: group.id, buttonId: button.id })),
 						) ?? [];
 					const deletedIndex = orderedButtons.findIndex((btn) => btn.buttonId === selectedButtonId);
 					const nextTarget =

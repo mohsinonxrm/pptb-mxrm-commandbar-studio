@@ -25,6 +25,7 @@ import {
 	SearchRegular,
 } from "@fluentui/react-icons";
 import { useMemo, useState } from "react";
+import { groupControls } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	root: {
@@ -225,7 +226,7 @@ export function BottomPanel() {
 		for (const ribbon of Object.values(ribbons)) {
 			for (const tab of ribbon.tabs) {
 				for (const group of tab.groups) {
-					for (const btn of group.buttons) {
+					for (const btn of groupControls(group)) {
 						if (btn.commandId) {
 							map[btn.commandId] = (map[btn.commandId] ?? 0) + 1;
 						}

@@ -16,6 +16,7 @@ import { useSessionStore } from "@/store/sessionStore";
 import { useUIStore } from "@/store/uiStore";
 import type { CommandDefinition, DisplayRule, RuleStep } from "@/types/ribbon";
 import { fetchEntityForms } from "@/services/dataverse/entityService";
+import { findGroupControl } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	section: {
@@ -58,7 +59,7 @@ export const AdvancedSection: React.FC = () => {
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
 	const group = tab?.groups.find((g) => g.id === selectedGroupId);
-	const button = group?.buttons.find((b) => b.id === selectedButtonId);
+	const button = findGroupControl(group, selectedButtonId);
 	const showOpenRecordItemToggle = location === "HomepageGrid" || location === "SubGrid";
 	const activeEntity = useSessionStore((s) => s.activeEntity);
 	const formRibbonScope = useSessionStore((s) => s.formRibbonScope);

@@ -5,6 +5,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
 import { generateRuleId, ruleNameFromCommandId } from "@/utils/idGenerator";
+import { findGroupControl } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	section: {
@@ -83,7 +84,7 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
 	const group = tab?.groups.find((g) => g.id === selectedGroupId);
-	const button = group?.buttons.find((b) => b.id === selectedButtonId);
+	const button = findGroupControl(group, selectedButtonId);
 
 	const command = commands.find((c) => c.id === button?.commandId);
 	const ruleIds = kind === "display" ? (command?.displayRules ?? []) : (command?.enableRules ?? []);

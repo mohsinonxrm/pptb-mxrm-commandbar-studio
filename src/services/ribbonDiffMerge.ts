@@ -277,6 +277,8 @@ export interface MovedControl {
 	/** The group the control now belongs to. */
 	groupId: string;
 	sequence: number;
+	/** For a menu item (#27): the `<Controls>` of the menu section it now belongs to. */
+	controlsId?: string;
 }
 
 export interface ScopeMergeOptions {
@@ -310,15 +312,45 @@ export interface ScopeMergeOptions {
 	removedTabCommands?: Iterable<string>;
 }
 
-/** Ids of the controls the layer itself adds (`CustomAction Location="…._children"`). */
+/** Elements of a `<Menu>` that are containers, not controls. */
+const MENU_CONTAINER_TAGS = new Set(["Menu", "MenuSection", "Controls"]);
+
+/**
+ * The controls inside a control's `<Menu>` (#27): the items of a FlyoutAnchor
+ * / SplitButton written inline in the same CustomAction (how CBS and Ribbon
+ * Workbench write a new flyout), nested flyouts' items included.
+ */
+function menuControlsWithin(ctrl: Element): Element[] {
+	if (ctrl.tagName === "Tab" || ctrl.tagName === "Group") return [];
+	return Array.from(ctrl.getElementsByTagName("*")).filter(
+		(d) => !MENU_CONTAINER_TAGS.has(d.tagName) && !!d.getAttribute("Id") && d.parentElement?.tagName === "Controls",
+	);
+}
+
+/**
+ * Ids of the controls the layer itself adds (`CustomAction Location="…._children"`),
+ * including the menu items written inline in such a control (#27).
+ */
 export function ownControlIds(parts: RibbonDiffParts): Set<string> {
 	const out = new Set<string>();
 	for (const xml of parts.customActions.values()) {
 		const ca = elementOf(xml);
-		const id = controlOf(xml)?.getAttribute("Id");
-		if (ca.tagName === "CustomAction" && id && isChildrenLocation(ca.getAttribute("Location"))) out.add(id);
+		const ctrl = controlOf(xml);
+		const id = ctrl?.getAttribute("Id");
+		if (ca.tagName === "CustomAction" && ctrl && id && isChildrenLocation(ca.getAttribute("Location"))) {
+			out.add(id);
+			for (const item of menuControlsWithin(ctrl)) out.add(item.getAttribute("Id")!);
+		}
 	}
 	return out;
+}
+
+/** The element with `Id="id"` in a CustomAction's CommandUIDefinition (the control itself or a menu item). */
+function controlIn(ca: Element, id: string): Element | null {
+	const ctrl = firstChild(ca, "CommandUIDefinition")?.firstElementChild ?? null;
+	if (!ctrl) return null;
+	if (ctrl.getAttribute("Id") === id) return ctrl;
+	return menuControlsWithin(ctrl).find((d) => d.getAttribute("Id") === id) ?? null;
 }
 
 /**
@@ -430,18 +462,24 @@ export function mergeScopeChanges(
 
 	const merged = mergeRibbonDiffParts(existing, emptyRibbonDiffParts());
 
-	// Index the layer's own controls (control id → CustomAction key) and its
-	// existing overrides of other controls (Location → key).
+	// Index the layer's own controls (control id → CustomAction key; menu items
+	// written inline map to their flyout's CustomAction, #27) and its existing
+	// overrides of other controls (Location → key).
 	const ownControl = new Map<string, string>();
 	const overrideAt = new Map<string, string>();
+	const ownInline: [string, string][] = [];
 	for (const [key, xml] of existing.customActions) {
 		const ctrl = controlOf(xml);
 		const ca = elementOf(xml);
 		if (ca.tagName !== "CustomAction") continue;
 		const location = ca.getAttribute("Location");
-		if (ctrl?.getAttribute("Id") && isChildrenLocation(location)) ownControl.set(ctrl.getAttribute("Id")!, key);
-		else if (location) overrideAt.set(location, key);
+		if (ctrl?.getAttribute("Id") && isChildrenLocation(location)) {
+			ownControl.set(ctrl.getAttribute("Id")!, key);
+			for (const item of menuControlsWithin(ctrl)) ownInline.push([item.getAttribute("Id")!, key]);
+		} else if (location) overrideAt.set(location, key);
 	}
+	// A control with its own CustomAction wins over an inline copy of the same id.
+	for (const [id, key] of ownInline) if (!ownControl.has(id)) ownControl.set(id, key);
 
 	for (const [key, xml] of delta.customActions) {
 		const ca = elementOf(xml);
@@ -449,13 +487,19 @@ export function mergeScopeChanges(
 		const ctrlId = ctrl?.getAttribute("Id") ?? null;
 		const targetKey = ctrlId ? ownControl.get(ctrlId) : undefined;
 		if (ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !isChildrenLocation(ca.getAttribute("Location"))) {
-			// Edit of a control the layer owns → replace it inside its own CustomAction.
-			const target = elementOf(existing.customActions.get(targetKey)!);
-			const def = firstChild(target, "CommandUIDefinition")!;
-			const imported = withChildrenOf(target.ownerDocument.importNode(ctrl, true) as Element, def.firstElementChild);
-			def.replaceChild(imported, def.firstElementChild!);
+			// Edit of a control the layer owns → replace it inside its own
+			// CustomAction (for a menu item: in place, inside its flyout's menu).
+			const target = elementOf(merged.customActions.get(targetKey)!);
+			const original = controlIn(target, ctrlId);
+			if (!original) {
+				merged.customActions.set(key, xml);
+				continue;
+			}
+			const isTop = original.parentElement?.tagName === "CommandUIDefinition";
+			const imported = withChildrenOf(target.ownerDocument.importNode(ctrl, true) as Element, original);
+			original.parentNode!.replaceChild(imported, original);
 			const seq = ctrl.getAttribute("Sequence");
-			if (seq) target.setAttribute("Sequence", seq);
+			if (seq && isTop) target.setAttribute("Sequence", seq);
 			merged.customActions.set(targetKey, s.serializeToString(target));
 			continue;
 		}
@@ -483,34 +527,67 @@ export function mergeScopeChanges(
 		const xml = key ? merged.customActions.get(key) : undefined;
 		if (!key || !xml) continue;
 		const ca = elementOf(xml);
-		ca.setAttribute("Location", `${move.groupId}.Controls._children`);
-		ca.setAttribute("Sequence", String(move.sequence));
-		firstChild(ca, "CommandUIDefinition")?.firstElementChild?.setAttribute("Sequence", String(move.sequence));
+		const ctrl = controlIn(ca, move.id);
+		if (!ctrl) continue;
+		const container = move.controlsId ?? `${move.groupId}.Controls`;
+		ctrl.setAttribute("Sequence", String(move.sequence));
+		if (ctrl.parentElement?.tagName === "CommandUIDefinition") {
+			ca.setAttribute("Location", `${container}._children`);
+			ca.setAttribute("Sequence", String(move.sequence));
+		} else if (ctrl.parentElement?.getAttribute("Id") !== container) {
+			// A menu item written inline that moved to another menu section (#27):
+			// into that section when it is in the same CustomAction, otherwise
+			// into a CustomAction of its own.
+			const target = Array.from(ca.getElementsByTagName("Controls")).find((c) => c.getAttribute("Id") === container);
+			ctrl.parentNode!.removeChild(ctrl);
+			if (target) target.appendChild(ctrl);
+			else {
+				const own = elementOf(
+					`<CustomAction Id="${move.id}.CustomAction" Location="${container}._children" Sequence="${move.sequence}"><CommandUIDefinition/></CustomAction>`,
+				);
+				firstChild(own, "CommandUIDefinition")!.appendChild(own.ownerDocument.importNode(ctrl, true));
+				merged.customActions.set(`ca:${move.id}.CustomAction`, s.serializeToString(own));
+			}
+		}
 		merged.customActions.set(key, s.serializeToString(ca));
 	}
 
 	// Removals.
 	const removedCommands = new Set<string>();
+	const removedLabels = new Set<string>();
 	for (const [key, xml] of Array.from(merged.customActions)) {
 		const el = elementOf(xml);
 		if (el.tagName === "HideCustomAction") {
 			if (unhidden.has(el.getAttribute("Location") ?? "")) merged.customActions.delete(key);
 			continue;
 		}
-		const ctrl = controlOf(xml);
+		// The control of THIS parsed CustomAction: menu items are removed from it in place.
+		const ctrl = firstChild(el, "CommandUIDefinition")?.firstElementChild ?? null;
 		const ctrlId = ctrl?.getAttribute("Id");
-		if (ctrlId && deleted.has(ctrlId) && isChildrenLocation(el.getAttribute("Location"))) {
+		if (!ctrl || !isChildrenLocation(el.getAttribute("Location"))) continue;
+		if (ctrlId && deleted.has(ctrlId)) {
 			merged.customActions.delete(key);
 			// Only the labels this control references — not every id that merely
 			// starts with its id (#11 review N11).
 			for (const m of xml.matchAll(LOC_LABEL_REF)) merged.locLabels.delete(m[1]);
-			const commandId = ctrl?.getAttribute("Command");
-			if (commandId) removedCommands.add(commandId);
+			// Its menu items' commands too (#27).
+			for (const c of commandsWithin(ctrl)) removedCommands.add(c);
+			continue;
 		}
+		// Menu items written inline in a flyout the layer adds (#27): removed in
+		// place; their labels go unless something else still uses them.
+		const items = menuControlsWithin(ctrl).filter((d) => deleted.has(d.getAttribute("Id") ?? ""));
+		if (items.length === 0) continue;
+		for (const item of items) {
+			const itemXml = s.serializeToString(item);
+			for (const m of itemXml.matchAll(LOC_LABEL_REF)) removedLabels.add(m[1]);
+			for (const c of commandsWithin(item)) removedCommands.add(c);
+			item.parentNode?.removeChild(item);
+		}
+		merged.customActions.set(key, s.serializeToString(el));
 	}
 
 	// Deleted tabs / groups (#48), and everything placed inside them.
-	const removedLabels = new Set<string>();
 	const removedTabCommandCandidates = new Set<string>();
 	const gone = new Set(options.deletedContainerIds ?? []);
 	const forget = (el: Element, xml: string) => {
