@@ -122,6 +122,7 @@ export const LocalizationEditor: React.FC = () => {
 
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const upsertLocLabel = useRibbonStore((s) => s.upsertLocLabel);
+	const batch = useRibbonStore((s) => s.batch);
 
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const baseLcid = useRibbonStore((s) => s.baseLanguageCode);
@@ -206,15 +207,18 @@ export const LocalizationEditor: React.FC = () => {
 				.filter((e) => e[field])
 				.map((e) => ({ languageCode: e.lcid, description: e[field] as string }));
 
-		if (toTitles("label").length > 0) {
-			upsertLocLabel({ id: labelId, titles: toTitles("label") });
-		}
-		if (toTitles("tooltipTitle").length > 0) {
-			upsertLocLabel({ id: tooltipTitleId, titles: toTitles("tooltipTitle") });
-		}
-		if (toTitles("tooltipBody").length > 0) {
-			upsertLocLabel({ id: tooltipBodyId, titles: toTitles("tooltipBody") });
-		}
+		// One undo step for the whole dialog (#34).
+		batch(() => {
+			if (toTitles("label").length > 0) {
+				upsertLocLabel({ id: labelId, titles: toTitles("label") });
+			}
+			if (toTitles("tooltipTitle").length > 0) {
+				upsertLocLabel({ id: tooltipTitleId, titles: toTitles("tooltipTitle") });
+			}
+			if (toTitles("tooltipBody").length > 0) {
+				upsertLocLabel({ id: tooltipBodyId, titles: toTitles("tooltipBody") });
+			}
+		});
 		closeLocalizationEditor();
 	};
 

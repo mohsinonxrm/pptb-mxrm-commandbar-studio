@@ -138,7 +138,8 @@ export const ImportXmlModal: React.FC = () => {
 
 	const handleImport = () => {
 		if (!handleValidate()) return;
-		applyRibbonDiffXml(xmlText, mode);
+		// One undo step for the whole import (#34).
+		useRibbonStore.getState().batch(() => applyRibbonDiffXml(xmlText, mode));
 		closeImportXml();
 	};
 

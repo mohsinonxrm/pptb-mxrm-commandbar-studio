@@ -32,8 +32,21 @@ export interface HistoryEntry {
 	detail: string;
 	icon: string;
 	color: "success" | "warn" | "info" | "danger";
-	snapshot: RibbonStoreState;
+	/** The workspace before this entry's change (after it, once the entry is undone). */
+	snapshot: WorkspaceSnapshot;
 }
+
+type HistoryMeta = Omit<HistoryEntry, "snapshot">;
+
+/**
+ * The editable workspace (#34): what undo / redo restore — the canvas, the
+ * definitions it references and the pending un-hides the publish diff reads.
+ * Baselines, layers and other loaded data are not part of it.
+ */
+export type WorkspaceSnapshot = Pick<
+	RibbonStoreState,
+	"ribbons" | "commands" | "enableRules" | "displayRules" | "locLabels" | "pendingUnhides"
+>;
 
 export type RibbonStoreState = {
 	ribbons: Record<RibbonLocation, RibbonDefinition>;
@@ -102,6 +115,12 @@ export interface RibbonStore extends RibbonStoreState {
 	undo(): void;
 	redo(): void;
 	restore(index: number): void;
+	/**
+	 * Runs `fn` as one undo step (#34): the actions it calls make a single
+	 * history entry (named after the first of them). Nested batches join the
+	 * outer one.
+	 */
+	batch(fn: () => void): void;
 
 	// Mutations
 	moveButton(src: DragSource, dst: DragTarget): void;
@@ -178,21 +197,78 @@ function cloneRibbons(
 	return JSON.parse(JSON.stringify(ribbons));
 }
 
-function commitMutation(
-	state: RibbonStoreState,
-	mutator: (ribbons: Record<RibbonLocation, RibbonDefinition>) => void,
-	meta: Omit<HistoryEntry, "snapshot">,
-): Partial<RibbonStoreState> {
-	const next = cloneRibbons(state.ribbons);
-	mutator(next);
-	const entry: HistoryEntry = { ...meta, snapshot: { ...state } };
-	const past = [...state.past, entry].slice(-MAX_HISTORY);
+function workspaceOf(state: RibbonStoreState): WorkspaceSnapshot {
+	// State is updated immutably, so the snapshot can share it.
 	return {
-		ribbons: next,
-		past,
+		ribbons: state.ribbons,
+		commands: state.commands,
+		enableRules: state.enableRules,
+		displayRules: state.displayRules,
+		locLabels: state.locLabels,
+		pendingUnhides: state.pendingUnhides,
+	};
+}
+
+function historyMeta(
+	op: string,
+	target: string,
+	detail: string,
+	icon: string,
+	color: HistoryMeta["color"] = "info",
+): HistoryMeta {
+	return {
+		ts: new Date().toISOString(),
+		userId: "",
+		userName: "You",
+		op,
+		target,
+		detail,
+		icon,
+		color,
+	};
+}
+
+/** The open batch (#34), if any: its actions make one history entry when it closes. */
+let openBatch: { snapshot: WorkspaceSnapshot; meta: HistoryMeta | null } | null = null;
+
+/**
+ * Applies a workspace change as one undo step: every user action goes through
+ * here, so undo / redo always restore the canvas and the definitions together.
+ */
+function record(
+	state: RibbonStoreState,
+	change: Partial<WorkspaceSnapshot>,
+	meta: HistoryMeta,
+): Partial<RibbonStoreState> {
+	if (openBatch) {
+		if (!openBatch.meta) openBatch.meta = meta;
+		return change;
+	}
+	const entry: HistoryEntry = { ...meta, snapshot: workspaceOf(state) };
+	return {
+		...change,
+		past: [...state.past, entry].slice(-MAX_HISTORY),
 		future: [],
 		mutationsSincePublish: state.mutationsSincePublish + 1,
 	};
+}
+
+function commitMutation(
+	state: RibbonStoreState,
+	mutator: (ribbons: Record<RibbonLocation, RibbonDefinition>) => void,
+	meta: HistoryMeta,
+): Partial<RibbonStoreState> {
+	const next = cloneRibbons(state.ribbons);
+	mutator(next);
+	return record(state, { ribbons: next }, meta);
+}
+
+/** Inserts or replaces the item with `item.id`; null when it is already there unchanged. */
+function upsertById<T extends { id: string }>(items: T[], item: T): T[] | null {
+	const i = items.findIndex((x) => x.id === item.id);
+	if (i < 0) return [...items, item];
+	if (JSON.stringify(items[i]) === JSON.stringify(item)) return null;
+	return items.map((x, j) => (j === i ? item : x));
 }
 
 const NO_LAYERS: Record<LayerScope, LayerSnapshot | null> = { entity: null, application: null };
@@ -308,6 +384,8 @@ export const useRibbonStore = create<RibbonStore>()(
 				past: [],
 				future: [],
 			});
+			// A load resets history: a batch it runs in starts over from it.
+			if (openBatch) openBatch = { snapshot: workspaceOf(get()), meta: null };
 		},
 
 		setConflicts(entries) {
@@ -336,83 +414,59 @@ export const useRibbonStore = create<RibbonStore>()(
 				past: [],
 				future: [],
 			});
+			if (openBatch) openBatch = { snapshot: workspaceOf(get()), meta: null };
 		},
 
 		undo() {
-			const { past, future, ribbons } = get();
-			if (past.length === 0) return;
+			const { past, future } = get();
+			if (past.length === 0 || openBatch) return;
 			const entry = past[past.length - 1];
 			set({
-				ribbons: entry.snapshot.ribbons,
+				...entry.snapshot,
 				past: past.slice(0, -1),
-				future: [{ ...entry, snapshot: { ...get(), ribbons } }, ...future],
+				future: [{ ...entry, snapshot: workspaceOf(get()) }, ...future],
 				mutationsSincePublish: Math.max(0, get().mutationsSincePublish - 1),
 			});
 		},
 
 		redo() {
-			const { future, ribbons } = get();
-			if (future.length === 0) return;
+			const { future } = get();
+			if (future.length === 0 || openBatch) return;
 			const [entry, ...rest] = future;
 			set({
-				ribbons: entry.snapshot.ribbons,
-				past: [...get().past, { ...entry, snapshot: { ...get(), ribbons } }],
+				...entry.snapshot,
+				past: [...get().past, { ...entry, snapshot: workspaceOf(get()) }],
 				future: rest,
 				mutationsSincePublish: get().mutationsSincePublish + 1,
 			});
 		},
 
 		restore(index) {
-			const { past } = get();
-			if (index < 0 || index >= past.length) return;
-			const target = past[index];
-			const currentSnapshot: RibbonStoreState = {
-				ribbons: cloneRibbons(get().ribbons),
-				baseline: cloneRibbons(get().baseline),
-				baselineCommands: [...get().baselineCommands],
-				baselineEnableRules: [...get().baselineEnableRules],
-				baselineDisplayRules: [...get().baselineDisplayRules],
-				baselineLocLabels: [...get().baselineLocLabels],
-				layers: { ...get().layers },
-				pendingUnhides: { ...get().pendingUnhides },
-				baseLanguageCode: get().baseLanguageCode,
-				commands: [...get().commands],
-				displayRules: [...get().displayRules],
-				enableRules: [...get().enableRules],
-				locLabels: [...get().locLabels],
-				templates: [...get().templates],
-				conflicts: [...get().conflicts],
-				mutationsSincePublish: get().mutationsSincePublish,
-				past: [...get().past],
-				future: [...get().future],
-			};
+			// Back to the workspace before entry `index`: the same as undoing each
+			// later step, so the steps stay redoable and baselines are untouched.
+			if (index < 0 || index >= get().past.length || openBatch) return;
+			while (get().past.length > index) get().undo();
+		},
 
-			set({
-				ribbons: cloneRibbons(target.snapshot.ribbons),
-				baseline: cloneRibbons(target.snapshot.baseline),
-				commands: [...target.snapshot.commands],
-				displayRules: [...target.snapshot.displayRules],
-				enableRules: [...target.snapshot.enableRules],
-				locLabels: [...target.snapshot.locLabels],
-				templates: [...target.snapshot.templates],
-				conflicts: [...target.snapshot.conflicts],
-				mutationsSincePublish: target.snapshot.mutationsSincePublish,
-				past: past.slice(0, index + 1),
-				future: [
-					{
-						ts: new Date().toISOString(),
-						userId: "",
-						userName: "You",
-						op: "restored",
-						target: target.target,
-						detail: "from history",
-						icon: "clock_arrow_counterclockwise",
-						color: "info",
-						snapshot: currentSnapshot,
-					},
-					...get().future,
-				],
-			});
+		batch(fn) {
+			if (openBatch) {
+				fn();
+				return;
+			}
+			openBatch = { snapshot: workspaceOf(get()), meta: null };
+			try {
+				fn();
+			} finally {
+				const { snapshot, meta } = openBatch;
+				openBatch = null;
+				if (meta) {
+					set((state) => ({
+						past: [...state.past, { ...meta, snapshot }].slice(-MAX_HISTORY),
+						future: [],
+						mutationsSincePublish: state.mutationsSincePublish + 1,
+					}));
+				}
+			}
 		},
 
 		moveButton(src, dst) {
@@ -963,18 +1017,30 @@ export const useRibbonStore = create<RibbonStore>()(
 			if (!cmd) return false;
 			const displayRules = [...cmd.displayRules];
 			for (const id of HIDE_DISPLAY_RULES) if (!displayRules.includes(id)) displayRules.push(id);
-			get().upsertCommand({ ...cmd, displayRules });
+			set((state) => {
+				const commands = upsertById(state.commands, { ...cmd, displayRules });
+				if (!commands) return state;
+				return record(
+					state,
+					{ commands },
+					historyMeta("hid", cmd.id, "with display rules", "eye_off", "warn"),
+				);
+			});
 			return true;
 		},
 
 		upsertCommand(cmd) {
 			set((state) => {
-				const existing = state.commands.findIndex((c) => c.id === cmd.id);
-				const commands =
-					existing >= 0
-						? state.commands.map((c, i) => (i === existing ? cmd : c))
-						: [...state.commands, cmd];
-				return { commands, mutationsSincePublish: state.mutationsSincePublish + 1 };
+				const commands = upsertById(state.commands, cmd);
+				if (!commands) return state;
+				const added = commands.length > state.commands.length;
+				return record(
+					state,
+					{ commands },
+					added
+						? historyMeta("added", cmd.id, "command", "add", "success")
+						: historyMeta("edited", cmd.id, "command", "edit"),
+				);
 			});
 		},
 
@@ -1006,25 +1072,11 @@ export const useRibbonStore = create<RibbonStore>()(
 						: c,
 				);
 
-				const entry: HistoryEntry = {
-					ts: new Date().toISOString(),
-					userId: "",
-					userName: "You",
-					op: "renamed",
-					target: oldId,
-					detail: `command -> ${newId}`,
-					icon: "edit",
-					color: "info",
-					snapshot: { ...current },
-				};
-
-				return {
-					ribbons: nextRibbons,
-					commands,
-					past: [...current.past, entry].slice(-MAX_HISTORY),
-					future: [],
-					mutationsSincePublish: current.mutationsSincePublish + 1,
-				};
+				return record(
+					current,
+					{ ribbons: nextRibbons, commands },
+					historyMeta("renamed", oldId, `command -> ${newId}`, "edit"),
+				);
 			});
 
 			return true;
@@ -1032,12 +1084,16 @@ export const useRibbonStore = create<RibbonStore>()(
 
 		upsertDisplayRule(rule) {
 			set((state) => {
-				const existing = state.displayRules.findIndex((r) => r.id === rule.id);
-				const displayRules =
-					existing >= 0
-						? state.displayRules.map((r, i) => (i === existing ? rule : r))
-						: [...state.displayRules, rule];
-				return { displayRules, mutationsSincePublish: state.mutationsSincePublish + 1 };
+				const displayRules = upsertById(state.displayRules, rule);
+				if (!displayRules) return state;
+				const added = displayRules.length > state.displayRules.length;
+				return record(
+					state,
+					{ displayRules },
+					added
+						? historyMeta("added", rule.id, "display rule", "add", "success")
+						: historyMeta("edited", rule.id, "display rule", "edit"),
+				);
 			});
 		},
 
@@ -1060,25 +1116,11 @@ export const useRibbonStore = create<RibbonStore>()(
 					displayRules: c.displayRules.map((id) => (id === oldId ? newId : id)),
 				}));
 
-				const entry: HistoryEntry = {
-					ts: new Date().toISOString(),
-					userId: "",
-					userName: "You",
-					op: "renamed",
-					target: oldId,
-					detail: `display rule -> ${newId}`,
-					icon: "edit",
-					color: "info",
-					snapshot: { ...current },
-				};
-
-				return {
-					displayRules,
-					commands,
-					past: [...current.past, entry].slice(-MAX_HISTORY),
-					future: [],
-					mutationsSincePublish: current.mutationsSincePublish + 1,
-				};
+				return record(
+					current,
+					{ displayRules, commands },
+					historyMeta("renamed", oldId, `display rule -> ${newId}`, "edit"),
+				);
 			});
 
 			return true;
@@ -1086,12 +1128,16 @@ export const useRibbonStore = create<RibbonStore>()(
 
 		upsertEnableRule(rule) {
 			set((state) => {
-				const existing = state.enableRules.findIndex((r) => r.id === rule.id);
-				const enableRules =
-					existing >= 0
-						? state.enableRules.map((r, i) => (i === existing ? rule : r))
-						: [...state.enableRules, rule];
-				return { enableRules, mutationsSincePublish: state.mutationsSincePublish + 1 };
+				const enableRules = upsertById(state.enableRules, rule);
+				if (!enableRules) return state;
+				const added = enableRules.length > state.enableRules.length;
+				return record(
+					state,
+					{ enableRules },
+					added
+						? historyMeta("added", rule.id, "enable rule", "add", "success")
+						: historyMeta("edited", rule.id, "enable rule", "edit"),
+				);
 			});
 		},
 
@@ -1114,25 +1160,11 @@ export const useRibbonStore = create<RibbonStore>()(
 					enableRules: c.enableRules.map((id) => (id === oldId ? newId : id)),
 				}));
 
-				const entry: HistoryEntry = {
-					ts: new Date().toISOString(),
-					userId: "",
-					userName: "You",
-					op: "renamed",
-					target: oldId,
-					detail: `enable rule -> ${newId}`,
-					icon: "edit",
-					color: "info",
-					snapshot: { ...current },
-				};
-
-				return {
-					enableRules,
-					commands,
-					past: [...current.past, entry].slice(-MAX_HISTORY),
-					future: [],
-					mutationsSincePublish: current.mutationsSincePublish + 1,
-				};
+				return record(
+					current,
+					{ enableRules, commands },
+					historyMeta("renamed", oldId, `enable rule -> ${newId}`, "edit"),
+				);
 			});
 
 			return true;
@@ -1140,25 +1172,25 @@ export const useRibbonStore = create<RibbonStore>()(
 
 		upsertLocLabel(label) {
 			set((state) => {
-				const existing = state.locLabels.findIndex((l) => l.id === label.id);
-				if (existing >= 0 && JSON.stringify(state.locLabels[existing]) === JSON.stringify(label)) return {};
-				const locLabels =
-					existing >= 0
-						? state.locLabels.map((l, i) => (i === existing ? label : l))
-						: [...state.locLabels, label];
+				const locLabels = upsertById(state.locLabels, label);
+				if (!locLabels) return state;
 				// Translation edits are publishable changes too (#49).
-				return { locLabels, mutationsSincePublish: state.mutationsSincePublish + 1 };
+				return record(state, { locLabels }, historyMeta("edited", label.id, "label", "translate"));
 			});
 		},
 
 		setLayerHideUnhidden(scope, controlId, unhide) {
 			set((state) => {
+				if (state.pendingUnhides[scope].includes(controlId) === unhide) return state;
 				const ids = state.pendingUnhides[scope].filter((id) => id !== controlId);
 				if (unhide) ids.push(controlId);
-				return {
-					pendingUnhides: { ...state.pendingUnhides, [scope]: ids },
-					mutationsSincePublish: state.mutationsSincePublish + 1,
-				};
+				return record(
+					state,
+					{ pendingUnhides: { ...state.pendingUnhides, [scope]: ids } },
+					unhide
+						? historyMeta("un-hid", controlId, "on publish", "eye")
+						: historyMeta("kept hidden", controlId, "by customizations", "eye_off"),
+				);
 			});
 		},
 
