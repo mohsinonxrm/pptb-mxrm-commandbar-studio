@@ -351,11 +351,13 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 		}
 		setUploading(true);
 		try {
-			const wr = await ensureFluentIconWebResource(selectedIcon, variant, publisherPrefix, fluentIconToSvg);
+			const wr = await ensureFluentIconWebResource(selectedIcon, variant, publisherPrefix, fluentIconToSvg, {
+				busy: { onProgress: (msg) => logs.logInfo("webresource", msg) },
+			});
 			if (wr.publishError) {
 				logs.logWarn(
 					"webresource",
-					`Created icon web resource ${wr.name} but publishing it failed: ${wr.publishError}. Publish customizations before using the button.`,
+					`Publishing icon web resource ${wr.name} failed: ${wr.publishError}. Pick the icon again or publish customizations before using the button.`,
 				);
 			}
 			setButtonProp(location, tabId, selectedGroupId, selectedButtonId, {
@@ -389,6 +391,13 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 	};
 
 	const handleUploadSvg = async (file: File) => {
+		// Same rule as the Fluent tab: the SVG must land in an unmanaged solution,
+		// or a ribbon referencing it fails to import elsewhere (#19).
+		if (!activeSolution || activeSolution.isManaged) {
+			setIconError("Select an unmanaged solution first — the SVG is added to it as a web resource.");
+			return;
+		}
+		setIconError(null);
 		setUploading(true);
 		try {
 			const content = await new Promise<string>((resolve, reject) => {

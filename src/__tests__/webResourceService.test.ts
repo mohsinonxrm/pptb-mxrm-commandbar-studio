@@ -8,6 +8,7 @@ import {
 	saveWebResource,
 	upsertWebResource,
 } from "@/services/dataverse/webResourceService";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { useSessionStore } from "@/store/sessionStore";
 import type { Solution } from "@/types/solution";
 
@@ -154,5 +155,35 @@ describe("saveWebResource", () => {
 		useSessionStore.setState({ activeSolution: solution(true) });
 		await saveWebResource("cbstest_/x.js", "Ow==", 3);
 		expect(api.execute).not.toHaveBeenCalled();
+	});
+
+	it("warns when a managed active solution means the web resource lands in no solution", async () => {
+		const api = fakeApi();
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
+		useSessionStore.setState({ activeSolution: solution(true) });
+		useRuntimeLogStore.getState().clear();
+		const res = await saveWebResource("cbstest_/x.js", "Ow==", 3);
+		expect(res.solutionWarning).toMatch(/cbstest_\/x\.js .*not added to any solution.*CBSLiveTest is managed/);
+		const warns = useRuntimeLogStore.getState().entries.filter((e) => e.level === "warn");
+		expect(warns.map((e) => e.message)).toEqual([res.solutionWarning]);
+	});
+
+	it("warns when no solution is selected", async () => {
+		const api = fakeApi();
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
+		useRuntimeLogStore.getState().clear();
+		const res = await saveWebResource("cbstest_/x.js", "Ow==", 3);
+		expect(res.solutionWarning).toMatch(/no solution is selected/);
+		expect(useRuntimeLogStore.getState().entries.some((e) => e.level === "warn")).toBe(true);
+	});
+
+	it("does not warn when the web resource was added to the active unmanaged solution", async () => {
+		const api = fakeApi();
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
+		useSessionStore.setState({ activeSolution: solution(false) });
+		useRuntimeLogStore.getState().clear();
+		const res = await saveWebResource("cbstest_/x.js", "Ow==", 3);
+		expect(res.solutionWarning).toBeUndefined();
+		expect(useRuntimeLogStore.getState().entries).toEqual([]);
 	});
 });

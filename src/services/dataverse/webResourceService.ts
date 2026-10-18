@@ -1,3 +1,4 @@
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { useSessionStore } from "@/store/sessionStore";
 import type { WebResource, WebResourceType } from "@/types/webResource";
 
@@ -102,6 +103,8 @@ export interface UpsertWebResourceResult {
 	updated: boolean;
 	/** The solution the web resource was added to, if any. */
 	solutionUniqueName?: string;
+	/** Set by saveWebResource when no unmanaged solution could be targeted. */
+	solutionWarning?: string;
 }
 
 /**
@@ -219,7 +222,9 @@ export async function loadWebResourceByName(name: string): Promise<WebResource |
 /**
  * Creates or updates a web resource through the PPTB host and adds it to the
  * active unmanaged solution (#19). Pass `solutionUniqueName` to target another
- * solution; a managed or missing active solution means no solution is targeted.
+ * solution. With a managed or missing active solution the web resource is
+ * saved to the Default solution only; that is reported as `solutionWarning`
+ * and logged as a warning (a ribbon referencing it would not import elsewhere).
  */
 export async function saveWebResource(
 	name: string,
@@ -230,10 +235,21 @@ export async function saveWebResource(
 	const active = useSessionStore.getState().activeSolution;
 	const solutionUniqueName =
 		options.solutionUniqueName ?? (active && !active.isManaged ? active.uniqueName : undefined);
-	return upsertWebResource(getHostDataverseApi(), name, content, typeCode, {
+	const result = await upsertWebResource(getHostDataverseApi(), name, content, typeCode, {
 		...options,
 		solutionUniqueName,
 	});
+	if (!solutionUniqueName) {
+		const why = active
+			? `the active solution ${active.uniqueName} is managed`
+			: "no solution is selected";
+		result.solutionWarning =
+			`Web resource ${name} was saved but not added to any solution because ${why}. ` +
+			`It is only in the Default solution — select an unmanaged solution and save it again ` +
+			`so it travels with your customizations.`;
+		useRuntimeLogStore.getState().logWarn("webresource", result.solutionWarning);
+	}
+	return result;
 }
 
 /**

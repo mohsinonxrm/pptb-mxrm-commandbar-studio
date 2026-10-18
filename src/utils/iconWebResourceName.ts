@@ -14,8 +14,20 @@ export function toBase64Utf8(text: string): string {
 }
 
 /**
+ * File name of a Fluent icon's web resource: `<snake_name>.svg`, or
+ * `<snake_name>.filled.svg` for the filled variant. A snake-cased icon name
+ * never contains a period, so the variant can't collide with another icon:
+ * the filled `Star` is `star.filled.svg` while an icon named `StarFilled` is
+ * `star_filled.svg`. Regular names are unchanged from the first release; only
+ * the filled suffix moved from `_filled` to `.filled`.
+ */
+export function fluentIconFileName(pascalName: string, variant: FluentIconVariant = "regular"): string {
+	return `${toSnakeCase(pascalName)}${variant === "filled" ? ".filled" : ""}.svg`;
+}
+
+/**
  * Web resource name for a Fluent icon picked in CBS:
- * `<prefix>_/icons/cbs/<snake_name>.svg` (filled icons get a `_filled` suffix).
+ * `<prefix>_/icons/cbs/<file name>` (see fluentIconFileName).
  * The same icon always maps to the same name, so it is uploaded once and
  * reused by every button that picks it.
  */
@@ -26,6 +38,5 @@ export function fluentIconWebResourceName(
 ): string {
 	const prefix = publisherPrefix.trim().replace(/_+$/, "");
 	if (!prefix) throw new Error("A publisher prefix is required to name the icon web resource");
-	const suffix = variant === "filled" ? "_filled" : "";
-	return `${prefix}_/icons/cbs/${toSnakeCase(pascalName)}${suffix}.svg`;
+	return `${prefix}_/icons/cbs/${fluentIconFileName(pascalName, variant)}`;
 }
