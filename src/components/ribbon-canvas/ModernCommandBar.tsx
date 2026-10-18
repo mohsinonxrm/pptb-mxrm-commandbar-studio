@@ -33,6 +33,7 @@ import { useUIStore } from "@/store/uiStore";
 import FluentIcon from "@/components/shared/FluentIcon";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { moveTargets } from "@/utils/moveTargets";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
 import { copyControl } from "@/utils/ribbonMenu";
 import { canDeleteControl } from "@/utils/ribbonProvenance";
@@ -174,6 +175,9 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
 	const customizeOobButton = useRibbonStore((s) => s.customizeOobButton);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	// Group titles resolve like the classic canvas shows them (#75).
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
+	const groupText = (label: string, id: string) => resolveDisplayLabel(label, locLabels, lang) || id;
 	const openIconPicker = useUIStore((s) => s.openIconPicker);
 	const openLocalizationEditor = useUIStore((s) => s.openLocalizationEditor);
 	const openNewButton = useUIStore((s) => s.openNewButton);
@@ -397,7 +401,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 						}
 						return (
 							<Tooltip
-								content={`Add a new button to "${firstGroup.label}"`}
+								content={`Add a new button to "${groupText(firstGroup.label, firstGroup.id)}"`}
 								relationship="label"
 							>
 								<button
@@ -551,29 +555,27 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									Delete
 								</MenuItem>
 							)}
-							{tab.groups
-								.filter((g) => g.id !== btnMenu.groupId)
-								.map((g) => (
-									<MenuItem
-										key={g.id}
-										icon={<ArrowMoveRegular />}
-										disabled={isGlobalOobReadOnly(btnMenu.button)}
-										onClick={() => {
-											moveButton(
-												{
-													groupId: btnMenu.groupId,
-													buttonId: btnMenu.button.id,
-													tabId: tab.id,
-													location,
-												},
-												{ groupId: g.id, tabId: tab.id, location },
-											);
-											setBtnMenu(null);
-										}}
-									>
-										Move to: {g.label}
-									</MenuItem>
-								))}
+							{moveTargets(tab, btnMenu.groupId, btnMenu.button.id, locLabels, lang).map((t) => (
+								<MenuItem
+									key={t.groupId}
+									icon={<ArrowMoveRegular />}
+									disabled={isGlobalOobReadOnly(btnMenu.button)}
+									onClick={() => {
+										moveButton(
+											{
+												groupId: btnMenu.groupId,
+												buttonId: btnMenu.button.id,
+												tabId: tab.id,
+												location,
+											},
+											{ groupId: t.groupId, tabId: tab.id, location },
+										);
+										setBtnMenu(null);
+									}}
+								>
+									Move to: {t.text}
+								</MenuItem>
+							))}
 						</MenuList>
 					</MenuPopover>
 				</Menu>
@@ -582,7 +584,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 			{hideWarning && (
 				<HideOobWarningModal
 					open
-					buttonLabel={hideWarning.button.label}
+					buttonLabel={resolveDisplayLabel(hideWarning.button.label, locLabels)}
 					onConfirmHide={() => {
 						hideOobButton(location, tab.id, hideWarning.groupId, hideWarning.button.id);
 						setHideWarning(null);

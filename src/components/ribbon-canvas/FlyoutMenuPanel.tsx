@@ -276,6 +276,7 @@ function MenuSectionView({
 	renderItem,
 }: MenuSectionViewProps) {
 	const styles = useStyles();
+	const locLabels = useRibbonStore((s) => s.locLabels);
 	const items = [...section.controls].sort((a, b) => a.sequence - b.sequence);
 	return (
 		<div className={styles.section}>
@@ -309,7 +310,8 @@ function MenuSectionView({
 						</Tooltip>
 					</>
 				) : (
-					<Caption1>{section.title || section.id}</Caption1>
+					// A loaded section's Title can be a `$LocLabels:` / `$Resources:` token (#75).
+					<Caption1>{resolveDisplayLabel(section.title, locLabels) || section.id}</Caption1>
 				)}
 			</div>
 			{items.map((item) => renderItem(item))}

@@ -7,18 +7,24 @@ import {
 	MenuDivider,
 } from "@fluentui/react-components";
 import { ArrowMoveRegular } from "@fluentui/react-icons";
+import { useRibbonStore } from "@/store/ribbonStore";
+import { moveTargets } from "@/utils/moveTargets";
 import type { RibbonLocation, RibbonTab } from "@/types/ribbon";
 
 interface MoveToFlyoutProps {
 	trigger: React.ReactElement;
 	currentGroupId: string;
+	/** The button being moved, so its own group is never offered. */
+	buttonId?: string;
 	tab: RibbonTab;
 	location: RibbonLocation;
 	onMove: (targetGroupId: string) => void;
 }
 
-export function MoveToFlyout({ trigger, currentGroupId, tab, onMove }: MoveToFlyoutProps) {
-	const otherGroups = tab.groups.filter((g) => g.id !== currentGroupId);
+export function MoveToFlyout({ trigger, currentGroupId, buttonId, tab, onMove }: MoveToFlyoutProps) {
+	const locLabels = useRibbonStore((s) => s.locLabels);
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
+	const otherGroups = moveTargets(tab, currentGroupId, buttonId, locLabels, lang);
 
 	if (otherGroups.length === 0) {
 		return null;
@@ -30,8 +36,8 @@ export function MoveToFlyout({ trigger, currentGroupId, tab, onMove }: MoveToFly
 			<MenuPopover>
 				<MenuList>
 					{otherGroups.map((g) => (
-						<MenuItem key={g.id} icon={<ArrowMoveRegular />} onClick={() => onMove(g.id)}>
-							{g.label}
+						<MenuItem key={g.groupId} icon={<ArrowMoveRegular />} onClick={() => onMove(g.groupId)}>
+							{g.text}
 						</MenuItem>
 					))}
 				</MenuList>
@@ -43,12 +49,16 @@ export function MoveToFlyout({ trigger, currentGroupId, tab, onMove }: MoveToFly
 // Standalone flyout that can be used in a MenuItem context (nested sub-menu)
 interface MoveToSubMenuProps {
 	currentGroupId: string;
+	/** The button being moved, so its own group is never offered. */
+	buttonId?: string;
 	tab: RibbonTab;
 	onMove: (targetGroupId: string) => void;
 }
 
-export function MoveToSubMenuItems({ currentGroupId, tab, onMove }: MoveToSubMenuProps) {
-	const otherGroups = tab.groups.filter((g) => g.id !== currentGroupId);
+export function MoveToSubMenuItems({ currentGroupId, buttonId, tab, onMove }: MoveToSubMenuProps) {
+	const locLabels = useRibbonStore((s) => s.locLabels);
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
+	const otherGroups = moveTargets(tab, currentGroupId, buttonId, locLabels, lang);
 	if (otherGroups.length === 0) {
 		return <MenuItem disabled>No other groups</MenuItem>;
 	}
@@ -56,8 +66,8 @@ export function MoveToSubMenuItems({ currentGroupId, tab, onMove }: MoveToSubMen
 		<>
 			<MenuDivider />
 			{otherGroups.map((g) => (
-				<MenuItem key={g.id} icon={<ArrowMoveRegular />} onClick={() => onMove(g.id)}>
-					Move to: {g.label}
+				<MenuItem key={g.groupId} icon={<ArrowMoveRegular />} onClick={() => onMove(g.groupId)}>
+					Move to: {g.text}
 				</MenuItem>
 			))}
 		</>

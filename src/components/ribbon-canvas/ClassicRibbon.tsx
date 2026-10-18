@@ -47,9 +47,13 @@ import { ownContainerIds, useRibbonStore } from "@/store/ribbonStore";
 import { CustomiseMenuItems } from "@/components/ribbon-canvas/CustomiseMenuItems";
 import { useSelectionStore } from "@/store/selectionStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { moveTargets } from "@/utils/moveTargets";
 import { canDeleteControl, canDeleteGroup } from "@/utils/ribbonProvenance";
 import { useUIStore } from "@/store/uiStore";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
+import { RenameGroupDialog } from "@/components/modals/RenameGroupDialog";
+import { ChangeGroupTemplateDialog } from "@/components/modals/ChangeGroupTemplateDialog";
+import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
 import FluentIcon from "@/components/shared/FluentIcon";
 import type { RibbonButton, RibbonGroup, RibbonTab, RibbonLocation } from "@/types/ribbon";
 
@@ -312,10 +316,14 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	// Group titles in the organisation's base language (a rename replaces it — #66 review m3).
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
+	// Accessible names and tooltips use the same resolved text as the canvas (#75);
+	// a group without a title reads as its id.
+	const groupText = (group: RibbonGroup) => resolveDisplayLabel(group.label, locLabels, lang) || group.id;
+	const baseline = useRibbonStore((s) => s.baseline);
+	const customTemplates = useRibbonStore((s) => s.templates);
 	const moveButton = useRibbonStore((s) => s.moveButton);
 	const createGroup = useRibbonStore((s) => s.createGroup);
 	const deleteButton = useRibbonStore((s) => s.deleteButton);
-	const baseline = useRibbonStore((s) => s.baseline);
 	const layers = useRibbonStore((s) => s.layers);
 	const duplicateButton = useRibbonStore((s) => s.duplicateButton);
 	const duplicateGroup = useRibbonStore((s) => s.duplicateGroup);
@@ -336,6 +344,10 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 	const [btnMenu, setBtnMenu] = useState<ButtonMenuState | null>(null);
 	const [grpMenu, setGrpMenu] = useState<GroupMenuState | null>(null);
 	const [hideWarning, setHideWarning] = useState<ButtonMenuState | null>(null);
+	// Group dialogs opened from the group context menu (#18: window.prompt / confirm don't work in PPTB).
+	const [renaming, setRenaming] = useState<RibbonGroup | null>(null);
+	const [retemplating, setRetemplating] = useState<RibbonGroup | null>(null);
+	const [deleting, setDeleting] = useState<RibbonGroup | null>(null);
 
 	// @dnd-kit drag state
 	const [activeId, setActiveId] = useState<string | null>(null);
@@ -478,7 +490,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 							group={group}
 							isDropTarget={overGroupId === group.id}
 							role="rowgroup"
-							aria-label={group.label}
+							aria-label={groupText(group)}
 							tabIndex={0}
 							data-ribbon-group-id={group.id}
 							onContextMenu={(e) => {
@@ -529,8 +541,8 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 									style={useStyles.addButtonGhost}
 									data-add-btn-group-id={group.id}
 									onClick={() => openNewButton(group.id)}
-									title={`Add button to ${group.label}`}
-									aria-label={`Add button to ${group.label}`}
+									title={`Add button to ${groupText(group)}`}
+									aria-label={`Add button to ${groupText(group)}`}
 								>
 									<AddRegular fontSize={16} />
 									<Text size={100} style={{ color: "inherit" }}>
@@ -542,7 +554,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 								content={`Template: ${group.template || "Flexible2"}`}
 								relationship="description"
 							>
-								<div style={useStyles.groupLabel}>{resolveDisplayLabel(group.label, locLabels, lang)}</div>
+								<div style={useStyles.groupLabel}>{groupText(group)}</div>
 							</Tooltip>
 						</DroppableGroupContainer>
 					))}
@@ -701,29 +713,27 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 								Duplicate
 							</MenuItem>
 							{/* Move to group sub-items */}
-							{tab.groups
-								.filter((g) => g.id !== btnMenu.groupId)
-								.map((g) => (
-									<MenuItem
-										key={g.id}
-										icon={<ArrowMoveRegular />}
-										disabled={isGlobalOobReadOnly(btnMenu.button)}
-										onClick={() => {
-											moveButton(
-												{
-													groupId: btnMenu.groupId,
-													buttonId: btnMenu.button.id,
-													tabId: tab.id,
-													location,
-												},
-												{ groupId: g.id, tabId: tab.id, location },
-											);
-											setBtnMenu(null);
-										}}
-									>
-										Move to: {g.label}
-									</MenuItem>
-								))}
+							{moveTargets(tab, btnMenu.groupId, btnMenu.button.id, locLabels, lang).map((t) => (
+								<MenuItem
+									key={t.groupId}
+									icon={<ArrowMoveRegular />}
+									disabled={isGlobalOobReadOnly(btnMenu.button)}
+									onClick={() => {
+										moveButton(
+											{
+												groupId: btnMenu.groupId,
+												buttonId: btnMenu.button.id,
+												tabId: tab.id,
+												location,
+											},
+											{ groupId: t.groupId, tabId: tab.id, location },
+										);
+										setBtnMenu(null);
+									}}
+								>
+									Move to: {t.text}
+								</MenuItem>
+							))}
 							{canDeleteControl(btnMenu.button, baseline[location]) && (
 								<>
 									<MenuDivider />
@@ -775,11 +785,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 							<MenuItem
 								icon={<RenameRegular />}
 								onClick={() => {
-									const shown = resolveDisplayLabel(grpMenu.group.label, locLabels, lang);
-									const newLabel = window.prompt("Rename group:", shown);
-									if (newLabel?.trim() && newLabel.trim() !== shown) {
-										renameGroup(location, tab.id, grpMenu.group.id, newLabel.trim());
-									}
+									setRenaming(grpMenu.group);
 									setGrpMenu(null);
 								}}
 							>
@@ -797,13 +803,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 							<MenuItem
 								icon={<AppsAddInRegular />}
 								onClick={() => {
-									const newTemplate = window.prompt(
-										"Change group template:",
-										grpMenu.group.template,
-									);
-									if (newTemplate?.trim()) {
-										setGroupTemplate(location, tab.id, grpMenu.group.id, newTemplate.trim());
-									}
+									setRetemplating(grpMenu.group);
 									setGrpMenu(null);
 								}}
 							>
@@ -816,9 +816,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 									<MenuItem
 										icon={<DeleteRegular />}
 										onClick={() => {
-											if (window.confirm(`Delete group "${grpMenu.group.label}"?`)) {
-												deleteGroup(location, tab.id, grpMenu.group.id);
-											}
+											setDeleting(grpMenu.group);
 											setGrpMenu(null);
 										}}
 									>
@@ -831,11 +829,56 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 				</Menu>
 			)}
 
+			{/* ── Group dialogs ── */}
+			{renaming && (
+				<RenameGroupDialog
+					open
+					initialLabel={groupText(renaming)}
+					onRename={(label) => {
+						// The store action keeps a rename one undo step and publishes it (#66).
+						renameGroup(location, tab.id, renaming.id, label);
+						setRenaming(null);
+					}}
+					onCancel={() => setRenaming(null)}
+				/>
+			)}
+			{retemplating && (
+				<ChangeGroupTemplateDialog
+					open
+					currentTemplate={retemplating.template}
+					customTemplateIds={customTemplates.map((t) => t.id)}
+					loadedGroup={baseline[location].tabs.some(
+						(t) => t.id === tab.id && t.groups.some((g) => g.id === retemplating.id),
+					)}
+					onChange={(template) => {
+						setGroupTemplate(location, tab.id, retemplating.id, template);
+						setRetemplating(null);
+					}}
+					onCancel={() => setRetemplating(null)}
+				/>
+			)}
+			{deleting && (
+				<ConfirmDialog
+					open
+					title="Delete group"
+					confirmLabel="Delete group"
+					destructive
+					onConfirm={() => {
+						deleteGroup(location, tab.id, deleting.id);
+						setDeleting(null);
+					}}
+					onCancel={() => setDeleting(null)}
+				>
+					Delete the group &ldquo;{groupText(deleting)}&rdquo; and its {deleting.buttons.length} button
+					{deleting.buttons.length === 1 ? "" : "s"}?
+				</ConfirmDialog>
+			)}
+
 			{/* ── Hide OOB warning modal ── */}
 			{hideWarning && (
 				<HideOobWarningModal
 					open
-					buttonLabel={hideWarning.button.label}
+					buttonLabel={resolveDisplayLabel(hideWarning.button.label, locLabels)}
 					onConfirmHide={() => {
 						hideOobButton(location, tab.id, hideWarning.groupId, hideWarning.button.id);
 						setHideWarning(null);
