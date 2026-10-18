@@ -18,6 +18,8 @@ import {
 	mergeScopeChanges,
 	ownControlIds,
 	ownContainerIds,
+	layerCommandRefs,
+	canUncustomiseCommand,
 	compareRibbonDiffParts,
 	layerScalingSteps,
 	normalizeLayerScaling,
@@ -128,7 +130,17 @@ export interface PublishRibbonInput {
 	locLabels: LocLabel[];
 	/** What changed in this scope (see publishPlan.planScope). */
 	plan: Pick<ScopePlan, "editedCommandIds" | "editedEnableRuleIds" | "editedDisplayRuleIds" | "deletedButtonIds" | "unhiddenButtonIds"> &
-		Partial<Pick<ScopePlan, "deletedContainerIds" | "movedButtons" | "editedLocLabelIds" | "editedTabIds" | "renamedLabels">>;
+		Partial<
+			Pick<
+				ScopePlan,
+				| "deletedContainerIds"
+				| "movedButtons"
+				| "editedLocLabelIds"
+				| "editedTabIds"
+				| "renamedLabels"
+				| "uncustomisedCommandIds"
+			>
+		>;
 	/** Organisation base language for edited labels (#50). Read from the organisation when omitted. */
 	languageCode?: number;
 	solution: PublishSolutionInfo;
@@ -329,11 +341,39 @@ export async function buildMergedRibbonDiffXml(
 		);
 	}
 
+	// Uncustomise (#31) removes a copy of a command defined elsewhere — never
+	// your own command, which nothing would define once removed.
+	const layerRefs = layerCommandRefs(existing);
+	const ownCommands = (input.plan.uncustomisedCommandIds ?? []).filter(
+		(id) => existing.commandDefinitions.has(id) && !canUncustomiseCommand(id, layerRefs),
+	);
+	if (ownCommands.length > 0) {
+		throw new Error(
+			`Can't uncustomise ${ownCommands.join(", ")}: it is your own command (your customizations' buttons use it ` +
+				`and no other solution defines it), so removing it would leave those buttons without a command. Undo the uncustomise.`,
+		);
+	}
+
 	const retainedCommandIds = new Set<string>();
 	for (const loc of input.locations)
 		for (const tab of loc.current.tabs)
 			for (const group of tab.groups)
 				for (const button of groupControls(group)) if (button.commandId) retainedCommandIds.add(button.commandId);
+
+	// Rules other commands of the scope still use stay in the layer when an
+	// uncustomised command (#31) leaves it.
+	const uncustomisedCommandIds = input.plan.uncustomisedCommandIds ?? [];
+	const retainedEnableRuleIds = new Set<string>();
+	const retainedDisplayRuleIds = new Set<string>();
+	for (const c of input.commands) {
+		if (!retainedCommandIds.has(c.id) || uncustomisedCommandIds.includes(c.id)) continue;
+		c.enableRules.forEach((r) => retainedEnableRuleIds.add(r));
+		c.displayRules.forEach((r) => retainedDisplayRuleIds.add(r));
+		for (const raw of c.rawRuleRefs ?? []) {
+			const m = /^\s*<(EnableRule|DisplayRule)\b[^>]*?\sId="([^"]+)"/.exec(raw.xml);
+			if (m) (m[1] === "EnableRule" ? retainedEnableRuleIds : retainedDisplayRuleIds).add(m[2]);
+		}
+	}
 
 	let merged = mergeScopeChanges(existing, delta, {
 		retainedCommandIds,
@@ -345,6 +385,9 @@ export async function buildMergedRibbonDiffXml(
 		deletedContainerIds: plan.deletedContainerIds,
 		movedControls: plan.movedButtons,
 		removedTabCommands,
+		uncustomisedCommandIds,
+		retainedEnableRuleIds,
+		retainedDisplayRuleIds,
 	});
 
 	// A renamed tab / group whose title label other controls share gets a label

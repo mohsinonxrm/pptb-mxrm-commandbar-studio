@@ -421,6 +421,19 @@ export interface ScopeMergeOptions {
 	movedControls?: Iterable<MovedControl>;
 	/** TabDisplayRules (by TabCommand) the session removed from a tab the layer adds (#49). */
 	removedTabCommands?: Iterable<string>;
+	/**
+	 * Commands the user uncustomised (#31): the layer's CommandDefinition is
+	 * removed (the out-of-the-box / other solution's command applies again),
+	 * together with the layer's rules that only it used.
+	 */
+	uncustomisedCommandIds?: Iterable<string>;
+	/**
+	 * Rules still used by a command of the edited ribbon: never removed with an
+	 * uncustomised command, even when only that command references them in the
+	 * layer (e.g. a customised `Mscrm.*` rule other out-of-the-box commands use).
+	 */
+	retainedEnableRuleIds?: Iterable<string>;
+	retainedDisplayRuleIds?: Iterable<string>;
 }
 
 /** Elements of a `<Menu>` that are containers, not controls. */
@@ -639,6 +652,40 @@ function commandsWithin(el: Element): string[] {
 	return out;
 }
 
+/**
+ * Commands the layer's own CustomActions use — controls / tabs it adds and
+ * overrides of other controls (#31). A command used there that isn't a
+ * platform (`Mscrm.` / `Microsoft.`) command may exist nowhere but in the
+ * layer, so removing the layer's definition ("Uncustomise") could leave those
+ * controls without a command.
+ */
+export function layerCommandRefs(parts: RibbonDiffParts): Set<string> {
+	const out = new Set<string>();
+	for (const xml of parts.customActions.values()) {
+		const el = elementOf(xml);
+		if (el.tagName !== "CustomAction") continue;
+		for (const c of commandsWithin(el)) out.add(c);
+	}
+	return out;
+}
+
+/** Platform command / rule ids: they always have a definition below any layer. */
+export function isPlatformRibbonId(id: string): boolean {
+	return /^(Mscrm|Microsoft)\./.test(id);
+}
+
+/**
+ * Whether the layer's CommandDefinition can be removed with "Uncustomise"
+ * (#31): another definition must apply once it's gone — a platform command,
+ * or one no control of the layer uses (so the controls using it come from
+ * other solutions, which define it themselves).
+ */
+export function canUncustomiseCommand(commandId: string, layerCommandRefIds: Iterable<string>): boolean {
+	if (isPlatformRibbonId(commandId)) return true;
+	for (const id of layerCommandRefIds) if (id === commandId) return false;
+	return true;
+}
+
 /** The container a `…._children` location adds to (`X.Controls._children` → X). */
 function childrenParent(location: string | null): string | null {
 	const m = location?.match(/^(.+)\.(?:Controls|Groups)\._children$/);
@@ -724,6 +771,8 @@ function mergeMovedMenu(original: Element, imported: Element, elsewhere: (id: st
 }
 
 const LOC_LABEL_REF = /\$LocLabels:([^"'\s]+)/g;
+/** Rule references of a CommandDefinition, wherever they sit (also an `<EnableRule>` inside `<DisplayRules>`). */
+const RULE_REF = /<(EnableRule|DisplayRule)\b[^>]*?\sId="([^"]+)"/g;
 
 /**
  * Merges this session's delta into the existing unmanaged layer:
@@ -1052,6 +1101,30 @@ export function mergeScopeChanges(
 			if (!otherCommands.includes(`Id="${m[1]}"`)) merged.displayRules.delete(m[1]);
 		}
 	}
+	// Uncustomised commands (#31): the layer's copy goes, and with it the
+	// layer's rules nothing else uses any more.
+	const retainedRules = {
+		EnableRule: new Set(options.retainedEnableRuleIds ?? []),
+		DisplayRule: new Set(options.retainedDisplayRuleIds ?? []),
+	};
+	const layerRefs = layerCommandRefs(merged);
+	for (const commandId of options.uncustomisedCommandIds ?? []) {
+		const cmdXml = merged.commandDefinitions.get(commandId);
+		if (cmdXml === undefined || delta.commandDefinitions.has(commandId)) continue;
+		// Your own command (no definition below the layer): never removed here.
+		if (!canUncustomiseCommand(commandId, layerRefs)) continue;
+		merged.commandDefinitions.delete(commandId);
+		const otherCommands = Array.from(merged.commandDefinitions.values()).join("\n");
+		for (const m of cmdXml.matchAll(RULE_REF)) {
+			const kind = m[1] as "EnableRule" | "DisplayRule";
+			const rules = kind === "EnableRule" ? merged.enableRules : merged.displayRules;
+			const fromDelta = (kind === "EnableRule" ? delta.enableRules : delta.displayRules).has(m[2]);
+			if (fromDelta || retainedRules[kind].has(m[2])) continue;
+			if (otherCommands.includes(`<${kind} Id="${m[2]}"`)) continue;
+			rules.delete(m[2]);
+		}
+	}
+
 	for (const [id, xml] of delta.tabDisplayRules) merged.tabDisplayRules.set(id, xml);
 	for (const [id, xml] of delta.templates) merged.templates.set(id, xml);
 

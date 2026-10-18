@@ -13,6 +13,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
 import { generateCommandId } from "@/utils/idGenerator";
 import type { RibbonButton } from "@/types/ribbon";
+import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
 import React from "react";
 
 const useStyles = makeStyles({
@@ -101,6 +102,7 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 							Edit
 						</Button>
 					</div>
+					<CommandProvenanceBar commandId={command.id} compact />
 
 					{command.actions.length > 0 && (
 						<div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>

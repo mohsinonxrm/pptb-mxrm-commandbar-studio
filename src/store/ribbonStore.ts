@@ -30,6 +30,8 @@ import {
 	newMenuSection,
 	removeMenuItem,
 } from "@/utils/ribbonMenu";
+import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -56,12 +58,20 @@ type HistoryMeta = Omit<HistoryEntry, "snapshot" | "coalesceKey">;
 
 /**
  * The editable workspace (#34): what undo / redo restore — the canvas, the
- * definitions it references and the pending un-hides the publish diff reads.
+ * definitions it references, and the pending un-hides and customised /
+ * uncustomised commands (#31) the publish diff reads.
  * Baselines, layers and other loaded data are not part of it.
  */
 export type WorkspaceSnapshot = Pick<
 	RibbonStoreState,
-	"ribbons" | "commands" | "enableRules" | "displayRules" | "locLabels" | "pendingUnhides"
+	| "ribbons"
+	| "commands"
+	| "enableRules"
+	| "displayRules"
+	| "locLabels"
+	| "pendingUnhides"
+	| "customisedCommandIds"
+	| "uncustomisedCommandIds"
 >;
 
 export type RibbonStoreState = {
@@ -82,6 +92,23 @@ export type RibbonStoreState = {
 	pendingUnhides: Record<LayerScope, string[]>;
 	/** Organisation base language (#50). */
 	baseLanguageCode: number;
+	/**
+	 * Out-of-the-box / other solutions' commands customised this session (#31,
+	 * "Customise Command"): copied into the layer on publish, even unchanged.
+	 */
+	customisedCommandIds: string[];
+	/**
+	 * Commands whose copy in that scope's layer is removed on publish (#31,
+	 * "Uncustomise"). Per scope: uncustomising for the table must not touch the
+	 * application ribbon's copy.
+	 */
+	uncustomisedCommandIds: Record<LayerScope, string[]>;
+	/**
+	 * Commands uncustomised and published: the session still holds the removed
+	 * copy (the original is only known after reloading the table), so they are
+	 * read-only and can't be customised again until then (#31).
+	 */
+	reloadRequiredCommandIds: string[];
 	commands: CommandDefinition[];
 	displayRules: DisplayRule[];
 	enableRules: EnableRule[];
@@ -202,7 +229,36 @@ export interface RibbonStore extends RibbonStoreState {
 		groupId: string,
 		buttonId: string,
 	): void;
+	/**
+	 * "Customise Button" (#26, #31): copies a button that isn't yours into a
+	 * new button of your own (id `<idPrefix>.<original id>`, same command,
+	 * same place) and hides the original, so the copy can be changed and moved
+	 * like any of your buttons. Returns the copy's id, or null when the button
+	 * can't be customised this way (your own, hidden, a menu, read-only).
+	 */
+	customiseButton(
+		location: RibbonLocation,
+		tabId: string,
+		groupId: string,
+		buttonId: string,
+		idPrefix: string,
+	): string | null;
 	upsertCommand(cmd: CommandDefinition): void;
+	/**
+	 * "Customise Command" (#31): marks a loaded command to be copied into the
+	 * layer on publish — actions, parameters and rule references as loaded —
+	 * so it can be changed without touching its buttons. Returns false when
+	 * the command isn't loaded or must be reloaded first.
+	 */
+	customiseCommand(commandId: string): boolean;
+	/**
+	 * "Uncustomise" (#31): the copy of the command in `scope`'s layer is
+	 * removed on publish, so the original applies again. Session edits are
+	 * discarded (the UI confirms first).
+	 */
+	uncustomiseCommand(commandId: string, scope: LayerScope): void;
+	/** Discards this session's customise / uncustomise / edits of a command (back to as loaded). */
+	discardCommandChanges(commandId: string): void;
 	/**
 	 * Hides a button reversibly: adds the platform display rules
 	 * Mscrm.HideOnModern + Mscrm.ShowOnlyOnModern (never both true) to its
@@ -291,6 +347,8 @@ function workspaceOf(state: RibbonStoreState): WorkspaceSnapshot {
 		displayRules: state.displayRules,
 		locLabels: state.locLabels,
 		pendingUnhides: state.pendingUnhides,
+		customisedCommandIds: state.customisedCommandIds,
+		uncustomisedCommandIds: state.uncustomisedCommandIds,
 	};
 }
 
@@ -377,6 +435,8 @@ function hasPendingChanges(state: RibbonStoreState): boolean {
 	const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 	return (
 		state.pendingUnhides.entity.length + state.pendingUnhides.application.length > 0 ||
+		state.customisedCommandIds.length > 0 ||
+		state.uncustomisedCommandIds.entity.length + state.uncustomisedCommandIds.application.length > 0 ||
 		!same(state.ribbons, state.baseline) ||
 		!same(state.commands, state.baselineCommands) ||
 		!same(state.enableRules, state.baselineEnableRules) ||
@@ -490,6 +550,58 @@ function isReadOnlyGlobalOobButton(
 	);
 }
 
+/**
+ * Whether "Customise Button" (#26, #31) applies: a visible button that isn't
+ * yours (your own can be changed and moved directly) and isn't a menu (menus
+ * can't be published yet, #27).
+ */
+export function canCustomiseButton(location: RibbonLocation, tabId: string, button: RibbonButton): boolean {
+	return (
+		button.origin !== "unmanaged" &&
+		!button.hidden &&
+		button.kind !== "flyout" &&
+		button.kind !== "splitButton" &&
+		!isReadOnlyGlobalOobButton(location, tabId, button)
+	);
+}
+
+const LOC_LABEL_TOKEN = /^\$LocLabels:/;
+
+/**
+ * The loaded source of a button for its copy: platform texts (`$Resources:`),
+ * images and other attributes are kept so the copy looks the same, but
+ * `$LocLabels:` tokens are not — those labels belong to the original, and
+ * editing the copy's text must not change them (#11 review N5).
+ */
+function copySource(source: RibbonButton["source"]): RibbonButton["source"] {
+	if (!source) return undefined;
+	const keep = (token?: string) => (token && !LOC_LABEL_TOKEN.test(token) ? token : undefined);
+	const attributes: Record<string, string> = {};
+	for (const [k, v] of Object.entries(source.attributes)) {
+		if (k !== "Id" && !LOC_LABEL_TOKEN.test(v)) attributes[k] = v;
+	}
+	return {
+		...source,
+		labelToken: keep(source.labelToken),
+		tooltipTitleToken: keep(source.tooltipTitleToken),
+		tooltipBodyToken: keep(source.tooltipBodyToken),
+		attributes,
+	};
+}
+
+const withoutCommand = (lists: Record<LayerScope, string[]>, commandId: string): Record<LayerScope, string[]> => ({
+	entity: lists.entity.filter((id) => id !== commandId),
+	application: lists.application.filter((id) => id !== commandId),
+});
+
+/** `commands` with `commandId` back to its loaded definition (the same array when unchanged). */
+function loadedCommands(state: RibbonStoreState, commandId: string): CommandDefinition[] {
+	const loaded = state.baselineCommands.find((c) => c.id === commandId);
+	const current = state.commands.find((c) => c.id === commandId);
+	if (!loaded || !current || JSON.stringify(loaded) === JSON.stringify(current)) return state.commands;
+	return state.commands.map((c) => (c.id === commandId ? JSON.parse(JSON.stringify(loaded)) : c));
+}
+
 export const useRibbonStore = create<RibbonStore>()(
 	subscribeWithSelector((set, get) => ({
 		ribbons: cloneRibbons(EMPTY_RIBBONS),
@@ -501,6 +613,9 @@ export const useRibbonStore = create<RibbonStore>()(
 		layers: { ...NO_LAYERS },
 		pendingUnhides: { entity: [], application: [] },
 		baseLanguageCode: 1033,
+		customisedCommandIds: [],
+		uncustomisedCommandIds: { entity: [], application: [] },
+		reloadRequiredCommandIds: [],
 		commands: [],
 		displayRules: [],
 		enableRules: [],
@@ -561,6 +676,9 @@ export const useRibbonStore = create<RibbonStore>()(
 				layers: { ...NO_LAYERS, ...(seed.layers ?? {}) },
 				pendingUnhides: { ...NO_UNHIDES },
 				baseLanguageCode: seed.baseLanguageCode ?? 1033,
+				customisedCommandIds: [],
+				uncustomisedCommandIds: { entity: [], application: [] },
+				reloadRequiredCommandIds: [],
 				templates: [...(seed.templates ?? [])],
 				conflicts: [...(seed.conflicts ?? [])],
 				mutationsSincePublish: 0,
@@ -1312,6 +1430,149 @@ export const useRibbonStore = create<RibbonStore>()(
 			);
 		},
 
+		customiseButton(location, tabId, groupId, buttonId, idPrefix) {
+			const state = get();
+			const btn = state.ribbons[location].tabs
+				.find((t) => t.id === tabId)
+				?.groups.find((g) => g.id === groupId)
+				?.buttons.find((b) => b.id === buttonId);
+			if (!btn || !canCustomiseButton(location, tabId, btn)) return null;
+			// Unique in the workspace, baseline and layers too (#66 review m1).
+			const taken = workspaceIds(state, state.ribbons);
+			const base = `${(idPrefix || "new").trim()}.${btn.id}`;
+			let id = base;
+			for (let n = 2; taken.has(id); n++) id = `${base}.${n}`;
+			// Texts from the original's own LocLabels: the copy gets its own
+			// labels with every language of the original's (the generator writes
+			// the base language from the text and keeps the others).
+			const labels: LocLabel[] = [];
+			const notLoaded: string[] = [];
+			const texts: [string | undefined, string][] = [
+				[btn.source?.labelToken, buttonLabelId(id)],
+				[btn.source?.tooltipTitleToken, buttonTooltipTitleId(id)],
+				[btn.source?.tooltipBodyToken, buttonTooltipBodyId(id)],
+			];
+			for (const [token, labelId] of texts) {
+				if (!token || !LOC_LABEL_TOKEN.test(token)) continue;
+				const original = state.locLabels.find((l) => l.id === token.replace(LOC_LABEL_TOKEN, ""));
+				if (original) labels.push({ id: labelId, titles: original.titles.map((t) => ({ ...t })) });
+				else notLoaded.push(token);
+			}
+			if (notLoaded.length > 0) {
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"ribbon",
+						`Customise button ${btn.id}: the translations of ${notLoaded.join(", ")} aren't loaded, so the copy ${id} ` +
+							"gets its text in the base language only. Add the other languages in the Localization editor.",
+					);
+			}
+			const labelIds = new Set(labels.map((l) => l.id));
+			set((s) => {
+				const ribbons = cloneRibbons(s.ribbons);
+				const group = ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId);
+				const idx = group?.buttons.findIndex((b) => b.id === buttonId) ?? -1;
+				if (!group || idx < 0) return {};
+				const original = group.buttons[idx];
+				const copy: RibbonButton = {
+					...original,
+					id,
+					source: copySource(original.source),
+					hidden: false,
+					custom: true,
+					oob: false,
+					managed: false,
+					origin: "unmanaged",
+					solutionName: undefined,
+					publisherName: undefined,
+				};
+				// The copy takes the original's place: right after it (its own
+				// Sequence when one is free before the next button, else the
+				// original's — the original is hidden, so they never show together).
+				const next = group.buttons[idx + 1]?.sequence;
+				if (next === undefined || original.sequence + 1 < next) copy.sequence = original.sequence + 1;
+				original.hidden = true;
+				group.buttons.splice(idx + 1, 0, copy);
+				// The copy, the hidden original and the copy's labels are one undo step (#34).
+				return record(
+					s,
+					{
+						ribbons,
+						...(labels.length > 0 ? { locLabels: [...s.locLabels.filter((l) => !labelIds.has(l.id)), ...labels] } : {}),
+					},
+					historyMeta(
+						"customised",
+						buttonId,
+						`copied to ${id}, original hidden` +
+							(notLoaded.length > 0 ? " (translations not loaded: base language only)" : ""),
+						"copy",
+					),
+				);
+			});
+			return id;
+		},
+
+		customiseCommand(commandId) {
+			const state = get();
+			if (!state.commands.some((c) => c.id === commandId)) return false;
+			if (state.reloadRequiredCommandIds.includes(commandId)) return false;
+			set((s) =>
+				record(
+					s,
+					{
+						customisedCommandIds: [...s.customisedCommandIds.filter((id) => id !== commandId), commandId],
+						uncustomisedCommandIds: withoutCommand(s.uncustomisedCommandIds, commandId),
+					},
+					historyMeta("customised", commandId, "command copied to your layer on publish", "code"),
+				),
+			);
+			return true;
+		},
+
+		uncustomiseCommand(commandId, scope) {
+			set((s) =>
+				record(
+					s,
+					{
+						commands: loadedCommands(s, commandId),
+						customisedCommandIds: s.customisedCommandIds.filter((id) => id !== commandId),
+						uncustomisedCommandIds: {
+							...withoutCommand(s.uncustomisedCommandIds, commandId),
+							[scope]: [...s.uncustomisedCommandIds[scope].filter((id) => id !== commandId), commandId],
+						},
+					},
+					historyMeta(
+						"uncustomised",
+						commandId,
+						`command removed from the ${scope === "entity" ? "table's" : "application ribbon's"} layer on publish`,
+						"arrow_undo",
+					),
+				),
+			);
+		},
+
+		discardCommandChanges(commandId) {
+			const state = get();
+			const commands = loadedCommands(state, commandId);
+			const changed =
+				commands !== state.commands ||
+				state.customisedCommandIds.includes(commandId) ||
+				state.uncustomisedCommandIds.entity.includes(commandId) ||
+				state.uncustomisedCommandIds.application.includes(commandId);
+			if (!changed) return;
+			set((s) =>
+				record(
+					s,
+					{
+						commands,
+						customisedCommandIds: s.customisedCommandIds.filter((id) => id !== commandId),
+						uncustomisedCommandIds: withoutCommand(s.uncustomisedCommandIds, commandId),
+					},
+					historyMeta("discarded", commandId, "command changes", "arrow_undo"),
+				),
+			);
+		},
+
 		hideWithDisplayRules(buttonCommandId) {
 			const cmd = buttonCommandId ? get().commands.find((c) => c.id === buttonCommandId) : undefined;
 			if (!cmd) return false;
@@ -1545,29 +1806,46 @@ export const useRibbonStore = create<RibbonStore>()(
 					unhidden[scope] = pendingUnhides[scope];
 					pendingUnhides[scope] = [];
 				}
-				// The layer no longer hides the published un-hides, so undo must not
-				// bring them back as pending (#34 review).
-				const dropUnhidden = (e: HistoryEntry): HistoryEntry => ({
+				// Uncustomised commands of published scopes are gone from the layer;
+				// the session still holds their removed copy until reloaded (#31).
+				const uncustomisedCommandIds = { ...state.uncustomisedCommandIds };
+				const reloadRequiredCommandIds = [...state.reloadRequiredCommandIds];
+				const uncustomised: Record<LayerScope, string[]> = { entity: [], application: [] };
+				for (const [scope, done] of scopes) {
+					if (!done) continue;
+					for (const id of uncustomisedCommandIds[scope]) {
+						if (!reloadRequiredCommandIds.includes(id)) reloadRequiredCommandIds.push(id);
+					}
+					uncustomised[scope] = uncustomisedCommandIds[scope];
+					uncustomisedCommandIds[scope] = [];
+				}
+				// The layer no longer hides the published un-hides, nor has the
+				// published uncustomised commands, so undo must not bring them back
+				// as pending (#34 review, #31).
+				const without = (lists: Record<LayerScope, string[]>, done: Record<LayerScope, string[]>) => ({
+					entity: lists.entity.filter((id) => !done.entity.includes(id)),
+					application: lists.application.filter((id) => !done.application.includes(id)),
+				});
+				const dropPublished = (e: HistoryEntry): HistoryEntry => ({
 					...e,
 					snapshot: {
 						...e.snapshot,
-						pendingUnhides: {
-							entity: e.snapshot.pendingUnhides.entity.filter((id) => !unhidden.entity.includes(id)),
-							application: e.snapshot.pendingUnhides.application.filter(
-								(id) => !unhidden.application.includes(id),
-							),
-						},
+						pendingUnhides: without(e.snapshot.pendingUnhides, unhidden),
+						uncustomisedCommandIds: without(e.snapshot.uncustomisedCommandIds, uncustomised),
 					},
 				});
-				const anyUnhidden = unhidden.entity.length + unhidden.application.length > 0;
+				const anyPublished =
+					unhidden.entity.length + unhidden.application.length + uncustomised.entity.length + uncustomised.application.length >
+					0;
 				// Typing after a publish starts a new undo step.
 				const past = state.past.map((e, i) => {
-					const kept = anyUnhidden ? dropUnhidden(e) : e;
+					const kept = anyPublished ? dropPublished(e) : e;
 					return i === state.past.length - 1 && kept.coalesceKey ? { ...kept, coalesceKey: undefined } : kept;
 				});
 				const pending =
 					all.some((loc) => JSON.stringify(baseline[loc]) !== JSON.stringify(current[loc])) ||
-					pendingUnhides.entity.length + pendingUnhides.application.length > 0;
+					pendingUnhides.entity.length + pendingUnhides.application.length > 0 ||
+					uncustomisedCommandIds.entity.length + uncustomisedCommandIds.application.length > 0;
 				return {
 					ribbons: current,
 					locLabels,
@@ -1576,15 +1854,18 @@ export const useRibbonStore = create<RibbonStore>()(
 					layers,
 					pendingUnhides,
 					past,
-					future: anyUnhidden ? state.future.map(dropUnhidden) : state.future,
+					future: anyPublished ? state.future.map(dropPublished) : state.future,
 					...(everything
 						? {
 								baselineCommands: JSON.parse(JSON.stringify(state.commands)),
 								baselineEnableRules: JSON.parse(JSON.stringify(state.enableRules)),
 								baselineDisplayRules: JSON.parse(JSON.stringify(state.displayRules)),
 								baselineLocLabels: JSON.parse(JSON.stringify(locLabels)),
+								customisedCommandIds: [],
 							}
 						: {}),
+					uncustomisedCommandIds,
+					reloadRequiredCommandIds,
 					mutationsSincePublish: pending ? Math.max(1, state.mutationsSincePublish) : 0,
 				};
 			});

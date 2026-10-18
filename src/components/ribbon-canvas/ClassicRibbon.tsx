@@ -44,6 +44,7 @@ import {
 	closestCenter,
 } from "@dnd-kit/core";
 import { useRibbonStore } from "@/store/ribbonStore";
+import { CustomiseMenuItems } from "@/components/ribbon-canvas/CustomiseMenuItems";
 import { useSelectionStore } from "@/store/selectionStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { useUIStore } from "@/store/uiStore";
@@ -678,6 +679,13 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 									Create override…
 								</MenuItem>
 							)}
+							<CustomiseMenuItems
+								location={location}
+								tabId={tab.id}
+								groupId={btnMenu.groupId}
+								button={btnMenu.button}
+								onDone={() => setBtnMenu(null)}
+							/>
 							<MenuDivider />
 							<MenuItem
 								icon={<CopyRegular />}

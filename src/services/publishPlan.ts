@@ -15,7 +15,7 @@ import type {
 	RibbonButton,
 	RibbonDefinition,
 } from "@/types/ribbon";
-import type { MovedControl } from "@/services/ribbonDiffMerge";
+import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
 import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 
 /**
@@ -30,6 +30,10 @@ export interface PlanLayerOwnership {
 	locLabelIds: ReadonlySet<string> | readonly string[];
 	/** MaxSize / Scale steps the layer writes (#66 review). */
 	scalingStepIds?: ReadonlySet<string> | readonly string[];
+	/** CommandDefinitions the layer defines (#31). Unknown when absent. */
+	commandIds?: ReadonlySet<string> | readonly string[];
+	/** Commands the layer's own CustomActions use (#31). Unknown when absent. */
+	commandRefIds?: ReadonlySet<string> | readonly string[];
 }
 
 export interface PlanInput {
@@ -58,6 +62,16 @@ export interface PlanInput {
 	 * must not reach the application ribbon (and with it every table).
 	 */
 	excludeCommandIds?: Set<string>;
+	/**
+	 * Out-of-the-box / other solutions' commands the user chose to customise
+	 * (#31, "Customise Command"): copied into the layer even when unchanged.
+	 */
+	customisedCommandIds?: readonly string[];
+	/**
+	 * Commands the layer defines that the user chose to uncustomise (#31): the
+	 * layer's CommandDefinition is removed, so the original applies again.
+	 */
+	uncustomisedCommandIds?: readonly string[];
 }
 
 /**
@@ -69,8 +83,13 @@ export interface PlanInput {
 export interface ScopePlan {
 	/** True when there is something CBS will actually write. */
 	hasChanges: boolean;
-	/** Commands that differ from their loaded version and are used by a button in this scope. */
+	/**
+	 * Commands that differ from their loaded version, or were customised (#31),
+	 * and are used by a button in this scope.
+	 */
 	editedCommandIds: string[];
+	/** Commands whose layer CommandDefinition is removed (#31, "Uncustomise"). */
+	uncustomisedCommandIds: string[];
 	/**
 	 * Enable / display rules that differ from their loaded version and are used
 	 * by those commands. Kept apart because Dataverse allows an EnableRule and a
@@ -455,11 +474,37 @@ export function planScope(input: PlanInput): ScopePlan {
 		unsupported.push(`New flyout / split button "${m.label}" has no menu items — add at least one item to its menu`);
 	}
 
+	// Uncustomise (#31): only a command this scope's layer defines can be
+	// removed from it. Without layer data, a command used in this scope.
+	const layerCommands = input.layer?.commandIds ? asSet(input.layer.commandIds) : null;
+	const uncustomised = new Set(input.uncustomisedCommandIds ?? []);
+	const uncustomisedCommandIds = [...uncustomised].filter((id) =>
+		layerCommands ? layerCommands.has(id) : referencedCommandIds.has(id) && !input.excludeCommandIds?.has(id),
+	);
+	// Your own command has no other definition: removing it breaks its buttons.
+	for (const id of uncustomisedCommandIds) {
+		if (input.layer?.commandRefIds && !canUncustomiseCommand(id, input.layer.commandRefIds)) {
+			unsupported.push(
+				`Uncustomising ${id} — it is your own command (your customizations' buttons use it and no other solution defines it); undo the uncustomise`,
+			);
+		}
+	}
+
 	for (const id of input.excludeCommandIds ?? []) referencedCommandIds.delete(id);
 
+	// A customised command is written even unchanged — unless the layer already
+	// has it (then only an edit replaces the layer's verbatim copy).
+	const customised = new Set(input.customisedCommandIds ?? []);
 	const baseCmd = new Map(input.baselineCommands.map((c) => [c.id, c]));
 	const editedCommandIds = input.commands
-		.filter((c) => referencedCommandIds.has(c.id) && (!baseCmd.has(c.id) || !same(baseCmd.get(c.id), c)))
+		.filter(
+			(c) =>
+				referencedCommandIds.has(c.id) &&
+				!uncustomised.has(c.id) &&
+				(!baseCmd.has(c.id) ||
+					!same(baseCmd.get(c.id), c) ||
+					(customised.has(c.id) && !layerCommands?.has(c.id))),
+		)
 		.map((c) => c.id);
 	for (const c of input.commands) {
 		if (!editedCommandIds.includes(c.id)) continue;
@@ -473,7 +518,7 @@ export function planScope(input: PlanInput): ScopePlan {
 	const enableInScope = new Set<string>();
 	const displayInScope = new Set<string>();
 	for (const c of input.commands) {
-		if (!referencedCommandIds.has(c.id)) continue;
+		if (!referencedCommandIds.has(c.id) || uncustomised.has(c.id)) continue;
 		c.enableRules.forEach((r) => enableInScope.add(r));
 		c.displayRules.forEach((r) => displayInScope.add(r));
 		// References the model keeps verbatim (e.g. an <EnableRule> inside
@@ -527,6 +572,7 @@ export function planScope(input: PlanInput): ScopePlan {
 		hasChanges:
 			generatorChange ||
 			editedCommandIds.length > 0 ||
+			uncustomisedCommandIds.length > 0 ||
 			editedEnableRuleIds.length > 0 ||
 			editedDisplayRuleIds.length > 0 ||
 			deleted.length > 0 ||
@@ -538,6 +584,7 @@ export function planScope(input: PlanInput): ScopePlan {
 			editedTabIds.length > 0 ||
 			renamedLabels.length > 0,
 		editedCommandIds,
+		uncustomisedCommandIds,
 		editedEnableRuleIds,
 		editedDisplayRuleIds,
 		deletedButtonIds: deleted,
