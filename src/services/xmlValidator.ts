@@ -8,6 +8,7 @@ import {
 } from "@/constants/ruleKinds";
 import { CRM_PARAMETER_VALUE_SET, isNamedCrmParameterValue } from "@/constants/crmParameters";
 import { groupControls } from "@/utils/ribbonMenu";
+import { isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { MAX_LOC_LABEL_ID_LENGTH } from "@/utils/locLabelRef";
 import { OPEN_RECORD_ITEM_COMMAND_ID, isOpenRecordCarrier } from "@/utils/openRecordItem";
 
@@ -324,6 +325,7 @@ export type PublishCheckCode =
 	| "scaling-collision"
 	| "scaling-size"
 	| "duplicate-id"
+	| "orphan-location"
 	| "label-id-length"
 	| "open-record-hidden";
 
@@ -392,6 +394,13 @@ export interface PublishValidationContext {
 	templateLayouts?: Record<string, string[]>;
 	/** Lookup results by lower-case web resource name. Names missing here aren't checked. */
 	webResources?: Record<string, WebResourceStatus>;
+	/**
+	 * Where a table's `._children` CustomActions can place what they add (#64):
+	 * the `<Controls>` / `<Groups>` collections of the loaded ribbon with the
+	 * tab each is on (layerOrphans.ribbonPlaces). Omitted — the application
+	 * ribbon, whose CustomActions can target any table — Locations aren't checked.
+	 */
+	places?: { entityLogicalName: string; tabByCollection: Record<string, string> };
 }
 
 /** Action kinds a classic ribbon `<CommandDefinition>` can't express: the generator drops them (#28). */
@@ -419,6 +428,8 @@ const CONTAINER_TAGS = new Set(["Tab", "Group"]);
 /** Platform library Dataverse writes into commands itself (ribbonDiffMerge.isPlatformAction); not a solution web resource. */
 const PLATFORM_WEB_RESOURCES = new Set(["main_system_library.js"]);
 const MENU_CONTROL_TAGS = new Set(["FlyoutAnchor", "SplitButton"]);
+/** Controls CBS shows on the canvas (xmlParser CONTROL_TAGS): the ones a Location check applies to (#64). */
+const PLACED_TAGS = new Set(["Button", "FlyoutAnchor", "SplitButton", "TextBox", "ComboBox", "CheckBox"]);
 const SCALING_LOCATION = /^(.+)\.Scaling\._children$/;
 const isPlatformId = (id: string) => /^(Mscrm|Microsoft)\./.test(id);
 
@@ -918,6 +929,53 @@ export function validatePublishRibbonDiff(
 				keys,
 				`Id ${id} is added as a new element, but the ribbon already has an element with this id`,
 				id,
+			);
+		}
+	}
+
+	// Locations nothing is shown at (#64): a tab, group or control added where
+	// the table's ribbon has no such collection (removed, renamed, misspelled),
+	// or on a tab Unified Interface doesn't show (the Charts tab). It publishes,
+	// but the ribbon never returns it, so it shows nowhere — CBS then lists it
+	// under "Orphaned customizations". Only what this publish adds or changes:
+	// the layer's existing orphans are listed there already. Loaded groups and
+	// tabs are matched by the platform's naming (`{group}.Controls`,
+	// `{tab}.Groups`: the parser doesn't keep their collections' ids), so a
+	// group with another Controls id can be reported wrongly — a warning only.
+	if (context.places) {
+		const { entityLogicalName, tabByCollection } = context.places;
+		const tabCollections = new Set(["Mscrm.Tabs", `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs`]);
+		for (const { key, el } of customActions) {
+			const location = el.getAttribute("Location") ?? "";
+			const parent = /^(.+)\._children$/.exec(location)?.[1];
+			if (!parent || SCALING_LOCATION.test(location) || !isChanged(key)) continue;
+			const definition = childElements(el).find((c) => c.tagName === "CommandUIDefinition");
+			const root = definition ? childElements(definition)[0] : undefined;
+			const id = root?.getAttribute("Id") ?? "";
+			if (!root || !id || !(PLACED_TAGS.has(root.tagName) || CONTAINER_TAGS.has(root.tagName))) continue;
+			const at = parent.split("{!EntityLogicalName}").join(entityLogicalName);
+			const tab = tabByCollection[at];
+			if (tab !== undefined) {
+				if (isHiddenOnUnifiedInterface(tab)) {
+					add(
+						"orphan-location",
+						key,
+						`${root.tagName} ${id} is added to ${parent}, on the tab ${tab}: Unified Interface doesn't show that tab and the ribbon doesn't return what is added there, so it won't show anywhere — add it to the table's main tab instead`,
+						id,
+						true,
+					);
+				}
+				continue;
+			}
+			// A table tab, or a collection inside something the customizations add.
+			const owner = (p: string) => p.replace(/\.(Controls|Groups)$/, "");
+			if (tabCollections.has(at) || [parent, at, owner(parent), owner(at)].some((p) => addedBy.has(p))) continue;
+			add(
+				"orphan-location",
+				key,
+				`${root.tagName} ${id} is added at ${location}, but this table's ribbon has no ${parent} — it won't show anywhere (check the Location, or move it to an existing group)`,
+				id,
+				true,
 			);
 		}
 	}

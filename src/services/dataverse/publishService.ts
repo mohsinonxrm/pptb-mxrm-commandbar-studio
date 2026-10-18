@@ -37,6 +37,7 @@ import {
 } from "@/services/dataverse/environmentService";
 import type { ScopePlan } from "@/services/publishPlan";
 import { describeScalingChange, type ScalingChange } from "@/services/scalingSequence";
+import { ribbonPlaces } from "@/services/layerOrphans";
 import { groupControls } from "@/utils/ribbonMenu";
 import { controlCommandIds } from "@/utils/controlKinds";
 import { verifyRibbonImport } from "@/services/importJobVerification";
@@ -202,6 +203,14 @@ export interface PublishRibbonResult {
 	 * them (#66 review B1, m4).
 	 */
 	parts: RibbonDiffParts;
+	/**
+	 * `part:id` of the elements this publish added or changed. The table's are
+	 * remembered for a while (utils/recentPublish): RetrieveEntityRibbon can
+	 * return the ribbon from before the publish, and those CustomActions must
+	 * not be offered for deletion as orphans then (#84 review). Required, so a
+	 * caller that drops it doesn't compile.
+	 */
+	changedKeys: string[];
 }
 
 function locLabelXml(label: LocLabel): string {
@@ -467,7 +476,8 @@ export function publishValidationContext(
 	input: Pick<
 		PublishRibbonInput,
 		"locations" | "commands" | "baselineCommands" | "baselineEnableRules" | "baselineDisplayRules"
-	> & { publisherPrefix?: string },
+	> &
+		Partial<Pick<PublishRibbonInput, "entity">> & { publisherPrefix?: string },
 	merged: {
 		changedKeys: string[];
 		newKeys: string[];
@@ -545,6 +555,20 @@ export function publishValidationContext(
 		groupTemplates,
 		templateLayouts,
 		menuControlsIds,
+		// Where the table's CustomActions can place what they add (#64).
+		...(input.entity
+			? {
+					places: {
+						entityLogicalName: input.entity.logicalName,
+						tabByCollection: Object.fromEntries(
+							ribbonPlaces(
+								input.locations.map((l) => l.baseline),
+								input.entity.logicalName,
+							),
+						),
+					},
+				}
+			: {}),
 	};
 }
 
@@ -895,6 +919,7 @@ async function publishRibbonUnguarded(
 		importJobId,
 		verification,
 		parts: merged.parts,
+		changedKeys: merged.changedKeys,
 	};
 }
 

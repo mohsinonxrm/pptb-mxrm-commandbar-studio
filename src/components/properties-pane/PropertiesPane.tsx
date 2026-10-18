@@ -10,6 +10,7 @@ import { ScalingSectionSummary } from "./ScalingSectionSummary";
 import { AdvancedSection } from "./AdvancedSection";
 import { ConflictBanner } from "./ConflictBanner";
 import { HiddenByCustomizationsSection } from "./HiddenByCustomizationsSection";
+import { OrphanedCustomizationsSection } from "./OrphanedCustomizationsSection";
 import { ReadOnlyControlSection } from "./ReadOnlyControlSection";
 import { isReadOnlyControlKind } from "@/utils/controlKinds";
 import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
@@ -81,6 +82,7 @@ export function PropertiesPane() {
 						<Text size={300}>Select a button to view its properties</Text>
 					</div>
 					<HiddenByCustomizationsSection />
+					<OrphanedCustomizationsSection />
 				</>
 			) : (
 				<>

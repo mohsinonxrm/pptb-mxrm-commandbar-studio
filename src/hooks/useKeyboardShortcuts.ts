@@ -186,7 +186,8 @@ export function useKeyboardShortcuts() {
 					activeLocation
 				) {
 					e.preventDefault();
-					moveButton(
+					// A button that isn't yours moves as a copy with a new id (#26).
+					const movedId = moveButton(
 						{
 							groupId: cut.groupId,
 							buttonId: cut.buttonId,
@@ -199,15 +200,23 @@ export function useKeyboardShortcuts() {
 							location: activeLocation,
 						},
 					);
+					cutBufferRef.current = null;
+					if (!movedId) {
+						announce("The button couldn't be moved there.");
+						return;
+					}
 					requestAnimationFrame(() => {
-						selectButtonInContext(activeLocation, selectedTabId, selectedGroupId, cut.buttonId);
+						selectButtonInContext(activeLocation, selectedTabId, selectedGroupId, movedId);
 						const targetTile = document.querySelector<HTMLButtonElement>(
-							`[data-ribbon-btn-id="${cut.buttonId}"]`,
+							`[data-ribbon-btn-id="${movedId}"]`,
 						);
 						targetTile?.focus();
 					});
-					cutBufferRef.current = null;
-					announce("Button pasted to destination group.");
+					announce(
+						movedId === cut.buttonId
+							? "Button pasted to destination group."
+							: "Pasted your copy of the button to the destination group; the original is hidden.",
+					);
 				}
 				return;
 			}

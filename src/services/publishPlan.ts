@@ -16,6 +16,7 @@ import type {
 	RibbonDefinition,
 } from "@/types/ribbon";
 import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
+import type { LayerOrphan } from "@/services/layerOrphans";
 import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 import { CONTROL_TAG_BY_KIND, controlCommandIds, isReadOnlyControlKind } from "@/utils/controlKinds";
 import { isOwnControl } from "@/utils/ribbonProvenance";
@@ -58,6 +59,12 @@ export interface PlanInput {
 	 * not on the canvas at all.
 	 */
 	unhiddenLayerHideIds?: string[];
+	/**
+	 * What the layer adds that isn't on the canvas (#64, layerOrphans) and the
+	 * user chose to delete: removed from the layer like your own deleted
+	 * buttons, tabs and groups, with the commands and labels nothing else uses.
+	 */
+	deletedOrphans?: Pick<LayerOrphan, "id" | "deleteControlIds" | "deleteContainerIds">[];
 	/**
 	 * Commands that belong to another scope and must not be published from this
 	 * one. The application ribbon passes the commands its table's buttons use:
@@ -373,9 +380,11 @@ export function planScope(input: PlanInput): ScopePlan {
 			const placeChanged =
 				c.menu || b.menu ? c.menu?.controlsId !== b.menu?.controlsId : c.groupId !== b.groupId;
 			if (placeChanged || c.button.sequence !== b.button.sequence) {
-				// Your own button: its CustomAction is moved in place. Anything else
-				// would need a hide plus a copy, which CBS doesn't write (yet). A menu
-				// item moves within its menu section's Controls (#27).
+				// Your own button: its CustomAction is moved in place. Moving any other
+				// button moves a copy and hides the original (ribbonStore.moveButton,
+				// #26), so what reaches here is a flyout / split button, a hidden or
+				// read-only button, or a menu item. A menu item moves within its menu
+				// section's Controls (#27).
 				if (b.button.origin === "unmanaged") {
 					moved.push({
 						id,
@@ -385,7 +394,7 @@ export function planScope(input: PlanInput): ScopePlan {
 					});
 				} else {
 					unsupported.push(
-						`Moving or re-ordering "${c.button.label}" (${id}) — only your own unmanaged buttons can be moved; hide it and add a new button instead`,
+						`Moving or re-ordering "${c.button.label}" (${id}) — only your own unmanaged buttons, and copies made with "Customise button", can be moved; undo the move, then hide it and add a new button instead`,
 					);
 				}
 			}
@@ -486,6 +495,12 @@ export function planScope(input: PlanInput): ScopePlan {
 		if (!to) continue;
 		moved.push({ id: deleted[i], ...to });
 		deleted.splice(i, 1);
+	}
+	// Orphans the user deletes (#64): not on the canvas, so not in the
+	// baseline / current comparison above.
+	for (const o of input.deletedOrphans ?? []) {
+		for (const id of o.deleteControlIds) if (!deleted.includes(id)) deleted.push(id);
+		for (const id of o.deleteContainerIds) if (!deletedContainers.includes(id)) deletedContainers.push(id);
 	}
 	for (const m of newMenus) {
 		// A moved menu keeps its <Menu>: the merge edits the control in place.
