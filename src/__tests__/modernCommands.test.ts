@@ -17,6 +17,7 @@ import {
 	overrideNote,
 	placeModernCommands,
 	scopeToContainingApps,
+	type ClassicControl,
 } from "@/services/modernCommands";
 import type { ModernCommand } from "@/types/modernCommand";
 
@@ -578,6 +579,147 @@ describe("review fixes (#74)", () => {
 			" — hidden by modern command Refresh in all apps",
 		);
 		expect(overrideNote(undefined)).toBe("");
+	});
+});
+
+describe("flyout menu items (#74 follow-up)", () => {
+	const flyout = (id: string, items: ClassicControl[]): ClassicControl => ({
+		id,
+		menu: { sections: [{ controls: items }] },
+	});
+	const migrated = (suffix: string, over: Record<string, unknown> = {}) =>
+		cmd({
+			uniquename: `msdyn_Mscrm.HomepageGrid.{!EntityLogicalName}.${suffix}!1`,
+			buttonlabeltext: suffix,
+			origin: 1,
+			context: 0,
+			_contextentity_value: null,
+			contextvalue: null,
+			...over,
+		});
+	const tabs = [
+		{
+			id: "Mscrm.HomepageGrid.contact.MainTab",
+			groups: [
+				{
+					buttons: [
+						{ id: "Mscrm.HomepageGrid.contact.NewRecord" },
+						flyout("Mscrm.HomepageGrid.contact.ExportToExcel", [
+							{ id: "Mscrm.HomepageGrid.contact.ExportToExcel.Static" },
+							flyout("Mscrm.HomepageGrid.contact.ExportToExcel.More", [
+								{ id: "Mscrm.HomepageGrid.contact.ExportToExcel.Pivot" },
+							]),
+						]),
+					],
+				},
+			],
+		},
+	];
+
+	it("matches a migrated command to a menu item, nested menus included", () => {
+		const parent = migrated("ExportToExcel", { type: 2 });
+		const staticItem = migrated("ExportToExcel.Static", {
+			_parentappactionid_value: parent.id,
+			hidden: true,
+		});
+		const pivot = migrated("ExportToExcel.Pivot", { _parentappactionid_value: parent.id });
+		const model = buildModernLocationModel({
+			commands: [parent, staticItem, pivot],
+			tabs,
+			location: "HomepageGrid",
+			entityLogicalName: "contact",
+		});
+		expect(model.nodes).toEqual([]);
+		expect(model.unmatchedMigrated).toEqual([]);
+		expect(model.overrides.get("Mscrm.HomepageGrid.contact.ExportToExcel.Static")).toEqual([
+			expect.objectContaining({ effect: "hidden", command: staticItem }),
+		]);
+		expect(model.overrides.get("Mscrm.HomepageGrid.contact.ExportToExcel.Pivot")).toEqual([
+			expect.objectContaining({ effect: "replaced", command: pivot }),
+		]);
+		// Matched items have their own flag; the flyout lists only what has none.
+		const [o] = model.overrides.get("Mscrm.HomepageGrid.contact.ExportToExcel")!;
+		expect(o.items).toBeUndefined();
+	});
+
+	it("draws an unmatched migrated child of an unmatched parent as a chip, not a menu item flag", () => {
+		const parent = migrated("NotHere", { type: 2 });
+		const child = migrated("NotHere.Item", { _parentappactionid_value: parent.id });
+		const model = buildModernLocationModel({
+			commands: [parent, child],
+			tabs,
+			location: "HomepageGrid",
+			entityLogicalName: "contact",
+		});
+		expect(model.overrides.size).toBe(0);
+		expect(model.nodes.map((n) => n.command.id)).toEqual([parent.id]);
+		expect(model.nodes[0].children.map((n) => n.command.id)).toEqual([child.id]);
+	});
+
+	it("prefers a top-level button over a menu item when both match only loosely", () => {
+		const twin = migrated("Twin");
+		const model = buildModernLocationModel({
+			commands: [twin],
+			tabs: [
+				{
+					id: "Mscrm.HomepageGrid.contact.MainTab",
+					groups: [
+						// The menu comes first in the ribbon; neither id names this table.
+						{ buttons: [flyout("Mscrm.HomepageGrid.contact.Menu", [{ id: "Mscrm.HomepageGrid.lead.Twin" }])] },
+						{ buttons: [{ id: "Mscrm.HomepageGrid.account.Twin" }] },
+					],
+				},
+			],
+			location: "HomepageGrid",
+			entityLogicalName: "contact",
+		});
+		expect([...model.overrides.keys()]).toEqual(["Mscrm.HomepageGrid.account.Twin"]);
+	});
+
+	it("keeps a matching child in its parent's chip when the parent itself has no classic control (review m1)", () => {
+		const parent = migrated("RenamedFlyout", { type: 2 });
+		const child = migrated("ExportToExcel.Static", { _parentappactionid_value: parent.id });
+		const other = migrated("NotAnywhere", { _parentappactionid_value: parent.id });
+		const model = buildModernLocationModel({
+			commands: [parent, child, other],
+			tabs,
+			location: "HomepageGrid",
+			entityLogicalName: "contact",
+		});
+		expect(model.overrides.has("Mscrm.HomepageGrid.contact.ExportToExcel.Static")).toBe(false);
+		expect(model.nodes.map((n) => n.command.id)).toEqual([parent.id]);
+		expect(model.nodes[0].children.map((n) => n.command.id).sort()).toEqual([child.id, other.id].sort());
+	});
+
+	it("looks through a menu section (group command) to the matched flyout (review)", () => {
+		const parent = migrated("ExportToExcel", { type: 2 });
+		const section = cmd({ name: "Section", type: 3, origin: 1, _parentappactionid_value: parent.id });
+		const item = migrated("ExportToExcel.Static", { _parentappactionid_value: section.id, hidden: true });
+		const model = buildModernLocationModel({
+			commands: [parent, section, item],
+			tabs,
+			location: "HomepageGrid",
+			entityLogicalName: "contact",
+		});
+		expect(model.overrides.get("Mscrm.HomepageGrid.contact.ExportToExcel.Static")).toEqual([
+			expect.objectContaining({ effect: "hidden", command: item }),
+		]);
+		expect(model.nodes).toEqual([]);
+	});
+
+	it("lists a disabled child on its parent's flag instead of dropping it (review m2)", () => {
+		const parent = migrated("ExportToExcel", { type: 2 });
+		const disabled = migrated("ExportToExcel.Static", { _parentappactionid_value: parent.id, isdisabled: true });
+		const model = buildModernLocationModel({
+			commands: [parent, disabled],
+			tabs,
+			location: "HomepageGrid",
+			entityLogicalName: "contact",
+		});
+		expect(model.overrides.has("Mscrm.HomepageGrid.contact.ExportToExcel.Static")).toBe(false);
+		const [o] = model.overrides.get("Mscrm.HomepageGrid.contact.ExportToExcel")!;
+		expect(o.items?.map((i) => i.id)).toEqual([disabled.id]);
+		expect(model.nodes).toEqual([]);
 	});
 });
 

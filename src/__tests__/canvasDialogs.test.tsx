@@ -59,7 +59,8 @@ function ribbon(location: RibbonLocation): RibbonDefinition {
 						label: "$LocLabels:grp.Title",
 						sequence: 10,
 						template: "Flexible2",
-						buttons: [button("mxrm.Own.Button", "$LocLabels:btn.Label", 10)],
+						// Your own group and button (#17: only those can be deleted).
+						buttons: [{ ...button("mxrm.Own.Button", "$LocLabels:btn.Label", 10), oob: false, custom: true, origin: "unmanaged" as const }],
 					},
 					{
 						id: MGMT,
@@ -180,6 +181,7 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			],
 			// The canvas shows group titles in the organisation's base language.
 			baseLanguageCode: 1031,
+			layers: { entity: { controlIds: ["mxrm.Own.Button"], containerIds: [OWN], locLabelIds: [], hides: [] } },
 		});
 		useSelectionStore.getState().setLocation("HomepageGrid");
 		useSelectionStore.getState().setTabId(MAIN);

@@ -22,11 +22,12 @@ import {
 	DismissRegular,
 } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
-import { useRibbonStore } from "@/store/ribbonStore";
+import { ownContainerIds, useRibbonStore } from "@/store/ribbonStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { canDeleteTab as canDeleteTabWithContents } from "@/utils/ribbonProvenance";
 import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { useUIStore } from "@/store/uiStore";
-import type { RibbonLocation } from "@/types/ribbon";
+import type { RibbonLocation, RibbonTab } from "@/types/ribbon";
 import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ClassicRibbon } from "./ClassicRibbon";
 import { ModernCommandBar } from "./ModernCommandBar";
@@ -247,12 +248,11 @@ export function RibbonCanvas({
 
 	/**
 	 * A tab can be deleted when publishing can remove it: it was created in
-	 * this session, or the table's (or application's) unmanaged layer adds it.
+	 * this session, or the table's (or application's) unmanaged layer adds it —
+	 * and so is everything in it (#17 review).
 	 */
-	function canDeleteTab(id: string): boolean {
-		const loaded = baseline[location].tabs.some((t) => t.id === id);
-		const own = layers[location === "Application" ? "application" : "entity"]?.containerIds ?? [];
-		return !loaded || own.includes(id);
+	function canDeleteTab(tab: RibbonTab): boolean {
+		return canDeleteTabWithContents(tab, baseline[location], ownContainerIds({ layers }, location));
 	}
 
 	// PointerSensor without an activation constraint starts a drag on every
@@ -409,7 +409,7 @@ export function RibbonCanvas({
 									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
 								}}
 								onDelete={
-									currentTab?.id === tab.id && canDeleteTab(tab.id)
+									currentTab?.id === tab.id && canDeleteTab(tab)
 										? () => setDeletingTabId(tab.id)
 										: undefined
 								}

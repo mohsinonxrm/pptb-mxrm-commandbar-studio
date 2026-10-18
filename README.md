@@ -91,10 +91,12 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - CBS-specific completions: `$LocLabels:`, `$webresource:`, `Command=`, `ModernImage=`
 
 ### 🔄 Publish Pipeline
-- Correct delta-only `RibbonDiffXml` — only changed elements emitted
+- Read → merge → write: reads the table's existing unmanaged ribbon layer (CustomActions, commands, rules, labels) and merges your changes into it, so customizations made elsewhere (e.g. with Ribbon Workbench) are kept
+- Pre-publish validation — blocking errors stop the import; warnings are logged
 - Solution ZIP packaging with `behavior=2` (shell-only) root component — does **not** pull in all entity subcomponents
-- 5-minute import polling with progress beats
-- Post-publish `ribbonmetadatasettoprocess` monitoring — surfaces compile errors that `publishCustomizations` silently swallows
+- Import → publish → re-import → publish, so Unified Interface picks up the change
+- Waits and retries while the environment is busy with another import, publish or ribbon-metadata job
+- Post-publish verification — reads the published layer back and checks every element this publish changed has the imported content
 - `Mscrm.OpenRecordItem` override support — emitted as a system-command override when the user defines a JS action on it
 
 ### 🧩 Solution Conflict Drawer
@@ -112,8 +114,15 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Arrow keys — navigate buttons on canvas
 
 ### 💾 Persistence
-- Auto-save ribbon state to `localStorage` keyed by org URL + entity
-- Restore-from-previous-session banner on startup
+- Unpublished changes are saved as a draft in `localStorage` after every change, per org,
+  solution and table: everything the publish needs (canvas, commands, rules, labels,
+  un-hides, customised / uncustomised commands). Only what differs from the loaded ribbon
+  is stored, compressed: a few KB per table
+- When the table loads again, a dialog offers to **Restore** the draft on top of the ribbon
+  as loaded (one undo step) or **Discard** it. Drafts older than 30 days are discarded
+- Switching table or solution with unpublished changes asks first: **Keep as draft**,
+  **Discard** or **Cancel**. When the browser storage is full, a banner says so and
+  **Keep as draft** is disabled, so the changes are never dropped silently
 - Pane widths, collapsed state, view mode all persisted
 
 ---
@@ -207,8 +216,7 @@ npm run validate
 CBS runs in two modes:
 
 - **Standalone** (`npm run dev`) — opens in a regular browser tab. Useful for UI
-  iteration. All Dataverse calls fail because `window.dataverseAPI` is absent; the
-  canvas and editors can still be exercised with the restore-from-localStorage path.
+  iteration. All Dataverse calls fail because `window.dataverseAPI` is absent.
 - **Dev harness** (`npm run dev:harness`) — the real UI in a browser tab against a
   live Dataverse org, via a stubbed PPTB host and an Azure CLI–authenticated dev-server
   proxy. See [CONTRIBUTING.md](CONTRIBUTING.md#running-against-a-live-org-dev-harness).
@@ -254,12 +262,14 @@ src/
     shared/              — MonacoEditor, FluentIcon, CrmParameterEditor,
                            RuleStepEditor, RuleStepPicker, ResizableHandle
   services/
-    xmlGenerator.ts      — Delta-only RibbonDiffXml generator (all 30 rule kinds)
+    xmlGenerator.ts      — RibbonDiffXml generator (all 30 rule kinds)
     xmlParser.ts         — Merged ribbon XML parser (all 30 rule kinds)
     xmlValidator.ts      — Pre-import validation with user-friendly messages
+    publishPlan.ts       — What a publish changes per location (and what it can't)
+    ribbonDiffMerge.ts   — Merges your changes into the existing unmanaged layer
     dataverse/
       ribbonService.ts         — RetrieveEntityRibbon / RetrieveApplicationRibbon
-      publishService.ts        — Solution ZIP packaging + import + ribbonmetadatasettoprocess poll
+      publishService.ts        — Layer merge, solution ZIP packaging, import, publish and verification
       ribbonProvenanceService.ts — msdyn_componentlayer solution-layer provenance
       conflictService.ts       — fetchConflictLayersForElement
       webResourceService.ts    — loadWebResources / loadWebResourceByName / loadWebResourceContent
