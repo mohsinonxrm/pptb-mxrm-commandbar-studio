@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 💾 Restoring unsaved changes ([#16](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/16))
+
+- **Restore** now brings back everything that was going to be published: the canvas,
+  commands, rules, labels and translations, un-hides, and customised / uncustomised
+  commands. It goes on top of the ribbon as loaded now, so the restored changes publish
+  (before, they were taken as the loaded state and nothing could be published). Undo
+  takes the restore back as one step.
+- The banner appears only once the table has finished loading, so a restore is no longer
+  overwritten by the load. When the table's ribbon changed on the server since the draft
+  was saved, the banner says so: review the publish plan before publishing.
+- Drafts are kept per org, solution and table. Loading a table no longer deletes its
+  draft; a draft is removed after publishing everything, when undoing back to the loaded
+  ribbon, or with **Discard**. Editing before choosing Restore / Discard doesn't overwrite
+  the earlier draft. Drafts saved by earlier versions are discarded (they can't be
+  restored correctly).
+- Switching table or solution with unpublished changes asks first: **Keep as draft**
+  (offered again when you reopen the table in that solution), **Discard** or **Cancel**.
+
 ### 🧹 Unsupported command actions ([#28](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/28))
 
 - The command editor no longer offers **Power Fx** or **Custom API** actions:

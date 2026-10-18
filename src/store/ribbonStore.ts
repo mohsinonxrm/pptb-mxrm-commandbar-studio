@@ -301,6 +301,12 @@ export interface RibbonStore extends RibbonStoreState {
 	// Load initial data
 	loadRibbons(ribbons: Record<RibbonLocation, RibbonDefinition>): void;
 	loadWorkspace(seed: RibbonWorkspaceSeed): void;
+	/**
+	 * Puts a saved workspace (unsaved changes of an earlier session, #16) on
+	 * top of the loaded one as ONE undo step. Baselines and layers stay as
+	 * loaded, so the restored edits are changes to publish.
+	 */
+	restoreWorkspace(workspace: WorkspaceSnapshot, detail: string): void;
 }
 
 const MAX_HISTORY = 80;
@@ -338,7 +344,7 @@ function cloneRibbons(
 	return JSON.parse(JSON.stringify(ribbons));
 }
 
-function workspaceOf(state: RibbonStoreState): WorkspaceSnapshot {
+export function workspaceOf(state: RibbonStoreState): WorkspaceSnapshot {
 	// State is updated immutably, so the snapshot can share it.
 	return {
 		ribbons: state.ribbons,
@@ -686,6 +692,22 @@ export const useRibbonStore = create<RibbonStore>()(
 				future: [],
 			});
 			if (openBatch) openBatch = { snapshot: workspaceOf(get()), meta: null };
+		},
+
+		restoreWorkspace(workspace, detail) {
+			const copy: WorkspaceSnapshot = JSON.parse(JSON.stringify(workspace));
+			set((state) => {
+				// An un-hide of a hide the layer no longer has would publish nothing.
+				const stillHidden = (scope: LayerScope) => {
+					const snap = state.layers[scope];
+					return snap ? copy.pendingUnhides[scope].filter((id) => snap.hides.some((h) => h.location === id)) : copy.pendingUnhides[scope];
+				};
+				return record(
+					state,
+					{ ...copy, pendingUnhides: { entity: stillHidden("entity"), application: stillHidden("application") } },
+					historyMeta("restored", "unsaved changes", detail, "history"),
+				);
+			});
 		},
 
 		undo() {

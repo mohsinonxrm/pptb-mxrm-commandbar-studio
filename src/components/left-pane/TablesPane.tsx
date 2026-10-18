@@ -18,6 +18,7 @@ import {
 } from "@fluentui-contrib/react-data-grid-react-window";
 import { SearchRegular, LockClosedRegular } from "@fluentui/react-icons";
 import { useSessionStore } from "@/store/sessionStore";
+import { useDraftStore } from "@/store/draftStore";
 import type { EntityMetadata } from "@/types/entity";
 import { useState, useMemo } from "react";
 
@@ -82,7 +83,7 @@ export function TablesPane() {
 	const styles = useStyles();
 	const entities = useSessionStore((s) => s.entities);
 	const activeEntity = useSessionStore((s) => s.activeEntity);
-	const setActiveEntity = useSessionStore((s) => s.setActiveEntity);
+	const requestEntitySwitch = useDraftStore((s) => s.requestEntitySwitch);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const solutionEntityIds = useSessionStore((s) => s.solutionEntityIds);
 
@@ -164,7 +165,7 @@ export function TablesPane() {
 					<EntityRowItem
 						entity={row.entity}
 						isActive={activeEntity?.logicalName === row.entity.logicalName}
-						onClick={() => setActiveEntity(row.entity)}
+						onClick={() => requestEntitySwitch(row.entity)}
 					/>
 				);
 			},
