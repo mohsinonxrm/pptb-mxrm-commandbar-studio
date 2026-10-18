@@ -170,8 +170,14 @@ export const CommandPalette: React.FC = () => {
 				subtitle: "Import RibbonDiffXml from clipboard",
 				kind: "action",
 				action: () => {
-					openImportXml();
 					close();
+					// Opens with the clipboard's XML; empty when it can't be read.
+					const read = navigator.clipboard?.readText?.();
+					if (!read) return openImportXml();
+					read.then(
+						(t) => openImportXml(t.trim().startsWith("<") ? t : ""),
+						() => openImportXml(),
+					);
 				},
 			},
 			{

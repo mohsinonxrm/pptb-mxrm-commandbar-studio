@@ -32,6 +32,8 @@ export interface UIStore {
 	newGroupOpen: boolean;
 	newButtonGroupId: string | null;
 	importXmlOpen: boolean;
+	/** XML the import dialog opens with (the XML drawer's, or the clipboard's). */
+	importXmlSeed: string;
 	conflictDrawerOpen: boolean;
 	conflictElementId: string | null;
 	webResourceBrowserOpen: boolean;
@@ -69,7 +71,7 @@ export interface UIStore {
 	closeNewGroup(): void;
 	openNewButton(groupId: string): void;
 	closeNewButton(): void;
-	openImportXml(): void;
+	openImportXml(seed?: string): void;
 	closeImportXml(): void;
 	openConflictDrawer(elementId: string): void;
 	closeConflictDrawer(): void;
@@ -117,6 +119,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	newGroupOpen: false,
 	newButtonGroupId: null,
 	importXmlOpen: false,
+	importXmlSeed: "",
 	conflictDrawerOpen: false,
 	conflictElementId: null,
 	webResourceBrowserOpen: false,
@@ -159,7 +162,8 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	closeNewGroup: () => set({ newGroupOpen: false }),
 	openNewButton: (groupId) => set({ newButtonGroupId: groupId }),
 	closeNewButton: () => set({ newButtonGroupId: null }),
-	openImportXml: () => set({ importXmlOpen: true }),
+	openImportXml: (seed) =>
+		set({ importXmlOpen: true, importXmlSeed: typeof seed === "string" ? seed : "" }),
 	closeImportXml: () => set({ importXmlOpen: false }),
 	openConflictDrawer: (elementId) =>
 		set({ conflictDrawerOpen: true, conflictElementId: elementId }),

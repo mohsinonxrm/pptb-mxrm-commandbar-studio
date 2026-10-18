@@ -123,6 +123,18 @@ export interface RibbonGroup {
 	sequence: number;
 	template: string;
 	buttons: RibbonButton[];
+	/** The `<Group>` as imported from a RibbonDiffXml (#30); absent otherwise. */
+	source?: RibbonContainerSource;
+}
+
+/**
+ * A tab / group element exactly as imported (#30): its raw `Title` token
+ * (`$LocLabels:…`, `$Resources:…`, literal) and every attribute, so a publish
+ * writes them back instead of re-deriving them from the display text.
+ */
+export interface RibbonContainerSource {
+	titleToken?: string;
+	attributes: Record<string, string>;
 }
 
 export interface RibbonTab {
@@ -133,6 +145,8 @@ export interface RibbonTab {
 	template?: string;
 	tabDisplayRules: TabDisplayRule[];
 	groups: RibbonGroup[];
+	/** The `<Tab>` as imported from a RibbonDiffXml (#30); absent otherwise. */
+	source?: RibbonContainerSource;
 }
 
 export interface RibbonDefinition {

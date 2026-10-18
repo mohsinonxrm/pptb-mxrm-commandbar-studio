@@ -233,6 +233,14 @@ export interface RibbonStore extends RibbonStoreState {
 	 */
 	markPublished(locations?: RibbonLocation[], published?: Partial<Record<LayerScope, RibbonDiffParts>>): void;
 	setConflicts(entries: ConflictEntry[]): void;
+	/**
+	 * Applies an imported RibbonDiffXml (ribbonDiffImport.ts) as ONE session
+	 * change. The baseline is left alone, so what was imported publishes (#30).
+	 */
+	applyImport(
+		next: Pick<RibbonStoreState, "ribbons" | "commands" | "enableRules" | "displayRules" | "locLabels">,
+		summary: string,
+	): void;
 
 	// Load initial data
 	loadRibbons(ribbons: Record<RibbonLocation, RibbonDefinition>): void;
@@ -517,6 +525,24 @@ export const useRibbonStore = create<RibbonStore>()(
 
 		setConflicts(entries) {
 			set({ conflicts: entries });
+		},
+
+		applyImport(next, summary) {
+			// One undo step for the canvas and the definitions together: #69's
+			// workspace snapshots replace #30's per-definition restore.
+			set((state) =>
+				record(
+					state,
+					{
+						ribbons: { ...state.ribbons, ...cloneRibbons(next.ribbons) },
+						commands: [...next.commands],
+						enableRules: [...next.enableRules],
+						displayRules: [...next.displayRules],
+						locLabels: [...next.locLabels],
+					},
+					historyMeta("imported", "RibbonDiffXml", summary, "arrow_upload", "success"),
+				),
+			);
 		},
 
 		loadWorkspace(seed) {
@@ -1002,6 +1028,8 @@ export const useRibbonStore = create<RibbonStore>()(
 							...JSON.parse(JSON.stringify(grp)),
 							id: `${grp.id}${stamp}`,
 							label: `${grp.label} (copy)`,
+							// The copy must not reuse an imported group's Title label (#30).
+							source: undefined,
 							sequence: grp.sequence + 5,
 							buttons: grp.buttons.map((b) => copyControl(b, `${b.id}${stamp}`)),
 						};

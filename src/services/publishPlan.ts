@@ -1,4 +1,10 @@
-import { hasOobOverrideChanges, indexButtons, planNewGroupScaling, summarizeRibbonDiff } from "@/services/xmlGenerator";
+import {
+	effectiveModernImage,
+	hasOobOverrideChanges,
+	indexButtons,
+	planNewGroupScaling,
+	summarizeRibbonDiff,
+} from "@/services/xmlGenerator";
 import { describeScalingChange, resequenceLayerScaling, type LayerScaleStep } from "@/services/scalingSequence";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import type {
@@ -122,6 +128,12 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 const isResourceIcon = (b: { icon?: string; image16?: string; image32?: string }) =>
 	[b.icon, b.image16, b.image32].some((v) => !!v && v.startsWith("$webresource:"));
+/**
+ * The icon is the control definition's own ModernImage (or its absence), written
+ * as is — e.g. an imported override (#30) — not a bare Fluent name picked in CBS.
+ */
+const isSourceIcon = (b: RibbonButton) =>
+	!!b.source && effectiveModernImage(b) === b.source.modernImage && (b.source.modernImage !== undefined || !b.icon);
 const LOC_REF = /^\$LocLabels:(.+)$/;
 const locRef = (v: string | undefined) => (v ? (LOC_REF.exec(v)?.[1] ?? null) : null);
 /** A rule reference the parser keeps verbatim (CommandDefinition.rawRuleRefs). */
@@ -311,7 +323,7 @@ export function planScope(input: PlanInput): ScopePlan {
 					`Adding, removing or changing menu sections of "${c.button.label}" (${id}) — not supported yet for an existing menu; add, edit or remove its items instead`,
 				);
 			}
-			if ((c.button.icon ?? "") !== (b.button.icon ?? "") && !isResourceIcon(c.button)) {
+			if ((c.button.icon ?? "") !== (b.button.icon ?? "") && !isResourceIcon(c.button) && !isSourceIcon(c.button)) {
 				unsupported.push(
 					`Changing the icon of "${c.button.label}" (${id}) to a built-in icon — not supported yet; choose an SVG web resource`,
 				);
@@ -366,6 +378,11 @@ export function planScope(input: PlanInput): ScopePlan {
 			const bt = baseTabs.get(tab.id);
 			if (!bt) {
 				generatorLabels.add(`${tab.id}.Title`);
+				// An imported tab keeps its own Title label (#30), and the
+				// CommandDefinition of its Command is written with it.
+				const titleRef = locRef(tab.source?.titleToken);
+				if (titleRef) generatorLabels.add(titleRef);
+				if (tab.commandId) referencedCommandIds.add(tab.commandId);
 				// A new table tab gets a default display rule; on the application
 				// ribbon there's no default, and without a rule the tab never shows.
 				if (current.location === "Application" && (tab.tabDisplayRules ?? []).length === 0) {
@@ -391,7 +408,12 @@ export function planScope(input: PlanInput): ScopePlan {
 				const groupRef = locRef(g.label);
 				if (groupRef) referencedLabels.add(groupRef);
 				const bg = baseGroups.get(g.id);
-				if (!bg) generatorLabels.add(`${g.id}.Title`);
+				if (!bg) {
+					generatorLabels.add(`${g.id}.Title`);
+					// An imported group keeps its own Title label (#30).
+					const titleRef = locRef(g.source?.titleToken);
+					if (titleRef) generatorLabels.add(titleRef);
+				}
 				if (bg && bg.template !== g.template) unsupported.push(`Re-templating group ${g.id} — not supported yet`);
 				if (bg && bg.label !== g.label) rename("group", g.id, bg.label, g.label);
 			}
