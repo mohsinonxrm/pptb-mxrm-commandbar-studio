@@ -18,6 +18,7 @@ import {
 } from "@/services/ribbonDiffMerge";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { groupControls, removeMenuItem } from "@/utils/ribbonMenu";
 
 const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
 
@@ -222,7 +223,7 @@ export function reconcileWithLayer(
 	for (const def of defs)
 		for (const tab of def.tabs)
 			for (const group of tab.groups)
-				for (const button of group.buttons)
+				for (const button of groupControls(group))
 					if (button.commandId && !known.has(button.commandId) && layer.commandDefinitions.has(button.commandId))
 						missing.add(button.commandId);
 	if (missing.size === 0) return [];
@@ -260,7 +261,11 @@ function resolveLabelsIn(defs: RibbonDefinition[], locLabels: LocLabel[], langua
 	for (const def of defs)
 		for (const tab of def.tabs)
 			for (const group of tab.groups)
-				for (const button of group.buttons) {
+				for (const button of groupControls(group)) {
+					for (const section of button.menu?.sections ?? []) {
+						const token = section.attributes?.["Title"];
+						if (token?.startsWith("$LocLabels:")) section.title = resolveDisplayLabel(token, locLabels, languageCode);
+					}
 					const src = button.source;
 					if (!src) continue;
 					const pairs: Array<[string | undefined, "label" | "tooltipTitle" | "tooltipBody"]> = [
@@ -319,7 +324,11 @@ export function addLayerTabs(
 	parsed.ribbon.tabs = parsed.ribbon.tabs.filter((t) => !hidden.has(t.id));
 	for (const tab of parsed.ribbon.tabs) {
 		tab.groups = tab.groups.filter((g) => !hidden.has(g.id));
-		for (const group of tab.groups) group.buttons = group.buttons.filter((b) => !hidden.has(b.id));
+		for (const group of tab.groups) {
+			group.buttons = group.buttons.filter((b) => !hidden.has(b.id));
+			// Hidden menu items too (#27).
+			for (const item of groupControls(group)) if (hidden.has(item.id)) removeMenuItem(group, item.id);
+		}
 	}
 
 	const subGridIds = new Set(

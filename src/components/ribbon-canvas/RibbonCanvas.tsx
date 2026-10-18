@@ -30,6 +30,7 @@ import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ClassicRibbon } from "./ClassicRibbon";
 import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
+import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
 	DndContext,
@@ -471,12 +472,18 @@ export function RibbonCanvas({
 					</MessageBar>
 				) : !currentTab ? (
 					<EmptyTab onAddGroup={openNewGroup} />
-				) : ribbonViewStyle === "classic" ? (
-					<ClassicRibbon tab={currentTab} location={location} />
-				) : ribbonViewStyle === "modern" ? (
-					<ModernCommandBar tab={currentTab} location={location} />
 				) : (
-					<RibbonListView tab={currentTab} location={location} />
+					<>
+						{ribbonViewStyle === "classic" ? (
+							<ClassicRibbon tab={currentTab} location={location} />
+						) : ribbonViewStyle === "modern" ? (
+							<ModernCommandBar tab={currentTab} location={location} />
+						) : (
+							<RibbonListView tab={currentTab} location={location} />
+						)}
+						{/* The selected flyout / split button's menu (#27). */}
+						<FlyoutMenuPanel tab={currentTab} location={location} />
+					</>
 				)}
 			</div>
 		</main>

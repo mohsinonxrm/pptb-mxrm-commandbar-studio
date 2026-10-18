@@ -27,6 +27,7 @@ import {
 	AppsAddInRegular,
 	RenameRegular,
 	DocumentRegular,
+	ChevronDownRegular,
 } from "@fluentui/react-icons";
 import {
 	DndContext,
@@ -986,6 +987,8 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 				>
 					{displayLabel}
 				</span>
+				{/* Flyout / split button: its menu opens under the canvas when selected (#27). */}
+				{button.menu && <ChevronDownRegular fontSize={10} aria-label="Has a menu" />}
 				{/* Badges */}
 				{button.hidden && (
 					<span style={{ position: "absolute", top: 2, right: 2 }} aria-hidden>

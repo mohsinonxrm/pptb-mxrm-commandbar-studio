@@ -1,4 +1,5 @@
 import type { RibbonButton, RibbonDefinition, RibbonLocation, RibbonOrigin } from "@/types/ribbon";
+import { groupControls } from "@/utils/ribbonMenu";
 
 /**
  * Platform-owned base ribbon ids. Microsoft's out-of-the-box ribbon uses the
@@ -51,7 +52,7 @@ export function heuristicOrigin(id: string, inCustomAction: boolean): RibbonOrig
 export function applyLayerOwnership(def: RibbonDefinition, ownIds: Set<string>): void {
 	for (const tab of def.tabs)
 		for (const group of tab.groups)
-			for (const button of group.buttons) {
+			for (const button of groupControls(group)) {
 				if (ownIds.has(button.id)) applyButtonOrigin(button, { origin: "unmanaged" });
 				else if (button.origin === "unmanaged") applyButtonOrigin(button, { origin: "managed" });
 			}
@@ -70,7 +71,7 @@ export function applyProvenanceToRibbons(
 	for (const location of Object.keys(ribbons) as RibbonLocation[]) {
 		for (const tab of ribbons[location].tabs) {
 			for (const group of tab.groups) {
-				for (const button of group.buttons) {
+				for (const button of groupControls(group)) {
 					const p = provenance.get(button.id);
 					if (p) applyButtonOrigin(button, p);
 				}

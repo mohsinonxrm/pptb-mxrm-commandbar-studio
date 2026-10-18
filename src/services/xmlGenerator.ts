@@ -6,6 +6,7 @@ import type {
 	DisplayRule,
 	LocLabel,
 	RibbonButton,
+	RibbonMenu,
 	RuleStep,
 	ActionParameter,
 	RibbonAction,
@@ -23,6 +24,7 @@ import {
 } from "@/utils/locLabelRef";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { freeMaxSizeSequence, maxSizeBand } from "@/services/scalingSequence";
+import { menuItemsOf } from "@/utils/ribbonMenu";
 
 interface GeneratorInput {
 	current: RibbonDefinition;
@@ -73,6 +75,17 @@ export interface IndexedButton {
 	button: RibbonButton;
 	groupId: string;
 	tabId: string;
+	/** Set for a menu item (#27): where in which flyout / split button's menu it lives. */
+	menu?: MenuPlacement;
+}
+
+export interface MenuPlacement {
+	/** indexButtons key of the control whose menu holds the item. */
+	parentKey: string;
+	parentId: string;
+	sectionId: string;
+	/** Id of the section's `<Controls>`: new items go to `{controlsId}._children`. */
+	controlsId: string;
 }
 
 /**
@@ -81,17 +94,67 @@ export interface IndexedButton {
  * ids across tabs (e.g. MailApp.ViewEmailActivity.Button on the global and
  * quick-create tabs), so pairing current and baseline buttons by id alone
  * compares the wrong occurrences and reports phantom edits.
+ *
+ * Menu items (#27) are indexed right after the control whose menu holds them,
+ * so the occurrence count stays stable between the loaded and edited ribbon.
  */
 export function indexButtons(def: RibbonDefinition): Map<string, IndexedButton> {
 	const out = new Map<string, IndexedButton>();
 	const seen = new Map<string, number>();
-	for (const tab of def.tabs)
-		for (const group of tab.groups)
-			for (const button of group.buttons) {
-				const n = seen.get(button.id) ?? 0;
-				seen.set(button.id, n + 1);
-				out.set(`${button.id}#${n}`, { button, groupId: group.id, tabId: tab.id });
-			}
+	const visit = (button: RibbonButton, groupId: string, tabId: string, menu?: MenuPlacement) => {
+		const n = seen.get(button.id) ?? 0;
+		seen.set(button.id, n + 1);
+		const key = `${button.id}#${n}`;
+		out.set(key, menu ? { button, groupId, tabId, menu } : { button, groupId, tabId });
+		for (const section of button.menu?.sections ?? [])
+			for (const item of section.controls)
+				visit(item, groupId, tabId, {
+					parentKey: key,
+					parentId: button.id,
+					sectionId: section.id,
+					controlsId: section.controlsId,
+				});
+	};
+	for (const tab of def.tabs) for (const group of tab.groups) for (const button of group.buttons) visit(button, group.id, tab.id);
+	return out;
+}
+
+/** What publishing a button needs, compared with its loaded (baseline) occurrence. */
+interface ButtonChange {
+	entry: IndexedButton;
+	change: "hide" | "new" | "override";
+}
+
+/**
+ * Classifies every button of `current` against `baseline` (paired by
+ * occurrence). Items of a menu whose flyout / split button is itself new are
+ * written inline with it, as one CustomAction (#27) — only their hiding is a
+ * change of its own. A new control that is hidden is written AND hidden: the
+ * hide of a control that doesn't exist would do nothing (#62 review m4), and
+ * a new control is also how a moved one is re-placed (#57).
+ */
+function classifyButtons(current: RibbonDefinition, baseline: RibbonDefinition): ButtonChange[] {
+	const base = indexButtons(baseline);
+	const cur = indexButtons(current);
+	const insideNewMenu = (entry: IndexedButton) => {
+		for (let p = entry.menu?.parentKey; p; p = cur.get(p)?.menu?.parentKey) if (!base.has(p)) return true;
+		return false;
+	};
+	const out: ButtonChange[] = [];
+	for (const [key, entry] of cur) {
+		const baseButton = base.get(key)?.button;
+		const button = entry.button;
+		if (insideNewMenu(entry)) {
+			if (button.hidden) out.push({ entry, change: "hide" });
+			continue;
+		}
+		if (!baseButton) {
+			// An out-of-the-box / managed control isn't yours to write: only hide it.
+			if (!(button.hidden && (button.oob || button.managed))) out.push({ entry, change: "new" });
+			if (button.hidden) out.push({ entry, change: "hide" });
+		} else if (button.hidden && !baseButton.hidden) out.push({ entry, change: "hide" });
+		else if (hasOobOverrideChanges(baseButton, button)) out.push({ entry, change: "override" });
+	}
 	return out;
 }
 
@@ -177,7 +240,6 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	const lang = input.languageCode ?? 1033;
 	const isApplication = input.location === "Application";
 
-	const baselineButtons = indexButtons(baseline);
 	const baselineTabIds = new Set<string>();
 	const baselineGroupIds = new Set<string>();
 
@@ -185,16 +247,11 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 		baselineTabIds.add(baseTab.id);
 		for (const baseGroup of baseTab.groups) baselineGroupIds.add(baseGroup.id);
 	}
-	// Pairs each current button with the same occurrence in the baseline.
-	const seenIds = new Map<string, number>();
+	// Pairs each current control (menu items too, #27) with the same
+	// occurrence in the baseline.
+	const baselineButtons = indexButtons(baseline);
 	const baselineOf = new Map<RibbonButton, RibbonButton | undefined>();
-	for (const tab of current.tabs)
-		for (const group of tab.groups)
-			for (const button of group.buttons) {
-				const n = seenIds.get(button.id) ?? 0;
-				seenIds.set(button.id, n + 1);
-				baselineOf.set(button, baselineButtons.get(`${button.id}#${n}`)?.button);
-			}
+	for (const [key, entry] of indexButtons(current)) baselineOf.set(entry.button, baselineButtons.get(key)?.button);
 
 	// Tabs created this session, as written (Command + display rules).
 	const newTabs = current.tabs
@@ -235,8 +292,9 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 		const out: string[] = [];
 		for (const button of group.buttons) {
 			if (button.hidden || baselineOf.get(button)) continue;
-			out.push(generateButtonElement(button, locLabels, sink, lang));
-			emittedButtons.push(button);
+			// A new flyout / split button carries its whole <Menu> (#27).
+			out.push(generateButtonElement(button, locLabels, sink, lang, true));
+			emittedButtons.push(button, ...menuItemsOf(button));
 		}
 		return out;
 	};
@@ -282,33 +340,32 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	}
 	groupCustomActions.push(...newGroupMaxSizes);
 
-	// 3. Buttons.
-	for (const tab of current.tabs) {
-		for (const group of tab.groups) {
-			for (const button of group.buttons) {
-				if (inNewContainer.has(button)) continue; // written inside its new tab / group
-				const baseButton = baselineOf.get(button);
-
-				if (button.hidden && !baseButton?.hidden) {
-					// Visible button the user wants hidden.
-					hideCustomActions.push(generateHideCustomAction(button, group.id));
-				} else if (!baseButton) {
-					// Not in the loaded ribbon → user created it this session →
-					// emit as a new control under its group.
-					customActions.push(generateCustomAction(button, group.id, locLabels, sink, lang));
-					emittedButtons.push(button);
-				} else if (hasOobOverrideChanges(baseButton, button)) {
-					// Present in the loaded ribbon AND modified (icon / label /
-					// tooltip / command etc.) → emit an override CustomAction
-					// (Location = the button's id). Works for an existing custom
-					// button or an OOB one alike.
-					customActions.push(generateOobOverrideCustomAction(button, locLabels, sink, lang));
-					emittedButtons.push(button);
-				}
-				// else: unchanged vs. baseline → no diff emitted (correct; it's
-				// already live and additive import leaves it untouched).
-			}
+	// 3. Buttons, and the items of flyout / split button menus (#27).
+	for (const { entry, change } of classifyButtons(current, baseline)) {
+		const { button, groupId, menu } = entry;
+		if (inNewContainer.has(button)) continue; // written inside its new tab / group (#58, #59)
+		if (change === "hide") {
+			// Visible button the user wants hidden.
+			hideCustomActions.push(generateHideCustomAction(button, groupId));
+		} else if (change === "new") {
+			// Not in the loaded ribbon → user created it this session → emit as a
+			// new control under its group, or — for a new item of an existing
+			// menu — under its menu section's Controls. A new flyout / split
+			// button carries its whole <Menu> inline.
+			const location = menu ? `${menu.controlsId}._children` : `${groupId}.Controls._children`;
+			customActions.push(generateCustomAction(button, location, locLabels, sink, lang));
+			emittedButtons.push(button, ...menuItemsOf(button));
+		} else {
+			// Present in the loaded ribbon AND modified (icon / label / tooltip /
+			// command etc.) → emit an override CustomAction (Location = the
+			// button's id). Works for an existing custom button or an OOB one
+			// alike. The override carries no <Menu>: menu items are published one
+			// by one, and the merge keeps the menu of a control your layer adds.
+			customActions.push(generateOobOverrideCustomAction(button, locLabels, sink, lang));
+			emittedButtons.push(button);
 		}
+		// Unchanged vs. baseline → no diff emitted (correct; it's already live
+		// and additive import leaves it untouched).
 	}
 
 	// Collect referenced commands / rules from the EMITTED buttons only.
@@ -439,7 +496,6 @@ export function summarizeRibbonDiff(
 	current: RibbonDefinition,
 	baseline: RibbonDefinition,
 ): RibbonDiffSummary {
-	const baselineButtons = indexButtons(baseline);
 	const baselineTabIds = new Set<string>();
 	const baselineGroupIds = new Set<string>();
 
@@ -447,13 +503,6 @@ export function summarizeRibbonDiff(
 		baselineTabIds.add(baseTab.id);
 		for (const baseGroup of baseTab.groups) baselineGroupIds.add(baseGroup.id);
 	}
-	// Pairs each current button with the same occurrence in the baseline.
-	const seenIds = new Map<string, number>();
-	const baselineFor = (button: RibbonButton): RibbonButton | undefined => {
-		const n = seenIds.get(button.id) ?? 0;
-		seenIds.set(button.id, n + 1);
-		return baselineButtons.get(`${button.id}#${n}`)?.button;
-	};
 
 	let newButtons = 0;
 	let overriddenButtons = 0;
@@ -469,17 +518,12 @@ export function summarizeRibbonDiff(
 		}
 		for (const group of tab.groups) {
 			if (!baselineGroupIds.has(group.id) && baselineTabIds.has(tab.id)) newGroups++;
-			for (const button of group.buttons) {
-				const baseButton = baselineFor(button);
-				if (button.hidden && !baseButton?.hidden) {
-					hiddenButtons++;
-				} else if (!baseButton) {
-					newButtons++;
-				} else if (hasOobOverrideChanges(baseButton, button)) {
-					overriddenButtons++;
-				}
-			}
 		}
+	}
+	for (const { change } of classifyButtons(current, baseline)) {
+		if (change === "hide") hiddenButtons++;
+		else if (change === "new") newButtons++;
+		else overriddenButtons++;
 	}
 
 	// Scaling: count distinct tabs whose scaling differs from baseline.
@@ -641,19 +685,22 @@ export function planNewGroupScaling(current: RibbonDefinition, baseline: RibbonD
 // CustomAction generators
 // ---------------------------------------------------------------------------
 
+/**
+ * A new control: `Location` is `{groupId}.Controls._children`, or for a new
+ * item of an existing menu `{menuSectionControlsId}._children` (#27).
+ */
 function generateCustomAction(
 	button: RibbonButton,
-	groupId: string,
+	location: string,
 	storeLocLabels: LocLabel[],
 	sink: (label: LocLabel) => void,
 	lang = 1033,
 ): string {
-	const location = `${groupId}.Controls._children`;
 	return `<CustomAction Id="${escapeXml(button.id)}.CustomAction"
     Location="${escapeXml(location)}"
     Sequence="${button.sequence}">
     <CommandUIDefinition>
-      ${generateButtonElement(button, storeLocLabels, sink, lang)}
+      ${generateButtonElement(button, storeLocLabels, sink, lang, true)}
     </CommandUIDefinition>
   </CustomAction>`;
 }
@@ -919,6 +966,8 @@ function generateButtonElement(
 	storeLocLabels: LocLabel[],
 	sink: (label: LocLabel) => void,
 	lang = 1033,
+	/** Write the control's `<Menu>` too: true for a new control (#27). */
+	withMenu = false,
 ): string {
 	const tag = buttonKindToTag(button.kind);
 	const src = button.source;
@@ -946,7 +995,8 @@ function generateButtonElement(
 		resolveButtonText(button.tooltipBody, src?.tooltipBodyToken, buttonTooltipBodyId(button.id), storeLocLabels, sink, lang),
 	);
 	set("TemplateAlias", button.templateAlias);
-	set("Sequence", String(button.sequence));
+	// A loaded control without Sequence (some menu items) keeps none — the parser reads it as 0.
+	set("Sequence", src && !("Sequence" in src.attributes) && button.sequence === 0 ? undefined : String(button.sequence));
 
 	// Icons. Unchanged → keep the loaded value (out-of-the-box names like
 	// "New", /_imgs/ paths). A bare Fluent icon name chosen in CBS is a
@@ -963,7 +1013,56 @@ function generateButtonElement(
 	const attrXml = Array.from(attrs.entries())
 		.map(([k, v]) => `${k}="${escapeXml(v)}"`)
 		.join(" ");
-	return `<${tag} ${attrXml}/>`;
+	const menuXml = withMenu && button.menu && MENU_TAGS.has(tag) ? generateMenu(button.menu, storeLocLabels, sink, lang) : "";
+	return menuXml ? `<${tag} ${attrXml}>${menuXml}</${tag}>` : `<${tag} ${attrXml}/>`;
+}
+
+/** Controls that can hold a `<Menu>` (RibbonCore.xsd). */
+const MENU_TAGS = new Set(["FlyoutAnchor", "SplitButton", "ComboBox"]);
+
+/**
+ * `<Menu Id><MenuSection Id Title Sequence DisplayMode><Controls Id>…` (#27).
+ * Attributes loaded with the menu / section (MaxWidth, Scrollable, …) are
+ * written back verbatim; items are full controls (a nested FlyoutAnchor
+ * carries its own menu); section children CBS doesn't model are re-inserted
+ * at their original position.
+ */
+function generateMenu(
+	menu: RibbonMenu,
+	storeLocLabels: LocLabel[],
+	sink: (label: LocLabel) => void,
+	lang: number,
+): string {
+	const sections = menu.sections.map((section) => {
+		const attrs = new Map<string, string>(Object.entries(section.attributes ?? {}));
+		const set = (k: string, v: string | undefined) => (v === undefined || v === "" ? attrs.delete(k) : attrs.set(k, v));
+		set("Id", section.id);
+		set(
+			"Title",
+			resolveButtonText(section.title, section.attributes?.["Title"], `${section.id}.Title`, storeLocLabels, sink, lang),
+		);
+		// A loaded section without Sequence keeps none (the parser reads it as 0).
+		const loadedWithout = !!section.attributes && !("Sequence" in section.attributes) && section.sequence === 0;
+		set("Sequence", loadedWithout ? undefined : String(section.sequence));
+		set("DisplayMode", section.displayMode);
+		const sectionAttrs = Array.from(attrs.entries())
+			.map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
+			.join("");
+		if (section.rawContent !== undefined) return `<MenuSection${sectionAttrs}>${section.rawContent}</MenuSection>`;
+		// Hidden items are written too: they get a HideCustomAction of their
+		// own (classifyButtons), so a moved flyout keeps them (#62 review M2).
+		const children = section.controls.map((c) => generateButtonElement(c, storeLocLabels, sink, lang, true));
+		for (const raw of [...(section.rawControls ?? [])].sort((a, b) => a.index - b.index)) {
+			children.splice(Math.min(raw.index, children.length), 0, raw.xml);
+		}
+		return `<MenuSection${sectionAttrs}><Controls Id="${escapeXml(section.controlsId)}">${children.join("")}</Controls></MenuSection>`;
+	});
+	const menuAttrs = new Map<string, string>(Object.entries(menu.attributes ?? {}));
+	menuAttrs.set("Id", menu.id);
+	const menuAttrXml = Array.from(menuAttrs.entries())
+		.map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
+		.join("");
+	return `<Menu${menuAttrXml}>${sections.join("")}</Menu>`;
 }
 
 /**

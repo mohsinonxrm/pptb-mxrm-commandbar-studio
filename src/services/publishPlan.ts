@@ -10,6 +10,7 @@ import type {
 	RibbonDefinition,
 } from "@/types/ribbon";
 import type { MovedControl } from "@/services/ribbonDiffMerge";
+import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 
 /**
  * What the scope's unmanaged ribbon layer owns, as read at load (or refreshed
@@ -119,7 +120,6 @@ export interface RenamedLabel {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-const isMenuKind = (kind?: string) => kind === "flyout" || kind === "splitButton";
 const isResourceIcon = (b: { icon?: string; image16?: string; image32?: string }) =>
 	[b.icon, b.image16, b.image32].some((v) => !!v && v.startsWith("$webresource:"));
 const LOC_REF = /^\$LocLabels:(.+)$/;
@@ -136,6 +136,17 @@ function buttonLabelRefs(button: RibbonButton): string[] {
 		if (id) out.push(id);
 	}
 	return out;
+}
+
+/** The sections of a button's menu, as compared for "did the menu's structure change" (#27). */
+function sectionShape(button: RibbonButton) {
+	return (button.menu?.sections ?? []).map((s) => ({
+		id: s.id,
+		title: s.title ?? "",
+		sequence: s.sequence,
+		displayMode: s.displayMode ?? "",
+		controlsId: s.controlsId,
+	}));
 }
 
 export function planScope(input: PlanInput): ScopePlan {
@@ -158,7 +169,7 @@ export function planScope(input: PlanInput): ScopePlan {
 			addUser(tab.label, tab.id);
 			for (const g of tab.groups) {
 				addUser(g.label, g.id);
-				for (const b of g.buttons) for (const v of Object.values(b.source?.attributes ?? {})) addUser(v, b.id);
+				for (const b of groupControls(g)) for (const v of Object.values(b.source?.attributes ?? {})) addUser(v, b.id);
 			}
 		}
 	const knownLabels = new Set([...(input.locLabels ?? []).map((l) => l.id), ...asSet(input.layer?.locLabelIds)]);
@@ -175,9 +186,16 @@ export function planScope(input: PlanInput): ScopePlan {
 	// Buttons placed where the baseline of their location doesn't have them, by
 	// id: a deleted own button that reappears here was moved to another location
 	// of the scope (e.g. cut on the grid, pasted on the form), not deleted.
-	const placedNew = new Map<string, { groupId: string; sequence: number }>();
+	// Menu items (#27) keep the `<Controls>` of the menu section they are in.
+	const placedNew = new Map<string, { groupId: string; sequence: number; controlsId?: string }>();
+	// New flyouts / split buttons without (visible) menu items (#27).
 	const newMenus: { id: string; label: string }[] = [];
 
+	// Every control placed anywhere in the scope now: the menu items of a flyout
+	// moved to another location reappear there with it (#62 review m1).
+	const placedAnywhere = new Set(
+		input.locations.flatMap(({ current }) => Array.from(indexButtons(current).values(), (e) => e.button.id)),
+	);
 	// Renaming a tab / group the layer adds whose Title is a label the layer
 	// defines: the label's text changes. Anything else isn't something CBS writes.
 	const rename = (kind: "tab" | "group", id: string, before: string, after: string) => {
@@ -261,6 +279,15 @@ export function planScope(input: PlanInput): ScopePlan {
 			const id = b.button.id;
 			const c = cur.get(key);
 			if (!c) {
+				const movedWith = b.menu && placedAnywhere.has(id) && placedAnywhere.has(b.menu.parentId);
+				if (movedWith && b.button.origin !== "unmanaged") {
+					// Moving the flyout would copy another solution's item into your
+					// customizations (the moved flyout is written with its menu).
+					unsupported.push(
+						`Moving the menu of ${b.menu!.parentId} to another location — its item "${b.button.label}" (${id}) comes from another solution and can't be moved with it; move the flyout back`,
+					);
+					continue;
+				}
 				// "unmanaged" is set from the table's unmanaged layer at load.
 				if (b.button.origin === "unmanaged") deleted.push(id);
 				else unsupported.push(`Removing "${b.button.label}" (${id}) — only your own unmanaged buttons can be deleted; hide it instead`);
@@ -271,9 +298,17 @@ export function planScope(input: PlanInput): ScopePlan {
 				unsupported.push(`Changing the kind of "${c.button.label}" (${id}) — not supported yet`);
 			}
 			const edited = hasOobOverrideChanges(b.button, c.button);
-			if (edited && isMenuKind(c.button.kind) && b.button.origin !== "unmanaged") {
+			// Any control with a <Menu> (a ComboBox too): an override would drop it.
+			if (edited && (isMenuKind(c.button.kind) || !!c.button.menu) && b.button.origin !== "unmanaged") {
+				// An override replaces the whole control, menu included, and the
+				// loaded menu also holds what other solutions add to it (#27).
 				unsupported.push(
-					`Editing the menu button "${c.button.label}" (${id}) — flyout / split buttons from other solutions can't be edited yet (#27)`,
+					`Editing the flyout / split button "${c.button.label}" (${id}) itself — only your own can be edited; its menu items can be edited, hidden or added to`,
+				);
+			}
+			if (!same(sectionShape(b.button), sectionShape(c.button))) {
+				unsupported.push(
+					`Adding, removing or changing menu sections of "${c.button.label}" (${id}) — not supported yet for an existing menu; add, edit or remove its items instead`,
 				);
 			}
 			if ((c.button.icon ?? "") !== (b.button.icon ?? "") && !isResourceIcon(c.button)) {
@@ -281,11 +316,21 @@ export function planScope(input: PlanInput): ScopePlan {
 					`Changing the icon of "${c.button.label}" (${id}) to a built-in icon — not supported yet; choose an SVG web resource`,
 				);
 			}
-			if (c.groupId !== b.groupId || c.button.sequence !== b.button.sequence) {
+			// A menu item is placed by its section's Controls, not by the group its
+			// flyout happens to be in (it moves with the flyout, #62 review m1).
+			const placeChanged =
+				c.menu || b.menu ? c.menu?.controlsId !== b.menu?.controlsId : c.groupId !== b.groupId;
+			if (placeChanged || c.button.sequence !== b.button.sequence) {
 				// Your own button: its CustomAction is moved in place. Anything else
-				// would need a hide plus a copy, which CBS doesn't write (yet).
+				// would need a hide plus a copy, which CBS doesn't write (yet). A menu
+				// item moves within its menu section's Controls (#27).
 				if (b.button.origin === "unmanaged") {
-					moved.push({ id, groupId: c.groupId, sequence: c.button.sequence });
+					moved.push({
+						id,
+						groupId: c.groupId,
+						sequence: c.button.sequence,
+						...(c.menu ? { controlsId: c.menu.controlsId } : {}),
+					});
 				} else {
 					unsupported.push(
 						`Moving or re-ordering "${c.button.label}" (${id}) — only your own unmanaged buttons can be moved; hide it and add a new button instead`,
@@ -294,10 +339,21 @@ export function planScope(input: PlanInput): ScopePlan {
 			}
 		}
 
+		// Controls placed anew in this location (a move target, see below), and
+		// new flyouts / split buttons with nothing in their menu (#27).
 		for (const [key, c] of cur) {
 			if (base.has(key)) continue;
-			if (!placedNew.has(c.button.id)) placedNew.set(c.button.id, { groupId: c.groupId, sequence: c.button.sequence });
-			if (isMenuKind(c.button.kind)) newMenus.push({ id: c.button.id, label: c.button.label });
+			if (!placedNew.has(c.button.id)) {
+				placedNew.set(c.button.id, {
+					groupId: c.groupId,
+					sequence: c.button.sequence,
+					...(c.menu ? { controlsId: c.menu.controlsId } : {}),
+				});
+			}
+			const dynamic = c.button.source?.attributes["PopulateDynamically"]?.toLowerCase() === "true";
+			if (isMenuKind(c.button.kind) && !dynamic && !menuItemsOf(c.button).some((b) => !b.hidden)) {
+				newMenus.push({ id: c.button.id, label: c.button.label });
+			}
 		}
 
 		const baseGroups = new Map(baseline.tabs.flatMap((t) => t.groups.map((g) => [g.id, g] as const)));
@@ -366,13 +422,15 @@ export function planScope(input: PlanInput): ScopePlan {
 	for (let i = deleted.length - 1; i >= 0; i--) {
 		const to = placedNew.get(deleted[i]);
 		if (!to) continue;
-		moved.push({ id: deleted[i], groupId: to.groupId, sequence: to.sequence });
+		moved.push({ id: deleted[i], ...to });
 		deleted.splice(i, 1);
 	}
 	for (const m of newMenus) {
 		// A moved menu keeps its <Menu>: the merge edits the control in place.
+		// A really new one is published with its whole menu (#27), which would
+		// be empty.
 		if (moved.some((x) => x.id === m.id)) continue;
-		unsupported.push(`New flyout / split button "${m.label}" — menus can't be published yet (#27)`);
+		unsupported.push(`New flyout / split button "${m.label}" has no menu items — add at least one item to its menu`);
 	}
 
 	for (const id of input.excludeCommandIds ?? []) referencedCommandIds.delete(id);
@@ -384,7 +442,9 @@ export function planScope(input: PlanInput): ScopePlan {
 	for (const c of input.commands) {
 		if (!editedCommandIds.includes(c.id)) continue;
 		if (c.actions.some((a) => a.kind === "powerFx" || a.kind === "customApi")) {
-			unsupported.push(`Power Fx / Custom API action in command ${c.id} — can't be published yet (#28)`);
+			unsupported.push(
+				`Power Fx / Custom API action in command ${c.id} — classic ribbon commands can't run these; remove the action (#28)`,
+			);
 		}
 	}
 

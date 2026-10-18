@@ -35,6 +35,7 @@ import {
 } from "@/services/dataverse/environmentService";
 import type { ScopePlan } from "@/services/publishPlan";
 import { describeScalingChange, type ScalingChange } from "@/services/scalingSequence";
+import { groupControls } from "@/utils/ribbonMenu";
 import { verifyRibbonImport } from "@/services/importJobVerification";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type {
@@ -332,7 +333,7 @@ export async function buildMergedRibbonDiffXml(
 	for (const loc of input.locations)
 		for (const tab of loc.current.tabs)
 			for (const group of tab.groups)
-				for (const button of group.buttons) if (button.commandId) retainedCommandIds.add(button.commandId);
+				for (const button of groupControls(group)) if (button.commandId) retainedCommandIds.add(button.commandId);
 
 	let merged = mergeScopeChanges(existing, delta, {
 		retainedCommandIds,
