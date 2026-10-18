@@ -9,6 +9,7 @@ import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { canDeleteControl, canDeleteGroup, canDeleteTab, deleteBlockedReason } from "@/utils/ribbonProvenance";
 import { findGroupControl, groupControls } from "@/utils/ribbonMenu";
 import { planScope } from "@/services/publishPlan";
+import { parseRibbonDiffParts } from "@/services/ribbonDiffMerge";
 import type { LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
 import type { RibbonButton, RibbonDefinition, RibbonGroup, RibbonLocation, RibbonOrigin } from "@/types/ribbon";
 
@@ -513,6 +514,43 @@ describe("deleteBlockedReason", () => {
 		expect(reason).toMatch(/override/);
 		expect(reason).toMatch(/out-of-the-box/);
 		expect(reason).not.toMatch(/another solution/);
+	});
+
+	it("explains a repeated application-ribbon id whose other occurrence isn't yours", () => {
+		const shared = (origin: RibbonOrigin) => control("cbs.Shared", origin);
+		const app: RibbonDefinition = {
+			location: "Application",
+			entityLogicalName: "",
+			tabs: [
+				{ id: "cbs.T1", label: "T1", sequence: 10, tabDisplayRules: [], groups: [groupDef("cbs.G1", [shared("unmanaged")])] },
+				{ id: "Mscrm.T2", label: "T2", sequence: 20, tabDisplayRules: [], groups: [groupDef("Mscrm.G2", [shared("oob")])] },
+			],
+		};
+		const mine = app.tabs[0].groups[0].buttons[0];
+		expect(canDeleteControl(mine, app)).toBe(false);
+		const reason = deleteBlockedReason(mine, app);
+		expect(reason).toMatch(/also/);
+		expect(reason).toMatch(/out-of-the-box/);
+		expect(reason).not.toMatch(/menu/);
+		expect(reason).not.toMatch(/override/);
+	});
+});
+
+// #17 final review — a group published this session is yours right away, not
+// only once the layer has been re-read (or for good when that read fails).
+describe("after a publish", () => {
+	it("a just-published own group can be deleted before the layer is re-read", () => {
+		const state = () => useRibbonStore.getState();
+		act(() => state().createGroup({ location: "HomepageGrid", tabId: TAB, group: groupDef("cbs.PubGroup", []) }));
+		const parts = parseRibbonDiffParts(
+			`<RibbonDiffXml><CustomActions><CustomAction Id="cbs.PubGroup.CustomAction" Location="${TAB}.Groups._children" Sequence="50"><CommandUIDefinition><Group Id="cbs.PubGroup" Sequence="50" Template="Mscrm.Templates.Flexible2"><Controls Id="cbs.PubGroup.Controls" /></Group></CommandUIDefinition></CustomAction></CustomActions></RibbonDiffXml>`,
+		);
+		act(() => state().markPublished(undefined, { entity: parts }));
+		expect(state().baseline.HomepageGrid.tabs[0].groups.some((g) => g.id === "cbs.PubGroup")).toBe(true);
+		expect(state().layers.entity?.containerIds).toContain("cbs.PubGroup");
+
+		act(() => state().deleteGroup("HomepageGrid", TAB, "cbs.PubGroup"));
+		expect(state().ribbons.HomepageGrid.tabs[0].groups.some((g) => g.id === "cbs.PubGroup")).toBe(false);
 	});
 });
 

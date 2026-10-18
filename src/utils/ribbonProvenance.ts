@@ -135,10 +135,10 @@ export function canDeleteTab(tab: RibbonTab, baseline: RibbonDefinition, own: Ow
 /** Why a control can't be deleted, in words (#17): where it comes from. */
 export function deleteBlockedReason(button: RibbonButton, baseline: RibbonDefinition): string {
 	// As loaded: "Create override…" makes the canvas copy yours, not the original.
-	let loaded: RibbonButton | undefined;
-	for (const tab of baseline.tabs)
-		for (const group of tab.groups) loaded ??= groupControls(group).find((c) => c.id === button.id);
-	const from = loaded ?? button;
+	// The application ribbon repeats ids: every occurrence counts.
+	const loaded = baseline.tabs.flatMap((t) => t.groups.flatMap((g) => groupControls(g))).filter((c) => c.id === button.id);
+	const foreign = loaded.find((c) => !isOwnControl(c));
+	const from = foreign ?? loaded[0] ?? button;
 	const source =
 		from.origin === "oob"
 			? "the out-of-the-box ribbon"
@@ -147,6 +147,9 @@ export function deleteBlockedReason(button: RibbonButton, baseline: RibbonDefini
 					? `the managed solution "${from.solutionName}"`
 					: "a managed solution"
 				: undefined;
+	if (foreign && loaded.some(isOwnControl)) {
+		return `The ribbon also places a button with this id from ${source ?? "another solution"}, and that one can't be deleted.`;
+	}
 	if (source && isOwnControl(button)) {
 		return `It is your override of a button from ${source}: the original stays in the ribbon underneath it.`;
 	}

@@ -16,8 +16,13 @@ import type {
 	ScalingDefinition,
 	RibbonMenuSection,
 } from "@/types/ribbon";
-import { locLabelsFromParts, type LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
-import { applyPublishedLayer, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
+import { layerSnapshotFromParts, locLabelsFromParts, type LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import {
+	applyPublishedLayer,
+	ownContainerIds as ownContainerIdsOf,
+	ownControlIds,
+	type RibbonDiffParts,
+} from "@/services/ribbonDiffMerge";
 import { defaultTabDisplayRules, newTabCommandId } from "@/services/xmlGenerator";
 import { generateRibbonId } from "@/utils/idGenerator";
 import {
@@ -1843,6 +1848,21 @@ export const useRibbonStore = create<RibbonStore>()(
 					["entity", ENTITY_LOCATIONS.every((l) => published.includes(l))],
 					["application", published.includes("Application")],
 				];
+				// What the published layer adds is yours from now on — before the
+				// layer is re-read, and even when that read fails (#17 review).
+				for (const [scope, done] of scopes) {
+					const parts = publishedLayers?.[scope];
+					if (!done || !parts) continue;
+					const snap = layers[scope];
+					const union = (ids: string[], add: Set<string>) => [...new Set([...ids, ...add])];
+					layers[scope] = snap
+						? {
+								...snap,
+								containerIds: union(snap.containerIds, ownContainerIdsOf(parts)),
+								controlIds: union(snap.controlIds, ownControlIds(parts)),
+							}
+						: layerSnapshotFromParts(parts);
+				}
 				for (const [scope, done] of scopes) {
 					if (!done || pendingUnhides[scope].length === 0) continue;
 					const snap = layers[scope];
