@@ -15,7 +15,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { generateRibbonDiffXml, effectiveNewTab } from "@/services/xmlGenerator";
+import { generateRibbonDiffXml, effectiveNewTab, planNewGroupScaling } from "@/services/xmlGenerator";
 import { validateRibbonDiffXml } from "@/services/xmlValidator";
 import { parseRibbonXml } from "@/services/xmlParser";
 import {
@@ -33,6 +33,7 @@ import { splitTabsByLocation } from "@/services/dataverse/ribbonService";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { useRibbonStore } from "@/store/ribbonStore";
+import { useSessionStore } from "@/store/sessionStore";
 import type {
 	CommandDefinition,
 	LocLabel,
@@ -379,7 +380,7 @@ const FIXTURE = readFileSync(resolve(__dirname, "../__fixtures__/ribbon/contact-
 function reload() {
 	const labels = locLabelsFromParts(layer);
 	const parsed = parseRibbonXml(FIXTURE, "HomepageGrid", E, labels);
-	const ribbons = splitTabsByLocation(parsed.ribbon.tabs, E);
+	const ribbons = splitTabsByLocation(parsed.ribbon.tabs, E, parsed.ribbon.scalingByTab);
 	const own = ownControlIds(layer);
 	for (const d of Object.values(ribbons)) applyLayerOwnership(d, own);
 	return { ...parsed, ribbons };
@@ -621,5 +622,223 @@ describe("layers written by earlier CBS versions are repaired (#59)", () => {
 		expect(doc.querySelector(`Group[Id="${GROUP}"] > Controls > Button[Id="cbs.contact.Approve.Button"]`)).not.toBeNull();
 		const children = attrs(doc.querySelectorAll("CustomActions > CustomAction"), "Location");
 		expect(children.filter((l) => l?.endsWith(".Controls._children"))).toEqual([`${MAIN}.Management.Controls._children`]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// #66 review: scaling Sequences must be unique in the tab
+// ---------------------------------------------------------------------------
+
+describe("#66 review — a new group's MaxSize never reuses a scaling Sequence of its tab", () => {
+	const T = "cbstest_ribbontest";
+	const TMAIN = `Mscrm.HomepageGrid.${T}.MainTab`;
+	const step = (kind: "MaxSize" | "Scale", seq: number, group: string, size = "LargeMedium") => ({
+		id: `${TMAIN}.Scaling.${kind}.${seq}`,
+		groupId: `${TMAIN}.${group}`,
+		size,
+		sequence: seq,
+	});
+	// The home grid main tab's scaling of cbstest_ribbontest, as RetrieveEntityRibbon returned it.
+	const REAL_SCALING = {
+		tabId: TMAIN,
+		maxSizes: [
+			step("MaxSize", 10, "Management"),
+			step("MaxSize", 20, "Collaborate"),
+			step("MaxSize", 30, "Actions"),
+			step("MaxSize", 40, "ExportData"),
+			step("MaxSize", 50, "Workflow"),
+			step("MaxSize", 60, "Find"),
+			step("MaxSize", 61, "OutlookHelp"),
+		],
+		scales: [
+			step("Scale", 80, "ExportData"),
+			step("Scale", 100, "Workflow"),
+			step("Scale", 110, "Actions"),
+			step("Scale", 120, "Collaborate"),
+			step("Scale", 130, "Management"),
+			step("Scale", 140, "ExportData", "Popup"),
+			step("Scale", 150, "Collaborate", "Popup"),
+			step("Scale", 160, "Actions", "Popup"),
+			step("Scale", 170, "Management", "Popup"),
+		],
+	};
+	const realMain = (): RibbonDefinition => ({
+		location: "HomepageGrid",
+		entityLogicalName: T,
+		tabs: [
+			{
+				id: TMAIN,
+				label: "Main",
+				sequence: 10,
+				commandId: TMAIN,
+				tabDisplayRules: [],
+				groups: ["Management", "Collaborate", "Actions", "ExportData", "Workflow", "Find", "OutlookHelp"].map((g, i) => ({
+					id: `${TMAIN}.${g}`,
+					label: g,
+					sequence: (i + 1) * 10,
+					template: "Mscrm.Templates.Flexible2",
+					buttons: [],
+				})),
+			},
+		],
+		scalingByTab: { [TMAIN]: clone(REAL_SCALING) },
+	});
+	const withNewGroups = (...seqs: number[]): RibbonDefinition => {
+		const d = realMain();
+		seqs.forEach((seq, i) =>
+			d.tabs[0].groups.push({
+				id: `new.${T}.HomepageGrid.G${i}.Group`,
+				label: `G${i}`,
+				sequence: seq,
+				template: "Flexible2",
+				buttons: [btn(`new.${T}.B${i}.Button`, `B${i}`, 10, "cbs.contact.Sync.Command")],
+			}),
+		);
+		return d;
+	};
+	const maxSizesOf = (xml: string) =>
+		Array.from(parse(xml).querySelectorAll(`CustomAction[Location="${TMAIN}.Scaling._children"] MaxSize`)).map((m) => [
+			m.getAttribute("GroupId"),
+			Number(m.getAttribute("Sequence")),
+		]);
+
+	it("goes after the last MaxSize and before the first Scale — not at the group's Sequence (80 = Scale ExportData)", () => {
+		const xml = generate(withNewGroups(80), realMain());
+		expect(maxSizesOf(xml)).toEqual([[`new.${T}.HomepageGrid.G0.Group`, 62]]);
+		const ca = parse(xml).querySelector(`CustomAction[Location="${TMAIN}.Scaling._children"]`)!;
+		expect(ca.getAttribute("Sequence")).toBe("62");
+		// The group keeps its own Sequence.
+		expect(parse(xml).querySelector(`Group[Id="new.${T}.HomepageGrid.G0.Group"]`)!.getAttribute("Sequence")).toBe("80");
+		expect(planOf(withNewGroups(80), realMain()).unsupported).toEqual([]);
+	});
+
+	it("several new groups get distinct Sequences, skipping ones already used (a MaxSize the layer added before)", () => {
+		const current = withNewGroups(80, 80, 150);
+		const baseline = realMain();
+		for (const d of [current, baseline]) d.scalingByTab![TMAIN].maxSizes.push(step("MaxSize", 63, "Earlier"));
+		const all = [...REAL_SCALING.maxSizes, ...REAL_SCALING.scales].map((s) => s.sequence).concat(63);
+		const got = maxSizesOf(generate(current, baseline)).map(([, seq]) => seq as number);
+		expect(got).toEqual([64, 65, 66]);
+		for (const seq of got) expect(all).not.toContain(seq);
+		expect(Math.max(...got)).toBeLessThan(80);
+	});
+
+	it("with no free Sequence between the last MaxSize and the first Scale, the publish is blocked", () => {
+		const current = withNewGroups(80);
+		const baseline = realMain();
+		for (const d of [current, baseline]) d.scalingByTab![TMAIN].scales.unshift(step("Scale", 62, "Find"));
+		const p = planOf(current, baseline);
+		expect(p.unsupported).toEqual([
+			`No free scaling position for the new group "G0" (new.${T}.HomepageGrid.G0.Group) on tab ${TMAIN}: its MaxSize must ` +
+				"come after the tab's last MaxSize (61) and before its first Scale (62), and no Sequence is free there",
+		]);
+		expect(maxSizesOf(generate(current, baseline))).toEqual([]);
+	});
+
+	it("in a new tab, groups with the same Sequence get distinct MaxSize Sequences", () => {
+		const tab = session1().tabs[1];
+		tab.groups.push({ ...clone(tab.groups[0]), id: "cbs.contact.Tools2.Group", buttons: [] });
+		const doc = parse(generate(def("HomepageGrid", [tab]), def("HomepageGrid", [])));
+		const seqs = attrs(doc.querySelectorAll(`Tab[Id="${TAB}"] > Scaling > MaxSize`), "Sequence");
+		expect(seqs).toEqual(["10", "11"]);
+	});
+
+	it("a new tab whose scaling repeats a Sequence is blocked", () => {
+		const current = def("HomepageGrid", [session1().tabs[1]]);
+		current.scalingByTab = {
+			[TAB]: {
+				tabId: TAB,
+				maxSizes: [{ id: "m", groupId: TAB_GROUP, size: "LargeLarge", sequence: 10 }],
+				scales: [{ id: "s", groupId: TAB_GROUP, size: "Popup", sequence: 10 }],
+			},
+		};
+		expect(planNewGroupScaling(current, def("HomepageGrid", [])).problems).toEqual([
+			`The scaling of new tab ${TAB} uses a Sequence more than once — give every MaxSize and Scale its own`,
+		]);
+	});
+
+	it("the parser loads each tab's scaling and the reload keeps it per location", async () => {
+		await publishSession1();
+		const { ribbons, commands } = reload();
+		expect(ribbons.HomepageGrid.scalingByTab?.[MAIN]).toEqual({
+			tabId: MAIN,
+			maxSizes: [
+				{ id: `${MAIN}.Management.MaxSize`, groupId: `${MAIN}.Management`, size: "LargeMedium", sequence: 10 },
+				{ id: `${GROUP}.MaxSize`, groupId: GROUP, size: "LargeLarge", sequence: 60 },
+			],
+			scales: [],
+		});
+		expect(Object.keys(ribbons.HomepageGrid.scalingByTab ?? {})).toEqual([MAIN, TAB]);
+		expect(Object.keys(ribbons.Form.scalingByTab ?? {})).toEqual(["cbs.contact.Form.Review.Tab"]);
+		expect(Object.keys(ribbons.SubGrid.scalingByTab ?? {})).toEqual(["cbs.contact.SubGrid.Extra.Tab"]);
+		// An unchanged reload still plans nothing (scaling is compared too).
+		const p = planOf(ribbons.HomepageGrid, clone(ribbons.HomepageGrid), { commands, baselineCommands: clone(commands) });
+		expect(p.hasChanges).toBe(false);
+		expect(p.unsupported).toEqual([]);
+	});
+
+	it("after a reload, the next new group's MaxSize goes after the loaded ones", async () => {
+		await publishSession1();
+		const { ribbons, commands, locLabels } = reload();
+		const baseline = clone(ribbons.HomepageGrid);
+		const current = clone(ribbons.HomepageGrid);
+		current.tabs[0].groups.push({ id: "cbs.contact.Next.Group", label: "Next", sequence: 60, template: "Flexible2", buttons: [] });
+		const { doc } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		const maxSize = doc.querySelector('MaxSize[GroupId="cbs.contact.Next.Group"]')!;
+		expect(maxSize.getAttribute("Sequence")).toBe("61");
+	});
+});
+
+describe("#66 review — new group ids and new button sequences", () => {
+	beforeEach(() => {
+		useSessionStore.setState({ publisherPrefix: "cbs" });
+		useRibbonStore.getState().loadWorkspace({
+			ribbons: {
+				HomepageGrid: def("HomepageGrid", [oobMain()]),
+				Form: def("Form", []),
+				SubGrid: def("SubGrid", []),
+				Application: { location: "Application", entityLogicalName: "{!EntityLogicalName}", tabs: [] },
+			},
+			commands: [],
+			displayRules: [],
+			enableRules: [],
+			locLabels: [],
+		});
+	});
+
+	it("a new group gets a prefixed, unique id and a sequence no other group of the tab has", () => {
+		const s = useRibbonStore.getState();
+		s.createGroup({ location: "HomepageGrid", tabId: MAIN, group: { label: "New Group", sequence: 10, template: "Flexible2", buttons: [] } });
+		s.createGroup({ location: "HomepageGrid", tabId: MAIN, group: { label: "New Group", template: "Flexible2", buttons: [] } });
+		const groups = useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups;
+		expect(groups.map((g) => [g.id, g.sequence])).toEqual([
+			[`${MAIN}.Management`, 10],
+			[`cbs.${E}.HomepageGrid.NewGroup.Group`, 20],
+			[`cbs.${E}.HomepageGrid.NewGroup.Group2`, 30],
+		]);
+	});
+
+	it("buttons added to a group get increasing, unique sequences", () => {
+		const s = useRibbonStore.getState();
+		s.createGroup({ location: "HomepageGrid", tabId: MAIN, group: { label: "Approvals", template: "Flexible2", buttons: [] } });
+		const groupId = useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[1].id;
+		const add = (id: string, sequence?: number) =>
+			useRibbonStore.getState().createButton({
+				location: "HomepageGrid",
+				tabId: MAIN,
+				groupId,
+				button: { ...btn(id, id, 0, ""), sequence },
+			});
+		add("a");
+		add("b");
+		add("c", 50);
+		add("d", 50);
+		const buttons = useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[1].buttons;
+		expect(buttons.map((b) => [b.id, b.sequence])).toEqual([
+			["a", 10],
+			["b", 20],
+			["c", 50],
+			["d", 60],
+		]);
 	});
 });

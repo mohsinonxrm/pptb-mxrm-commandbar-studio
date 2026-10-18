@@ -1,6 +1,6 @@
 import { decompressRibbonZip } from "@/utils/decompressRibbonZip";
 import { parseRibbonXml } from "@/services/xmlParser";
-import type { LocLabel, RibbonDefinition, RibbonLocation, RibbonTab } from "@/types/ribbon";
+import type { LocLabel, RibbonDefinition, RibbonLocation, RibbonTab, ScalingDefinition } from "@/types/ribbon";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import {
 	definitionsFromParts,
@@ -70,6 +70,7 @@ function locationFromTabDisplayRules(tab: RibbonTab): EntityRibbonLocation | und
 export function splitTabsByLocation(
 	tabs: RibbonTab[],
 	entityLogicalName: string,
+	scalingByTab: Record<string, ScalingDefinition> = {},
 ): Record<EntityRibbonLocation, RibbonDefinition> {
 	const buckets: Record<EntityRibbonLocation, RibbonTab[]> = {
 		HomepageGrid: [],
@@ -89,11 +90,20 @@ export function splitTabsByLocation(
 		}
 	}
 
-	return {
-		HomepageGrid: { location: "HomepageGrid", entityLogicalName, tabs: buckets.HomepageGrid },
-		SubGrid: { location: "SubGrid", entityLogicalName, tabs: buckets.SubGrid },
-		Form: { location: "Form", entityLogicalName, tabs: buckets.Form },
+	// Each location keeps its tabs' scaling (new groups' MaxSize sequences are
+	// chosen around it — #66 review).
+	const make = (location: EntityRibbonLocation): RibbonDefinition => {
+		const scaling = Object.fromEntries(
+			buckets[location].filter((t) => scalingByTab[t.id]).map((t) => [t.id, scalingByTab[t.id]] as const),
+		);
+		return {
+			location,
+			entityLogicalName,
+			tabs: buckets[location],
+			...(Object.keys(scaling).length > 0 ? { scalingByTab: scaling } : {}),
+		};
 	};
+	return { HomepageGrid: make("HomepageGrid"), SubGrid: make("SubGrid"), Form: make("Form") };
 }
 
 /**
@@ -147,7 +157,7 @@ export async function fetchEntityRibbonAllLocations(
 	const xml = await decompressRibbonZip(result.CompressedEntityXml as string);
 	// Parse once with a neutral location; we'll bucket the tabs ourselves below.
 	const parsed = parseRibbonXml(xml, "HomepageGrid", entityLogicalName, layerLocLabels);
-	const ribbons = splitTabsByLocation(parsed.ribbon.tabs, entityLogicalName);
+	const ribbons = splitTabsByLocation(parsed.ribbon.tabs, entityLogicalName, parsed.ribbon.scalingByTab);
 
 	useRuntimeLogStore
 		.getState()

@@ -19,6 +19,8 @@ import type {
 	StandardRuleAttributes,
 	CrmParameterValue,
 	EntityProperty,
+	ScalingDefinition,
+	ScaleStep,
 } from "@/types/ribbon";
 import { generateAction, generateRuleStep } from "@/services/xmlGenerator";
 import { canonicalXml, parseXmlElement, sameXml } from "@/services/ribbonXmlCanonical";
@@ -53,6 +55,7 @@ export function parseRibbonXml(
 	}
 
 	const tabs = parseTabs(doc);
+	const scalingByTab = parseScaling(doc);
 	// TabDisplayRules live at document root under RuleDefinitions > TabDisplayRules,
 	// not inside <Tab> elements. Apply them after all tabs are built.
 	applyTabDisplayRules(doc, tabs);
@@ -118,7 +121,12 @@ export function parseRibbonXml(
 	}
 
 	return {
-		ribbon: { location, entityLogicalName, tabs },
+		ribbon: {
+			location,
+			entityLogicalName,
+			tabs,
+			...(Object.keys(scalingByTab).length > 0 ? { scalingByTab } : {}),
+		},
 		commands,
 		displayRules,
 		enableRules,
@@ -173,6 +181,33 @@ function parseTabs(doc: Document): RibbonTab[] {
 	});
 
 	return tabs.sort((a, b) => a.sequence - b.sequence);
+}
+
+/**
+ * Each tab's `<Scaling>` (MaxSize / Scale steps in document order). A new
+ * group's MaxSize needs a Sequence no other step of the tab uses: a collision
+ * made Unified Interface drop every custom control of the table (#66 review).
+ */
+function parseScaling(doc: Document): Record<string, ScalingDefinition> {
+	const out: Record<string, ScalingDefinition> = {};
+	doc.querySelectorAll("Tab").forEach((tabEl) => {
+		const tabId = tabEl.getAttribute("Id");
+		const scalingEl = Array.from(tabEl.children).find((c) => c.tagName === "Scaling");
+		if (!tabId || !scalingEl || out[tabId]) return;
+		const step = (el: Element): ScaleStep => ({
+			id: el.getAttribute("Id") ?? "",
+			groupId: el.getAttribute("GroupId") ?? "",
+			size: el.getAttribute("Size") ?? "",
+			sequence: parseInt(el.getAttribute("Sequence") ?? "0", 10),
+		});
+		const kids = Array.from(scalingEl.children);
+		out[tabId] = {
+			tabId,
+			maxSizes: kids.filter((k) => k.tagName === "MaxSize").map(step),
+			scales: kids.filter((k) => k.tagName === "Scale").map(step),
+		};
+	});
+	return out;
 }
 
 /**

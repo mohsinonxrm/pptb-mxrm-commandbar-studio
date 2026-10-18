@@ -240,6 +240,8 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 		return out;
 	};
 	const inNewContainer = new Set<RibbonButton>();
+	// MaxSize of every new group, with a Sequence free in its tab's scaling.
+	const placed = planNewGroupScaling(current, baseline).steps;
 
 	// 1. New tabs (not present in the baseline) — the whole tab with its groups
 	//    and their controls in one CustomAction.
@@ -252,6 +254,7 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 				current.scalingByTab?.[tab.id],
 				newTabLocation(input.location, input.entityLogicalName),
 				inline,
+				placed,
 				sink,
 				lang,
 			),
@@ -261,19 +264,18 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// 2. New groups inside an EXISTING tab → Location="{tabId}.Groups._children"
 	//    with their controls inline, plus a MaxSize for the group in the tab's
 	//    scaling (classic ribbons need one per group; #40).
+	//    The MaxSize gets a Sequence no other step of the tab's scaling uses
+	//    (planNewGroupScaling); a group with no free position gets none — the
+	//    publish plan reports it.
 	const newGroupMaxSizes: string[] = [];
 	for (const tab of current.tabs) {
 		if (!baselineTabIds.has(tab.id)) continue;
-		const scaling = current.scalingByTab?.[tab.id];
 		for (const group of tab.groups) {
 			if (!baselineGroupIds.has(group.id)) {
 				for (const b of group.buttons) if (!b.hidden && !baselineOf.get(b)) inNewContainer.add(b);
 				groupCustomActions.push(generateGroupCustomAction(group, tab.id, inlineControls(group), sink, lang));
-				// A MaxSize the user configured is emitted by the scaling diff below.
-				const maxSize = defaultMaxSize(group);
-				if (maxSize && !scaling?.maxSizes.some((m) => m.groupId === group.id)) {
-					newGroupMaxSizes.push(generateScalingCustomAction(tab.id, "MaxSize", maxSize));
-				}
+				const maxSize = placed.get(group.id);
+				if (maxSize) newGroupMaxSizes.push(generateScalingCustomAction(tab.id, "MaxSize", maxSize));
 			}
 		}
 	}
@@ -570,11 +572,69 @@ const TEMPLATE_MAX_SIZE: Record<string, string> = {
 	"Mscrm.Templates.ThreeLargeThreeMedium": "Large",
 };
 
-/** The MaxSize a new group gets by default, or undefined when its template's layouts aren't known. */
-function defaultMaxSize(group: RibbonGroup): ScaleStep | undefined {
-	const size = TEMPLATE_MAX_SIZE[normalizeGroupTemplate(group.template)];
-	if (!size) return undefined;
-	return { id: `${group.id}.MaxSize`, groupId: group.id, size, sequence: group.sequence };
+/** The MaxSize Size a new group gets by default, or undefined when its template's layouts aren't known. */
+function defaultMaxSizeSize(group: RibbonGroup): string | undefined {
+	return TEMPLATE_MAX_SIZE[normalizeGroupTemplate(group.template)];
+}
+
+export interface NewGroupScaling {
+	/** The MaxSize to write for each new group (by group id). */
+	steps: Map<string, ScaleStep>;
+	/** Why a group can't be given a MaxSize safely — the publish plan blocks on these. */
+	problems: string[];
+}
+
+/**
+ * The MaxSize of every group created this session — on an existing tab, and in
+ * a new tab whose scaling the user didn't set — with a Sequence that no other
+ * step of the tab's scaling (as loaded, plus the session's) uses: after the
+ * tab's last MaxSize and before its first Scale, since scaling is applied in
+ * document order.
+ *
+ * Never the group's own Sequence: a new group at 80 on a home grid whose
+ * scaling had `Scale Sequence="80"` made Unified Interface drop every custom
+ * control of the table from its command bar, while RetrieveEntityRibbon still
+ * returned everything (verified live, #66 review). A unique MaxSize
+ * (65, between the last MaxSize 61 and the first Scale 80) fixed it.
+ */
+export function planNewGroupScaling(current: RibbonDefinition, baseline: RibbonDefinition): NewGroupScaling {
+	const steps = new Map<string, ScaleStep>();
+	const problems: string[] = [];
+	const baseTabs = new Set(baseline.tabs.map((t) => t.id));
+	const baseGroups = new Set(baseline.tabs.flatMap((t) => t.groups.map((g) => g.id)));
+	for (const tab of current.tabs) {
+		const isNewTab = !baseTabs.has(tab.id);
+		const scaling = current.scalingByTab?.[tab.id];
+		const maxSeqs = (scaling?.maxSizes ?? []).map((s) => s.sequence);
+		const scaleSeqs = (scaling?.scales ?? []).map((s) => s.sequence);
+		const used = new Set([...maxSeqs, ...scaleSeqs]);
+		if (isNewTab && used.size < maxSeqs.length + scaleSeqs.length) {
+			problems.push(`The scaling of new tab ${tab.id} uses a Sequence more than once — give every MaxSize and Scale its own`);
+		}
+		// A new tab with MaxSizes set by the user keeps exactly those.
+		if (isNewTab && maxSeqs.length > 0) continue;
+		const firstScale = scaleSeqs.length > 0 ? Math.min(...scaleSeqs) : Infinity;
+		let last = maxSeqs.length > 0 ? Math.max(...maxSeqs) : undefined;
+		for (const group of tab.groups) {
+			if (!isNewTab && baseGroups.has(group.id)) continue;
+			if (scaling?.maxSizes.some((m) => m.groupId === group.id)) continue;
+			const size = defaultMaxSizeSize(group);
+			if (!size) continue;
+			let seq = last === undefined ? 10 : last + 1;
+			while (used.has(seq)) seq++;
+			if (seq >= firstScale) {
+				problems.push(
+					`No free scaling position for the new group "${group.label}" (${group.id}) on tab ${tab.id}: its MaxSize must ` +
+						`come after the tab's last MaxSize (${last}) and before its first Scale (${firstScale}), and no Sequence is free there`,
+				);
+				continue;
+			}
+			used.add(seq);
+			last = seq;
+			steps.set(group.id, { id: `${group.id}.MaxSize`, groupId: group.id, size, sequence: seq });
+		}
+	}
+	return { steps, problems };
 }
 
 // ---------------------------------------------------------------------------
@@ -655,6 +715,8 @@ function generateTabCustomAction(
 	scaling: ScalingDefinition | undefined,
 	location: string,
 	controlsByGroup: Map<string, string[]>,
+	/** MaxSize per group when the user set none (planNewGroupScaling). */
+	defaults: Map<string, ScaleStep>,
 	sink: (label: LocLabel) => void,
 	lang = 1033,
 ): string {
@@ -668,7 +730,7 @@ function generateTabCustomAction(
 	// for each group (MaxSize elements before Scale elements) — #40.
 	const maxSizes = scaling?.maxSizes.length
 		? scaling.maxSizes
-		: tab.groups.map(defaultMaxSize).filter((s): s is ScaleStep => !!s);
+		: tab.groups.map((g) => defaults.get(g.id)).filter((s): s is ScaleStep => !!s);
 	const scalingSteps = [
 		...maxSizes.map((s) => generateScaleStep("MaxSize", s)),
 		...(scaling?.scales ?? []).map((s) => generateScaleStep("Scale", s)),

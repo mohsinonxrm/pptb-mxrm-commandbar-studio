@@ -90,7 +90,7 @@ export const NewButtonModal: React.FC = () => {
 				id,
 				label,
 				kind,
-				sequence: 50,
+				// No sequence: the store places it after the group's last button.
 				templateAlias: "o1",
 				commandId,
 				hidden: false,

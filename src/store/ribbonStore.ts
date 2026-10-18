@@ -17,6 +17,7 @@ import type {
 } from "@/types/ribbon";
 import type { LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
 import { defaultTabDisplayRules, newTabCommandId } from "@/services/xmlGenerator";
+import { generateRibbonId } from "@/utils/idGenerator";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -89,13 +90,15 @@ type NewButtonContext = {
 	tabId: string;
 	groupId: string;
 	location: RibbonLocation;
-	button: Omit<RibbonButton, "id"> & { id?: string };
+	/** Without a sequence (or with one the group already uses) it goes after the last button. */
+	button: Omit<RibbonButton, "id" | "sequence"> & { id?: string; sequence?: number };
 };
 
 type NewGroupContext = {
 	tabId: string;
 	location: RibbonLocation;
-	group: Omit<RibbonGroup, "id"> & { id?: string };
+	/** Without an id the store makes one; without a free sequence it goes after the last group. */
+	group: Omit<RibbonGroup, "id" | "sequence"> & { id?: string; sequence?: number };
 };
 
 export interface RibbonStore extends RibbonStoreState {
@@ -172,6 +175,20 @@ export interface RibbonStore extends RibbonStoreState {
 }
 
 const MAX_HISTORY = 80;
+
+/** Every tab, group and button id of the workspace (new ids must not reuse one). */
+function allRibbonIds(ribbons: Record<RibbonLocation, RibbonDefinition>): Set<string> {
+	const ids = new Set<string>();
+	for (const def of Object.values(ribbons))
+		for (const tab of def.tabs) {
+			ids.add(tab.id);
+			for (const group of tab.groups) {
+				ids.add(group.id);
+				for (const button of group.buttons) ids.add(button.id);
+			}
+		}
+	return ids;
+}
 
 function cloneRibbons(
 	ribbons: Record<RibbonLocation, RibbonDefinition>,
@@ -585,12 +602,18 @@ export const useRibbonStore = create<RibbonStore>()(
 						const tab = ribbons[location].tabs.find((t) => t.id === tabId);
 						const group = tab?.groups.find((g) => g.id === groupId);
 						if (group) {
+							// A new button goes after the group's last one, with a sequence
+							// no other button of the group has (two new buttons both got 50).
+							const used = new Set(group.buttons.map((b) => b.sequence));
+							const after = Math.max(0, ...group.buttons.map((b) => b.sequence)) + 10;
+							const sequence =
+								button.sequence !== undefined && !used.has(button.sequence) ? button.sequence : after;
 							const newBtn: RibbonButton = {
 								...button,
 								id: button.id ?? `new_${Date.now()}`,
 								label: button.label ?? "New Button",
 								kind: button.kind ?? "button",
-								sequence: button.sequence ?? (group.buttons.length + 1) * 10,
+								sequence,
 								templateAlias: button.templateAlias ?? "o1",
 								commandId: button.commandId ?? "",
 								hidden: button.hidden ?? false,
@@ -623,10 +646,19 @@ export const useRibbonStore = create<RibbonStore>()(
 					(ribbons) => {
 						const tab = ribbons[location].tabs.find((t) => t.id === tabId);
 						if (tab) {
+							// Same id scheme as new buttons and tabs:
+							// {prefix}.{table}.{Location}.{Label}.Group, unique in the workspace.
+							const ribbon = ribbons[location];
+							const table = location === "Application" ? "global" : ribbon.entityLogicalName;
 							const newGroup: RibbonGroup = {
-								id: group.id ?? `grp_${Date.now()}`,
+								id:
+									group.id ??
+									generateRibbonId(table, `${location}.${group.label ?? "New Group"}`, "Group", allRibbonIds(ribbons)),
 								label: group.label ?? "New Group",
-								sequence: group.sequence ?? (tab.groups.length + 1) * 10,
+								sequence:
+									group.sequence !== undefined && !tab.groups.some((g) => g.sequence === group.sequence)
+										? group.sequence
+										: Math.max(0, ...tab.groups.map((g) => g.sequence)) + 10,
 								template: group.template ?? "Flexible2",
 								buttons: group.buttons ?? [],
 							};

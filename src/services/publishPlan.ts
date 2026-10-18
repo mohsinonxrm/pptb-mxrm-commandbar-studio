@@ -1,4 +1,4 @@
-import { hasOobOverrideChanges, indexButtons, summarizeRibbonDiff } from "@/services/xmlGenerator";
+import { hasOobOverrideChanges, indexButtons, planNewGroupScaling, summarizeRibbonDiff } from "@/services/xmlGenerator";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import type {
 	CommandDefinition,
@@ -152,6 +152,9 @@ export function planScope(input: PlanInput): ScopePlan {
 			generatorChange = true;
 		}
 		if (summary.scalingChanges > 0) unsupported.push(`Scaling changes on ${current.location} (not supported yet)`);
+		// A scaling Sequence used twice in a tab makes Unified Interface drop
+		// every custom control of the table (#66 review): never publish one.
+		unsupported.push(...planNewGroupScaling(current, baseline).problems);
 
 		// Keyed by occurrence: the application ribbon repeats control ids.
 		const cur = indexButtons(current);
