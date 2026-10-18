@@ -502,6 +502,29 @@ describe("round trip — publish, reload, publish again", () => {
 		expect(errorsOf(xml)).toEqual([]);
 	});
 
+	it("a new group (with a button) on the published tab is written inside that tab, with its MaxSize", async () => {
+		await publishSession1();
+		const { ribbons, commands, locLabels } = reload();
+		const baseline = clone(ribbons.HomepageGrid);
+		const current = clone(ribbons.HomepageGrid);
+		current.tabs[1].groups.push({
+			id: "cbs.contact.More.Group",
+			label: "More",
+			sequence: 20,
+			template: "Flexible2",
+			buttons: [btn("cbs.contact.More.Button", "More", 10, "cbs.contact.Sync.Command")],
+		});
+		const { doc, plan, xml } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		expect(plan.unsupported).toEqual([]);
+		const tab = doc.querySelector(`CustomAction[Id="${TAB}.CustomAction"] > CommandUIDefinition > Tab`)!;
+		expect(attrs(tab.querySelectorAll(":scope > Groups > Group"))).toEqual([TAB_GROUP, "cbs.contact.More.Group"]);
+		expect(attrs(tab.querySelectorAll('Group[Id="cbs.contact.More.Group"] > Controls > Button'))).toEqual(["cbs.contact.More.Button"]);
+		expect(attrs(tab.querySelectorAll(":scope > Scaling > MaxSize"), "GroupId")).toEqual([TAB_GROUP, "cbs.contact.More.Group"]);
+		const locations = attrs(doc.querySelectorAll("CustomActions > CustomAction"), "Location");
+		expect(locations.filter((l) => l?.startsWith(`${TAB}.`))).toEqual([]);
+		expect(errorsOf(xml)).toEqual([]);
+	});
+
 	it("deleting a button inside the published group removes it there, with its unused command", async () => {
 		await publishSession1();
 		const { ribbons, commands, locLabels } = reload();
