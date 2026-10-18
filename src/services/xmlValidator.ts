@@ -9,6 +9,10 @@ import {
 import { CRM_PARAMETER_VALUE_SET, isNamedCrmParameterValue } from "@/constants/crmParameters";
 import { groupControls } from "@/utils/ribbonMenu";
 import { MAX_LOC_LABEL_ID_LENGTH } from "@/utils/locLabelRef";
+import { OPEN_RECORD_ITEM_COMMAND_ID, isOpenRecordCarrier } from "@/utils/openRecordItem";
+
+/** The display-rule pair "Hide with display rules" adds (ribbonStore.HIDE_DISPLAY_RULES): never both true. */
+const HIDE_DISPLAY_RULE_IDS = ["Mscrm.HideOnModern", "Mscrm.ShowOnlyOnModern"] as const;
 
 export interface ValidationError {
 	message: string;
@@ -320,7 +324,8 @@ export type PublishCheckCode =
 	| "scaling-collision"
 	| "scaling-size"
 	| "duplicate-id"
-	| "label-id-length";
+	| "label-id-length"
+	| "open-record-hidden";
 
 /** One pre-publish finding. Errors block the publish; warnings don't. */
 export interface PublishFinding {
@@ -560,6 +565,47 @@ export function validatePublishRibbonDiff(
 			key,
 			`Command ${id} has a ${kinds.map((k) => DROPPED_ACTION_LABELS[k] ?? k).join(" / ")} action — classic ribbon commands can't run it, so it would be dropped; remove the action`,
 			id,
+		);
+	}
+
+	// The record open override (#22) reaches a grid through a button using
+	// Mscrm.OpenRecordItem; hiding that button (a HideCustomAction, or display
+	// rules on the command) can turn the override off (Microsoft's SharePoint
+	// documents known issue, "Mscrm.OpenRecordItem.Hide"). A warning: whether
+	// a display rule hides it depends on where the grid is shown.
+	const openers = new Set<string>();
+	for (const { el } of customActions) {
+		if (el.tagName !== "CustomAction") continue;
+		for (const node of Array.from(el.getElementsByTagName("*")))
+			if (node.getAttribute("Command") === OPEN_RECORD_ITEM_COMMAND_ID) openers.add(node.getAttribute("Id") ?? "");
+	}
+	for (const { key, el } of customActions) {
+		if (el.tagName !== "HideCustomAction") continue;
+		const target = el.getAttribute("Location") ?? "";
+		if (!openers.has(target) && !isOpenRecordCarrier({ id: target, commandId: OPEN_RECORD_ITEM_COMMAND_ID })) continue;
+		add(
+			"open-record-hidden",
+			key,
+			`${target} is hidden, but it carries the record open override (${OPEN_RECORD_ITEM_COMMAND_ID}) — Unified Interface may then open records as usual or fail to open them; unhide it, or turn the override off`,
+			target,
+			true,
+		);
+	}
+	for (const { key, el } of commandDefs) {
+		if (el.getAttribute("Id") !== OPEN_RECORD_ITEM_COMMAND_ID) continue;
+		const rules = childElements(el)
+			.filter((c) => c.tagName === "DisplayRules")
+			.flatMap((c) => childElements(c).map((r) => r.getAttribute("Id") ?? r.tagName));
+		if (rules.length === 0) continue;
+		const hides = HIDE_DISPLAY_RULE_IDS.filter((id) => rules.includes(id));
+		add(
+			"open-record-hidden",
+			key,
+			`${OPEN_RECORD_ITEM_COMMAND_ID} has display rules (${rules.join(", ")})${
+				hides.length > 0 ? ` — ${hides.join(" + ")} hide its button` : ""
+			}: where they hide the "Open record" button, the record open override may stop working; the button must stay shown`,
+			OPEN_RECORD_ITEM_COMMAND_ID,
+			true,
 		);
 	}
 

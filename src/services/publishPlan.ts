@@ -18,6 +18,7 @@ import type {
 import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
 import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 import { isOwnControl } from "@/utils/ribbonProvenance";
+import { OPEN_RECORD_ITEM_COMMAND_ID, openRecordCommandProblem } from "@/utils/openRecordItem";
 
 /**
  * What the scope's unmanaged ribbon layer owns, as read at load (or refreshed
@@ -494,6 +495,15 @@ export function planScope(input: PlanInput): ScopePlan {
 		}
 	}
 
+	// The open-record override (#22): RetrieveEntityRibbon shows no platform
+	// definition of Mscrm.OpenRecordItem to fall back to, so removing the
+	// layer's copy could leave its buttons without a command.
+	if (uncustomisedCommandIds.includes(OPEN_RECORD_ITEM_COMMAND_ID) && referencedCommandIds.has(OPEN_RECORD_ITEM_COMMAND_ID)) {
+		unsupported.push(
+			`Uncustomising ${OPEN_RECORD_ITEM_COMMAND_ID} — its "Open record" buttons still use it; undo the uncustomise and turn the record open override off in the Advanced section instead`,
+		);
+	}
+
 	for (const id of input.excludeCommandIds ?? []) referencedCommandIds.delete(id);
 
 	// A customised command is written even unchanged — unless the layer already
@@ -517,6 +527,10 @@ export function planScope(input: PlanInput): ScopePlan {
 				`Power Fx / Custom API action in command ${c.id} — classic ribbon commands can't run these; remove the action (#28)`,
 			);
 		}
+		// Opening a row of the table's grids runs this command (#22): never
+		// publish the placeholder action the override starts with.
+		const problem = c.id === OPEN_RECORD_ITEM_COMMAND_ID ? openRecordCommandProblem(c) : null;
+		if (problem) unsupported.push(problem);
 	}
 
 	const enableInScope = new Set<string>();

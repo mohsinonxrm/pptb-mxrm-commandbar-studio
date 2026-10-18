@@ -22,6 +22,7 @@ import { useUIStore } from "@/store/uiStore";
 import FluentIcon from "@/components/shared/FluentIcon";
 import { effectiveModernImage } from "@/services/xmlGenerator";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
+import { buttonTranslationLcids } from "@/utils/locLabelRef";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
 
 const BUTTON_KINDS: RibbonButton["kind"][] = [
@@ -97,6 +98,7 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 	const styles = useStyles();
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const baseLanguageCode = useRibbonStore((s) => s.baseLanguageCode);
 	const openIconPicker = useUIStore((s) => s.openIconPicker);
 	const openLocalizationEditor = useUIStore((s) => s.openLocalizationEditor);
 	const openWebResourceBrowser = useUIStore((s) => s.openWebResourceBrowser);
@@ -110,9 +112,9 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 		setButtonProp(location, tabId, groupId, button.id, update);
 	}
 
-	// Gather all active LCIDs from LocLabel entries whose ID matches this button
-	const buttonLocLabel = locLabels.find((l) => l.id.startsWith(button.id));
-	const activeLcids: number[] = buttonLocLabel?.titles.map((t) => t.languageCode) ?? [];
+	// Languages of the labels this button's text and tooltips use (exact ids:
+	// a prefix match showed `Foo.Button2`'s translations on `Foo.Button`, #22).
+	const activeLcids = buttonTranslationLcids(button, locLabels, baseLanguageCode);
 
 	return (
 		<div className={styles.root}>

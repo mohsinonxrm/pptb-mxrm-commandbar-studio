@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
 	Badge,
 	Button,
@@ -14,6 +15,7 @@ import {
 	type CommandProvenanceInfo,
 } from "@/utils/commandProvenance";
 import { useCommandProvenance } from "@/hooks/useCommandProvenance";
+import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
 
 const useStyles = makeStyles({
 	row: {
@@ -64,12 +66,33 @@ export function CommandProvenanceBar({
 		const loaded = s.baselineCommands.find((c) => c.id === commandId);
 		return !!current && !!loaded && JSON.stringify(current) !== JSON.stringify(loaded);
 	});
+	// The action waiting for the user to confirm dropping their edits (#18:
+	// window.confirm doesn't work in PPTB).
+	const [pending, setPending] = useState<{ what: string; confirmLabel: string; run: () => void } | null>(
+		null,
+	);
 	if (!info) return null;
 
 	// Uncustomise and Discard drop this session's edits of the command: confirm first.
-	const confirmDropEdits = (what: string) =>
-		!edited ||
-		window.confirm(`${what} discards your unpublished changes to ${commandId}. Continue?`);
+	const confirmDropEdits = (what: string, confirmLabel: string, run: () => void) => {
+		if (edited) setPending({ what, confirmLabel, run });
+		else run();
+	};
+	const confirmDialog = pending && (
+		<ConfirmDialog
+			open
+			title="Discard unpublished changes?"
+			confirmLabel={pending.confirmLabel}
+			destructive
+			onConfirm={() => {
+				pending.run();
+				setPending(null);
+			}}
+			onCancel={() => setPending(null)}
+		>
+			{pending.what} discards your unpublished changes to <code>{commandId}</code>.
+		</ConfirmDialog>
+	);
 
 	const { provenance } = info;
 	const action =
@@ -81,10 +104,11 @@ export function CommandProvenanceBar({
 			<Button
 				size="small"
 				appearance="subtle"
-				onClick={() => {
-					if (confirmDropEdits("Discarding the customisation"))
-						discardCommandChanges(commandId);
-				}}
+				onClick={() =>
+					confirmDropEdits("Discarding the customisation", "Discard customisation", () =>
+						discardCommandChanges(commandId),
+					)
+				}
 			>
 				Discard customisation
 			</Button>
@@ -92,10 +116,11 @@ export function CommandProvenanceBar({
 			<Button
 				size="small"
 				appearance="subtle"
-				onClick={() => {
-					if (confirmDropEdits("Uncustomising"))
-						uncustomiseCommand(commandId, info.scope);
-				}}
+				onClick={() =>
+					confirmDropEdits("Uncustomising", "Uncustomise", () =>
+						uncustomiseCommand(commandId, info.scope),
+					)
+				}
 			>
 				Uncustomise
 			</Button>
@@ -123,6 +148,7 @@ export function CommandProvenanceBar({
 			<div className={styles.row}>
 				{badge}
 				{action}
+				{confirmDialog}
 			</div>
 		);
 	}
@@ -160,6 +186,7 @@ export function CommandProvenanceBar({
 					<Text size={200}>{message[provenance]}</Text>
 					{action}
 				</div>
+				{confirmDialog}
 			</MessageBarBody>
 		</MessageBar>
 	);
