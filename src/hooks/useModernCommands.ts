@@ -3,6 +3,7 @@ import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { loadModernCommandData } from "@/services/dataverse/modernCommandService";
 import {
 	buildModernTree,
@@ -100,7 +101,7 @@ export function useModernCanvas(location: RibbonLocation, tab: RibbonTab): Moder
 	const logicalName = useSessionStore((s) => s.activeEntity?.logicalName) ?? "";
 	const firstTabId = useRibbonStore((s) => s.ribbons[location]?.tabs[0]?.id);
 
-	return useMemo(() => {
+	const model = useMemo(() => {
 		const classic = tab.groups.flatMap((g) =>
 			g.buttons.map((b) => ({ id: b.id, sequence: b.sequence })),
 		);
@@ -124,6 +125,24 @@ export function useModernCanvas(location: RibbonLocation, tab: RibbonTab): Moder
 			: [];
 		return { nodes, placement: placeModernCommands(classic, nodes), overrides };
 	}, [commands, logicalName, tab, firstTabId]);
+
+	// Diagnostics: migrated commands drawn as chips have no classic control on
+	// this tab (the unique-name convention is undocumented). Logged once per set.
+	const unmatchedMigrated = flattenModernTree(model.nodes)
+		.filter((c) => c.origin !== "default")
+		.map((c) => c.uniqueName)
+		.join(", ");
+	useEffect(() => {
+		if (!unmatchedMigrated) return;
+		useRuntimeLogStore
+			.getState()
+			.logInfo(
+				"ribbon",
+				`Migrated modern commands without a classic control on ${tab.id}: ${unmatchedMigrated}`,
+			);
+	}, [unmatchedMigrated, tab.id]);
+
+	return model;
 }
 
 /** Overrides for one classic button at a location (properties pane). */

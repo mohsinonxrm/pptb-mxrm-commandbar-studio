@@ -24,7 +24,7 @@ export function ClassicModernOverrideBadge({
 			title={text}
 			aria-label={text}
 		>
-			{hidden ? "Hidden by modern" : "Modern"}
+			{hidden ? "Hidden by modern" : "Modern (migrated)"}
 		</Badge>
 	);
 }

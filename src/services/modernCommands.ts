@@ -284,30 +284,41 @@ export function flattenModernTree(nodes: ModernCommandNode[]): ModernCommand[] {
 }
 
 const TEMPLATE_ENTITY = /\{!EntityLogicalName\}/gi;
+/**
+ * Instance suffix of a migrated unique name: `!1`, or `!contact!1` for a
+ * table-specific copy. `{!EntityLogicalName}` also contains `!`, so only a
+ * trailing run of `!word` segments ending in `!<digits>` is stripped (and the
+ * template is resolved before that).
+ */
+const INSTANCE_SUFFIX = /(?:![A-Za-z0-9_]+)*!\d+$/;
 
 /**
- * Classic button ids a migrated command may have been generated from (most
+ * Classic control ids a migrated command may have been generated from (most
  * likely first; empty for commands made in the command designer).
  *
- * Migrated commands keep the classic id in their unique name with a publisher
- * prefix and an instance suffix — e.g.
+ * Migrated commands keep the classic control id in their unique name with a
+ * publisher prefix and an instance suffix. Seen live (#32, #74):
  * `msdyn_Mscrm.HomepageGrid.{!EntityLogicalName}.RefreshModernButton!1`
- * (seen live, see #32). The prefix is stripped up to the first `_` before
- * the dotted id, the `!n` suffix is dropped and `{!EntityLogicalName}` is
- * resolved to the table; the unstripped name is tried too. Only commands with
- * `origin` Migrated / Enhanced Migrated are considered. The naming convention
- * isn't documented, so this is a best-effort match.
+ * (scoped to every table) and
+ * `msdyn_Mscrm.HomepageGrid.contact.MergeRecords!contact!1` (table-specific).
+ * `{!EntityLogicalName}` is resolved to the table first, then the `!…!n`
+ * suffix is dropped and the prefix is stripped up to the first `_` before the
+ * dotted id; the unstripped name is tried too. Only commands with `origin`
+ * Migrated / Enhanced Migrated are considered. The naming convention isn't
+ * documented, so this is a best-effort match.
  */
 export function classicIdCandidates(cmd: ModernCommand, entityLogicalName: string): string[] {
 	if (cmd.origin === "default") return [];
 	const out: string[] = [];
 	const add = (id: string) => {
-		const resolved = id.replace(TEMPLATE_ENTITY, entityLogicalName);
-		if (resolved.includes(".") && !out.includes(resolved)) out.push(resolved);
+		if (id.includes(".") && !out.includes(id)) out.push(id);
 	};
 	for (const candidate of [cmd.uniqueName, cmd.name]) {
 		if (!candidate) continue;
-		const id = candidate.trim().replace(/!\d+$/, "");
+		const id = candidate
+			.trim()
+			.replace(TEMPLATE_ENTITY, entityLogicalName)
+			.replace(INSTANCE_SUFFIX, "");
 		const underscore = id.indexOf("_");
 		const dot = id.indexOf(".");
 		if (underscore > 0 && (dot === -1 || underscore < dot)) add(id.slice(underscore + 1));
@@ -324,8 +335,25 @@ export function classicIdForMigratedCommand(
 	return classicIdCandidates(cmd, entityLogicalName)[0] ?? null;
 }
 
+/** Lower-cased control id with `{!EntityLogicalName}` resolved, for exact matching. */
+function exactKey(id: string, entityLogicalName: string): string {
+	return id.replace(TEMPLATE_ENTITY, entityLogicalName).toLowerCase();
+}
+
 /**
- * Classic buttons on the canvas that a migrated modern command stands in for.
+ * Looser key: `Mscrm.<Location>.<table>.<rest>` with the table segment
+ * wildcarded, for a control whose id carries the table differently (e.g. an
+ * unresolved template). Null for ids without that shape.
+ */
+function tableAgnosticKey(id: string, entityLogicalName: string): string | null {
+	const parts = exactKey(id, entityLogicalName).split(".");
+	if (parts.length < 4 || parts[0] !== "mscrm") return null;
+	return [parts[0], parts[1], "*", ...parts.slice(3)].join(".");
+}
+
+/**
+ * Classic buttons on the canvas that a migrated modern command stands in for,
+ * matched by control id — exactly, then with the table segment wildcarded.
  * A command that is `isdisabled` lets the classic button render, so it isn't
  * reported unless `includeDisabled` is set (used to avoid drawing it twice).
  * Matching is case-insensitive; one button can be overridden in several apps.
@@ -336,14 +364,24 @@ export function findClassicOverrides(
 	entityLogicalName: string,
 	opts: { includeDisabled?: boolean } = {},
 ): Map<string, ClassicModernOverride[]> {
-	const byLower = new Map<string, string>();
-	for (const id of classicButtonIds) byLower.set(id.toLowerCase(), id);
+	const exact = new Map<string, string>();
+	const loose = new Map<string, string>();
+	for (const id of classicButtonIds) {
+		const key = exactKey(id, entityLogicalName);
+		if (!exact.has(key)) exact.set(key, id);
+		const looseKey = tableAgnosticKey(id, entityLogicalName);
+		if (looseKey && !loose.has(looseKey)) loose.set(looseKey, id);
+	}
 	const out = new Map<string, ClassicModernOverride[]>();
 	for (const command of commands) {
 		if (command.disabled && !opts.includeDisabled) continue;
-		const buttonId = classicIdCandidates(command, entityLogicalName)
-			.map((id) => byLower.get(id.toLowerCase()))
-			.find((id) => id !== undefined);
+		const candidates = classicIdCandidates(command, entityLogicalName);
+		const buttonId =
+			candidates.map((id) => exact.get(exactKey(id, entityLogicalName))).find(Boolean) ??
+			candidates
+				.map((id) => tableAgnosticKey(id, entityLogicalName))
+				.map((key) => (key ? loose.get(key) : undefined))
+				.find(Boolean);
 		if (!buttonId) continue;
 		const list = out.get(buttonId) ?? [];
 		list.push({ buttonId, command, effect: command.hidden ? "hidden" : "replaced" });

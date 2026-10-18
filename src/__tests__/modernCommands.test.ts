@@ -340,6 +340,90 @@ describe("classic buttons overridden by migrated modern commands", () => {
 	});
 });
 
+// Regression for the live check of #74: the migrated (origin = 1) copies of the
+// contact Home Grid buttons were drawn as separate chips next to the classic
+// buttons they stand for. Unique names exactly as read from the test org.
+describe("migrated contact Home Grid commands (live unique names)", () => {
+	const TABLE_SPECIFIC = [
+		["msdyn_Mscrm.HomepageGrid.contact.MergeRecords!contact!1", "MergeRecords", false],
+		[
+			"msdyn_Mscrm.HomepageGrid.contact.ImportDataFromExchange!contact!1",
+			"ImportDataFromExchange",
+			true,
+		],
+		["msdyn_Mscrm.HomepageGrid.contact.NewRecord!contact!1", "NewRecord", false],
+	] as const;
+	const GLOBAL = [
+		"Activate",
+		"RefreshModernButton",
+		"ExportSelectedToExcel",
+		"Chart.Edit",
+		"Assign",
+		"RefreshButton",
+		"NavigateToHomepageGrid",
+		"ViewHierarchy",
+		"NewRecord",
+		"Sharing",
+		"Deactivate",
+		"Edit",
+		"OpenActiveStage",
+		"SaveFiltersToCurrentSystemView",
+		"NewRecordForBPFEntity",
+		"Chart.Delete",
+	];
+	const rows = [
+		...TABLE_SPECIFIC.map(([uniquename, , isdisabled]) =>
+			cmd({ uniquename, name: uniquename, origin: 1, isdisabled }),
+		),
+		...GLOBAL.map((suffix) =>
+			cmd({
+				uniquename: `msdyn_Mscrm.HomepageGrid.{!EntityLogicalName}.${suffix}!1`,
+				name: suffix,
+				origin: 1,
+				context: 0,
+				_contextentity_value: null,
+				contextvalue: null,
+			}),
+		),
+		cmd({ uniquename: "new_SendSurvey", name: "SendSurvey", origin: 0 }),
+	];
+	const controls = [...new Set([...TABLE_SPECIFIC.map(([, s]) => s), ...GLOBAL])].map(
+		(s) => `Mscrm.HomepageGrid.contact.${s}`,
+	);
+
+	it("strips `!contact!1` and `!1` without breaking `{!EntityLogicalName}`", () => {
+		expect(classicIdCandidates(rows[0], "contact")[0]).toBe(
+			"Mscrm.HomepageGrid.contact.MergeRecords",
+		);
+		expect(classicIdCandidates(rows[3], "contact")[0]).toBe(
+			"Mscrm.HomepageGrid.contact.Activate",
+		);
+		expect(classicIdCandidates(rows[6], "contact")[0]).toBe(
+			"Mscrm.HomepageGrid.contact.Chart.Edit",
+		);
+	});
+
+	it("maps every migrated command to its classic control; only the designer command is left", () => {
+		const matched = findClassicOverrides(rows, controls, "contact", { includeDisabled: true });
+		const matchedIds = new Set([...matched.values()].flat().map((o) => o.command.id));
+		expect(rows.filter((c) => !matchedIds.has(c.id)).map((c) => c.uniqueName)).toEqual([
+			"new_SendSurvey",
+		]);
+		// isdisabled = the classic button applies: no flag.
+		const flagged = findClassicOverrides(rows, controls, "contact");
+		expect(flagged.has("Mscrm.HomepageGrid.contact.ImportDataFromExchange")).toBe(false);
+		expect(flagged.get("Mscrm.HomepageGrid.contact.MergeRecords")?.[0].effect).toBe("replaced");
+		// NewRecord has both a table-specific and a global migrated copy.
+		expect(flagged.get("Mscrm.HomepageGrid.contact.NewRecord")).toHaveLength(2);
+	});
+
+	it("also matches controls whose id keeps the {!EntityLogicalName} template", () => {
+		const templated = controls.map((id) => id.replace(".contact.", ".{!EntityLogicalName}."));
+		const matched = findClassicOverrides(rows, templated, "contact", { includeDisabled: true });
+		expect([...matched.values()].flat()).toHaveLength(rows.length - 1);
+	});
+});
+
 describe("placeModernCommands", () => {
 	it("puts each modern command before the first classic button with a higher sequence", () => {
 		const classic = [

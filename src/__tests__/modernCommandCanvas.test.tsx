@@ -146,6 +146,29 @@ describe("modern commands on the canvas", () => {
 					_appmoduleid_value: SALES,
 					sequence: 30,
 				}),
+				// Table-specific migrated copy of the classic New button (live name, #74).
+				row({
+					appactionid: "aaaaaaaa-0000-0000-0000-000000000004",
+					name: "NewRecord",
+					uniquename: "msdyn_Mscrm.HomepageGrid.contact.NewRecord!contact!1",
+					buttonlabeltext: "New",
+					origin: 1,
+					sequence: 10,
+				}),
+				// Disabled migrated copy: the classic button applies, no chip and no flag.
+				row({
+					appactionid: "aaaaaaaa-0000-0000-0000-000000000005",
+					name: "RefreshButton",
+					uniquename:
+						"msdyn_Mscrm.HomepageGrid.{!EntityLogicalName}.RefreshModernButton!2",
+					buttonlabeltext: "Refresh (disabled copy)",
+					context: 0,
+					_contextentity_value: null,
+					contextvalue: null,
+					origin: 1,
+					isdisabled: true,
+					sequence: 30,
+				}),
 			]),
 		});
 	});
@@ -178,6 +201,13 @@ describe("modern commands on the canvas", () => {
 		expect(
 			container.querySelector('[aria-label="Hidden by modern command Refresh in Sales Hub"]'),
 		).not.toBeNull();
+		// The migrated New is a note on the classic New, not a second "New" chip.
+		expect(
+			container.querySelector(
+				'[aria-label="Rendered as modern command New in all apps (migrated)"]',
+			)?.textContent,
+		).toBe("Modern (migrated)");
+		expect(container.textContent).not.toContain("disabled copy");
 	});
 
 	it("hides other apps' commands when an app is picked, and shows the selection read-only", () => {
