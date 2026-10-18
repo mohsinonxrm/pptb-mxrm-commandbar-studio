@@ -10,6 +10,8 @@ import { ScalingSectionSummary } from "./ScalingSectionSummary";
 import { AdvancedSection } from "./AdvancedSection";
 import { ConflictBanner } from "./ConflictBanner";
 import { HiddenByCustomizationsSection } from "./HiddenByCustomizationsSection";
+import { ModernCommandProperties, ModernOverrideSection } from "./ModernCommandProperties";
+import { useClassicOverrides, useSelectedModernCommand } from "@/hooks/useModernCommands";
 
 const useStyles = makeStyles({
 	root: {
@@ -53,6 +55,9 @@ export function PropertiesPane() {
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
 	const group = tab?.groups.find((g) => g.id === selectedGroupId);
 	const button = group?.buttons.find((b) => b.id === selectedButtonId);
+	// Modern commands (#32) are shown read-only and live outside the ribbon store.
+	const modern = useSelectedModernCommand();
+	const modernOverrides = useClassicOverrides(location, button?.id);
 
 	return (
 		<aside className={styles.root} aria-label="Properties">
@@ -60,7 +65,9 @@ export function PropertiesPane() {
 				<Subtitle2>Properties</Subtitle2>
 			</div>
 
-			{!button ? (
+			{!button && modern ? (
+				<ModernCommandProperties command={modern.command} items={modern.children} />
+			) : !button ? (
 				<>
 					<div className={styles.empty}>
 						<CursorHoverRegular fontSize={32} style={{ opacity: 0.4 }} />
@@ -71,6 +78,7 @@ export function PropertiesPane() {
 			) : (
 				<>
 					<ConflictBanner />
+					<ModernOverrideSection overrides={modernOverrides} />
 					<IdentitySection
 						button={button}
 						location={location}

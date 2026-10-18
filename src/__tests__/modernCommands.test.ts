@@ -1,0 +1,426 @@
+import { describe, it, expect } from "vitest";
+import {
+	appliesToApp,
+	buildAppList,
+	buildModernTree,
+	classicIdCandidates,
+	describeModernCommand,
+	describeOverride,
+	filterModernCommands,
+	findClassicOverrides,
+	flattenModernTree,
+	mapAppActionRow,
+	mapAppActionRows,
+	modernLocationsFor,
+	placeModernCommands,
+} from "@/services/modernCommands";
+import type { ModernCommand } from "@/types/modernCommand";
+
+const FV = "@OData.Community.Display.V1.FormattedValue";
+const CONTACT_MD = "608861bc-50a4-4c5f-a02c-21fe1943e2cf";
+const SALES = "11111111-1111-1111-1111-111111111111";
+const SERVICE = "22222222-2222-2222-2222-222222222222";
+
+let n = 0;
+/** An appaction row as the Web API returns it (defaults: contact main-grid button in no app). */
+function row(over: Record<string, unknown> = {}): Record<string, unknown> {
+	n += 1;
+	const id = `aaaaaaaa-0000-0000-0000-${String(n).padStart(12, "0")}`;
+	return {
+		appactionid: id,
+		name: `cmd${n}`,
+		uniquename: `new_cmd${n}`,
+		buttonlabeltext: `Command ${n}`,
+		_appmoduleid_value: null,
+		context: 1,
+		_contextentity_value: CONTACT_MD,
+		contextvalue: "contact",
+		location: 1,
+		type: 0,
+		sequence: 10,
+		hidden: false,
+		isdisabled: false,
+		origin: 0,
+		ismanaged: false,
+		visibilitytype: 0,
+		onclickeventtype: 0,
+		...over,
+	};
+}
+
+const cmd = (over: Record<string, unknown> = {}) => mapAppActionRow(row(over))!;
+const contact = { logicalName: "contact", metadataId: CONTACT_MD };
+
+describe("mapAppActionRow", () => {
+	it("maps the documented appaction columns to the view model", () => {
+		const c = mapAppActionRow(
+			row({
+				appactionid: "ABCDEF00-0000-0000-0000-000000000001",
+				buttonlabeltext: "Send survey",
+				buttontooltiptitle: "Survey",
+				buttontooltipdescription: "Send the NPS survey",
+				buttonaccessibilitytext: "Send survey to contact",
+				_appmoduleid_value: SALES.toUpperCase(),
+				[`_appmoduleid_value${FV}`]: "Sales Hub",
+				location: 0,
+				type: 2,
+				sequence: 42.5,
+				hidden: true,
+				isdisabled: false,
+				origin: 1,
+				ismanaged: true,
+				fonticon: "Send",
+				_parentappactionid_value: null,
+				onclickeventtype: 2,
+				onclickeventjavascriptfunctionname: "Survey.send",
+				onclickeventjavascriptparameters: '[{"type":5}]',
+				_onclickeventjavascriptwebresourceid_value: "33333333-3333-3333-3333-333333333333",
+				[`_onclickeventjavascriptwebresourceid_value${FV}`]: "new_/survey.js",
+				visibilitytype: 1,
+				visibilityformulacomponentlibrary: "new_contactcommands_xyz",
+				visibilityformulacomponentname: "Main_Form",
+				visibilityformulafunctionname: "SendSurvey_Visible",
+				appaction_appactionrule_classicrules: [
+					{
+						appactionruleid: "44444444-4444-4444-4444-444444444444",
+						name: "Mscrm.CanWriteContact",
+						type: 0,
+					},
+					{
+						appactionruleid: "55555555-5555-5555-5555-555555555555",
+						name: "Mscrm.HideOnModern",
+						type: 1,
+					},
+				],
+			}),
+		)!;
+		expect(c).toMatchObject({
+			id: "abcdef00-0000-0000-0000-000000000001",
+			label: "Send survey",
+			tooltipTitle: "Survey",
+			tooltipDescription: "Send the NPS survey",
+			accessibilityText: "Send survey to contact",
+			appModuleId: SALES,
+			appName: "Sales Hub",
+			scope: "entity",
+			contextValue: "contact",
+			contextEntityId: CONTACT_MD,
+			location: 0,
+			type: "split",
+			sequence: 42.5,
+			hidden: true,
+			disabled: false,
+			origin: "migrated",
+			managed: true,
+			fontIcon: "Send",
+			parentId: null,
+			action: "javascript",
+			jsFunctionName: "Survey.send",
+			jsWebResourceName: "new_/survey.js",
+			visibility: "formula",
+			visibilityFormula: {
+				componentLibrary: "new_contactcommands_xyz",
+				componentName: "Main_Form",
+				functionName: "SendSurvey_Visible",
+			},
+		});
+		expect(c.classicRules).toEqual([
+			{
+				id: "44444444-4444-4444-4444-444444444444",
+				name: "Mscrm.CanWriteContact",
+				uniqueName: undefined,
+				kind: "enable",
+			},
+			{
+				id: "55555555-5555-5555-5555-555555555555",
+				name: "Mscrm.HideOnModern",
+				uniqueName: undefined,
+				kind: "display",
+			},
+		]);
+	});
+
+	it("maps every type / origin / visibility option and falls back for sequence and label", () => {
+		expect([0, 1, 2, 3, 9].map((type) => cmd({ type }).type)).toEqual([
+			"button",
+			"dropdown",
+			"split",
+			"group",
+			"button",
+		]);
+		expect([0, 1, 2].map((origin) => cmd({ origin }).origin)).toEqual([
+			"default",
+			"migrated",
+			"enhancedMigrated",
+		]);
+		expect([0, 1, 2].map((v) => cmd({ visibilitytype: v }).visibility)).toEqual([
+			"none",
+			"formula",
+			"classicRules",
+		]);
+		expect([0, 1, 2].map((v) => cmd({ onclickeventtype: v }).action)).toEqual([
+			"none",
+			"formula",
+			"javascript",
+		]);
+		expect(cmd({ sequence: null, buttonsequencepriority: 7 }).sequence).toBe(7);
+		expect(cmd({ sequence: null }).sequence).toBe(0);
+		expect(cmd({ buttonlabeltext: null, name: "Fallback" }).label).toBe("Fallback");
+		expect(cmd({ context: 0 }).scope).toBe("all");
+		expect(cmd({}).appModuleId).toBeNull();
+	});
+
+	it("drops rows without an id or location and de-duplicates", () => {
+		expect(mapAppActionRow({ name: "x", location: 1 })).toBeNull();
+		expect(mapAppActionRow(row({ location: null }))).toBeNull();
+		const r = row();
+		expect(mapAppActionRows([r, { ...r }, { name: "no id" }])).toHaveLength(1);
+	});
+});
+
+describe("filterModernCommands", () => {
+	const all = [
+		cmd({ name: "grid", location: 1 }),
+		cmd({ name: "form", location: 0 }),
+		cmd({ name: "subgrid", location: 2 }),
+		cmd({ name: "associated", location: 3 }),
+		cmd({ name: "quick", location: 4 }),
+		cmd({ name: "dashboard", location: 6 }),
+		cmd({ name: "sales", location: 1, _appmoduleid_value: SALES }),
+		cmd({ name: "service", location: 1, _appmoduleid_value: SERVICE }),
+		cmd({
+			name: "global",
+			location: 1,
+			context: 0,
+			_contextentity_value: null,
+			contextvalue: null,
+		}),
+		cmd({
+			name: "account",
+			location: 1,
+			_contextentity_value: "99999999-9999-9999-9999-999999999999",
+			contextvalue: "account",
+		}),
+		cmd({ name: "byvalue", location: 1, _contextentity_value: null, contextvalue: "Contact" }),
+	];
+	const names = (
+		location: Parameters<typeof filterModernCommands>[1]["location"],
+		appFilter = "all",
+	) =>
+		filterModernCommands(all, { location, appFilter, table: contact })
+			.map((c) => c.name)
+			.sort();
+
+	it("maps CBS locations to appaction locations", () => {
+		expect(modernLocationsFor("HomepageGrid")).toEqual([1]);
+		expect(modernLocationsFor("SubGrid")).toEqual([2, 3]);
+		expect(modernLocationsFor("Form")).toEqual([0]);
+		expect(names("Form")).toEqual(["form"]);
+		expect(names("SubGrid")).toEqual(["associated", "subgrid"]);
+	});
+
+	it("keeps commands for this table (by contextentity, contextvalue or context All) and drops other tables", () => {
+		expect(names("HomepageGrid")).toEqual(["byvalue", "global", "grid", "sales", "service"]);
+	});
+
+	it("filters by app: an app shows its own commands plus app-less ones", () => {
+		expect(names("HomepageGrid", SALES)).toEqual(["byvalue", "global", "grid", "sales"]);
+		expect(names("HomepageGrid", SERVICE.toUpperCase())).toEqual([
+			"byvalue",
+			"global",
+			"grid",
+			"service",
+		]);
+		expect(appliesToApp(all[6], "all")).toBe(true);
+	});
+});
+
+describe("buildModernTree", () => {
+	it("orders by sequence and nests dropdown / split children; orphans stay visible", () => {
+		const dd = cmd({ name: "dd", type: 1, sequence: 20, buttonlabeltext: "Dropdown" });
+		const rows = [
+			cmd({ name: "b", sequence: 30, buttonlabeltext: "B" }),
+			dd,
+			cmd({ name: "a", sequence: 5, buttonlabeltext: "A" }),
+			cmd({ name: "child2", sequence: 2, _parentappactionid_value: dd.id }),
+			cmd({ name: "child1", sequence: 1, _parentappactionid_value: dd.id }),
+			cmd({
+				name: "orphan",
+				sequence: 25,
+				_parentappactionid_value: "deadbeef-0000-0000-0000-000000000000",
+			}),
+		];
+		// dd was built separately; put the same object in the list.
+		rows[1] = dd;
+		const tree = buildModernTree(rows);
+		expect(tree.map((t) => t.command.name)).toEqual(["a", "dd", "orphan", "b"]);
+		expect(tree[1].children.map((c) => c.command.name)).toEqual(["child1", "child2"]);
+		expect(flattenModernTree(tree).map((c) => c.name)).toEqual([
+			"a",
+			"dd",
+			"child1",
+			"child2",
+			"orphan",
+			"b",
+		]);
+	});
+});
+
+describe("classic buttons overridden by migrated modern commands", () => {
+	const refresh = (over: Record<string, unknown> = {}) =>
+		cmd({
+			origin: 1,
+			context: 0,
+			_contextentity_value: null,
+			contextvalue: null,
+			name: "RefreshModernButton",
+			uniquename: "msdyn_Mscrm.HomepageGrid.{!EntityLogicalName}.RefreshModernButton!1",
+			buttonlabeltext: "Refresh",
+			...over,
+		});
+	const classicIds = [
+		"Mscrm.HomepageGrid.contact.RefreshModernButton",
+		"Mscrm.HomepageGrid.contact.NewRecord",
+	];
+
+	it("derives the classic id from a migrated unique name", () => {
+		expect(classicIdCandidates(refresh(), "contact")[0]).toBe(
+			"Mscrm.HomepageGrid.contact.RefreshModernButton",
+		);
+		expect(
+			classicIdCandidates(cmd({ origin: 0, uniquename: "msdyn_Mscrm.X.Y" }), "contact"),
+		).toEqual([]);
+		// No prefix: the raw name is tried as well.
+		expect(
+			classicIdCandidates(refresh({ uniquename: "new_contact.MyButton" }), "contact"),
+		).toContain("new_contact.MyButton");
+	});
+
+	it("flags hidden vs replaced, ignores disabled (classic shown) and designer-made commands", () => {
+		const hidden = refresh({
+			hidden: true,
+			_appmoduleid_value: SALES,
+			[`_appmoduleid_value${FV}`]: "Sales Hub",
+		});
+		const replaced = refresh();
+		const disabled = refresh({ isdisabled: true });
+		const designer = refresh({ origin: 0 });
+		const map = findClassicOverrides(
+			[hidden, replaced, disabled, designer],
+			classicIds,
+			"contact",
+		);
+		expect([...map.keys()]).toEqual(["Mscrm.HomepageGrid.contact.RefreshModernButton"]);
+		const list = map.get("Mscrm.HomepageGrid.contact.RefreshModernButton")!;
+		expect(list.map((o) => [o.command.id, o.effect])).toEqual([
+			[hidden.id, "hidden"],
+			[replaced.id, "replaced"],
+		]);
+		expect(describeOverride(list[0])).toBe("Hidden by modern command Refresh in Sales Hub");
+		expect(describeOverride(list[1])).toBe(
+			"Rendered as modern command Refresh in all apps (migrated)",
+		);
+	});
+
+	it("reports a disabled migrated command only when asked (so it isn't drawn next to its classic button)", () => {
+		const disabled = refresh({ isdisabled: true });
+		expect(findClassicOverrides([disabled], classicIds, "contact").size).toBe(0);
+		expect(
+			findClassicOverrides([disabled], classicIds, "contact", { includeDisabled: true }).size,
+		).toBe(1);
+	});
+
+	it("matches case-insensitively", () => {
+		const map = findClassicOverrides(
+			[refresh()],
+			["MSCRM.HOMEPAGEGRID.CONTACT.REFRESHMODERNBUTTON"],
+			"contact",
+		);
+		expect(map.has("MSCRM.HOMEPAGEGRID.CONTACT.REFRESHMODERNBUTTON")).toBe(true);
+	});
+});
+
+describe("placeModernCommands", () => {
+	it("puts each modern command before the first classic button with a higher sequence", () => {
+		const classic = [
+			{ id: "New", sequence: 10 },
+			{ id: "Edit", sequence: 30 },
+			{ id: "Delete", sequence: 50 },
+		];
+		const tree = buildModernTree([
+			cmd({ name: "first", sequence: 1 }),
+			cmd({ name: "mid", sequence: 40 }),
+			cmd({ name: "tie", sequence: 30 }),
+			cmd({ name: "last", sequence: 999 }),
+		]);
+		const p = placeModernCommands(classic, tree);
+		expect(p.before.get("New")?.map((x) => x.command.name)).toEqual(["first"]);
+		expect(p.before.get("Edit")).toBeUndefined();
+		expect(p.before.get("Delete")?.map((x) => x.command.name)).toEqual(["tie", "mid"]);
+		expect(p.trailing.map((x) => x.command.name)).toEqual(["last"]);
+	});
+
+	it("appends everything when there are no classic buttons", () => {
+		const p = placeModernCommands([], buildModernTree([cmd(), cmd()]));
+		expect(p.trailing).toHaveLength(2);
+		expect(p.before.size).toBe(0);
+	});
+});
+
+describe("buildAppList / describeModernCommand", () => {
+	it("lists apps containing the table plus apps that have commands, sorted by name", () => {
+		const commands: ModernCommand[] = [
+			cmd({ _appmoduleid_value: SERVICE }),
+			cmd({
+				_appmoduleid_value: "33333333-3333-3333-3333-333333333333",
+				[`_appmoduleid_value${FV}`]: "Zeta",
+			}),
+			cmd(),
+		];
+		const apps = [
+			{ id: SALES, name: "Sales Hub" },
+			{ id: SERVICE, name: "Customer Service Hub" },
+			{ id: "44444444-4444-4444-4444-444444444444", name: "Not containing" },
+		];
+		expect(buildAppList(commands, apps, new Set([SALES])).map((a) => a.name)).toEqual([
+			"Customer Service Hub",
+			"Sales Hub",
+			"Zeta",
+		]);
+		expect(buildAppList(commands, apps, null).map((a) => a.name)).toEqual([
+			"Customer Service Hub",
+			"Zeta",
+		]);
+	});
+
+	it("describes app, location, type and the Power Fx / JavaScript references", () => {
+		const c = cmd({
+			_appmoduleid_value: SALES,
+			location: 3,
+			type: 1,
+			visibilitytype: 1,
+			visibilityformulacomponentname: "Grid",
+			visibilityformulafunctionname: "Btn_Visible",
+			visibilityformulacomponentlibrary: "lib1",
+			onclickeventtype: 1,
+			onclickeventformulafunctionname: "Btn_OnSelect",
+		});
+		const rows = Object.fromEntries(
+			describeModernCommand(c, new Map([[SALES, "Sales Hub"]])).map((r) => [
+				r.label,
+				r.value,
+			]),
+		);
+		expect(rows).toMatchObject({
+			App: "Sales Hub",
+			Location: "Associated grid",
+			Type: "Dropdown",
+			"Visible (Power Fx)": "Grid.Btn_Visible (component library lib1)",
+			"OnSelect (Power Fx)": "Btn_OnSelect",
+		});
+		expect(
+			describeModernCommand(cmd({ isdisabled: true })).find((r) => r.label === "Status")
+				?.value,
+		).toMatch(/classic/);
+	});
+});

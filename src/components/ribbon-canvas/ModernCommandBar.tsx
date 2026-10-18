@@ -32,6 +32,10 @@ import FluentIcon from "@/components/shared/FluentIcon";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
+import { useModernCommandStore } from "@/store/modernCommandStore";
+import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
+import { ModernCommandChip } from "./modern/ModernCommandChip";
+import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
 
 const DRAG_MIME = "application/x-rw-btn";
 // Drag-source MIME emitted by SolutionElementsPane when the user drags an
@@ -172,6 +176,13 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 	const [dragging, setDragging] = useState<string | null>(null);
 	const [btnMenu, setBtnMenu] = useState<BtnMenuState | null>(null);
 	const [hideWarning, setHideWarning] = useState<BtnMenuState | null>(null);
+	// Read-only modern commands (#32), interleaved by sequence; never in the ribbon store.
+	const modern = useModernCanvas(location, tab);
+	const modernAppNames = useModernAppNames();
+	const showModernApp = useModernCommandStore((s) => s.appFilter === "all");
+	const modernChip = (n: (typeof modern.nodes)[number]) => (
+		<ModernCommandChip key={n.command.id} node={n} appNames={modernAppNames} showApp={showModernApp} />
+	);
 
 	const isGlobalOobReadOnly = (button: RibbonButton) =>
 		location === "Application" && tab.id === "Mscrm.GlobalTab" && button.oob && !button.custom;
@@ -287,6 +298,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 				>
 				{allButtons.map(({ button, groupId }) => (
 					<React.Fragment key={button.id}>
+						{modern.placement.before.get(button.id)?.map(modernChip)}
 						{dropOver?.beforeButtonId === button.id && (
 							<div className={styles.dropLine} aria-hidden />
 						)}
@@ -331,6 +343,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 										NEW
 									</Badge>
 								)}
+								<ClassicModernOverrideBadge overrides={modern.overrides.get(button.id)} appNames={modernAppNames} />
 								{isGlobalOobReadOnly(button) && (
 									<span
 										className={styles.lockIcon}
@@ -343,6 +356,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 						</Tooltip>
 					</React.Fragment>
 				))}
+				{modern.placement.trailing.map(modernChip)}
 				</div>
 
 				{/* Trailing controls — kept outside the scroll lane so "+ Add" is

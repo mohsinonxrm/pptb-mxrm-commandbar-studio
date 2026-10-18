@@ -40,6 +40,7 @@ import {
 	clearPersistedRibbonData,
 } from "@/hooks/useRibbonPersistence";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { useModernCommandsLoader } from "@/hooks/useModernCommands";
 
 const useStyles = makeStyles({
 	leftPaneTabs: {
@@ -99,6 +100,10 @@ export function App() {
 
 	// Auto-save ribbon state on every mutation
 	useRibbonPersistence();
+
+	// Modern commands (appaction, #32): read-only, loaded alongside the ribbon,
+	// never part of the ribbon store or publish.
+	useModernCommandsLoader();
 
 	// Restore banner state
 	const [showRestoreBanner, setShowRestoreBanner] = useState(false);
