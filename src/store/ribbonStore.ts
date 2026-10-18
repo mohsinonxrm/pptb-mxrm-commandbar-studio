@@ -33,6 +33,53 @@ export interface HistoryEntry {
 	icon: string;
 	color: "success" | "warn" | "info" | "danger";
 	snapshot: RibbonStoreState;
+	/**
+	 * Commands / rules / labels the entry changed (an import, #30). Undo and
+	 * redo put these back too; other entries change the canvas only.
+	 */
+	definitionIds?: DefinitionIds;
+}
+
+export interface DefinitionIds {
+	commands: string[];
+	enableRules: string[];
+	displayRules: string[];
+	locLabels: string[];
+}
+
+type DefinitionKey = keyof DefinitionIds;
+const DEFINITION_KEYS: DefinitionKey[] = ["commands", "enableRules", "displayRules", "locLabels"];
+
+/** Ids in `after` that are new or differ from `before`. */
+function changedIds<T extends { id: string }>(before: T[], after: T[]): string[] {
+	const prev = new Map(before.map((x) => [x.id, JSON.stringify(x)] as const));
+	return after.filter((x) => prev.get(x.id) !== JSON.stringify(x)).map((x) => x.id);
+}
+
+/**
+ * `now`'s definitions with the `ids` taken from `from` (or removed when `from`
+ * hasn't them): undoes / redoes only what the entry changed, keeping later
+ * edits of other definitions.
+ */
+function definitionsFrom(
+	now: RibbonStoreState,
+	from: RibbonStoreState,
+	ids: DefinitionIds,
+): Partial<RibbonStoreState> {
+	const out: Partial<RibbonStoreState> = {};
+	for (const key of DEFINITION_KEYS) {
+		const take = new Set(ids[key]);
+		if (take.size === 0) continue;
+		const source = new Map((from[key] as { id: string }[]).map((x) => [x.id, x] as const));
+		const list = (now[key] as { id: string }[]).flatMap((x) => {
+			if (!take.has(x.id)) return [x];
+			const v = source.get(x.id);
+			return v ? [v] : [];
+		});
+		for (const [id, v] of source) if (take.has(id) && !list.some((x) => x.id === id)) list.push(v);
+		(out as Record<DefinitionKey, unknown>)[key] = list;
+	}
+	return out;
 }
 
 export type RibbonStoreState = {
@@ -336,6 +383,13 @@ export const useRibbonStore = create<RibbonStore>()(
 						detail: summary,
 						icon: "arrow_upload",
 						color: "success",
+						// Undo takes the definitions back as well.
+						definitionIds: {
+							commands: changedIds(state.commands, next.commands),
+							enableRules: changedIds(state.enableRules, next.enableRules),
+							displayRules: changedIds(state.displayRules, next.displayRules),
+							locLabels: changedIds(state.locLabels, next.locLabels),
+						},
 					},
 				),
 				commands: [...next.commands],
@@ -375,6 +429,7 @@ export const useRibbonStore = create<RibbonStore>()(
 			const entry = past[past.length - 1];
 			set({
 				ribbons: entry.snapshot.ribbons,
+				...(entry.definitionIds ? definitionsFrom(get(), entry.snapshot, entry.definitionIds) : {}),
 				past: past.slice(0, -1),
 				future: [{ ...entry, snapshot: { ...get(), ribbons } }, ...future],
 				mutationsSincePublish: Math.max(0, get().mutationsSincePublish - 1),
@@ -387,6 +442,7 @@ export const useRibbonStore = create<RibbonStore>()(
 			const [entry, ...rest] = future;
 			set({
 				ribbons: entry.snapshot.ribbons,
+				...(entry.definitionIds ? definitionsFrom(get(), entry.snapshot, entry.definitionIds) : {}),
 				past: [...get().past, { ...entry, snapshot: { ...get(), ribbons } }],
 				future: rest,
 				mutationsSincePublish: get().mutationsSincePublish + 1,
@@ -714,6 +770,8 @@ export const useRibbonStore = create<RibbonStore>()(
 							...JSON.parse(JSON.stringify(grp)),
 							id: `${grp.id}${stamp}`,
 							label: `${grp.label} (copy)`,
+							// The copy must not reuse an imported group's Title label (#30).
+							source: undefined,
 							sequence: grp.sequence + 5,
 							buttons: grp.buttons.map((b) => ({
 								...b,

@@ -529,3 +529,319 @@ describe("the import publishes", () => {
 		).toBe("Change");
 	});
 });
+
+// ── Adversarial review of #68 ──────────────────────────────────────────────
+
+async function publishedXml(): Promise<Document> {
+	const s = useRibbonStore.getState();
+	const { buildMergedRibbonDiffXml } = await import("@/services/dataverse/publishService");
+	const { xml } = await buildMergedRibbonDiffXml({
+		entity: { logicalName: T },
+		locations: (["HomepageGrid", "SubGrid", "Form"] as const).map((l) => ({
+			current: s.ribbons[l],
+			baseline: s.baseline[l],
+		})),
+		commands: s.commands,
+		enableRules: s.enableRules,
+		displayRules: s.displayRules,
+		locLabels: s.locLabels,
+		plan: entityPlan(),
+		languageCode: 1033,
+	});
+	return new DOMParser().parseFromString(xml, "application/xml");
+}
+
+const CAPTIONED = `<RibbonDiffXml><CustomActions>
+  <CustomAction Id="cbs.Tab.CustomAction" Location="Mscrm.Tabs._children" Sequence="500">
+    <CommandUIDefinition>
+      <Tab Id="cbs.Tab" Command="cbs.Tab.Command" Title="$LocLabels:cbs.TabCaption" Description="$LocLabels:cbs.TabCaption" Sequence="500">
+        <Scaling Id="cbs.Tab.Scaling"/>
+        <Groups Id="cbs.Tab.Groups">
+          <Group Id="cbs.Tab.G" Title="$LocLabels:cbs.GroupCaption" Image32by32Popup="$webresource:cbs_/g.svg" Sequence="10" Template="Mscrm.Templates.Flexible2">
+            <Controls Id="cbs.Tab.G.Controls"><Button Id="cbs.Tab.B" Command="Mscrm.RefreshGrid" Sequence="10" LabelText="In tab" TemplateAlias="o1"/></Controls>
+          </Group>
+        </Groups>
+      </Tab>
+    </CommandUIDefinition>
+  </CustomAction>
+  <CustomAction Id="cbs.Grp.CustomAction" Location="${MAIN}.Groups._children" Sequence="100">
+    <CommandUIDefinition>
+      <Group Id="cbs.Grp" Title="$Resources:Ribbon.HomepageGrid.MainTab.Management" Description="Mine" Sequence="100" Template="Mscrm.Templates.Flexible2">
+        <Controls Id="cbs.Grp.Controls"><Button Id="cbs.Grp.B" Command="Mscrm.RefreshGrid" Sequence="10" LabelText="In group" TemplateAlias="o1"/></Controls>
+      </Group>
+    </CommandUIDefinition>
+  </CustomAction>
+</CustomActions>
+<RuleDefinitions><TabDisplayRules><TabDisplayRule TabCommand="cbs.Tab.Command"><EntityRule EntityName="${T}" Context="HomePageGrid"/></TabDisplayRule></TabDisplayRules><DisplayRules/><EnableRules/></RuleDefinitions>
+<LocLabels>
+  <LocLabel Id="cbs.TabCaption"><Titles><Title languagecode="1033" description="Caption"/><Title languagecode="1036" description="Légende"/></Titles></LocLabel>
+  <LocLabel Id="cbs.GroupCaption"><Titles><Title languagecode="1033" description="Group caption"/><Title languagecode="1036" description="Légende du groupe"/></Titles></LocLabel>
+</LocLabels></RibbonDiffXml>`;
+
+describe("#68 review 1 — tab and group titles and attributes publish as imported", () => {
+	it("keeps Title tokens (with every language), $Resources titles and other attributes", async () => {
+		const result = importIntoStore(CAPTIONED);
+		const s = useRibbonStore.getState();
+		const tab = s.ribbons.HomepageGrid.tabs.find((t) => t.id === "cbs.Tab")!;
+		expect(tab.label).toBe("Caption");
+		expect(s.ribbons.HomepageGrid.tabs[0].groups.find((g) => g.id === "cbs.Grp")?.label).toBe(
+			"Ribbon.HomepageGrid.MainTab.Management",
+		);
+		expect(entityPlan().unsupported).toEqual([]);
+
+		const doc = await publishedXml();
+		const tabEl = doc.querySelector('Tab[Id="cbs.Tab"]')!;
+		expect(tabEl.getAttribute("Title")).toBe("$LocLabels:cbs.TabCaption");
+		expect(tabEl.getAttribute("Description")).toBe("$LocLabels:cbs.TabCaption");
+		const titles = (id: string) =>
+			Array.from(doc.querySelectorAll(`LocLabel[Id="${id}"] Title`))
+				.map((t) => t.getAttribute("languagecode"))
+				.sort();
+		expect(titles("cbs.TabCaption")).toEqual(["1033", "1036"]);
+		expect(titles("cbs.GroupCaption")).toEqual(["1033", "1036"]);
+		expect(doc.querySelector('LocLabel[Id="cbs.Tab.Title"]')).toBeNull();
+		const nested = doc.querySelector('Group[Id="cbs.Tab.G"]')!;
+		expect(nested.getAttribute("Title")).toBe("$LocLabels:cbs.GroupCaption");
+		expect(nested.getAttribute("Image32by32Popup")).toBe("$webresource:cbs_/g.svg");
+		const grp = doc.querySelector('Group[Id="cbs.Grp"]')!;
+		expect(grp.getAttribute("Title")).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
+		expect(grp.getAttribute("Description")).toBe("Mine");
+		expect(doc.querySelector('LocLabel[Id="cbs.Grp.Title"]')).toBeNull();
+
+		// The tab's Command had no definition in the XML: an empty one is added and published.
+		expect(result.notes).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining("cbs.Tab.Command has no CommandDefinition"),
+			]),
+		);
+		const tabCmd = doc.querySelector('CommandDefinition[Id="cbs.Tab.Command"]');
+		expect(tabCmd).not.toBeNull();
+		expect(tabCmd!.querySelector("Actions")?.children.length ?? 0).toBe(0);
+		expect(doc.querySelector('TabDisplayRule[TabCommand="cbs.Tab.Command"]')).not.toBeNull();
+	});
+
+	it("a renamed imported tab keeps its label id and other languages; a duplicated group gets its own title", async () => {
+		importIntoStore(CAPTIONED);
+		useRibbonStore.getState().renameTab("HomepageGrid", "cbs.Tab", "Renamed");
+		useRibbonStore.getState().duplicateGroup("HomepageGrid", MAIN, "cbs.Grp");
+		const doc = await publishedXml();
+		expect(doc.querySelector('Tab[Id="cbs.Tab"]')?.getAttribute("Title")).toBe(
+			"$LocLabels:cbs.TabCaption",
+		);
+		const caption = Array.from(doc.querySelectorAll('LocLabel[Id="cbs.TabCaption"] Title')).map(
+			(t) => [t.getAttribute("languagecode"), t.getAttribute("description")],
+		);
+		expect(caption).toEqual(
+			expect.arrayContaining([
+				["1033", "Renamed"],
+				["1036", "Légende"],
+			]),
+		);
+		const copy = Array.from(doc.querySelectorAll("Group")).find((g) =>
+			g.getAttribute("Id")?.startsWith("cbs.Grp_copy_"),
+		);
+		expect(copy?.getAttribute("Title")).toMatch(/^\$LocLabels:cbs\.Grp_copy_.*\.Title$/);
+		expect(copy?.getAttribute("Description")).toBeNull();
+	});
+});
+
+describe("#68 review 2 — undo takes back the definitions an import changed", () => {
+	const REFRESH = `<RibbonDiffXml><CommandDefinitions><CommandDefinition Id="Mscrm.RefreshGrid"><EnableRules/><DisplayRules/><Actions><JavaScriptFunction Library="$webresource:cbs_/x.js" FunctionName="refresh"/></Actions></CommandDefinition></CommandDefinitions></RibbonDiffXml>`;
+
+	it("undo / redo of an import restore commands, keeping later edits of other definitions", () => {
+		const before = useRibbonStore.getState().commands.find((c) => c.id === "Mscrm.RefreshGrid");
+		importIntoStore(REFRESH);
+		expect(entityPlan().editedCommandIds).toEqual(["Mscrm.RefreshGrid"]);
+		// A later edit of another command (no history entry of its own).
+		const other = useRibbonStore
+			.getState()
+			.commands.find((c) => c.id === "Mscrm.NewRecordFromGrid")!;
+		useRibbonStore.getState().upsertCommand({ ...other, actions: [] });
+
+		useRibbonStore.getState().undo();
+		let s = useRibbonStore.getState();
+		expect(s.commands.find((c) => c.id === "Mscrm.RefreshGrid")).toEqual(before);
+		expect(s.commands.find((c) => c.id === "Mscrm.NewRecordFromGrid")?.actions).toEqual([]);
+		expect(entityPlan().editedCommandIds).toEqual(["Mscrm.NewRecordFromGrid"]);
+
+		useRibbonStore.getState().redo();
+		s = useRibbonStore.getState();
+		expect(s.commands.find((c) => c.id === "Mscrm.RefreshGrid")?.actions).toHaveLength(1);
+		expect(entityPlan().editedCommandIds.sort()).toEqual([
+			"Mscrm.NewRecordFromGrid",
+			"Mscrm.RefreshGrid",
+		]);
+	});
+
+	it("undo removes definitions the import added, and the controls with them", () => {
+		importIntoStore(IMPORT);
+		useRibbonStore.getState().undo();
+		const s = useRibbonStore.getState();
+		expect(s.commands.some((c) => c.id === "cbs.Imp.Command")).toBe(false);
+		expect(s.enableRules.some((r) => r.id === "cbs.Imp.EnableRule")).toBe(false);
+		expect(s.locLabels.some((l) => l.id === "cbs.Imp.Button.LabelText")).toBe(false);
+		expect(btn(s.ribbons.HomepageGrid, "cbs.Imp.Button")).toBeUndefined();
+		expect(entityPlan().hasChanges).toBe(false);
+	});
+});
+
+describe("#68 review 3 — a customizations.xml imports the loaded table's part only", () => {
+	const entityXml = (name: string, fn: string) =>
+		`<Entity><Name LocalizedName="${name}" OriginalName="${name}">${name}</Name><EntityInfo/>
+    <RibbonDiffXml><CustomActions/><CommandDefinitions><CommandDefinition Id="cbs.Shared.Command"><EnableRules/><DisplayRules/><Actions><JavaScriptFunction Library="$webresource:cbs_/x.js" FunctionName="${fn}"/></Actions></CommandDefinition></CommandDefinitions><RuleDefinitions><TabDisplayRules/><DisplayRules/><EnableRules/></RuleDefinitions><LocLabels/></RibbonDiffXml></Entity>`;
+	const customizations = (...entities: string[]) =>
+		`<ImportExportXml><Entities>${entities.join("")}</Entities><Roles/>
+    <RibbonDiffXml><CustomActions/><CommandDefinitions><CommandDefinition Id="cbs.App.Command"><EnableRules/><DisplayRules/><Actions/></CommandDefinition></CommandDefinitions><RuleDefinitions/><LocLabels/></RibbonDiffXml></ImportExportXml>`;
+
+	it("picks the <Entity> whose Name is the loaded table, not the first one", () => {
+		const result = importRibbonDiffXml(
+			input(customizations(entityXml("contact", "contactFn"), entityXml(T, "tableFn"))),
+		);
+		const cmd = result.commands.find((c) => c.id === "cbs.Shared.Command")!;
+		expect(cmd.actions[0]).toMatchObject({ functionName: "tableFn" });
+		expect(result.commands.some((c) => c.id === "cbs.App.Command")).toBe(false);
+	});
+
+	it("refuses when the loaded table isn't in it, listing what is", () => {
+		expect(() =>
+			importRibbonDiffXml(
+				input(customizations(entityXml("contact", "c"), entityXml("account", "a"))),
+			),
+		).toThrow(
+			/no RibbonDiffXml for cbstest_ribbontest \(it has: contact, account, the application ribbon\)/,
+		);
+	});
+
+	it("uses the root-level RibbonDiffXml for the application ribbon", () => {
+		const result = importRibbonDiffXml(
+			input(customizations(entityXml(T, "tableFn")), "Application"),
+		);
+		expect(result.commands.some((c) => c.id === "cbs.App.Command")).toBe(true);
+		expect(result.commands.some((c) => c.id === "cbs.Shared.Command")).toBe(false);
+	});
+});
+
+describe("#68 review 4/5 — duplicates and normalised ids are reported", () => {
+	it("a definition the XML repeats is reported once and the last one is used", () => {
+		const xml = `<RibbonDiffXml><CommandDefinitions>
+      <CommandDefinition Id="cbs.Dup"><EnableRules/><DisplayRules/><Actions><JavaScriptFunction Library="$webresource:a.js" FunctionName="first"/></Actions></CommandDefinition>
+      <CommandDefinition Id="cbs.Dup"><EnableRules/><DisplayRules/><Actions><JavaScriptFunction Library="$webresource:a.js" FunctionName="second"/></Actions></CommandDefinition>
+    </CommandDefinitions></RibbonDiffXml>`;
+		const result = importRibbonDiffXml(input(xml));
+		expect(result.commands.filter((c) => c.id === "cbs.Dup")).toHaveLength(1);
+		expect(result.commands.find((c) => c.id === "cbs.Dup")?.actions[0]).toMatchObject({
+			functionName: "second",
+		});
+		expect(result.applied.filter((m) => m.includes("cbs.Dup"))).toEqual([
+			"Command cbs.Dup added",
+		]);
+		expect(result.notes).toEqual([
+			expect.stringContaining(
+				"Command cbs.Dup is defined 2 times in the XML — the last one was used",
+			),
+		]);
+	});
+
+	it("says which CustomAction / HideCustomAction ids are written in CBS's convention, and a missing TemplateAlias", () => {
+		const xml = IMPORT.replace(
+			' TemplateAlias="o1" ModernImage="Pencil"',
+			' ModernImage="Pencil"',
+		);
+		expect(xml).not.toBe(IMPORT);
+		const result = importRibbonDiffXml(input(xml));
+		const ids = result.notes.find((n) => n.startsWith("Ids normalised"));
+		expect(ids).toContain("cbs.Edit.Override.CustomAction");
+		expect(ids).toContain("cbs.HideRefresh");
+		expect(ids).not.toContain("cbs.Imp.Button.CustomAction");
+		expect(result.notes).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining(
+					`Mscrm.HomepageGrid.${T}.Edit: the override has no TemplateAlias — o1`,
+				),
+			]),
+		);
+	});
+});
+
+describe("#68 review 6 — a table import stays on the table", () => {
+	const SHARED = "cbs.Shared.Button";
+	const sharedButton = (location: RibbonLocation): RibbonDefinition => ({
+		location,
+		entityLogicalName: T,
+		tabs: [
+			{
+				id: `${location}.Tab`,
+				label: "Tab",
+				sequence: 10,
+				tabDisplayRules: [],
+				groups: [
+					{
+						id: `${location}.Group`,
+						label: "Group",
+						sequence: 10,
+						template: "Flexible2",
+						buttons: [
+							{
+								id: SHARED,
+								label: "Shared",
+								kind: "button",
+								sequence: 10,
+								templateAlias: "o1",
+								commandId: "Mscrm.RefreshGrid",
+								hidden: false,
+								oob: false,
+								custom: false,
+								managed: true,
+								origin: "managed",
+							},
+						],
+					},
+				],
+			},
+		],
+	});
+	const reload = (ribbons: Record<RibbonLocation, RibbonDefinition>) => {
+		const s = useRibbonStore.getState();
+		useRibbonStore.getState().loadWorkspace({
+			ribbons,
+			commands: s.commands,
+			enableRules: s.enableRules,
+			displayRules: s.displayRules,
+			locLabels: s.locLabels,
+		});
+	};
+
+	it("viewing the application ribbon, a table export's hide lands on the table, not the application ribbon", () => {
+		const s = useRibbonStore.getState();
+		reload({
+			...s.ribbons,
+			HomepageGrid: {
+				...s.ribbons.HomepageGrid,
+				tabs: [...s.ribbons.HomepageGrid.tabs, ...sharedButton("HomepageGrid").tabs],
+			},
+			Application: sharedButton("Application"),
+		});
+		const xml = `<RibbonDiffXml><CustomActions>
+      <HideCustomAction HideActionId="h1" Location="Mscrm.HomepageGrid.${T}.Refresh"/>
+      <HideCustomAction HideActionId="h2" Location="${SHARED}"/>
+    </CustomActions></RibbonDiffXml>`;
+		const result = importRibbonDiffXml(input(xml, "Application"));
+		expect(btn(result.ribbons.HomepageGrid, SHARED)?.hidden).toBe(true);
+		expect(btn(result.ribbons.Application, SHARED)?.hidden).toBe(false);
+		expect(result.notes).toEqual(
+			expect.arrayContaining([expect.stringContaining(`name the ${T} table`)]),
+		);
+	});
+
+	it("an id found only on the application ribbon is applied there with an explicit note", () => {
+		reload({ ...useRibbonStore.getState().ribbons, Application: sharedButton("Application") });
+		const xml = `<RibbonDiffXml><CustomActions><HideCustomAction HideActionId="h" Location="${SHARED}"/></CustomActions></RibbonDiffXml>`;
+		const result = importRibbonDiffXml(input(xml));
+		expect(btn(result.ribbons.Application, SHARED)?.hidden).toBe(true);
+		expect(result.notes).toEqual(
+			expect.arrayContaining([
+				expect.stringContaining(`${SHARED} was found only on the application ribbon`),
+			]),
+		);
+	});
+});

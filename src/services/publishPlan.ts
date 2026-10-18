@@ -212,7 +212,14 @@ export function planScope(input: PlanInput): ScopePlan {
 			const tabRef = locRef(tab.label);
 			if (tabRef) referencedLabels.add(tabRef);
 			const bt = baseTabs.get(tab.id);
-			if (!bt) generatorLabels.add(`${tab.id}.Title`);
+			if (!bt) {
+				generatorLabels.add(`${tab.id}.Title`);
+				// An imported tab keeps its own Title label (#30), and the
+				// CommandDefinition of its Command is written with it.
+				const titleRef = locRef(tab.source?.titleToken);
+				if (titleRef) generatorLabels.add(titleRef);
+				if (tab.commandId) referencedCommandIds.add(tab.commandId);
+			}
 			if (bt && bt.label !== tab.label) unsupported.push(`Renaming tab ${tab.id} — not supported yet`);
 			if (bt && !same(bt.tabDisplayRules ?? [], tab.tabDisplayRules ?? [])) {
 				if (!ownContainers.has(tab.id)) {
@@ -229,7 +236,11 @@ export function planScope(input: PlanInput): ScopePlan {
 				const groupRef = locRef(g.label);
 				if (groupRef) referencedLabels.add(groupRef);
 				const bg = baseGroups.get(g.id);
-				if (!bg) generatorLabels.add(`${g.id}.Title`);
+				if (!bg) {
+					generatorLabels.add(`${g.id}.Title`);
+					const titleRef = locRef(g.source?.titleToken);
+					if (titleRef) generatorLabels.add(titleRef);
+				}
 				if (bg && (bg.label !== g.label || bg.template !== g.template)) {
 					unsupported.push(`Renaming or re-templating group ${g.id} — not supported yet`);
 				}

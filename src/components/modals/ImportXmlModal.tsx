@@ -122,10 +122,12 @@ export const ImportXmlModal: React.FC = () => {
 					>
 						<Text size={200}>
 							Paste a RibbonDiffXml (for example from Ribbon Workbench or a
-							solution&apos;s customizations.xml). Commands, rules and labels are
-							added or replaced by id; new buttons, groups and tabs are added to the
-							loaded ribbon; overrides and hides edit the existing controls.
-							Everything imported becomes an unpublished change.
+							solution&apos;s customizations.xml — the loaded table&apos;s part is
+							used, or the application ribbon&apos;s when that is on screen).
+							Commands, rules and labels are added or replaced by id; new buttons,
+							groups and tabs are added to the loaded ribbon; overrides and hides edit
+							the existing controls. Everything imported becomes one unpublished
+							change, which Undo takes back as a whole.
 						</Text>
 
 						<div style={{ flex: 1, minHeight: 0 }}>
@@ -181,6 +183,15 @@ export const ImportXmlModal: React.FC = () => {
 									{result.applied.length > 0 && (
 										<ReportList items={result.applied} />
 									)}
+								</MessageBarBody>
+							</MessageBar>
+						)}
+
+						{result && result.notes.length > 0 && (
+							<MessageBar intent="info" layout="multiline">
+								<MessageBarBody>
+									<MessageBarTitle>Good to know</MessageBarTitle>
+									<ReportList items={result.notes} />
 								</MessageBarBody>
 							</MessageBar>
 						)}

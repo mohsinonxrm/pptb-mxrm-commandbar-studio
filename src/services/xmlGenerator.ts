@@ -140,7 +140,9 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	//    Location="Mscrm.Tabs._children".
 	for (const tab of current.tabs) {
 		if (!baselineTabIds.has(tab.id)) {
-			tabCustomActions.push(generateTabCustomAction(tab, current.scalingByTab?.[tab.id], sink, lang));
+			tabCustomActions.push(
+				generateTabCustomAction(tab, current.scalingByTab?.[tab.id], sink, lang, locLabels),
+			);
 		}
 	}
 
@@ -154,7 +156,7 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 		const scaling = current.scalingByTab?.[tab.id];
 		for (const group of tab.groups) {
 			if (!baselineGroupIds.has(group.id)) {
-				groupCustomActions.push(generateGroupCustomAction(group, tab.id, sink, lang));
+				groupCustomActions.push(generateGroupCustomAction(group, tab.id, sink, lang, locLabels));
 				// A MaxSize the user configured is emitted by the scaling diff below.
 				const maxSize = defaultMaxSize(group);
 				if (maxSize && !scaling?.maxSizes.some((m) => m.groupId === group.id)) {
@@ -509,14 +511,13 @@ function generateGroupCustomAction(
 	tabId: string,
 	sink: (label: LocLabel) => void,
 	lang = 1033,
+	storeLocLabels: LocLabel[] = [],
 ): string {
-	const titleId = `${group.id}.Title`;
-	sink({ id: titleId, titles: [{ languageCode: lang, description: group.label }] });
 	return `<CustomAction Id="${escapeXml(group.id)}.CustomAction"
     Location="${escapeXml(tabId)}.Groups._children"
     Sequence="${group.sequence}">
     <CommandUIDefinition>
-      ${generateGroupElement(group, sink, false, lang)}
+      ${generateGroupElement(group, sink, lang, storeLocLabels)}
     </CommandUIDefinition>
   </CustomAction>`;
 }
@@ -533,11 +534,13 @@ function generateTabCustomAction(
 	scaling: ScalingDefinition | undefined,
 	sink: (label: LocLabel) => void,
 	lang = 1033,
+	storeLocLabels: LocLabel[] = [],
 ): string {
-	const titleId = `${tab.id}.Title`;
-	sink({ id: titleId, titles: [{ languageCode: lang, description: tab.label }] });
+	const title = containerTitle(tab, sink, lang, storeLocLabels);
 	const commandAttr = tab.commandId ? ` Command="${escapeXml(tab.commandId)}"` : "";
-	const groupsXml = tab.groups.map((g) => generateGroupElement(g, sink, true, lang)).join("\n        ");
+	const groupsXml = tab.groups
+		.map((g) => generateGroupElement(g, sink, lang, storeLocLabels))
+		.join("\n        ");
 	// RibbonCore.xsd TabType: <Scaling Id> comes before <Groups>, with a MaxSize
 	// for each group (MaxSize elements before Scale elements) — #40.
 	const maxSizes = scaling?.maxSizes.length
@@ -557,7 +560,7 @@ function generateTabCustomAction(
     Location="Mscrm.Tabs._children"
     Sequence="${tab.sequence}">
     <CommandUIDefinition>
-      <Tab Id="${escapeXml(tab.id)}"${commandAttr} Title="${escapeXml(locLabelRef(titleId))}" Sequence="${tab.sequence}">
+      <Tab Id="${escapeXml(tab.id)}"${commandAttr} Title="${escapeXml(title)}" Sequence="${tab.sequence}"${containerAttributes(tab)}>
         ${scalingXml}
         <Groups Id="${escapeXml(tab.id)}.Groups">
         ${groupsXml}
@@ -570,24 +573,57 @@ function generateTabCustomAction(
 /**
  * A `<Group>` element with an empty `<Controls>` collection. Used both inside a
  * new-tab CustomAction and (standalone) inside a new-group CustomAction.
- * `nested` controls indentation only.
  */
 function generateGroupElement(
 	group: RibbonGroup,
 	sink: (label: LocLabel) => void,
-	nested: boolean,
 	lang = 1033,
+	storeLocLabels: LocLabel[] = [],
 ): string {
-	const titleId = `${group.id}.Title`;
-	if (nested) {
-		// Group title LocLabel is registered by the caller for standalone groups;
-		// for nested (new-tab) groups, register it here.
-		sink({ id: titleId, titles: [{ languageCode: lang, description: group.label }] });
-	}
+	const title = containerTitle(group, sink, lang, storeLocLabels);
 	const template = normalizeGroupTemplate(group.template);
-	return `<Group Id="${escapeXml(group.id)}" Title="${escapeXml(locLabelRef(titleId))}" Sequence="${group.sequence}" Template="${escapeXml(template)}">
+	return `<Group Id="${escapeXml(group.id)}" Title="${escapeXml(title)}" Sequence="${group.sequence}" Template="${escapeXml(template)}"${containerAttributes(group)}>
           <Controls Id="${escapeXml(group.id)}.Controls"/>
         </Group>`;
+}
+
+/**
+ * The Title of a new tab / group, registering its LocLabel. One imported from
+ * a RibbonDiffXml (#30) keeps its Title token — `$Resources:…` as is, a
+ * `$LocLabels:` label with all its languages — while its text is unchanged;
+ * anything else gets the `{id}.Title` label in the base language.
+ */
+function containerTitle(
+	container: RibbonTab | RibbonGroup,
+	sink: (label: LocLabel) => void,
+	lang: number,
+	storeLocLabels: LocLabel[],
+): string {
+	const titleId = `${container.id}.Title`;
+	if (container.source && container.label) {
+		const title = resolveButtonText(
+			container.label,
+			container.source.titleToken,
+			titleId,
+			storeLocLabels,
+			sink,
+			lang,
+		);
+		if (title) return title;
+	}
+	sink({ id: titleId, titles: [{ languageCode: lang, description: container.label }] });
+	return locLabelRef(titleId);
+}
+
+/** Attributes CBS writes itself on a `<Tab>` / `<Group>`. */
+const CONTAINER_MODELLED_ATTRIBUTES = new Set(["Id", "Command", "Title", "Sequence", "Template"]);
+
+/** The other attributes of an imported tab / group (Description, images, …), as imported (#30). */
+function containerAttributes(container: RibbonTab | RibbonGroup): string {
+	return Object.entries(container.source?.attributes ?? {})
+		.filter(([k]) => !CONTAINER_MODELLED_ATTRIBUTES.has(k) && !NON_DIFF_ATTRIBUTES.has(k))
+		.map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
+		.join("");
 }
 
 /**

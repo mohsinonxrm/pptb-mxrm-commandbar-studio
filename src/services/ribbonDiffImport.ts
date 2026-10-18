@@ -29,6 +29,10 @@ import { applyButtonOrigin } from "@/utils/ribbonProvenance";
  * Nothing touches the baseline, so everything imported is a session change
  * that the publish planner picks up. Whatever can't be applied — or won't be
  * published — is listed in `notApplied`, never silently dropped.
+ *
+ * The scope is the ribbon on screen: a table's (its three locations) or the
+ * application ribbon. From a customizations.xml, the RibbonDiffXml of the
+ * loaded table (or the root-level one, for the application ribbon) is used.
  */
 
 export interface RibbonDiffImportInput {
@@ -56,11 +60,14 @@ export interface RibbonDiffImportResult {
 	applied: string[];
 	/** What wasn't applied, or won't be published, and why. */
 	notApplied: string[];
+	/** Things worth knowing that don't lose anything (normalised ids, scope, duplicates). */
+	notes: string[];
 	/** True when the session changed. */
 	changed: boolean;
 }
 
-const LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form", "Application"];
+const ENTITY_LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form"];
+const LOCATIONS: RibbonLocation[] = [...ENTITY_LOCATIONS, "Application"];
 const CONTROL_TAGS = new Set([
 	"Button",
 	"FlyoutAnchor",
@@ -83,6 +90,53 @@ function elementChildren(el: Element | null | undefined): Element[] {
 	return el ? Array.from(el.children) : [];
 }
 
+function attributesOf(el: Element): Record<string, string> {
+	return Object.fromEntries(Array.from(el.attributes).map((a) => [a.name, a.value]));
+}
+
+/**
+ * The RibbonDiffXml to import: the document itself, or — from a
+ * customizations.xml — the loaded table's (`<Entity>` whose `<Name>` is the
+ * table) or, for the application ribbon, the root-level one. Anything else is
+ * refused rather than guessed: another table's commands would publish to the
+ * wrong table.
+ */
+function pickRibbonDiff(doc: Document, entity: string, application: boolean): Element {
+	const top = doc.documentElement;
+	if (top.tagName === "RibbonDiffXml") return top;
+	const all = Array.from(doc.getElementsByTagName("RibbonDiffXml"));
+	const tables = Array.from(doc.querySelectorAll("Entities > Entity")).flatMap((e) => {
+		const kids = elementChildren(e);
+		const rdx = kids.find((c) => c.tagName === "RibbonDiffXml");
+		const name = kids.find((c) => c.tagName === "Name")?.textContent?.trim() ?? "";
+		return rdx ? [{ name, rdx }] : [];
+	});
+	const appRdx = all.find((r) => r.parentElement === top);
+	if (tables.length === 0 && !appRdx) {
+		if (all.length === 1) return all[0];
+		throw new Error(
+			all.length === 0
+				? "No <RibbonDiffXml> element found."
+				: `The XML has ${all.length} <RibbonDiffXml> elements and none belongs to a table or the application ribbon — paste just one.`,
+		);
+	}
+	const found = [
+		...tables.map((t) => t.name || "(unnamed table)"),
+		...(appRdx ? ["the application ribbon"] : []),
+	].join(", ");
+	if (application) {
+		if (appRdx) return appRdx;
+		throw new Error(
+			`The XML has no application ribbon RibbonDiffXml (it has: ${found}). Open that table's ribbon to import its customizations.`,
+		);
+	}
+	const match = tables.find((t) => t.name.toLowerCase() === entity.toLowerCase());
+	if (match) return match.rdx;
+	throw new Error(
+		`The XML has no RibbonDiffXml for ${entity || "the loaded table"} (it has: ${found}). Load that table, or open the application ribbon for the application ribbon's customizations.`,
+	);
+}
+
 function contextLocation(context: string | undefined): RibbonLocation | undefined {
 	switch (context) {
 		case "HomePageGrid":
@@ -102,25 +156,56 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 	const entity = input.entityLogicalName;
 	const doc = new DOMParser().parseFromString(input.xml, "application/xml");
 	if (doc.querySelector("parsererror")) throw new Error("The XML is not well-formed.");
-	const root =
-		doc.documentElement.tagName === "RibbonDiffXml"
-			? doc.documentElement
-			: doc.querySelector("RibbonDiffXml");
-	if (!root) throw new Error("No <RibbonDiffXml> element found.");
-
-	const applied: string[] = [];
-	const notApplied: string[] = [];
-	if (root !== doc.documentElement && doc.querySelectorAll("RibbonDiffXml").length > 1) {
-		notApplied.push(
-			"The XML contains several <RibbonDiffXml> elements — only the first one was imported.",
-		);
-	}
+	const onApplication = input.activeLocation === "Application";
+	const root = pickRibbonDiff(doc, entity, onApplication);
 	const serializer = new XMLSerializer();
 	const rdx = serializer.serializeToString(root);
 
+	const applied: string[] = [];
+	const notApplied: string[] = [];
+	const notes: string[] = [];
+	// The scope: the ribbon on screen, except that a bare RibbonDiffXml whose
+	// Locations name the loaded table is that table's, wherever it is pasted.
+	const namesTable =
+		!!entity &&
+		new RegExp(
+			`Mscrm\\.(HomepageGrid|SubGrid|Form)\\.${entity.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.`,
+			"i",
+		).test(rdx);
+	const application = onApplication && !(root === doc.documentElement && namesTable);
+	if (root !== doc.documentElement) {
+		notes.push(
+			`Imported the RibbonDiffXml of ${application ? "the application ribbon" : entity} from the document.`,
+		);
+	} else if (onApplication && !application) {
+		notes.push(
+			`The XML's Locations name the ${entity} table, so it was imported as that table's customizations, not the application ribbon's.`,
+		);
+	}
+	/** Where a table import's unprefixed ids and new tabs go first. */
+	const home: RibbonLocation = application
+		? "Application"
+		: ENTITY_LOCATIONS.includes(input.activeLocation)
+			? input.activeLocation
+			: "HomepageGrid";
+
 	// ── Commands, rules, labels: the loaded-ribbon parser, so nothing is lost ──
 	const parsed = parseRibbonXml(rdx, input.activeLocation, entity);
-	const upsert = <T extends { id: string }>(current: T[], incoming: T[], what: string) => {
+	const upsert = <T extends { id: string }>(current: T[], all: T[], what: string) => {
+		// A definition the XML repeats: the last one is used (once), and said so.
+		const byId = new Map<string, T>();
+		const count = new Map<string, number>();
+		for (const item of all) {
+			byId.set(item.id, item);
+			count.set(item.id, (count.get(item.id) ?? 0) + 1);
+		}
+		for (const [id, n] of count) {
+			if (n > 1)
+				notes.push(
+					`${what} ${id} is defined ${n} times in the XML — the last one was used.`,
+				);
+		}
+		const incoming = Array.from(byId.values());
 		const out = [...current];
 		const changedIds: string[] = [];
 		let unchanged = 0;
@@ -158,13 +243,33 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 
 	// ── Lookup ──
 	/** Locations to search for a Location / control id, most likely first. */
+	/**
+	 * The scope's own locations come first: a table import looks in the table's
+	 * locations (the one its id names first) and only then in the application
+	 * ribbon; an application import the other way round (see noteScope).
+	 */
 	const searchOrder = (id: string): RibbonLocation[] => {
+		if (application) return LOCATIONS.slice().reverse();
 		const m = ENTITY_PREFIX.exec(id);
-		let first: RibbonLocation = input.activeLocation;
-		if (m) first = m[2] === "{!EntityLogicalName}" ? "Application" : (m[1] as RibbonLocation);
-		else if (id.startsWith("Mscrm.Global") || id.includes("{!EntityLogicalName}"))
-			first = "Application";
-		return [first, ...LOCATIONS.filter((l) => l !== first)];
+		const first = m && m[2] !== "{!EntityLogicalName}" ? (m[1] as RibbonLocation) : home;
+		return [first, ...ENTITY_LOCATIONS.filter((l) => l !== first), "Application"];
+	};
+	/** Says so when a change lands outside the ribbon being imported into. */
+	const noteScope = (location: RibbonLocation, id: string) => {
+		if (application && location !== "Application") {
+			notes.push(
+				`${id} is on the table's ribbon (${location}), not the application ribbon: the change is published with the table.`,
+			);
+		} else if (!application && location === "Application") {
+			notes.push(
+				`${id} was found only on the application ribbon: the change is published to the application ribbon and affects every table.`,
+			);
+		}
+	};
+	/** Ids the publish writes in CBS's convention, not as in the XML (item kept for the report). */
+	const normalised: string[] = [];
+	const noteId = (actual: string | null, expected: string) => {
+		if (actual && actual !== expected) normalised.push(actual);
 	};
 	const findGroup = (groupId: string) => {
 		for (const location of searchOrder(groupId))
@@ -228,15 +333,20 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		if (src.tooltipBodyToken) button.tooltipBody = text(src.tooltipBodyToken, "");
 	};
 	/** `$LocLabels:` references neither the XML nor the session defines: the import would fail. */
-	const checkLabels = (button: RibbonButton) => {
-		for (const v of Object.values(button.source?.attributes ?? {}))
+	const checkLabels = (item: { id: string; source?: { attributes: Record<string, string> } }) => {
+		for (const v of Object.values(item.source?.attributes ?? {}))
 			for (const [, id] of v.matchAll(LOC_LABEL_REF))
 				if (!locLabels.some((l) => l.id === id)) {
 					notApplied.push(
-						`${button.id}: references label ${id}, which neither the XML nor the loaded ribbon defines — add its <LocLabel> or the publish will fail.`,
+						`${item.id}: references label ${id}, which neither the XML nor the loaded ribbon defines — add its <LocLabel> or the publish will fail.`,
 					);
 				}
 	};
+	/** A tab / group element as imported: its Title token and attributes are written back (#30 review). */
+	const containerSource = (el: Element) => ({
+		titleToken: el.getAttribute("Title") ?? undefined,
+		attributes: attributesOf(el),
+	});
 	/** A control new to the session: yours, unmanaged, not hidden. */
 	const asNew = (button: RibbonButton, sequence?: number): RibbonButton => {
 		applyButtonOrigin(button, { origin: "unmanaged" });
@@ -284,6 +394,7 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		if (!hit || !incoming) return false;
 		resolveTexts(incoming);
 		checkLabels(incoming);
+		noteScope(hit.location, id);
 		for (const { group, button } of hit.found) {
 			if (incoming.kind !== button.kind) {
 				notApplied.push(
@@ -325,6 +436,11 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 			if (hasOobOverrideChanges(before, button) || before.sequence !== button.sequence) {
 				ribbonChanged = true;
 				applied.push(`Updated ${button.label} (${id}) on ${hit.location}`);
+				if (!incoming.templateAlias) {
+					notes.push(
+						`${id}: the override has no TemplateAlias — ${button.templateAlias} from the loaded control is kept.`,
+					);
+				}
 			} else {
 				// Nothing CBS publishes changed: keep the control exactly as loaded.
 				Object.assign(button, before);
@@ -356,7 +472,8 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 					`${id}: already in group ${existing.found[0].group.id} — updated there, not moved to ${groupId}.`,
 				);
 			}
-			editControl(id, el, caSequence);
+			if (editControl(id, el, caSequence))
+				noteId(ca.getAttribute("Id"), `${id}.Override.CustomAction`);
 			return;
 		}
 		const target = findGroup(groupId);
@@ -365,6 +482,8 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		if (!button) return notApplied.push(`${id}: couldn't read the <${el.tagName}>.`);
 		if (MENU_KINDS.has(button.kind)) return menuSkipped(id);
 		insertBySequence(target.group.buttons, asNew(button, caSequence));
+		noteScope(target.location, id);
+		noteId(ca.getAttribute("Id"), `${id}.CustomAction`);
 		ribbonChanged = true;
 		applied.push(`Added ${button.label} (${id}) to ${target.group.id} on ${target.location}`);
 	};
@@ -377,9 +496,12 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 			`<Tab Id="${IMPORT_TAB}"><Groups>${xmlOf(groupEl)}</Groups></Tab>`,
 		)?.groups[0];
 		if (!parsedGroup) return undefined;
+		const source = containerSource(groupEl);
+		checkLabels({ id: parsedGroup.id, source });
 		return {
 			...parsedGroup,
-			label: text(groupEl.getAttribute("Title"), parsedGroup.id),
+			label: text(source.titleToken, parsedGroup.id),
+			source,
 			sequence:
 				groupEl.getAttribute("Sequence") === null
 					? (caSequence ?? parsedGroup.sequence)
@@ -407,6 +529,8 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		const group = groupFrom(el, caSequence);
 		if (!group) return notApplied.push(`Group ${id}: couldn't read the <Group>.`);
 		insertBySequence(target.tab.groups, group);
+		noteScope(target.location, id);
+		noteId(ca.getAttribute("Id"), `${id}.CustomAction`);
 		ribbonChanged = true;
 		applied.push(
 			`Added group ${group.label} (${id}) with ${group.buttons.length} control(s) to ${tabId} on ${target.location}`,
@@ -424,19 +548,21 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		const contexts = parsedTab.tabDisplayRules.flatMap((r) =>
 			r.rules.map((s) => (s.kind === "EntityRule" ? contextLocation(s.context) : undefined)),
 		);
-		const location: RibbonLocation =
-			input.activeLocation === "Application"
-				? "Application"
-				: (contexts.find((c): c is RibbonLocation => !!c) ??
-					(ENTITY_PREFIX.exec(id)?.[1] as RibbonLocation | undefined) ??
-					input.activeLocation);
+		const location: RibbonLocation = application
+			? "Application"
+			: (contexts.find((c): c is RibbonLocation => !!c) ??
+				(ENTITY_PREFIX.exec(id)?.[1] as RibbonLocation | undefined) ??
+				home);
 		const groupEls = Array.from(el.querySelectorAll(":scope > Groups > Group"));
 		const groups = groupEls
 			.map((g) => groupFrom(g, undefined))
 			.filter((g): g is RibbonGroup => !!g);
+		const source = containerSource(el);
+		checkLabels({ id, source });
 		const tab: RibbonTab = {
 			...parsedTab,
-			label: text(el.getAttribute("Title"), id),
+			label: text(source.titleToken, id),
+			source,
 			sequence:
 				el.getAttribute("Sequence") === null
 					? (caSequence ?? parsedTab.sequence)
@@ -444,7 +570,19 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 			groups,
 		};
 		insertBySequence(ribbons[location].tabs, tab);
-		if (tab.commandId) addedTabCommands.add(tab.commandId);
+		noteId(ca.getAttribute("Id"), `${id}.CustomAction`);
+		if (tab.commandId) {
+			addedTabCommands.add(tab.commandId);
+			// A tab's display rules refer to its Command, which must be defined:
+			// an empty one when the XML has none (as for tabs created in CBS).
+			if (!cmd.out.some((c) => c.id === tab.commandId)) {
+				cmd.out.push({ id: tab.commandId, enableRules: [], displayRules: [], actions: [] });
+				cmd.changedIds.push(tab.commandId);
+				notes.push(
+					`Tab ${id}: its Command ${tab.commandId} has no CommandDefinition in the XML — an empty one was added.`,
+				);
+			}
+		}
 		ribbonChanged = true;
 		applied.push(
 			`Added tab ${tab.label} (${id}) with ${groups.length} group(s) to ${location}`,
@@ -463,6 +601,8 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 			const visible = hit.found.filter((f) => !f.button.hidden);
 			for (const f of visible) f.button.hidden = true;
 			if (visible.length > 0) {
+				noteScope(hit.location, location);
+				noteId(el.getAttribute("HideActionId"), `${location}.HideAction`);
 				ribbonChanged = true;
 				applied.push(`Hid ${visible[0].button.label} (${location}) on ${hit.location}`);
 			} else {
@@ -510,7 +650,10 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 
 		// Location is an existing element: an override.
 		if (CONTROL_TAGS.has(tag) && def.getAttribute("Id") === location) {
-			if (editControl(location, def, caSequence)) return;
+			if (editControl(location, def, caSequence)) {
+				noteId(caId, `${location}.Override.CustomAction`);
+				return;
+			}
 			return unknownLocation(`Override ${caId}`, location);
 		}
 		if (findControl(location) || findGroup(location) || findTab(location)) {
@@ -534,6 +677,7 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		for (const tab of ribbons[location].tabs)
 			for (const group of tab.groups)
 				for (const b of group.buttons) if (b.commandId) usedCommands.add(b.commandId);
+	for (const c of addedTabCommands) usedCommands.add(c);
 	const usedEnable = new Set<string>();
 	const usedDisplay = new Set<string>();
 	for (const c of cmd.out) {
@@ -587,6 +731,11 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		}
 	}
 
+	if (normalised.length > 0) {
+		notes.push(
+			`Ids normalised: CBS publishes CustomAction / HideCustomAction ids as {control}.CustomAction, {control}.Override.CustomAction and {control}.HideAction, so ${normalised.join(", ")} will be written under those ids.`,
+		);
+	}
 	if (unchanged + upToDate > 0) {
 		applied.push(`${unchanged + upToDate} control(s) / definition(s) were already up to date`);
 	}
@@ -605,6 +754,7 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		locLabels,
 		applied,
 		notApplied,
+		notes,
 		changed,
 	};
 }
