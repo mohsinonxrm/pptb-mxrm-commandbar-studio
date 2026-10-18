@@ -35,6 +35,7 @@ import {
 	type PublishVerification,
 } from "@/services/dataverse/publishService";
 import { fetchLayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import { rememberPublish } from "@/utils/recentPublish";
 import { loadWebResourceStatus } from "@/services/dataverse/webResourceService";
 import { planScope, type ScopePlan } from "@/services/publishPlan";
 import type { RibbonDiffParts } from "@/services/ribbonDiffMerge";
@@ -104,6 +105,8 @@ export const BulkPublishModal: React.FC = () => {
 	const baselineLocLabels = useRibbonStore((s) => s.baselineLocLabels);
 	const layers = useRibbonStore((s) => s.layers);
 	const pendingUnhides = useRibbonStore((s) => s.pendingUnhides);
+	const orphans = useRibbonStore((s) => s.orphans);
+	const pendingOrphanDeletes = useRibbonStore((s) => s.pendingOrphanDeletes);
 	const customisedCommandIds = useRibbonStore((s) => s.customisedCommandIds);
 	const uncustomisedCommandIds = useRibbonStore((s) => s.uncustomisedCommandIds);
 	const baseLanguageCode = useRibbonStore((s) => s.baseLanguageCode);
@@ -112,6 +115,7 @@ export const BulkPublishModal: React.FC = () => {
 	const mutationsSincePublish = useRibbonStore((s) => s.mutationsSincePublish);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const activeEntity = useSessionStore((s) => s.activeEntity);
+	const connectionUrl = useSessionStore((s) => s.connectionUrl);
 	const publisherPrefix = useSessionStore((s) => s.publisherPrefix);
 	const solutionRibbonComponentIds = useSessionStore((s) => s.solutionRibbonComponentIds);
 
@@ -154,6 +158,7 @@ export const BulkPublishModal: React.FC = () => {
 				baselineLocLabels,
 				layer: layers[scope] ?? undefined,
 				unhiddenLayerHideIds: pendingUnhides[scope],
+				deletedOrphans: orphans[scope].filter((o) => pendingOrphanDeletes[scope].includes(o.id)),
 				customisedCommandIds,
 				// Per scope: uncustomising for the table leaves the application ribbon's copy (#31).
 				uncustomisedCommandIds: uncustomisedCommandIds[scope],
@@ -177,6 +182,8 @@ export const BulkPublishModal: React.FC = () => {
 			baselineLocLabels,
 			layers,
 			pendingUnhides,
+			orphans,
+			pendingOrphanDeletes,
 			customisedCommandIds,
 			uncustomisedCommandIds,
 		],
@@ -363,6 +370,9 @@ export const BulkPublishModal: React.FC = () => {
 				);
 				published.push(...ENTITY_LOCATIONS);
 				importedLayers.entity = result.parts;
+				// A reload soon after may still get the ribbon from before this
+				// publish: what it wrote isn't offered for deletion as an orphan (#64).
+				rememberPublish(connectionUrl, activeEntity.logicalName, result.changedKeys);
 				if (result.verification) verified.push({ scope, result: result.verification });
 				setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
 			} catch (err) {

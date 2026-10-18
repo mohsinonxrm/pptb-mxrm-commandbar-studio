@@ -23,6 +23,7 @@ import {
 	ownControlIds,
 	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
+import type { LayerOrphan } from "@/services/layerOrphans";
 import { defaultTabDisplayRules, newTabCommandId } from "@/services/xmlGenerator";
 import { generateRibbonId, newButtonIds } from "@/utils/idGenerator";
 import {
@@ -77,8 +78,8 @@ type HistoryMeta = Omit<HistoryEntry, "snapshot" | "coalesceKey">;
 
 /**
  * The editable workspace (#34): what undo / redo restore — the canvas, the
- * definitions it references, and the pending un-hides and customised /
- * uncustomised commands (#31) the publish diff reads.
+ * definitions it references, and the pending un-hides, orphan deletes (#64)
+ * and customised / uncustomised commands (#31) the publish diff reads.
  * Baselines, layers and other loaded data are not part of it.
  */
 export type WorkspaceSnapshot = Pick<
@@ -89,6 +90,7 @@ export type WorkspaceSnapshot = Pick<
 	| "displayRules"
 	| "locLabels"
 	| "pendingUnhides"
+	| "pendingOrphanDeletes"
 	| "customisedCommandIds"
 	| "uncustomisedCommandIds"
 >;
@@ -109,6 +111,13 @@ export type RibbonStoreState = {
 	 * un-hide (#47). They are not on the canvas: RetrieveEntityRibbon applies hides.
 	 */
 	pendingUnhides: Record<LayerScope, string[]>;
+	/**
+	 * What the layer adds that the ribbon doesn't return anywhere (#64), as
+	 * loaded: not on the canvas, so listed apart to be deleted.
+	 */
+	orphans: Record<LayerScope, LayerOrphan[]>;
+	/** Orphans (by id) the user chose to delete: removed from the layer on publish (#64). */
+	pendingOrphanDeletes: Record<LayerScope, string[]>;
 	/** Organisation base language (#50). */
 	baseLanguageCode: number;
 	/**
@@ -149,6 +158,8 @@ export interface RibbonWorkspaceSeed {
 	conflicts?: ConflictEntry[];
 	layers?: Partial<Record<LayerScope, LayerSnapshot | null>>;
 	baseLanguageCode?: number;
+	/** The table's layer orphans (ribbonService.fetchRibbonWorkspace, #64). */
+	orphans?: Partial<Record<LayerScope, LayerOrphan[]>>;
 }
 
 type DragSource = { groupId: string; buttonId: string; tabId: string; location: RibbonLocation };
@@ -312,6 +323,8 @@ export interface RibbonStore extends RibbonStoreState {
 	upsertLocLabel(label: LocLabel): void;
 	/** Marks a control hidden by the layer (#47) to be un-hidden on publish, or keeps it hidden. */
 	setLayerHideUnhidden(scope: LayerScope, controlId: string, unhide: boolean): void;
+	/** Marks a layer orphan (#64) to be deleted on publish, or keeps it. */
+	setOrphanDeleted(scope: LayerScope, orphanId: string, deleted: boolean): void;
 	/** Replaces a scope's layer snapshot (after a publish re-reads it). */
 	setLayerSnapshot(scope: LayerScope, snapshot: LayerSnapshot | null): void;
 	/**
@@ -401,6 +414,7 @@ export function workspaceOf(state: RibbonStoreState): WorkspaceSnapshot {
 		displayRules: state.displayRules,
 		locLabels: state.locLabels,
 		pendingUnhides: state.pendingUnhides,
+		pendingOrphanDeletes: state.pendingOrphanDeletes,
 		customisedCommandIds: state.customisedCommandIds,
 		uncustomisedCommandIds: state.uncustomisedCommandIds,
 	};
@@ -489,6 +503,7 @@ export function hasPendingChanges(state: RibbonStoreState): boolean {
 	const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 	return (
 		state.pendingUnhides.entity.length + state.pendingUnhides.application.length > 0 ||
+		state.pendingOrphanDeletes.entity.length + state.pendingOrphanDeletes.application.length > 0 ||
 		state.customisedCommandIds.length > 0 ||
 		state.uncustomisedCommandIds.entity.length + state.uncustomisedCommandIds.application.length > 0 ||
 		!same(state.ribbons, state.baseline) ||
@@ -686,6 +701,8 @@ export const useRibbonStore = create<RibbonStore>()(
 		baselineLocLabels: [],
 		layers: { ...NO_LAYERS },
 		pendingUnhides: { entity: [], application: [] },
+		orphans: { entity: [], application: [] },
+		pendingOrphanDeletes: { entity: [], application: [] },
 		baseLanguageCode: 1033,
 		customisedCommandIds: [],
 		uncustomisedCommandIds: { entity: [], application: [] },
@@ -749,6 +766,8 @@ export const useRibbonStore = create<RibbonStore>()(
 				baselineLocLabels: JSON.parse(JSON.stringify(seed.locLabels)),
 				layers: { ...NO_LAYERS, ...(seed.layers ?? {}) },
 				pendingUnhides: { ...NO_UNHIDES },
+				orphans: { entity: [], application: [], ...(seed.orphans ?? {}) },
+				pendingOrphanDeletes: { ...NO_UNHIDES },
 				baseLanguageCode: seed.baseLanguageCode ?? 1033,
 				customisedCommandIds: [],
 				uncustomisedCommandIds: { entity: [], application: [] },
@@ -2017,6 +2036,25 @@ export const useRibbonStore = create<RibbonStore>()(
 			});
 		},
 
+		setOrphanDeleted(scope, orphanId, deleted) {
+			set((state) => {
+				const orphan = state.orphans[scope].find((o) => o.id === orphanId);
+				if (!orphan) return state;
+				// Just published from here: most likely not loaded yet, not orphaned (#64 review).
+				if (deleted && orphan.recentPublish?.published) return state;
+				if (state.pendingOrphanDeletes[scope].includes(orphanId) === deleted) return state;
+				const ids = state.pendingOrphanDeletes[scope].filter((id) => id !== orphanId);
+				if (deleted) ids.push(orphanId);
+				return record(
+					state,
+					{ pendingOrphanDeletes: { ...state.pendingOrphanDeletes, [scope]: ids } },
+					deleted
+						? historyMeta("deleted", orphanId, "not on the canvas — removed on publish", "delete", "danger")
+						: historyMeta("kept", orphanId, "not on the canvas", "arrow_undo"),
+				);
+			});
+		},
+
 		setLayerSnapshot(scope, snapshot) {
 			set((state) => ({ layers: { ...state.layers, [scope]: snapshot } }));
 		},
@@ -2075,6 +2113,16 @@ export const useRibbonStore = create<RibbonStore>()(
 					unhidden[scope] = pendingUnhides[scope];
 					pendingUnhides[scope] = [];
 				}
+				// Deleted orphans of published scopes are gone from the layer (#64).
+				const orphans = { ...state.orphans };
+				const pendingOrphanDeletes = { ...state.pendingOrphanDeletes };
+				const orphansDeleted: Record<LayerScope, string[]> = { entity: [], application: [] };
+				for (const [scope, done] of scopes) {
+					if (!done || pendingOrphanDeletes[scope].length === 0) continue;
+					orphans[scope] = orphans[scope].filter((o) => !pendingOrphanDeletes[scope].includes(o.id));
+					orphansDeleted[scope] = pendingOrphanDeletes[scope];
+					pendingOrphanDeletes[scope] = [];
+				}
 				// Uncustomised commands of published scopes are gone from the layer;
 				// the session still holds their removed copy until reloaded (#31).
 				const uncustomisedCommandIds = { ...state.uncustomisedCommandIds };
@@ -2089,8 +2137,8 @@ export const useRibbonStore = create<RibbonStore>()(
 					uncustomisedCommandIds[scope] = [];
 				}
 				// The layer no longer hides the published un-hides, nor has the
-				// published uncustomised commands, so undo must not bring them back
-				// as pending (#34 review, #31).
+				// published uncustomised commands or deleted orphans, so undo must
+				// not bring them back as pending (#34 review, #31, #64).
 				const without = (lists: Record<LayerScope, string[]>, done: Record<LayerScope, string[]>) => ({
 					entity: lists.entity.filter((id) => !done.entity.includes(id)),
 					application: lists.application.filter((id) => !done.application.includes(id)),
@@ -2100,12 +2148,13 @@ export const useRibbonStore = create<RibbonStore>()(
 					snapshot: {
 						...e.snapshot,
 						pendingUnhides: without(e.snapshot.pendingUnhides, unhidden),
+						// Entries recorded before #64 have no orphan deletes.
+						pendingOrphanDeletes: without(e.snapshot.pendingOrphanDeletes ?? NO_UNHIDES, orphansDeleted),
 						uncustomisedCommandIds: without(e.snapshot.uncustomisedCommandIds, uncustomised),
 					},
 				});
 				const anyPublished =
-					unhidden.entity.length + unhidden.application.length + uncustomised.entity.length + uncustomised.application.length >
-					0;
+					[unhidden, uncustomised, orphansDeleted].reduce((n, l) => n + l.entity.length + l.application.length, 0) > 0;
 				// Typing after a publish starts a new undo step.
 				const past = state.past.map((e, i) => {
 					const kept = anyPublished ? dropPublished(e) : e;
@@ -2119,6 +2168,8 @@ export const useRibbonStore = create<RibbonStore>()(
 					layers,
 					pendingUnhides,
 					uncustomisedCommandIds,
+					orphans,
+					pendingOrphanDeletes,
 					...(everything
 						? {
 								baselineCommands: JSON.parse(JSON.stringify(state.commands)),
