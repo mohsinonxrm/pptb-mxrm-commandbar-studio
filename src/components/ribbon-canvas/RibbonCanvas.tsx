@@ -19,12 +19,14 @@ import {
 	AddRegular,
 	EyeRegular,
 	CodeRegular,
+	DismissRegular,
 } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { useUIStore } from "@/store/uiStore";
 import type { RibbonLocation } from "@/types/ribbon";
+import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ClassicRibbon } from "./ClassicRibbon";
 import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
@@ -203,6 +205,13 @@ export function RibbonCanvas({
 	const setTabId = useSelectionStore((s) => s.setTabId);
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const renameTab = useRibbonStore((s) => s.renameTab);
+	const deleteTab = useRibbonStore((s) => s.deleteTab);
+	const locLabels = useRibbonStore((s) => s.locLabels);
+	// Tab titles in the organisation's base language: a rename replaces that
+	// language's title (#66 review m3).
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
+	const baseline = useRibbonStore((s) => s.baseline);
+	const layers = useRibbonStore((s) => s.layers);
 	const reorderTabs = useRibbonStore((s) => s.reorderTabs);
 	const ribbonViewStyle = useUIStore((s) => s.ribbonViewStyle);
 	const setRibbonViewStyle = useUIStore((s) => s.setRibbonViewStyle);
@@ -221,10 +230,23 @@ export function RibbonCanvas({
 	}, [editingTabId]);
 
 	function commitTabRename() {
-		if (editingTabId && editValue.trim()) {
-			renameTab(location, editingTabId, editValue.trim());
+		const tab = ribbons[location].tabs.find((t) => t.id === editingTabId);
+		// The editor starts from the display text, not a `$LocLabels:` token;
+		// committing it unchanged must not turn the token into literal text.
+		if (tab && editValue.trim() && editValue.trim() !== resolveDisplayLabel(tab.label, locLabels, lang)) {
+			renameTab(location, tab.id, editValue.trim());
 		}
 		setEditingTabId(null);
+	}
+
+	/**
+	 * A tab can be deleted when publishing can remove it: it was created in
+	 * this session, or the table's (or application's) unmanaged layer adds it.
+	 */
+	function canDeleteTab(id: string): boolean {
+		const loaded = baseline[location].tabs.some((t) => t.id === id);
+		const own = layers[location === "Application" ? "application" : "entity"]?.containerIds ?? [];
+		return !loaded || own.includes(id);
 	}
 
 	// PointerSensor without an activation constraint starts a drag on every
@@ -332,6 +354,13 @@ export function RibbonCanvas({
 				</MessageBar>
 			)}
 
+			{/* A custom tab: how Unified Interface shows it (#58). */}
+			{currentTab && !/^(Mscrm|Microsoft)\./.test(currentTab.id) && (
+				<MessageBar intent="info" style={{ flexShrink: 0 }}>
+					<MessageBarBody>{UCI_TAB_NOTE}</MessageBarBody>
+				</MessageBar>
+			)}
+
 			{/* Tab strip — sortable via drag */}
 			<DndContext sensors={tabSensors} onDragEnd={handleTabDragEnd}>
 				<SortableContext
@@ -353,12 +382,17 @@ export function RibbonCanvas({
 								onDoubleClick={() => {
 									setTabId(tab.id);
 									setEditingTabId(tab.id);
-									setEditValue(tab.label);
+									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
 								}}
 								onF2={() => {
 									setEditingTabId(tab.id);
-									setEditValue(tab.label);
+									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
 								}}
+								onDelete={
+									currentTab?.id === tab.id && canDeleteTab(tab.id)
+										? () => deleteTab(location, tab.id)
+										: undefined
+								}
 								onEditChange={setEditValue}
 								onEditCommit={commitTabRename}
 								onEditCancel={() => setEditingTabId(null)}
@@ -484,6 +518,8 @@ interface SortableTabProps {
 	onEditChange: (v: string) => void;
 	onEditCommit: () => void;
 	onEditCancel: () => void;
+	/** Set when the tab can be deleted (your own or new tab, and selected). */
+	onDelete?: () => void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	styles: Record<string, any>;
 }
@@ -500,13 +536,17 @@ function SortableTab({
 	onEditChange,
 	onEditCommit,
 	onEditCancel,
+	onDelete,
 	styles,
 }: SortableTabProps) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
 		id: tab.id,
 	});
 	const locLabels = useRibbonStore((s) => s.locLabels);
-	const displayLabel = resolveDisplayLabel(tab.label, locLabels);
+	// Tab titles in the organisation's base language: a rename replaces that
+	// language's title (#66 review m3).
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
+	const displayLabel = resolveDisplayLabel(tab.label, locLabels, lang);
 
 	const style: React.CSSProperties = {
 		transform: CSS.Transform.toString(transform),
@@ -557,6 +597,20 @@ function SortableTab({
 				<>
 					<Text className={styles.ribbonTabLabel}>{displayLabel}</Text>
 					<Text className={styles.ribbonTabMeta}>{tab.id}</Text>
+					{onDelete && (
+						<Button
+							appearance="subtle"
+							size="small"
+							icon={<DismissRegular />}
+							aria-label={`Delete tab ${displayLabel}`}
+							title="Delete this tab and everything in it"
+							onPointerDown={(e) => e.stopPropagation()}
+							onClick={(e) => {
+								e.stopPropagation();
+								if (window.confirm(`Delete the tab "${displayLabel}" and its groups and buttons?`)) onDelete();
+							}}
+						/>
+					)}
 				</>
 			)}
 		</div>

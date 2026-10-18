@@ -16,7 +16,10 @@ import type {
 	ScalingDefinition,
 	RibbonMenuSection,
 } from "@/types/ribbon";
-import type { LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import { locLabelsFromParts, type LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import { applyPublishedLayer, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
+import { defaultTabDisplayRules, newTabCommandId } from "@/services/xmlGenerator";
+import { generateRibbonId } from "@/utils/idGenerator";
 import {
 	copyControl,
 	findGroupControl,
@@ -114,7 +117,8 @@ type NewButtonContext = {
 	tabId: string;
 	groupId: string;
 	location: RibbonLocation;
-	button: Omit<RibbonButton, "id"> & { id?: string };
+	/** Without a sequence (or with one the group already uses) it goes after the last button. */
+	button: Omit<RibbonButton, "id" | "sequence"> & { id?: string; sequence?: number };
 };
 
 type NewMenuItemContext = {
@@ -130,7 +134,8 @@ type NewMenuItemContext = {
 type NewGroupContext = {
 	tabId: string;
 	location: RibbonLocation;
-	group: Omit<RibbonGroup, "id"> & { id?: string };
+	/** Without an id the store makes one; without a free sequence it goes after the last group. */
+	group: Omit<RibbonGroup, "id" | "sequence"> & { id?: string; sequence?: number };
 };
 
 export interface RibbonStore extends RibbonStoreState {
@@ -221,7 +226,12 @@ export interface RibbonStore extends RibbonStoreState {
 	 * changes. Command / rule baselines advance only when every location was
 	 * published.
 	 */
-	markPublished(locations?: RibbonLocation[]): void;
+	/**
+	 * Advances the baseline of the published locations. `published` is the layer
+	 * each scope was imported as: its scaling Sequences and label tokens are taken
+	 * into the model first (#66 review B1, m4).
+	 */
+	markPublished(locations?: RibbonLocation[], published?: Partial<Record<LayerScope, RibbonDiffParts>>): void;
 	setConflicts(entries: ConflictEntry[]): void;
 
 	// Load initial data
@@ -230,6 +240,33 @@ export interface RibbonStore extends RibbonStoreState {
 }
 
 const MAX_HISTORY = 80;
+
+/**
+ * Every tab, group and button id a new element must not reuse: the edited
+ * ribbons, the baseline (a deleted element's id is still in the layer until
+ * published) and what the unmanaged layers add (#66 review m1).
+ */
+export function workspaceIds(
+	state: Pick<RibbonStoreState, "baseline" | "layers">,
+	ribbons: Record<RibbonLocation, RibbonDefinition>,
+): Set<string> {
+	const ids = new Set<string>();
+	for (const defs of [ribbons, state.baseline])
+		for (const def of Object.values(defs ?? {}))
+			for (const tab of def.tabs) {
+				ids.add(tab.id);
+				for (const group of tab.groups) {
+					ids.add(group.id);
+					// Menu items (#27) too.
+					for (const button of groupControls(group)) ids.add(button.id);
+				}
+			}
+	for (const snap of Object.values(state.layers ?? {})) {
+		for (const id of snap?.containerIds ?? []) ids.add(id);
+		for (const id of snap?.controlIds ?? []) ids.add(id);
+	}
+	return ids;
+}
 
 function cloneRibbons(
 	ribbons: Record<RibbonLocation, RibbonDefinition>,
@@ -850,12 +887,18 @@ export const useRibbonStore = create<RibbonStore>()(
 						const tab = ribbons[location].tabs.find((t) => t.id === tabId);
 						const group = tab?.groups.find((g) => g.id === groupId);
 						if (group) {
+							// A new button goes after the group's last one, with a sequence
+							// no other button of the group has (two new buttons both got 50).
+							const used = new Set(group.buttons.map((b) => b.sequence));
+							const after = Math.max(0, ...group.buttons.map((b) => b.sequence)) + 10;
+							const sequence =
+								button.sequence !== undefined && !used.has(button.sequence) ? button.sequence : after;
 							const newBtn: RibbonButton = {
 								...button,
 								id: button.id ?? `new_${Date.now()}`,
 								label: button.label ?? "New Button",
 								kind: button.kind ?? "button",
-								sequence: button.sequence ?? (group.buttons.length + 1) * 10,
+								sequence,
 								templateAlias: button.templateAlias ?? "o1",
 								commandId: button.commandId ?? "",
 								hidden: button.hidden ?? false,
@@ -889,10 +932,19 @@ export const useRibbonStore = create<RibbonStore>()(
 					(ribbons) => {
 						const tab = ribbons[location].tabs.find((t) => t.id === tabId);
 						if (tab) {
+							// Same id scheme as new buttons and tabs:
+							// {prefix}.{table}.{Location}.{Label}.Group, unique in the workspace.
+							const ribbon = ribbons[location];
+							const table = location === "Application" ? "global" : ribbon.entityLogicalName;
 							const newGroup: RibbonGroup = {
-								id: group.id ?? `grp_${Date.now()}`,
+								id:
+									group.id ??
+									generateRibbonId(table, `${location}.${group.label ?? "New Group"}`, "Group", workspaceIds(state, ribbons)),
 								label: group.label ?? "New Group",
-								sequence: group.sequence ?? (tab.groups.length + 1) * 10,
+								sequence:
+									group.sequence !== undefined && !tab.groups.some((g) => g.sequence === group.sequence)
+										? group.sequence
+										: Math.max(0, ...tab.groups.map((g) => g.sequence)) + 10,
 								template: group.template ?? "Flexible2",
 								buttons: group.buttons ?? [],
 							};
@@ -1016,16 +1068,34 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		createTab(location, tabDef) {
-			set((state) =>
-				commitMutation(
+			set((state) => {
+				// A tab id must be unique: a second tab with the same id was silently
+				// merged into the first (#66 review M3).
+				if (tabDef.id && workspaceIds(state, state.ribbons).has(tabDef.id)) return {};
+				return commitMutation(
 					state,
 					(ribbons) => {
 						const ribbon = ribbons[location];
+						const table = location === "Application" ? "global" : ribbon.entityLogicalName;
+						const id =
+							tabDef.id ??
+							generateRibbonId(table, `${location}.${tabDef.label ?? "New Tab"}`, "Tab", workspaceIds(state, ribbons));
+						// A tab is shown only where a TabDisplayRule bound to its Command
+						// allows it (#58), so a new table tab starts with the rule for the
+						// location it was added to; the user can change it in Tab rules.
+						const commandId = newTabCommandId({ ...tabDef, id } as RibbonTab);
 						const newTab: RibbonTab = {
-							id: tabDef.id ?? `tab_${Date.now()}`,
+							id,
 							label: tabDef.label ?? "New Tab",
-							sequence: tabDef.sequence ?? (ribbon.tabs.length + 1) * 10,
-							tabDisplayRules: [],
+							// After the location's last tab, never sharing a sequence (#66 review t4).
+							sequence:
+								tabDef.sequence !== undefined && !ribbon.tabs.some((t) => t.sequence === tabDef.sequence)
+									? tabDef.sequence
+									: Math.max(0, ...ribbon.tabs.map((t) => t.sequence)) + 10,
+							commandId,
+							tabDisplayRules: tabDef.tabDisplayRules?.length
+								? tabDef.tabDisplayRules
+								: defaultTabDisplayRules(location, ribbon.entityLogicalName, commandId),
 							groups: [],
 						};
 						ribbon.tabs.push(newTab);
@@ -1040,8 +1110,8 @@ export const useRibbonStore = create<RibbonStore>()(
 						icon: "add",
 						color: "success",
 					},
-				),
-			);
+				);
+			});
 		},
 
 		renameTab(location, tabId, newLabel) {
@@ -1408,13 +1478,27 @@ export const useRibbonStore = create<RibbonStore>()(
 			set((state) => ({ layers: { ...state.layers, [scope]: snapshot } }));
 		},
 
-		markPublished(locations) {
+		markPublished(locations, publishedLayers) {
 			set((state) => {
 				const all = Object.keys(state.ribbons) as RibbonLocation[];
 				const published = locations ?? all;
 				const baseline = cloneRibbons(state.baseline);
 				const current = cloneRibbons(state.ribbons);
-				for (const loc of published) baseline[loc] = current[loc];
+				let locLabels = state.locLabels;
+				let baselineLocLabels = state.baselineLocLabels;
+				const withLabels = (list: LocLabel[], from: LocLabel[]) => [
+					...list.filter((l) => !from.some((x) => x.id === l.id)),
+					...from,
+				];
+				for (const [scope, parts] of Object.entries(publishedLayers ?? {}) as [LayerScope, RibbonDiffParts][]) {
+					const locs: RibbonLocation[] = scope === "entity" ? ENTITY_LOCATIONS : ["Application"];
+					for (const loc of locs) if (published.includes(loc)) applyPublishedLayer(current[loc], parts);
+					// The layer's labels as published are both current and baseline.
+					const fromLayer = locLabelsFromParts(parts);
+					locLabels = withLabels(locLabels, fromLayer);
+					baselineLocLabels = withLabels(baselineLocLabels, JSON.parse(JSON.stringify(fromLayer)));
+				}
+				for (const loc of published) baseline[loc] = cloneRibbons(current)[loc];
 				const everything = all.every((loc) => published.includes(loc));
 				// Un-hides of published scopes are done: drop them from the hidden list.
 				const layers = { ...state.layers };
@@ -1457,6 +1541,9 @@ export const useRibbonStore = create<RibbonStore>()(
 					all.some((loc) => JSON.stringify(baseline[loc]) !== JSON.stringify(current[loc])) ||
 					pendingUnhides.entity.length + pendingUnhides.application.length > 0;
 				return {
+					ribbons: current,
+					locLabels,
+					baselineLocLabels,
 					baseline,
 					layers,
 					pendingUnhides,
@@ -1467,7 +1554,7 @@ export const useRibbonStore = create<RibbonStore>()(
 								baselineCommands: JSON.parse(JSON.stringify(state.commands)),
 								baselineEnableRules: JSON.parse(JSON.stringify(state.enableRules)),
 								baselineDisplayRules: JSON.parse(JSON.stringify(state.displayRules)),
-								baselineLocLabels: JSON.parse(JSON.stringify(state.locLabels)),
+								baselineLocLabels: JSON.parse(JSON.stringify(locLabels)),
 							}
 						: {}),
 					mutationsSincePublish: pending ? Math.max(1, state.mutationsSincePublish) : 0,

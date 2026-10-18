@@ -1,4 +1,5 @@
-import { hasOobOverrideChanges, indexButtons, summarizeRibbonDiff } from "@/services/xmlGenerator";
+import { hasOobOverrideChanges, indexButtons, planNewGroupScaling, summarizeRibbonDiff } from "@/services/xmlGenerator";
+import { describeScalingChange, resequenceLayerScaling, type LayerScaleStep } from "@/services/scalingSequence";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import type {
 	CommandDefinition,
@@ -9,7 +10,7 @@ import type {
 	RibbonDefinition,
 } from "@/types/ribbon";
 import type { MovedControl } from "@/services/ribbonDiffMerge";
-import { isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
+import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 
 /**
  * What the scope's unmanaged ribbon layer owns, as read at load (or refreshed
@@ -21,6 +22,8 @@ export interface PlanLayerOwnership {
 	containerIds: ReadonlySet<string> | readonly string[];
 	/** LocLabels the layer defines. */
 	locLabelIds: ReadonlySet<string> | readonly string[];
+	/** MaxSize / Scale steps the layer writes (#66 review). */
+	scalingStepIds?: ReadonlySet<string> | readonly string[];
 }
 
 export interface PlanInput {
@@ -81,8 +84,38 @@ export interface ScopePlan {
 	editedLocLabelIds: string[];
 	/** Tabs the layer adds whose TabDisplayRules changed (#49). */
 	editedTabIds: string[];
+	/**
+	 * Tabs / groups the layer adds that were renamed: the base-language title of
+	 * the LocLabel their Title refers to is replaced with `text` (#58).
+	 */
+	renamedLabels: RenamedLabel[];
 	/** Human-readable descriptions of changes CBS cannot publish yet. */
 	unsupported: string[];
+	/** Things worth knowing about what publishes (they don't block the publish). */
+	warnings: string[];
+}
+
+/**
+ * What Unified Interface does with a custom tab (#58). Microsoft: in Unified
+ * Interface "tabs and groups still act as containers for controls, but there is
+ * no visual indication of these containers"
+ * (https://learn.microsoft.com/power-apps/developer/model-driven-apps/command-bar-ribbon-presentation).
+ * Verified live: a custom home-grid tab's buttons appear in the table's
+ * command bar (or its overflow menu) where the tab's display rule applies.
+ */
+export const UCI_TAB_NOTE =
+	"Unified Interface has no visible tabs: this tab's buttons appear in the table's command bar (or its overflow " +
+	"menu) wherever the tab's display rule applies.";
+
+/** A tab / group title the publish renames (#58). */
+export interface RenamedLabel {
+	/** The LocLabel whose base-language title becomes `text`. */
+	id: string;
+	text: string;
+	/** The renamed tab / group. */
+	containerId: string;
+	/** A new label: the old one is shared with other controls, so the Title is pointed here. */
+	newLabel?: boolean;
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -118,11 +151,28 @@ function sectionShape(button: RibbonButton) {
 
 export function planScope(input: PlanInput): ScopePlan {
 	const unsupported: string[] = [];
+	const warnings: string[] = [];
 	const deleted: string[] = [];
 	const unhidden: string[] = [];
 	const deletedContainers: string[] = [];
 	const moved: MovedControl[] = [];
 	const editedTabIds: string[] = [];
+	const renamedLabels: RenamedLabel[] = [];
+	// Who uses each label (tab / group titles, button texts), as loaded.
+	const labelUsers = new Map<string, Set<string>>();
+	const addUser = (token: string | undefined, by: string) => {
+		const id = locRef(token);
+		if (id) labelUsers.set(id, new Set([...(labelUsers.get(id) ?? []), by]));
+	};
+	for (const { baseline } of input.locations)
+		for (const tab of baseline.tabs) {
+			addUser(tab.label, tab.id);
+			for (const g of tab.groups) {
+				addUser(g.label, g.id);
+				for (const b of groupControls(g)) for (const v of Object.values(b.source?.attributes ?? {})) addUser(v, b.id);
+			}
+		}
+	const knownLabels = new Set([...(input.locLabels ?? []).map((l) => l.id), ...asSet(input.layer?.locLabelIds)]);
 	let generatorChange = false;
 	const referencedCommandIds = new Set<string>();
 	const ownContainers = asSet(input.layer?.containerIds);
@@ -146,6 +196,27 @@ export function planScope(input: PlanInput): ScopePlan {
 	const placedAnywhere = new Set(
 		input.locations.flatMap(({ current }) => Array.from(indexButtons(current).values(), (e) => e.button.id)),
 	);
+	// Renaming a tab / group the layer adds whose Title is a label the layer
+	// defines: the label's text changes. Anything else isn't something CBS writes.
+	const rename = (kind: "tab" | "group", id: string, before: string, after: string) => {
+		const labelId = locRef(before);
+		if (ownContainers.has(id) && labelId && ownLabels.has(labelId) && !locRef(after) && after.trim()) {
+			// A label other controls also use keeps its text for them: the
+			// renamed tab / group gets a label of its own (#66 review t3).
+			if ([...(labelUsers.get(labelId) ?? [])].some((u) => u !== id)) {
+				let own = `${id}.Title`;
+				for (let n = 2; own === labelId || knownLabels.has(own); n++) own = `${id}.Title${n}`;
+				knownLabels.add(own);
+				renamedLabels.push({ id: own, text: after, containerId: id, newLabel: true });
+			} else {
+				renamedLabels.push({ id: labelId, text: after, containerId: id });
+			}
+		} else {
+			unsupported.push(
+				`Renaming ${kind} ${id} — only tabs and groups your unmanaged customizations add (with a translatable title) can be renamed`,
+			);
+		}
+	};
 
 	for (const { current, baseline } of input.locations) {
 		const summary = summarizeRibbonDiff(current, baseline);
@@ -156,6 +227,36 @@ export function planScope(input: PlanInput): ScopePlan {
 			generatorChange = true;
 		}
 		if (summary.scalingChanges > 0) unsupported.push(`Scaling changes on ${current.location} (not supported yet)`);
+		// A scaling Sequence used twice in a tab makes Unified Interface drop
+		// every custom control of the table (#66 review): never publish one.
+		const newScaling = planNewGroupScaling(current, baseline);
+		unsupported.push(...newScaling.problems);
+		// Scaling the layer wrote with a Sequence another step of the tab uses
+		// (earlier CBS versions used the group's Sequence) is moved by the
+		// publish; say so. What can't be moved blocks the publish.
+		const layerSteps = asSet(input.layer?.scalingStepIds);
+		for (const [tabId, scaling] of Object.entries(baseline.scalingByTab ?? {})) {
+			const tab = current.tabs.find((t) => t.id === tabId);
+			const layer: LayerScaleStep[] = [
+				...scaling.maxSizes.filter((st) => layerSteps.has(st.id)).map((st) => ({ ...st, kind: "MaxSize" as const })),
+				...scaling.scales.filter((st) => layerSteps.has(st.id)).map((st) => ({ ...st, kind: "Scale" as const })),
+				...(tab?.groups ?? [])
+					.map((g) => newScaling.steps.get(g.id))
+					.filter((st): st is NonNullable<typeof st> => !!st)
+					.map((st) => ({ ...st, kind: "MaxSize" as const })),
+			];
+			if (layer.length === 0) continue;
+			const r = resequenceLayerScaling(
+				tabId,
+				{
+					maxSizes: scaling.maxSizes.filter((st) => !layerSteps.has(st.id)).map((st) => st.sequence),
+					scales: scaling.scales.filter((st) => !layerSteps.has(st.id)).map((st) => st.sequence),
+				},
+				layer,
+			);
+			warnings.push(...r.changes.map(describeScalingChange));
+			unsupported.push(...r.problems);
+		}
 
 		// Keyed by occurrence: the application ribbon repeats control ids.
 		const cur = indexButtons(current);
@@ -263,8 +364,18 @@ export function planScope(input: PlanInput): ScopePlan {
 			const tabRef = locRef(tab.label);
 			if (tabRef) referencedLabels.add(tabRef);
 			const bt = baseTabs.get(tab.id);
-			if (!bt) generatorLabels.add(`${tab.id}.Title`);
-			if (bt && bt.label !== tab.label) unsupported.push(`Renaming tab ${tab.id} — not supported yet`);
+			if (!bt) {
+				generatorLabels.add(`${tab.id}.Title`);
+				// A new table tab gets a default display rule; on the application
+				// ribbon there's no default, and without a rule the tab never shows.
+				if (current.location === "Application" && (tab.tabDisplayRules ?? []).length === 0) {
+					unsupported.push(
+						`New tab ${tab.id} has no tab display rule, so it would never be shown — add one in Tab rules`,
+					);
+				}
+				warnings.push(`New tab "${tab.label}" (${tab.id}): ${UCI_TAB_NOTE}`);
+			}
+			if (bt && bt.label !== tab.label) rename("tab", tab.id, bt.label, tab.label);
 			if (bt && !same(bt.tabDisplayRules ?? [], tab.tabDisplayRules ?? [])) {
 				if (!ownContainers.has(tab.id)) {
 					unsupported.push(
@@ -281,9 +392,8 @@ export function planScope(input: PlanInput): ScopePlan {
 				if (groupRef) referencedLabels.add(groupRef);
 				const bg = baseGroups.get(g.id);
 				if (!bg) generatorLabels.add(`${g.id}.Title`);
-				if (bg && (bg.label !== g.label || bg.template !== g.template)) {
-					unsupported.push(`Renaming or re-templating group ${g.id} — not supported yet`);
-				}
+				if (bg && bg.template !== g.template) unsupported.push(`Re-templating group ${g.id} — not supported yet`);
+				if (bg && bg.label !== g.label) rename("group", g.id, bg.label, g.label);
 			}
 		}
 
@@ -403,7 +513,8 @@ export function planScope(input: PlanInput): ScopePlan {
 			deletedContainers.length > 0 ||
 			moved.length > 0 ||
 			editedLocLabelIds.length > 0 ||
-			editedTabIds.length > 0,
+			editedTabIds.length > 0 ||
+			renamedLabels.length > 0,
 		editedCommandIds,
 		editedEnableRuleIds,
 		editedDisplayRuleIds,
@@ -413,6 +524,8 @@ export function planScope(input: PlanInput): ScopePlan {
 		movedButtons: moved,
 		editedLocLabelIds,
 		editedTabIds,
+		renamedLabels,
 		unsupported: [...new Set(unsupported)],
+		warnings: [...new Set(warnings)],
 	};
 }

@@ -12,6 +12,13 @@
  */
 
 import { canonicalXml } from "@/services/ribbonXmlCanonical";
+import type { RibbonDefinition, ScaleStep } from "@/types/ribbon";
+import {
+	resequenceLayerScaling,
+	type LayerScaleStep,
+	type ScaleKind,
+	type ScalingChange,
+} from "@/services/scalingSequence";
 
 /** One XML element kept as its serialized string, keyed by its identity. */
 type ElementMap = Map<string, string>;
@@ -431,30 +438,143 @@ function menuControlsWithin(ctrl: Element): Element[] {
 	);
 }
 
+const isContainer = (el: Element | null | undefined): el is Element => el?.tagName === "Tab" || el?.tagName === "Group";
+
+const escapeAttr = (v: string) =>
+	v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
 /**
- * Ids of the controls the layer itself adds (`CustomAction Location="…._children"`),
- * including the menu items written inline in such a control (#27).
+ * The controls written inside a Tab / Group element: the children of its
+ * `<Controls>` collections (a new tab or group carries the controls created
+ * with it inline — #58, #59).
+ */
+function nestedControls(container: Element): Element[] {
+	return Array.from(container.getElementsByTagName("Controls")).flatMap((c) => Array.from(c.children));
+}
+
+/** The element with this Id inside `root` (including `root`). */
+function findById(root: Element, id: string): Element | null {
+	if (root.getAttribute("Id") === id) return root;
+	for (const d of Array.from(root.getElementsByTagName("*"))) if (d.getAttribute("Id") === id) return d;
+	return null;
+}
+
+/**
+ * The controls written inside a CustomAction's root element besides the root
+ * itself: a tab / group's controls (#58, #59 — menu items of flyouts in them
+ * included) or a flyout / split button's menu items (#27).
+ */
+function innerControls(root: Element): Element[] {
+	return isContainer(root) ? nestedControls(root) : menuControlsWithin(root);
+}
+
+/**
+ * Ids of the controls the layer itself adds: the control of a
+ * `CustomAction Location="…._children"`, the controls written inside a tab
+ * or group such a CustomAction adds, and the menu items written inline in
+ * such a control (#27).
  */
 export function ownControlIds(parts: RibbonDiffParts): Set<string> {
 	const out = new Set<string>();
 	for (const xml of parts.customActions.values()) {
 		const ca = elementOf(xml);
-		const ctrl = controlOf(xml);
+		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+		const ctrl = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
 		const id = ctrl?.getAttribute("Id");
-		if (ca.tagName === "CustomAction" && ctrl && id && isChildrenLocation(ca.getAttribute("Location"))) {
-			out.add(id);
-			for (const item of menuControlsWithin(ctrl)) out.add(item.getAttribute("Id")!);
+		if (id) out.add(id);
+		if (ctrl) {
+			for (const c of innerControls(ctrl)) {
+				const cid = c.getAttribute("Id");
+				if (cid) out.add(cid);
+			}
 		}
 	}
 	return out;
 }
 
-/** The element with `Id="id"` in a CustomAction's CommandUIDefinition (the control itself or a menu item). */
+/**
+ * Moves every `X.Controls._children` / `X.Groups._children` /
+ * `X.Scaling._children` CustomAction whose X is a group or tab ANOTHER
+ * CustomAction of the layer adds into that container, in place (#59).
+ *
+ * Dataverse files each CustomAction under a tab. For a container the layer
+ * adds, a separate child CustomAction was filed under the concrete entity tab
+ * while the container is filed under the `{!EntityLogicalName}` template tab,
+ * so Dataverse dropped the child (the "empty new group" of #59). Written
+ * inside the container, it is part of the same element.
+ *
+ * `touched` (CustomAction keys) limits this to what the session writes: a
+ * child is folded only when it or its container's CustomAction is new or
+ * changed, so another tool's rows are never rewritten by an unrelated publish
+ * (#66 review m5); a container one child is folded into takes the rest of
+ * its separate children too. Without `touched` everything is folded (reading).
+ */
+export function foldIntoOwnContainers(customActions: ElementMap, touched?: ReadonlySet<string>): ElementMap {
+	const out = new Map(customActions);
+	const s = serializer();
+	// A container something is folded into is touched too, so the rest of its
+	// separate children follow (that repairs layers written before #59).
+	const hot = touched ? new Set(touched) : undefined;
+	for (let folded = true; folded; ) {
+		folded = false;
+		// Containers (tab / group id) → key of the CustomAction that adds them.
+		const host = new Map<string, string>();
+		for (const [key, xml] of out) {
+			const ca = elementOf(xml);
+			if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+			const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+			if (!isContainer(root)) continue;
+			for (const el of [root, ...Array.from(root.getElementsByTagName("Group"))]) {
+				const id = el.getAttribute("Id");
+				if (id && !host.has(id)) host.set(id, key);
+			}
+		}
+		for (const [key, xml] of out) {
+			const ca = elementOf(xml);
+			if (ca.tagName !== "CustomAction") continue;
+			const m = /^(.+)\.(Controls|Groups|Scaling)\._children$/.exec(ca.getAttribute("Location") ?? "");
+			const child = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+			const hostKey = m ? host.get(m[1]) : undefined;
+			if (!m || !child || !hostKey || hostKey === key) continue;
+			if (hot && !hot.has(key) && !hot.has(hostKey)) continue;
+			const [, parentId, slot] = m;
+			const hostCa = elementOf(out.get(hostKey)!);
+			const container = findById(hostCa, parentId);
+			if (!container || container.tagName !== (slot === "Controls" ? "Group" : "Tab")) continue;
+			const doc = hostCa.ownerDocument;
+			let slotEl = firstChild(container, slot);
+			if (!slotEl) {
+				slotEl = doc.createElement(slot);
+				slotEl.setAttribute("Id", `${parentId}.${slot}`);
+				// RibbonCore.xsd TabType: Scaling comes before Groups.
+				const groups = slot === "Scaling" ? firstChild(container, "Groups") : undefined;
+				container.insertBefore(slotEl, groups ?? null);
+			}
+			const imported = doc.importNode(child, true) as Element;
+			const seq = ca.getAttribute("Sequence");
+			if (!imported.getAttribute("Sequence") && seq) imported.setAttribute("Sequence", seq);
+			// Scaling is applied in document order: every MaxSize before any Scale (#40).
+			const firstScale = imported.tagName === "MaxSize" ? firstChild(slotEl, "Scale") : undefined;
+			slotEl.insertBefore(imported, firstScale ?? null);
+			out.set(hostKey, s.serializeToString(hostCa));
+			hot?.add(hostKey);
+			out.delete(key);
+			folded = true;
+			break;
+		}
+	}
+	return out;
+}
+
+/**
+ * The element with `Id="id"` in a CustomAction's CommandUIDefinition: the
+ * control itself, a menu item (#27) or a control written inside a tab / group (#59).
+ */
 function controlIn(ca: Element, id: string): Element | null {
 	const ctrl = firstChild(ca, "CommandUIDefinition")?.firstElementChild ?? null;
 	if (!ctrl) return null;
 	if (ctrl.getAttribute("Id") === id) return ctrl;
-	return menuControlsWithin(ctrl).find((d) => d.getAttribute("Id") === id) ?? null;
+	return innerControls(ctrl).find((d) => d.getAttribute("Id") === id) ?? null;
 }
 
 /**
@@ -644,11 +764,25 @@ export function mergeScopeChanges(
 		const location = ca.getAttribute("Location");
 		if (ctrl?.getAttribute("Id") && isChildrenLocation(location)) {
 			ownControl.set(ctrl.getAttribute("Id")!, key);
-			for (const item of menuControlsWithin(ctrl)) ownInline.push([item.getAttribute("Id")!, key]);
+			// Menu items written inline (#27) and controls written inside a tab /
+			// group the layer adds (#59).
+			for (const item of innerControls(ctrl)) {
+				const id = item.getAttribute("Id");
+				if (id) ownInline.push([id, key]);
+			}
 		} else if (location) overrideAt.set(location, key);
 	}
 	// A control with its own CustomAction wins over an inline copy of the same id.
 	for (const [id, key] of ownInline) if (!ownControl.has(id)) ownControl.set(id, key);
+	// The control with this id inside the CustomAction stored under `key`: its
+	// root control, or one written inside its tab / group or its menu (`nested`).
+	const locate = (key: string, id: string) => {
+		const xml = merged.customActions.get(key);
+		if (!xml) return { ca: null, el: null, nested: false };
+		const ca = elementOf(xml);
+		const el = controlIn(ca, id);
+		return { ca, el, nested: !!el && el.parentElement?.tagName !== "CommandUIDefinition" };
+	};
 
 	// Controls the delta adds (`…._children`): never removed below, whatever
 	// the deletes say — a control cut from one location and pasted into another
@@ -663,28 +797,61 @@ export function mergeScopeChanges(
 		const adds = ca.tagName === "CustomAction" && isChildrenLocation(ca.getAttribute("Location"));
 		if (adds && ctrlId) readded.add(ctrlId);
 		const container = ctrl?.tagName === "Tab" || ctrl?.tagName === "Group";
-		if (ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !(adds && container)) {
+		if (adds && container) {
+			// A new tab / group with controls written inside it. One of them may be
+			// your own control moved here from another location of the table: it
+			// is defined here now, so its previous definition goes.
+			for (const c of nestedControls(ctrl!)) {
+				const id = c.getAttribute("Id");
+				if (!id) continue;
+				readded.add(id);
+				const prevKey = ownControl.get(id);
+				const prev = prevKey ? locate(prevKey, id) : null;
+				if (!prevKey || !prev?.ca || !prev.el) continue;
+				if (prev.nested) {
+					prev.el.parentNode!.removeChild(prev.el);
+					merged.customActions.set(prevKey, s.serializeToString(prev.ca));
+				} else {
+					merged.customActions.delete(prevKey);
+				}
+			}
+		}
+		const owned = ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !(adds && container);
+		const found = owned ? locate(targetKey!, ctrlId!) : null;
+		if (owned && found?.ca && found.el && found.nested) {
+			// A control written inside the layer's own tab / group. Edited → replaced
+			// where it is; added again elsewhere (moved) → taken out here, and the
+			// delta's CustomAction places it (folded in below when that's a
+			// container of the layer too).
+			const { ca: target, el } = found;
+			if (adds) {
+				el.parentNode!.removeChild(el);
+				merged.customActions.set(key, xml);
+			} else {
+				const imported = withChildrenOf(target.ownerDocument.importNode(ctrl!, true) as Element, el);
+				el.parentNode!.replaceChild(imported, el);
+			}
+			merged.customActions.set(targetKey!, s.serializeToString(target));
+			continue;
+		}
+		if (owned && found?.ca && found.el) {
 			// Edit of a control the layer owns → replace it inside its own
-			// CustomAction (for a menu item: in place, inside its flyout's menu,
-			// #27). A control the delta adds again (moved to another location)
-			// also takes the new Location: one CustomAction per control, keeping
-			// the layer's CustomAction id (#57 review).
-			const target = elementOf(merged.customActions.get(targetKey) ?? existing.customActions.get(targetKey)!);
-			const original = controlIn(target, ctrlId);
-			if (!original) {
-				merged.customActions.set(key, xml);
-				continue;
-			}
-			const isTop = original.parentElement?.tagName === "CommandUIDefinition";
-			if (adds && !isTop) {
-				// A menu item written inline that is now placed elsewhere: it leaves
-				// its flyout and gets the delta's CustomAction of its own.
+			// CustomAction, where it is: the CustomAction's control, a control
+			// written inside the layer's own tab / group (#58, #59), or a menu item
+			// inside its flyout's menu (#27). A control the delta adds again
+			// (moved to another location) also takes the new Location: one
+			// CustomAction per control, keeping the layer's CustomAction id (#57
+			// review). One written inside a tab / group / menu leaves it, and the
+			// delta's CustomAction places it (folded in below when that's a
+			// container of the layer too).
+			const { ca: target, el: original, nested } = found;
+			if (adds && nested) {
 				original.parentNode!.removeChild(original);
-				merged.customActions.set(targetKey, s.serializeToString(target));
+				merged.customActions.set(targetKey!, s.serializeToString(target));
 				merged.customActions.set(key, xml);
 				continue;
 			}
-			let imported = target.ownerDocument.importNode(ctrl, true) as Element;
+			let imported = target.ownerDocument.importNode(ctrl!, true) as Element;
 			if (adds) {
 				// A moved flyout: the layer's menu stays, the delta's items update it.
 				// Items the layer adds with CustomActions of their own stay there
@@ -695,12 +862,12 @@ export function mergeScopeChanges(
 				});
 			} else imported = withChildrenOf(imported, original);
 			original.parentNode!.replaceChild(imported, original);
-			if (isTop) {
+			if (!nested) {
 				if (adds) target.setAttribute("Location", ca.getAttribute("Location")!);
-				const seq = ctrl.getAttribute("Sequence") ?? (adds ? ca.getAttribute("Sequence") : null);
+				const seq = ctrl!.getAttribute("Sequence") ?? (adds ? ca.getAttribute("Sequence") : null);
 				if (seq) target.setAttribute("Sequence", seq);
 			}
-			merged.customActions.set(targetKey, s.serializeToString(target));
+			merged.customActions.set(targetKey!, s.serializeToString(target));
 			continue;
 		}
 		const location = ca.getAttribute("Location");
@@ -724,29 +891,35 @@ export function mergeScopeChanges(
 	// its CustomAction, which now places it in its new group at its new sequence.
 	for (const move of options.movedControls ?? []) {
 		const key = ownControl.get(move.id);
-		const xml = key ? merged.customActions.get(key) : undefined;
-		const ca = xml ? elementOf(xml) : null;
-		const ctrl = ca ? controlIn(ca, move.id) : null;
-		// Never a silent no-op: the plan only moves controls the layer adds.
-		if (!key || !ca || !ctrl) throw new Error(`Can't move ${move.id}: it isn't in this table's unmanaged customizations.`);
+		const found = key ? locate(key, move.id) : null;
+		if (!key || !found?.ca || !found.el) {
+			// Already placed by the delta (written inside a new tab / group, #58).
+			if (readded.has(move.id)) continue;
+			// Never a silent no-op: the plan only moves controls the layer adds.
+			throw new Error(`Can't move ${move.id}: it isn't in this table's unmanaged customizations.`);
+		}
+		const { ca, el: ctrl } = found;
 		const container = move.controlsId ?? `${move.groupId}.Controls`;
 		ctrl.setAttribute("Sequence", String(move.sequence));
-		if (ctrl.parentElement?.tagName === "CommandUIDefinition") {
+		if (!found.nested) {
 			ca.setAttribute("Location", `${container}._children`);
 			ca.setAttribute("Sequence", String(move.sequence));
 		} else if (ctrl.parentElement?.getAttribute("Id") !== container) {
-			// A menu item written inline that moved to another menu section (#27):
-			// into that section when it is in the same CustomAction, otherwise
-			// into a CustomAction of its own.
+			// Written inside the layer's tab / group (#59) or inline in a flyout's
+			// menu (#27) and now placed elsewhere: into that `<Controls>` when it is
+			// in the same CustomAction, otherwise into a CustomAction of its own
+			// (folded into the destination below when that is a container of the
+			// layer too).
 			const target = Array.from(ca.getElementsByTagName("Controls")).find((c) => c.getAttribute("Id") === container);
 			ctrl.parentNode!.removeChild(ctrl);
 			if (target) target.appendChild(ctrl);
 			else {
-				const own = elementOf(
-					`<CustomAction Id="${move.id}.CustomAction" Location="${container}._children" Sequence="${move.sequence}"><CommandUIDefinition/></CustomAction>`,
+				let caId = `${move.id}.CustomAction`;
+				while (merged.customActions.has(`ca:${caId}`)) caId += "_";
+				merged.customActions.set(
+					`ca:${caId}`,
+					`<CustomAction Id="${escapeAttr(caId)}" Location="${escapeAttr(`${container}._children`)}" Sequence="${move.sequence}"><CommandUIDefinition>${s.serializeToString(ctrl)}</CommandUIDefinition></CustomAction>`,
 				);
-				firstChild(own, "CommandUIDefinition")!.appendChild(own.ownerDocument.importNode(ctrl, true));
-				merged.customActions.set(`ca:${move.id}.CustomAction`, s.serializeToString(own));
 			}
 		}
 		merged.customActions.set(key, s.serializeToString(ca));
@@ -775,9 +948,10 @@ export function mergeScopeChanges(
 			for (const c of commandsWithin(ctrl)) removedCommands.add(c);
 			continue;
 		}
-		// Menu items written inline in a flyout the layer adds (#27): removed in
-		// place; their labels go unless something else still uses them.
-		const items = menuControlsWithin(ctrl).filter((d) => {
+		// Controls written inside the layer's own tab / group (#59) and menu items
+		// written inline in a flyout the layer adds (#27): removed in place; their
+		// labels go unless something else still uses them.
+		const items = innerControls(ctrl).filter((d) => {
 			const id = d.getAttribute("Id") ?? "";
 			return deleted.has(id) && !readded.has(id);
 		});
@@ -846,6 +1020,12 @@ export function mergeScopeChanges(
 		}
 	}
 
+	// Children of the layer's own tabs / groups go inside them (#59) — only
+	// where this publish writes the child or its container (#66 review m5).
+	const touched = new Set<string>();
+	for (const [key, xml] of merged.customActions) if (existing.customActions.get(key) !== xml) touched.add(key);
+	merged.customActions = foldIntoOwnContainers(merged.customActions, touched);
+
 	const keepUnlessEdited = (key: "commandDefinitions" | "enableRules" | "displayRules", edited: Set<string>) => {
 		for (const [id, xml] of delta[key]) {
 			if (existing[key].has(id) && !edited.has(id)) continue;
@@ -905,4 +1085,146 @@ export function mergeScopeChanges(
 export function isOverrideCustomAction(xml: string): boolean {
 	const el = elementOf(xml);
 	return el.tagName === "CustomAction" && !isChildrenLocation(el.getAttribute("Location"));
+}
+
+/** Sets the Title of a tab / group the layer adds (inline in its CustomAction or a tab's). */
+export function setContainerTitle(parts: RibbonDiffParts, containerId: string, title: string): RibbonDiffParts {
+	const out = mergeRibbonDiffParts(parts, emptyRibbonDiffParts());
+	for (const [key, xml] of out.customActions) {
+		const ca = elementOf(xml);
+		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+		const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+		if (!isContainer(root)) continue;
+		const el = findById(root, containerId);
+		if (!el || !isContainer(el)) continue;
+		el.setAttribute("Title", title);
+		out.customActions.set(key, serializer().serializeToString(ca));
+		break;
+	}
+	return out;
+}
+
+// ---------------------------------------------------------------------------
+// Scaling Sequences (#66 review)
+// ---------------------------------------------------------------------------
+
+/** A MaxSize / Scale step the layer writes, with the tab it scales and the CustomAction holding it. */
+export interface LayerScalingStep extends LayerScaleStep {
+	tabId: string;
+	size: string;
+	/** Key of the CustomAction: the tab's own (inline `<Scaling>`) or a `{tab}.Scaling._children` one. */
+	key: string;
+}
+
+/** Every MaxSize / Scale step of the layer: inline in a tab it adds, or a `{tab}.Scaling._children` CustomAction. */
+export function layerScalingSteps(parts: RibbonDiffParts): LayerScalingStep[] {
+	const out: LayerScalingStep[] = [];
+	const step = (el: Element, tabId: string, key: string): LayerScalingStep => ({
+		id: el.getAttribute("Id") ?? "",
+		kind: el.tagName as ScaleKind,
+		groupId: el.getAttribute("GroupId") ?? "",
+		sequence: Number(el.getAttribute("Sequence") ?? "0"),
+		size: el.getAttribute("Size") ?? "",
+		tabId,
+		key,
+	});
+	for (const [key, xml] of parts.customActions) {
+		const ca = elementOf(xml);
+		if (ca.tagName !== "CustomAction") continue;
+		const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+		if (!root) continue;
+		const m = /^(.+)\.Scaling\._children$/.exec(ca.getAttribute("Location") ?? "");
+		if (m && (root.tagName === "MaxSize" || root.tagName === "Scale")) out.push(step(root, m[1], key));
+		if (root.tagName === "Tab" && isChildrenLocation(ca.getAttribute("Location"))) {
+			const tabId = root.getAttribute("Id") ?? "";
+			for (const el of Array.from(firstChild(root, "Scaling")?.children ?? [])) {
+				if (el.tagName === "MaxSize" || el.tagName === "Scale") out.push(step(el, tabId, key));
+			}
+		}
+	}
+	return out;
+}
+
+/**
+ * Re-sequences the layer's scaling steps so that, per tab, no two steps (the
+ * platform's included) share a Sequence and every layer MaxSize comes before
+ * the first Scale (scalingSequence.resequenceLayerScaling). `platform` is each
+ * tab's scaling without the layer's steps. Returns the changes made and what
+ * couldn't be placed; the caller must not import when there are problems.
+ */
+export function normalizeLayerScaling(
+	parts: RibbonDiffParts,
+	platform: Record<string, { maxSizes: number[]; scales: number[] }>,
+): { parts: RibbonDiffParts; changes: ScalingChange[]; problems: string[] } {
+	const steps = layerScalingSteps(parts);
+	const byTab = new Map<string, LayerScalingStep[]>();
+	for (const st of steps) byTab.set(st.tabId, [...(byTab.get(st.tabId) ?? []), st]);
+	const changes: ScalingChange[] = [];
+	const problems: string[] = [];
+	for (const [tabId, list] of byTab) {
+		const r = resequenceLayerScaling(tabId, platform[tabId] ?? { maxSizes: [], scales: [] }, list);
+		changes.push(...r.changes);
+		problems.push(...r.problems);
+	}
+	if (changes.length === 0) return { parts, changes, problems };
+	const out = mergeRibbonDiffParts(parts, emptyRibbonDiffParts());
+	const s = serializer();
+	for (const c of changes) {
+		const st = steps.find((x) => x.id === c.id && x.kind === c.kind && x.tabId === c.tabId)!;
+		const ca = elementOf(out.customActions.get(st.key)!);
+		const root = firstChild(ca, "CommandUIDefinition")!.firstElementChild!;
+		const el =
+			root.tagName === "Tab"
+				? Array.from(firstChild(root, "Scaling")?.children ?? []).find(
+						(e) => e.tagName === c.kind && e.getAttribute("Id") === c.id,
+					)
+				: root;
+		el?.setAttribute("Sequence", String(c.to));
+		if (root.tagName !== "Tab") ca.setAttribute("Sequence", String(c.to));
+		out.customActions.set(st.key, s.serializeToString(ca));
+	}
+	return { parts: out, changes, problems };
+}
+
+/**
+ * Brings a published ribbon location in line with the layer it was published
+ * as (#66 review B1, m4): tabs / groups the layer adds take their `Title`
+ * token (`$LocLabels:…`, so a later rename edits that label), and each tab's
+ * scaling takes the layer's steps with the Sequences they were written with.
+ * Without this, a second publish in the same session reused the MaxSize
+ * Sequence the first one wrote. Mutates `def`.
+ */
+export function applyPublishedLayer(def: RibbonDefinition, parts: RibbonDiffParts): void {
+	const titles = new Map<string, string>();
+	for (const xml of parts.customActions.values()) {
+		const ca = elementOf(xml);
+		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+		const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+		if (!isContainer(root)) continue;
+		for (const el of [root, ...Array.from(root.getElementsByTagName("Group"))]) {
+			const id = el.getAttribute("Id");
+			const title = el.getAttribute("Title");
+			if (id && title?.startsWith("$LocLabels:")) titles.set(id, title);
+		}
+	}
+	for (const tab of def.tabs) {
+		const t = titles.get(tab.id);
+		if (t) tab.label = t;
+		for (const g of tab.groups) {
+			const gt = titles.get(g.id);
+			if (gt) g.label = gt;
+		}
+	}
+
+	const tabIds = new Set(def.tabs.map((t) => t.id));
+	for (const st of layerScalingSteps(parts)) {
+		if (!tabIds.has(st.tabId)) continue;
+		def.scalingByTab = def.scalingByTab ?? {};
+		const scaling = (def.scalingByTab[st.tabId] = def.scalingByTab[st.tabId] ?? { tabId: st.tabId, maxSizes: [], scales: [] });
+		const list = st.kind === "MaxSize" ? scaling.maxSizes : scaling.scales;
+		const step: ScaleStep = { id: st.id, groupId: st.groupId, size: st.size, sequence: st.sequence };
+		const i = list.findIndex((x) => x.id === st.id);
+		if (i >= 0) list[i] = step;
+		else list.push(step);
+	}
 }
