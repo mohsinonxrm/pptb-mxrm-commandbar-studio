@@ -311,16 +311,30 @@ describe("commands and rules referenced but not defined", () => {
 // ── Rule placement ──────────────────────────────────────────────────────────
 
 describe("display-only kinds in enable rules and enable-only kinds in display rules", () => {
-	it("is an error for a display-only kind in an enable rule", () => {
+	it("warns (never blocks) about a display-only kind in an enable rule", () => {
 		const f = only(
 			check({ enableRules: [enableRule("mxrm.E", '<FormTypeRule Type="Main"/>')] }),
 			"rule-placement",
 		);
-		expect(f).toMatchObject({ severity: "error", elementId: "mxrm.E" });
+		expect(f).toMatchObject({ severity: "warning", elementId: "mxrm.E" });
 		expect(f.message).toMatch(/FormTypeRule.*only allows in display rules/);
 	});
 
-	it("is an error for an enable-only kind in a display rule, also inside an OrRule", () => {
+	it("doesn't block an edited copy of an out-of-the-box display rule that uses CustomRule (review #2)", () => {
+		// Microsoft's own display rules contain CustomRule; adding a step to one must still publish.
+		const findings = check({
+			displayRules: [
+				displayRule(
+					"Mscrm.HideOnModern",
+					'<CustomRule FunctionName="f" Library="$webresource:Main_system_library.js"/><FormStateRule State="Existing"/>',
+				),
+			],
+		});
+		expect(findings.filter((f) => f.severity === "error")).toEqual([]);
+		expect(only(findings, "rule-placement").severity).toBe("warning");
+	});
+
+	it("reports an enable-only kind in a display rule, also inside an OrRule", () => {
 		const findings = check({
 			displayRules: [
 				displayRule("mxrm.D", '<SelectionCountRule Minimum="1"/>'),
@@ -425,10 +439,28 @@ describe("$LocLabels references", () => {
 		labels,
 	});
 
-	it("is an error when the merged XML has no LocLabel for a reference", () => {
+	it("warns (never blocks) when the merged XML has no LocLabel for a reference", () => {
 		const f = only(check(spec([label("mxrm.B.LabelText")])), "loclabel-missing");
-		expect(f).toMatchObject({ severity: "error", elementId: "mxrm.B" });
+		expect(f).toMatchObject({ severity: "warning", elementId: "mxrm.B" });
 		expect(f.message).toMatch(/ToolTipTitle references \$LocLabels:mxrm\.B\.ToolTip/);
+	});
+
+	it("skips a token written back exactly as it was loaded (review #1)", () => {
+		const loadedAttributes = { "mxrm.B": { ToolTipTitle: "$LocLabels:mxrm.B.ToolTip" } };
+		expect(
+			codes(
+				check(spec([label("mxrm.B.LabelText")]), { loadedAttributes }),
+				"loclabel-missing",
+			),
+		).toEqual([]);
+		// A different token on the same attribute is still reported.
+		const changed = { "mxrm.B": { ToolTipTitle: "$LocLabels:mxrm.B.OldToolTip" } };
+		expect(
+			codes(
+				check(spec([label("mxrm.B.LabelText")]), { loadedAttributes: changed }),
+				"loclabel-missing",
+			),
+		).toHaveLength(1);
 	});
 
 	it("accepts references that all have a LocLabel", () => {
@@ -450,6 +482,9 @@ describe("$LocLabels references", () => {
 });
 
 // ── $webresource ────────────────────────────────────────────────────────────
+
+const WR_A = "aaaaaaaa-0000-0000-0000-000000000001";
+const WR_B = "bbbbbbbb-0000-0000-0000-000000000002";
 
 describe("$webresource references", () => {
 	const spec: DiffSpec = {
@@ -486,7 +521,55 @@ describe("$webresource references", () => {
 			severity: "warning",
 			elementId: "mxrm.B",
 		});
+		expect(only(findings, "webresource-missing").message).toMatch(
+			/the button will show no icon/,
+		);
 		expect(only(findings, "webresource-not-in-solution").message).toMatch(/mxrm_\/x\.js/);
+	});
+
+	it("says what a missing script does at runtime (review #6)", () => {
+		const f = only(
+			check(spec, { webResources: { "mxrm_/x.js": { exists: false, inSolution: false } } }),
+			"webresource-missing",
+		);
+		expect(f.message).toMatch(/mxrm_\/x\.js.*will fail when it runs/);
+	});
+
+	it("drops query strings and fragments from referenced names (review #7)", () => {
+		const xml = diff({
+			commands: [
+				`<CommandDefinition Id="mxrm.U"><EnableRules/><DisplayRules/><Actions><Url Address="$webresource:mxrm_/page.htm?id=1"/><Url Address="$webresource:mxrm_/page.htm#top"/></Actions></CommandDefinition>`,
+			],
+		});
+		expect(webResourceReferences(xml)).toEqual(["mxrm_/page.htm"]);
+		const f = only(
+			validatePublishRibbonDiff(xml, {
+				webResources: { "mxrm_/page.htm": { exists: false, inSolution: false } },
+			}),
+			"webresource-missing",
+		);
+		expect(f.message).toMatch(/mxrm_\/page\.htm /);
+	});
+
+	it("encodes the lookup's filter values and strips query strings (review #7)", async () => {
+		const queries: string[] = [];
+		const api = {
+			queryData: vi.fn(async (q: string) => {
+				queries.push(q);
+				return { value: [] };
+			}),
+		};
+		const result = await lookupWebResources(
+			api as unknown as Pick<DataverseAPI.API, "queryData">,
+			["mxrm_/page.htm?id=1&x=2", "mxrm_/a&b+c%d.js", "mxrm_/é.js"],
+		);
+		expect(queries).toHaveLength(1);
+		expect(queries[0]).toContain(
+			"name eq 'mxrm_/page.htm' or name eq 'mxrm_/a%26b%2Bc%25d.js' or name eq 'mxrm_/%C3%A9.js'",
+		);
+		// Exactly one `&` (before $filter): nothing in a value can start a new query option.
+		expect(queries[0].split("&")).toHaveLength(2);
+		expect(Object.keys(result)).toEqual(["mxrm_/page.htm", "mxrm_/a&b+c%d.js", "mxrm_/é.js"]);
 	});
 
 	it("accepts web resources in the solution, and doesn't check names that weren't looked up", () => {
@@ -504,12 +587,16 @@ describe("$webresource references", () => {
 				if (q.startsWith("webresourceset")) {
 					return {
 						value: [
-							{ webresourceid: "AAA", name: "mxrm_/X.js", ismanaged: false },
-							{ webresourceid: "bbb", name: "other_/managed.js", ismanaged: true },
+							{
+								webresourceid: WR_A.toUpperCase(),
+								name: "mxrm_/X.js",
+								ismanaged: false,
+							},
+							{ webresourceid: WR_B, name: "other_/managed.js", ismanaged: true },
 						],
 					};
 				}
-				return { value: [{ objectid: "aaa" }] };
+				return { value: [{ objectid: WR_A }] };
 			}),
 		};
 		const result = await lookupWebResources(
@@ -925,5 +1012,218 @@ describe("checkBeforePublish / publishRibbon", () => {
 			}),
 		).rejects.toThrow(/pre-publish check found 1 error.*Sequence 80/);
 		expect(deploySolution).not.toHaveBeenCalled();
+	});
+});
+
+// ── Adversarial review of #73: no false blocks ─────────────────────────────
+
+const ISV_LOADED = `<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs>
+  <Tab Id="${TAB}" Command="${TAB}" Sequence="10">
+    <Groups Id="${TAB}.Groups">
+      <Group Id="${GROUP}" Sequence="10" Template="Mscrm.Templates.Flexible2"><Controls Id="${GROUP}.Controls">
+        <Button Id="isv.Go" Command="isv.Go.Command" Sequence="10" LabelText="$LocLabels:isv.Go.Label" ToolTipTitle="$LocLabels:isv.Go.Label" TemplateAlias="o1"/>
+      </Controls></Group>
+    </Groups>
+  </Tab>
+</Tabs></Ribbon></UI>
+<CommandDefinitions>
+  <CommandDefinition Id="isv.Go.Command"><EnableRules/><DisplayRules/><Actions><JavaScriptFunction Library="$webresource:isv_/go.js" FunctionName="go"/></Actions></CommandDefinition>
+  <CommandDefinition Id="Mscrm.NewRecordFromGrid"><EnableRules/><DisplayRules/><Actions/></CommandDefinition>
+</CommandDefinitions>
+<RuleDefinitions><TabDisplayRules/><DisplayRules/><EnableRules/></RuleDefinitions>
+</RibbonDefinition></RibbonDefinitions>`;
+
+describe("review #1: an ISV button whose label lives in its own solution", () => {
+	it("publishes a command change without errors (the $LocLabels token is written back as loaded)", async () => {
+		layer = emptyRibbonDiffParts();
+		const parsed = parseRibbonXml(ISV_LOADED, "HomepageGrid", T);
+		const current: RibbonDefinition = JSON.parse(JSON.stringify(parsed.ribbon));
+		current.tabs[0].groups[0].buttons[0].commandId = "Mscrm.NewRecordFromGrid";
+		const { checkBeforePublish } = await import("@/services/dataverse/publishService");
+		const { findings, xml } = await checkBeforePublish({
+			entity: { logicalName: T },
+			locations: [{ current, baseline: parsed.ribbon }],
+			commands: parsed.commands,
+			enableRules: [],
+			displayRules: [],
+			locLabels: [],
+			plan: PLAN,
+			languageCode: 1033,
+			baselineCommands: parsed.commands,
+			baselineEnableRules: [],
+			baselineDisplayRules: [],
+			publisherPrefix: "mxrm",
+		});
+		expect(xml).toContain('LabelText="$LocLabels:isv.Go.Label"');
+		expect(xml).not.toContain('<LocLabel Id="isv.Go.Label"');
+		expect(findings.filter((f) => f.severity === "error")).toEqual([]);
+		expect(codes(findings, "loclabel-missing")).toEqual([]);
+	});
+});
+
+describe("review #3: Tab and Group Command attributes", () => {
+	it("doesn't check a tab's TabCommand or a group's Command (Ribbon Workbench-style tabs)", () => {
+		const tab = ca(
+			"mxrm.Tab.CustomAction",
+			"Mscrm.Tabs._children",
+			`<Tab Id="mxrm.Tab" Command="mxrm.Tab.Command" Title="t" Sequence="500"><Scaling Id="mxrm.Tab.Scaling"/><Groups Id="mxrm.Tab.Groups"><Group Id="mxrm.Tab.G1" Command="mxrm.Tab.G1.Command" Sequence="10" Template="Mscrm.Templates.Flexible2"><Controls Id="mxrm.Tab.G1.Controls"/></Group></Groups></Tab>`,
+		);
+		const findings = check({ customActions: [tab] }, { known: { commandIds: [] } });
+		expect(codes(findings, "undefined-command")).toEqual([]);
+	});
+});
+
+describe("review #4: CBS's default new-group MaxSize", () => {
+	it("stays an error and tells the user to move the group", () => {
+		const f = only(
+			check(
+				{ customActions: [maxSizeAction("mxrm.NewGroup", 80)] },
+				{ tabScaling: { [TAB]: REAL_SCALING } },
+			),
+			"scaling-collision",
+		);
+		expect(f.severity).toBe("error");
+		expect(f.message).toMatch(/move group mxrm\.NewGroup to another position.*#66/);
+	});
+
+	it("gives the generic advice for any other step", () => {
+		const step = ca(
+			"mxrm.Step.CustomAction",
+			`${TAB}.Scaling._children`,
+			`<Scale Id="mxrm.Step" GroupId="${TAB}.G0" Sequence="80" Size="Popup"/>`,
+		);
+		const f = only(
+			check({ customActions: [step] }, { tabScaling: { [TAB]: REAL_SCALING } }),
+			"scaling-collision",
+		);
+		expect(f.message).toMatch(/give each step its own Sequence/);
+	});
+});
+
+describe("review #5: loaded steps of a group this session removes", () => {
+	it("don't cause a collision", async () => {
+		const { publishValidationContext } = await import("@/services/dataverse/publishService");
+		const baseline = parseRibbonXml(LOADED, "HomepageGrid", T).ribbon;
+		baseline.tabs[0].groups.push({
+			id: "mxrm.Old",
+			label: "Old",
+			sequence: 90,
+			template: "Mscrm.Templates.Flexible2",
+			buttons: [],
+		});
+		baseline.scalingByTab![TAB].maxSizes.push({
+			id: "mxrm.Old.MaxSize",
+			groupId: "mxrm.Old",
+			size: "LargeLarge",
+			sequence: 90,
+		});
+		const current: RibbonDefinition = JSON.parse(JSON.stringify(baseline));
+		const spec = { customActions: [maxSizeAction("mxrm.NewGroup", 90)] };
+		const keys = {
+			changedKeys: ["customActions:ca:mxrm.NewGroup.MaxSize.CustomAction"],
+			newKeys: [],
+		};
+
+		const kept = publishValidationContext(
+			{ locations: [{ current, baseline }], commands: [] },
+			keys,
+		);
+		expect(codes(check(spec, kept), "scaling-collision")).toHaveLength(1);
+
+		current.tabs[0].groups = current.tabs[0].groups.filter((g) => g.id !== "mxrm.Old");
+		const removed = publishValidationContext(
+			{ locations: [{ current, baseline }], commands: [] },
+			keys,
+		);
+		expect(codes(check(spec, removed), "scaling-collision")).toEqual([]);
+	});
+});
+
+describe("review #8: the check generates labels in the organisation's language", () => {
+	it("passes languageCode through to the generator", async () => {
+		layer = emptyRibbonDiffParts();
+		const { checkBeforePublish } = await import("@/services/dataverse/publishService");
+		const { xml } = await checkBeforePublish({
+			entity: { logicalName: T },
+			locations: [withNewGroup(62)],
+			commands: [],
+			enableRules: [],
+			displayRules: [],
+			locLabels: [],
+			plan: PLAN,
+			languageCode: 1031,
+		});
+		expect(xml).toContain('<LocLabel Id="mxrm.account.NewGroup.Title"');
+		expect(xml).toContain('languagecode="1031"');
+		expect(xml).not.toContain('languagecode="1033"');
+	});
+});
+
+describe("review #9: the dialog's check can't hold Publish back", () => {
+	it("withCheckTimeout rejects a check that doesn't finish in time", async () => {
+		vi.useFakeTimers();
+		try {
+			const { withCheckTimeout } = await import("@/services/dataverse/publishService");
+			const slow = withCheckTimeout(new Promise<string>(() => undefined), 30_000);
+			const assertion = expect(slow).rejects.toThrow(/didn't finish within 30 s/);
+			await vi.advanceTimersByTimeAsync(30_000);
+			await assertion;
+			await expect(withCheckTimeout(Promise.resolve("ok"), 30_000)).resolves.toBe("ok");
+			await expect(
+				withCheckTimeout(Promise.reject(new Error("boom")), 30_000),
+			).rejects.toThrow("boom");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
+describe("review #10: definitions come from the merged XML plus what is outside the layer", () => {
+	it("flags a still-referenced command that only the replaced layer defined", async () => {
+		const { publishValidationContext } = await import("@/services/dataverse/publishService");
+		const ribbon = parseRibbonXml(LOADED, "HomepageGrid", T).ribbon;
+		const layerCommand: CommandDefinition = {
+			id: "mxrm.Layer.Command",
+			enableRules: [],
+			displayRules: [],
+			actions: [],
+		};
+		const input = {
+			locations: [{ current: ribbon, baseline: ribbon }],
+			commands: [],
+			baselineCommands: [layerCommand],
+			baselineEnableRules: [],
+			baselineDisplayRules: [],
+		};
+		const spec = {
+			customActions: [
+				ca(
+					"mxrm.B.CustomAction",
+					`${GROUP}.Controls._children`,
+					button("mxrm.B", "mxrm.Layer.Command"),
+				),
+			],
+		};
+		const keys = { changedKeys: ["customActions:ca:mxrm.B.CustomAction"], newKeys: [] };
+		const ctx = publishValidationContext(input, {
+			...keys,
+			layerDefinitionIds: {
+				commandIds: ["mxrm.Layer.Command"],
+				enableRuleIds: [],
+				displayRuleIds: [],
+			},
+		});
+		expect(only(check(spec, ctx), "undefined-command").severity).toBe("error");
+		// Still defined by the merged XML: fine.
+		expect(
+			codes(
+				check({ ...spec, commands: [command("mxrm.Layer.Command")] }, ctx),
+				"undefined-command",
+			),
+		).toEqual([]);
+		// Defined outside the layer (e.g. by a managed solution): fine.
+		expect(
+			codes(check(spec, publishValidationContext(input, keys)), "undefined-command"),
+		).toEqual([]);
 	});
 });

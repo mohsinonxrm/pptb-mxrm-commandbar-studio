@@ -339,9 +339,11 @@ export interface PublishValidationContext {
 	/** The commands as edited in CBS: actions the generator can't write are only visible here. */
 	commands?: CommandDefinition[];
 	/**
-	 * What exists outside the layer (the loaded ribbon: platform, managed
-	 * solutions and the published layer). Without `commandIds` / rule ids the
-	 * "referenced but not defined" checks are skipped.
+	 * What exists outside the layer being imported (platform and managed
+	 * solutions: the loaded ribbon minus what only the unmanaged layer
+	 * defines). Together with the merged XML it is what will be defined after
+	 * the import. Without `commandIds` / rule ids the "referenced but not
+	 * defined" checks are skipped.
 	 */
 	known?: {
 		commandIds?: Iterable<string>;
@@ -350,6 +352,13 @@ export interface PublishValidationContext {
 		/** Tab, group and control ids of the loaded ribbon. */
 		elementIds?: Iterable<string>;
 	};
+	/**
+	 * Control attributes as loaded (control id → attribute → value). A value
+	 * the publish writes back unchanged was already accepted by Dataverse
+	 * (e.g. a `$LocLabels:` token of a managed button whose label lives in its
+	 * own solution) and isn't reported.
+	 */
+	loadedAttributes?: Record<string, Record<string, string>>;
 	/** The solution publisher's customization prefix (e.g. `mxrm`). */
 	publisherPrefix?: string;
 	/** Each tab's scaling as loaded (tab id → steps). */
@@ -378,7 +387,12 @@ export function droppedActionKinds(command: CommandDefinition): string[] {
 }
 
 const LOC_LABEL_REF = /^\$LocLabels:(.+)$/;
-const WEB_RESOURCE_REF = /^\$webresource:(.+)$/i;
+/** `$webresource:` name, without a query string or fragment (`x.htm?id=1` → `x.htm`). */
+const WEB_RESOURCE_REF = /^\$webresource:([^?#]+)/i;
+/** Control attributes that show a web resource as the button's icon. */
+const IMAGE_ATTRIBUTES = new Set(["ModernImage", "Image16by16", "Image32by32"]);
+/** Containers whose `Command` isn't checked (a TabCommand may be used only by TabDisplayRules). */
+const CONTAINER_TAGS = new Set(["Tab", "Group"]);
 /** Platform library Dataverse writes into commands itself (ribbonDiffMerge.isPlatformAction); not a solution web resource. */
 const PLATFORM_WEB_RESOURCES = new Set(["main_system_library.js"]);
 const MENU_CONTROL_TAGS = new Set(["FlyoutAnchor", "SplitButton"]);
@@ -546,15 +560,17 @@ export function validatePublishRibbonDiff(
 		}
 	}
 
-	// Commands and rules referenced but defined neither in the merged layer nor
-	// in the loaded ribbon. A platform (`Mscrm.`) id the loaded ribbon happens
-	// not to include can still exist, so those are warnings only.
+	// Commands and rules referenced but defined neither in the merged XML being
+	// imported nor outside the layer. A platform (`Mscrm.`) id the loaded
+	// ribbon happens not to include can still exist, so those are warnings
+	// only. Tab and group `Command`s aren't checked: Ribbon Workbench-style tabs
+	// reference a command that only TabDisplayRules use (TabCommand).
 	if (context.known?.commandIds) {
 		const known = new Set([...parts.commandDefinitions.keys(), ...context.known.commandIds]);
 		for (const { key, el } of customActions) {
 			for (const node of Array.from(el.getElementsByTagName("*"))) {
 				const command = node.getAttribute("Command");
-				if (!command || known.has(command)) continue;
+				if (!command || known.has(command) || CONTAINER_TAGS.has(node.tagName)) continue;
 				const id = node.getAttribute("Id") ?? "";
 				add(
 					"undefined-command",
@@ -593,7 +609,9 @@ export function validatePublishRibbonDiff(
 		}
 	}
 
-	// Display-only rule kinds in an enable rule, and the reverse (RibbonTypes.xsd, #41).
+	// Display-only rule kinds in an enable rule, and the reverse (RibbonTypes.xsd,
+	// #41). A warning: Microsoft's own rules break these lists in places
+	// (constants/ruleKinds.ts), so an edited copy of one must still publish.
 	for (const { part, key, el } of elements) {
 		if (part !== "enableRules" && part !== "displayRules") continue;
 		const container: RuleContainer = part === "enableRules" ? "enable" : "display";
@@ -612,11 +630,15 @@ export function validatePublishRibbonDiff(
 				key,
 				`${container === "enable" ? "Enable" : "Display"} rule ${ruleId} contains ${step.tagName}, which the ribbon schema only allows in ${container === "enable" ? "display" : "enable"} rules`,
 				ruleId,
+				true,
 			);
 		}
 	}
 
 	// `$LocLabels:` references without a <LocLabel> in the same RibbonDiffXml.
+	// A warning: the generator deliberately keeps the token of a managed / ISV
+	// control whose label lives in its own solution; and a token written back
+	// exactly as loaded isn't reported at all.
 	for (const { key, el } of elements) {
 		if (el.tagName === "LocLabel") continue;
 		for (const node of selfAndDescendants(el)) {
@@ -624,11 +646,13 @@ export function validatePublishRibbonDiff(
 				const labelId = LOC_LABEL_REF.exec(attr.value)?.[1];
 				if (!labelId || parts.locLabels.has(labelId)) continue;
 				const id = node.getAttribute("Id") ?? undefined;
+				if (id && context.loadedAttributes?.[id]?.[attr.name] === attr.value) continue;
 				add(
 					"loclabel-missing",
 					key,
-					`${[node.tagName, id, attr.name].filter(Boolean).join(" ")} references $LocLabels:${labelId}, which has no <LocLabel> — the import would fail`,
+					`${[node.tagName, id, attr.name].filter(Boolean).join(" ")} references $LocLabels:${labelId}, which has no <LocLabel> in these customizations — the text won't resolve unless another solution defines the label`,
 					id,
+					true,
 				);
 			}
 		}
@@ -652,7 +676,11 @@ export function validatePublishRibbonDiff(
 						findings.push({
 							severity: "warning",
 							code: "webresource-missing",
-							message: `Web resource ${name} (${node.tagName} ${attr.name}) doesn't exist in this environment`,
+							message: `Web resource ${name} (${node.tagName} ${attr.name}) doesn't exist in this environment — ${
+								IMAGE_ATTRIBUTES.has(attr.name)
+									? "the button will show no icon"
+									: "the action or rule that loads it will fail when it runs"
+							}`,
 							elementId,
 						});
 					} else if (!status.inSolution && !status.managed) {
@@ -739,10 +767,16 @@ export function validatePublishRibbonDiff(
 			const keys = [...new Set(same.flatMap((s) => (s.key ? [s.key] : [])))];
 			// Steps that are only in the loaded ribbon aren't the customization's to fix.
 			if (same.length < 2 || keys.length === 0) continue;
+			// CBS gives a new group on an existing tab a MaxSize `{groupId}.MaxSize`
+			// at the group's own Sequence (#66 plans a free one instead).
+			const defaultMaxSize = same.find((s) => s.key && s.tag === "MaxSize" && s.id === `${s.groupId}.MaxSize`);
+			const advice = defaultMaxSize
+				? `move group ${defaultMaxSize.groupId} to another position (its MaxSize takes the group's Sequence; #66 picks a free one automatically)`
+				: "give each step its own Sequence";
 			add(
 				"scaling-collision",
 				keys,
-				`Scaling of tab ${tabId}: ${same.map((s) => `${s.tag} ${s.id}`).join(" and ")} have the same Sequence ${sequence} — Unified Interface then drops every custom control of the table; give each step its own Sequence`,
+				`Scaling of tab ${tabId}: ${same.map((s) => `${s.tag} ${s.id}`).join(" and ")} have the same Sequence ${sequence} — Unified Interface then drops every custom control of the table; ${advice}`,
 				same.find((s) => s.key)?.id,
 			);
 		}

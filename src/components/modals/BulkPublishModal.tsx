@@ -30,6 +30,7 @@ import {
 	checkBeforePublish,
 	publishAllAsync,
 	publishRibbon,
+	withCheckTimeout,
 	type PublishVerification,
 } from "@/services/dataverse/publishService";
 import { fetchLayerSnapshot } from "@/services/dataverse/ribbonLayerService";
@@ -73,6 +74,9 @@ const FindingList: React.FC<{ findings: ScopeFinding[]; showScope: boolean }> = 
 
 const ENTITY_LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form"];
 
+/** How long the pre-publish check may hold Publish back (#35). */
+const PRECHECK_TIMEOUT_MS = 30_000;
+
 /**
  * Publishes the table being edited (all of its ribbon locations in one
  * import) and, when it changed and the solution allows it, the application
@@ -97,6 +101,7 @@ export const BulkPublishModal: React.FC = () => {
 	const baselineLocLabels = useRibbonStore((s) => s.baselineLocLabels);
 	const layers = useRibbonStore((s) => s.layers);
 	const pendingUnhides = useRibbonStore((s) => s.pendingUnhides);
+	const baseLanguageCode = useRibbonStore((s) => s.baseLanguageCode);
 	const setLayerSnapshot = useRibbonStore((s) => s.setLayerSnapshot);
 	const markPublished = useRibbonStore((s) => s.markPublished);
 	const mutationsSincePublish = useRibbonStore((s) => s.mutationsSincePublish);
@@ -210,6 +215,8 @@ export const BulkPublishModal: React.FC = () => {
 			baselineEnableRules,
 			baselineDisplayRules,
 			publisherPrefix: solutionPrefix,
+			// Labels are generated in the organisation's base language, as publishRibbon does.
+			languageCode: baseLanguageCode,
 		};
 		const options = { lookupWebResources: (names: string[]) => loadWebResourceStatus(names, solutionId) };
 		const out: ScopeFinding[] = [];
@@ -254,13 +261,16 @@ export const BulkPublishModal: React.FC = () => {
 		baselineDisplayRules,
 		solutionPrefix,
 		solutionId,
+		baseLanguageCode,
 	]);
 	React.useEffect(() => {
 		if (!canCheck || publishing || done) return;
 		let cancelled = false;
 		setCheckState("running");
 		setCheckError("");
-		runChecks()
+		// A slow environment must not hold Publish back: after the timeout the
+		// check is reported as incomplete; publishRibbon still runs its own check.
+		withCheckTimeout(runChecks(), PRECHECK_TIMEOUT_MS)
 			.then((findings) => {
 				if (cancelled) return;
 				setCheckFindings(findings);
@@ -456,7 +466,7 @@ export const BulkPublishModal: React.FC = () => {
 							{canCheck && !done && checkState === "failed" && (
 								<MessageBar intent="warning" layout="multiline">
 									<MessageBarBody>
-										The pre-publish check couldn&apos;t run ({checkError}). Publishing runs the
+										The pre-publish check couldn&apos;t complete ({checkError}). Publishing runs the
 										check again before anything is imported.
 									</MessageBarBody>
 								</MessageBar>

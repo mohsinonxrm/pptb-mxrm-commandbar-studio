@@ -193,21 +193,33 @@ const chunks = <T>(items: T[], size: number): T[][] =>
 		items.slice(i * size, (i + 1) * size),
 	);
 
-const odataString = (v: string) => `'${v.replace(/'/g, "''")}'`;
+/**
+ * An OData string literal inside a query string: quotes doubled, and every
+ * character that would end or change the query (`%`, `&`, `#`, `+`, `?`, `=`,
+ * `;`, whitespace…) percent-encoded. `/`, letters, digits, `.`, `_` and `-`
+ * (all a web resource name may contain) stay as they are — the form verified
+ * live through PPTB's queryData.
+ */
+const odataString = (v: string) =>
+	`'${v.replace(/'/g, "''").replace(/[^A-Za-z0-9/._\-'~]/gu, (c) => encodeURIComponent(c))}'`;
+
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Whether the web resources a ribbon references exist and are in a solution
  * (#35): one query for the names, one for their solution components (more only
  * past LOOKUP_CHUNK names). Keyed by lower-case name — Dataverse compares
- * names case-insensitively. Takes the API so tests can pass a fake.
+ * names case-insensitively; a query string or fragment (`page.htm?id=1`) is
+ * not part of the name. Takes the API so tests can pass a fake.
  */
 export async function lookupWebResources(
 	api: Pick<DataverseAPI.API, "queryData">,
 	names: string[],
 	solutionId?: string,
 ): Promise<Record<string, WebResourceStatus>> {
-	const unique = names.filter(
-		(n, i) => names.findIndex((m) => m.toLowerCase() === n.toLowerCase()) === i,
+	const bare = names.map((n) => n.split(/[?#]/)[0].trim()).filter(Boolean);
+	const unique = bare.filter(
+		(n, i) => bare.findIndex((m) => m.toLowerCase() === n.toLowerCase()) === i,
 	);
 	const out: Record<string, WebResourceStatus> = {};
 	for (const n of unique) out[n.toLowerCase()] = { exists: false, inSolution: false };
@@ -224,12 +236,13 @@ export async function lookupWebResources(
 			const lower = String(r["name"] ?? "").toLowerCase();
 			if (!(lower in out)) continue;
 			out[lower] = { exists: true, inSolution: false, managed: r["ismanaged"] === true };
-			byId.set(String(r["webresourceid"] ?? "").toLowerCase(), lower);
+			const id = String(r["webresourceid"] ?? "").toLowerCase();
+			if (GUID.test(id)) byId.set(id, lower);
 		}
 	}
 
 	const solution = solutionId?.replace(/[{}]/g, "");
-	if (solution && byId.size > 0) {
+	if (solution && GUID.test(solution) && byId.size > 0) {
 		for (const part of chunks([...byId.keys()], LOOKUP_CHUNK)) {
 			const ids = part.map((id) => `objectid eq ${id}`).join(" or ");
 			const result = await api.queryData(

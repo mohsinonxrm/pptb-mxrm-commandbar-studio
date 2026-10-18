@@ -14,14 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The publish dialog checks the RibbonDiffXml each scope would import (your
   existing unmanaged layer plus this session's changes) before **Publish** is
   enabled. **Errors block the publish**: dropped Power Fx / Custom API actions,
-  flyout / split buttons without a menu, commands or rules that are referenced
-  but defined nowhere, rule kinds in the wrong kind of rule, `$LocLabels:`
-  references without a label, scaling steps of a tab on the same Sequence
-  (Unified Interface then drops every custom control of the table) and duplicate
-  control ids. **Warnings don't**: missing web resources or ones outside the
-  solution, scaling sizes that aren't a layout of the group's template, and new
-  ids without the publisher prefix. Problems only in what is already published
-  are warnings. Publishing re-runs the check and imports nothing on an error.
+  flyout / split buttons without a menu, controls' commands or commands' rules
+  that are defined nowhere, scaling steps of a tab on the same Sequence (Unified
+  Interface then drops every custom control of the table) and duplicate control
+  ids. **Warnings don't**: rule kinds in the wrong kind of rule, `$LocLabels:`
+  references without a label in the customization, missing web resources or
+  ones outside the solution, scaling sizes that aren't a layout of the group's
+  template, and new ids without the publisher prefix. Problems only in what is
+  already published are warnings. A check that takes over 30 s is reported as
+  incomplete and doesn't hold Publish back; publishing re-runs the check and
+  imports nothing on an error.
 
 ### 🚀 Publish gaps ([#46](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/46), [#47](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/47), [#48](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/48), [#49](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/49), [#50](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/50), [#52](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/52), [#26](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/26))
 

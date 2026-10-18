@@ -205,6 +205,8 @@ export async function buildMergedRibbonDiffXml(
 	changedKeys: string[];
 	/** `part:id` of the elements the layer doesn't have yet. */
 	newKeys: string[];
+	/** Commands and rules the existing unmanaged layer defines (replaced by what is imported). */
+	layerDefinitionIds: { commandIds: string[]; enableRuleIds: string[]; displayRuleIds: string[] };
 }> {
 	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
 	const plan = {
@@ -347,6 +349,11 @@ export async function buildMergedRibbonDiffXml(
 				.filter((id) => !existing[part].has(id))
 				.map((id) => `${part}:${id}`),
 		),
+		layerDefinitionIds: {
+			commandIds: Array.from(existing.commandDefinitions.keys()),
+			enableRuleIds: Array.from(existing.enableRules.keys()),
+			displayRuleIds: Array.from(existing.displayRules.keys()),
+		},
 	};
 }
 
@@ -360,38 +367,95 @@ export function publishValidationContext(
 		PublishRibbonInput,
 		"locations" | "commands" | "baselineCommands" | "baselineEnableRules" | "baselineDisplayRules"
 	> & { publisherPrefix?: string },
-	merged: { changedKeys: string[]; newKeys: string[] },
+	merged: {
+		changedKeys: string[];
+		newKeys: string[];
+		layerDefinitionIds?: { commandIds: string[]; enableRuleIds: string[]; displayRuleIds: string[] };
+	},
 ): PublishValidationContext {
 	const elementIds: string[] = [];
 	const tabScaling: Record<string, ScalingDefinition> = {};
 	const groupTemplates: Record<string, string> = {};
 	const templateLayouts: Record<string, string[]> = {};
+	const loadedAttributes: Record<string, Record<string, string>> = {};
+	const baselineGroups = new Set<string>();
+	const currentGroups = new Set<string>();
 	for (const { current, baseline } of input.locations) {
-		Object.assign(tabScaling, baseline.scalingByTab);
 		Object.assign(templateLayouts, baseline.templateLayouts);
 		for (const tab of baseline.tabs) {
 			elementIds.push(tab.id);
-			for (const group of tab.groups) elementIds.push(group.id, ...group.buttons.map((b) => b.id));
+			if (tab.label) loadedAttributes[tab.id] = { Title: tab.label };
+			for (const group of tab.groups) {
+				baselineGroups.add(group.id);
+				elementIds.push(group.id);
+				if (group.label) loadedAttributes[group.id] = { Title: group.label, Label: group.label };
+				for (const b of group.buttons) {
+					elementIds.push(b.id);
+					if (b.source) loadedAttributes[b.id] = b.source.attributes;
+				}
+			}
 		}
+		for (const tab of current.tabs) for (const group of tab.groups) currentGroups.add(group.id);
 		for (const def of [baseline, current])
 			for (const tab of def.tabs)
 				for (const group of tab.groups) if (group.template) groupTemplates[group.id] = group.template;
 	}
+	// Loaded scaling, without the steps of groups this session removes (their
+	// steps leave the layer with them and can't collide any more).
+	const removedGroup = (s: { groupId: string }) => baselineGroups.has(s.groupId) && !currentGroups.has(s.groupId);
+	for (const { baseline } of input.locations) {
+		for (const [tabId, scaling] of Object.entries(baseline.scalingByTab ?? {})) {
+			tabScaling[tabId] = {
+				...scaling,
+				maxSizes: scaling.maxSizes.filter((s) => !removedGroup(s)),
+				scales: scaling.scales.filter((s) => !removedGroup(s)),
+			};
+		}
+	}
+	// What stays defined after the import: the merged XML (checked by the
+	// validator) plus everything defined outside the layer. The loaded ribbon
+	// also has the layer's own definitions, which the import replaces.
+	const outsideLayer = <T extends { id: string }>(loaded: T[] | undefined, layer: string[] | undefined) => {
+		if (!loaded) return undefined;
+		const own = new Set(layer ?? []);
+		return loaded.map((d) => d.id).filter((id) => !own.has(id));
+	};
 	return {
 		changedKeys: merged.changedKeys,
 		newKeys: merged.newKeys,
 		commands: input.commands,
 		known: {
-			commandIds: input.baselineCommands?.map((c) => c.id),
-			enableRuleIds: input.baselineEnableRules?.map((r) => r.id),
-			displayRuleIds: input.baselineDisplayRules?.map((r) => r.id),
+			commandIds: outsideLayer(input.baselineCommands, merged.layerDefinitionIds?.commandIds),
+			enableRuleIds: outsideLayer(input.baselineEnableRules, merged.layerDefinitionIds?.enableRuleIds),
+			displayRuleIds: outsideLayer(input.baselineDisplayRules, merged.layerDefinitionIds?.displayRuleIds),
 			elementIds,
 		},
+		loadedAttributes,
 		publisherPrefix: input.publisherPrefix,
 		tabScaling,
 		groupTemplates,
 		templateLayouts,
 	};
+}
+
+/**
+ * Rejects when `promise` hasn't settled within `ms`, so a slow environment
+ * can't hold the publish dialog's check (and Publish) back indefinitely.
+ */
+export function withCheckTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error(`it didn't finish within ${Math.round(ms / 1000)} s`)), ms);
+		promise.then(
+			(v) => {
+				clearTimeout(timer);
+				resolve(v);
+			},
+			(err: unknown) => {
+				clearTimeout(timer);
+				reject(err);
+			},
+		);
+	});
 }
 
 /**
