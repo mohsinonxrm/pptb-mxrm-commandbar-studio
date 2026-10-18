@@ -480,6 +480,13 @@ export function publishValidationContext(
 	const loadedAttributes: Record<string, Record<string, string>> = {};
 	const baselineGroups = new Set<string>();
 	const currentGroups = new Set<string>();
+	const menuControlsIds = new Set<string>();
+	for (const { current, baseline } of input.locations)
+		for (const def of [baseline, current])
+			for (const tab of def.tabs)
+				for (const group of tab.groups)
+					for (const b of groupControls(group))
+						for (const section of b.menu?.sections ?? []) menuControlsIds.add(section.controlsId);
 	for (const { current, baseline } of input.locations) {
 		Object.assign(templateLayouts, baseline.templateLayouts);
 		for (const tab of baseline.tabs) {
@@ -536,6 +543,7 @@ export function publishValidationContext(
 		tabScaling,
 		groupTemplates,
 		templateLayouts,
+		menuControlsIds,
 	};
 }
 
