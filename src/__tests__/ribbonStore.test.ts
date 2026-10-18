@@ -32,6 +32,7 @@ function makeTestRibbon(): RibbonDefinition {
 								oob: false,
 								custom: true,
 								managed: false,
+								origin: "unmanaged",
 							},
 							{
 								id: "Button2",
@@ -44,6 +45,7 @@ function makeTestRibbon(): RibbonDefinition {
 								oob: true,
 								custom: false,
 								managed: false,
+								origin: "oob",
 							},
 						],
 					},
@@ -167,12 +169,16 @@ describe("mutationsSincePublish", () => {
 	});
 
 	it("increments on every commit (deleteButton)", () => {
-		const { deleteButton } = useRibbonStore.getState();
+		const { deleteButton, hideOobButton } = useRibbonStore.getState();
 
 		deleteButton("HomepageGrid", "Tab1", "Group1", "Button1");
 		expect(useRibbonStore.getState().mutationsSincePublish).toBe(1);
 
+		// An out-of-the-box button isn't deleted (#17): nothing is committed.
 		deleteButton("HomepageGrid", "Tab1", "Group1", "Button2");
+		expect(useRibbonStore.getState().mutationsSincePublish).toBe(1);
+
+		hideOobButton("HomepageGrid", "Tab1", "Group1", "Button2");
 		expect(useRibbonStore.getState().mutationsSincePublish).toBe(2);
 	});
 

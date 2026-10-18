@@ -25,6 +25,7 @@ import {
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { withCloseGuard } from "@/utils/pptbRuntime";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import {
 	checkBeforePublish,
@@ -301,7 +302,9 @@ export const BulkPublishModal: React.FC = () => {
 	const showFindingScope = new Set(checkFindings.map((f) => f.scope)).size > 1;
 	const checkBlocks = canCheck && (checkState === "running" || checkErrors.length > 0);
 
-	const handlePublish = async () => {
+	// One close guard for the whole run (#10): it would otherwise drop between scopes.
+	const handlePublish = () =>
+		withCloseGuard(async () => {
 		if (!activeSolution || unsupported.length > 0 || scopes.length === 0 || checkBlocks) return;
 		setPublishing(true);
 		setProgressMessage("");
@@ -426,7 +429,7 @@ export const BulkPublishModal: React.FC = () => {
 		setDone(!hadError);
 		setPublishing(false);
 		void publishComment;
-	};
+		});
 
 	const handleClose = () => {
 		setPublishing(false);
