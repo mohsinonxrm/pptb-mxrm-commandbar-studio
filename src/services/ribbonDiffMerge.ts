@@ -538,6 +538,71 @@ function withChildrenOf(replacement: Element, original: Element | null): Element
 	return replacement;
 }
 
+/** Replaces every attribute of `to` with those of `from`. */
+function copyAttributes(from: Element, to: Element): void {
+	for (const a of Array.from(to.attributes)) to.removeAttribute(a.name);
+	for (const a of Array.from(from.attributes)) to.setAttribute(a.name, a.value);
+}
+
+/**
+ * A control your layer adds that the delta writes again in full because it
+ * was moved to another location (#57). Its attributes come from the delta but
+ * its `<Menu>` stays the layer's: the delta's copy is built from the merged
+ * ribbon, where RetrieveEntityRibbon has already removed hidden items, so
+ * replacing the menu would delete them (#62 review M1 / M2). The delta's
+ * sections and items update the layer's in place (attributes only) or are
+ * added where they belong; deleted items are removed later, with their
+ * commands and labels. Items for which `elsewhere(id)` holds are left out
+ * (the layer adds them with CustomActions of their own).
+ */
+function mergeMovedMenu(original: Element, imported: Element, elsewhere: (id: string) => boolean): Element {
+	const layerMenu = directChildren(original, "Menu")[0];
+	const deltaMenu = directChildren(imported, "Menu")[0];
+	if (!layerMenu) {
+		for (const item of menuControlsWithin(imported)) {
+			if (elsewhere(item.getAttribute("Id") ?? "")) item.parentNode?.removeChild(item);
+		}
+		return withChildrenOf(imported, original);
+	}
+	const menu = layerMenu.cloneNode(true) as Element;
+	const find = (tag: string | null, id: string) =>
+		[menu, ...Array.from(menu.getElementsByTagName("*"))].find(
+			(e) => e.getAttribute("Id") === id && (tag ? e.tagName === tag : e.parentElement?.tagName === "Controls"),
+		);
+	if (deltaMenu) {
+		for (const section of Array.from(deltaMenu.getElementsByTagName("MenuSection"))) {
+			const existing = find("MenuSection", section.getAttribute("Id") ?? "");
+			if (existing) {
+				copyAttributes(section, existing);
+				continue;
+			}
+			const parentMenu = find("Menu", section.parentElement?.getAttribute("Id") ?? "");
+			if (!parentMenu) continue; // inside a new nested flyout: added with it below
+			const copy = section.cloneNode(true) as Element;
+			for (const item of Array.from(copy.getElementsByTagName("*"))) {
+				if (item.parentElement?.tagName === "Controls" && elsewhere(item.getAttribute("Id") ?? "")) {
+					item.parentNode?.removeChild(item);
+				}
+			}
+			parentMenu.appendChild(copy);
+		}
+		for (const item of menuControlsWithin(imported)) {
+			const id = item.getAttribute("Id") ?? "";
+			if (elsewhere(id)) continue;
+			const existing = find(null, id);
+			if (existing) {
+				copyAttributes(item, existing);
+				continue;
+			}
+			const controls = find("Controls", item.parentElement?.getAttribute("Id") ?? "");
+			if (controls) controls.appendChild(item.cloneNode(true));
+		}
+	}
+	for (const m of directChildren(imported, "Menu")) imported.removeChild(m);
+	imported.appendChild(menu);
+	return imported;
+}
+
 const LOC_LABEL_REF = /\$LocLabels:([^"'\s]+)/g;
 
 /**
@@ -619,16 +684,16 @@ export function mergeScopeChanges(
 				merged.customActions.set(key, xml);
 				continue;
 			}
-			const imported = withChildrenOf(target.ownerDocument.importNode(ctrl, true) as Element, original);
+			let imported = target.ownerDocument.importNode(ctrl, true) as Element;
 			if (adds) {
-				// A moved flyout is written with its whole menu; items the layer adds
-				// with CustomActions of their own stay there (and move with them),
-				// so they aren't defined twice.
-				for (const item of menuControlsWithin(imported)) {
-					const itemKey = ownControl.get(item.getAttribute("Id") ?? "");
-					if (itemKey && itemKey !== targetKey) item.parentNode?.removeChild(item);
-				}
-			}
+				// A moved flyout: the layer's menu stays, the delta's items update it.
+				// Items the layer adds with CustomActions of their own stay there
+				// (and move with them), so they aren't defined twice.
+				imported = mergeMovedMenu(original, imported, (id) => {
+					const itemKey = ownControl.get(id);
+					return !!itemKey && itemKey !== targetKey;
+				});
+			} else imported = withChildrenOf(imported, original);
 			original.parentNode!.replaceChild(imported, original);
 			if (isTop) {
 				if (adds) target.setAttribute("Location", ca.getAttribute("Location")!);
@@ -660,10 +725,10 @@ export function mergeScopeChanges(
 	for (const move of options.movedControls ?? []) {
 		const key = ownControl.get(move.id);
 		const xml = key ? merged.customActions.get(key) : undefined;
-		if (!key || !xml) continue;
-		const ca = elementOf(xml);
-		const ctrl = controlIn(ca, move.id);
-		if (!ctrl) continue;
+		const ca = xml ? elementOf(xml) : null;
+		const ctrl = ca ? controlIn(ca, move.id) : null;
+		// Never a silent no-op: the plan only moves controls the layer adds.
+		if (!key || !ca || !ctrl) throw new Error(`Can't move ${move.id}: it isn't in this table's unmanaged customizations.`);
 		const container = move.controlsId ?? `${move.groupId}.Controls`;
 		ctrl.setAttribute("Sequence", String(move.sequence));
 		if (ctrl.parentElement?.tagName === "CommandUIDefinition") {

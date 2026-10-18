@@ -21,7 +21,7 @@ import {
 import { planScope, type PlanInput } from "@/services/publishPlan";
 import { layerSnapshotFromParts } from "@/services/dataverse/ribbonLayerService";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
-import { groupControls, menuItemsOf } from "@/utils/ribbonMenu";
+import { copyControl, groupControls, menuItemsOf } from "@/utils/ribbonMenu";
 import { useRibbonStore } from "@/store/ribbonStore";
 import type { RibbonButton, RibbonDefinition, RibbonGroup, RibbonLocation } from "@/types/ribbon";
 
@@ -586,7 +586,10 @@ const LAYER_ROWS = {
 	],
 };
 
-const layerParts = () => partsFromRibbonTables(LAYER_ROWS);
+// The merged ribbon / layer rows a test loads (some tests vary them).
+let ownMerged = MERGED;
+let ownRows: typeof LAYER_ROWS = LAYER_ROWS;
+const layerParts = () => partsFromRibbonTables(ownRows);
 
 function loadOwn() {
 	const parts = layerParts();
@@ -601,7 +604,7 @@ function loadOwn() {
 			},
 		],
 	}));
-	const parsed = parseRibbonXml(MERGED, "HomepageGrid", T, labels);
+	const parsed = parseRibbonXml(ownMerged, "HomepageGrid", T, labels);
 	applyLayerOwnership(parsed.ribbon, ownControlIds(parts));
 	return parsed;
 }
@@ -646,8 +649,17 @@ const itemIds = (el: Element | null) =>
 	);
 
 beforeEach(() => {
+	ownMerged = MERGED;
+	ownRows = LAYER_ROWS;
 	layer = layerParts();
 });
+
+/** Varies the own-flyout scenario: merged ribbon and layer rows. */
+function useOwn(merged: string, rows: typeof LAYER_ROWS) {
+	ownMerged = merged;
+	ownRows = rows;
+	layer = layerParts();
+}
 
 describe("#27 your own flyout — merged into the layer", () => {
 	it("its menu items are yours (owned through the flyout's CustomAction or their own)", () => {
@@ -1012,5 +1024,266 @@ describe("#27 store — menu items are edited like buttons", () => {
 			.getState()
 			.deleteMenuSection("HomepageGrid", tabId, groupId, "cbs.Fly", "cbs.Fly.MenuSection2");
 		expect(fly(cur()).menu!.sections).toHaveLength(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Adversarial review of PR #62.
+
+const ITEM_B_LINE = /\s*<Button Id="cbs\.Fly\.B"[^>]*\/>/;
+
+describe("#62 review — moving / hiding / deleting inside your own flyout", () => {
+	it("M1: moving the flyout keeps an item hidden by a HideCustomAction (not in the merged ribbon)", async () => {
+		useOwn(MERGED.replace(ITEM_B_LINE, ""), {
+			...LAYER_ROWS,
+			diffs: [
+				...LAYER_ROWS.diffs,
+				{
+					difftype: 0,
+					rdx: '<HideCustomAction HideActionId="cbs.Fly.B.HideAction" Location="cbs.Fly.B" />',
+				},
+			],
+		});
+		const { d, plan } = await moveFlyToForm();
+		expect(plan.unsupported).toEqual([]);
+		const caEl = d.querySelector('CustomAction[Id="cbs.Fly.CustomAction"]')!;
+		expect(caEl.getAttribute("Location")).toBe(`${FORM_GROUP}.Controls._children`);
+		expect(itemIds(caEl)).toEqual(["cbs.Fly.A", "cbs.Fly.B"]);
+		expect(d.querySelectorAll('Button[Id="cbs.Fly.B"]')).toHaveLength(1);
+		expect(d.querySelector('HideCustomAction[Location="cbs.Fly.B"]')).not.toBeNull();
+		expect(d.querySelector('CommandDefinition[Id="cbs.B.Command"]')).not.toBeNull();
+		expect(d.querySelector('LocLabel[Id="cbs.Fly.B.LabelText"]')).not.toBeNull();
+	});
+
+	it("M2: an item hidden while moving the flyout is kept and hidden, not deleted", async () => {
+		const { d, plan } = await moveFlyToForm((fly) => {
+			fly.menu!.sections[0].controls[1].hidden = true;
+		});
+		expect(plan.unsupported).toEqual([]);
+		const caEl = d.querySelector('CustomAction[Id="cbs.Fly.CustomAction"]')!;
+		expect(itemIds(caEl)).toEqual(["cbs.Fly.A", "cbs.Fly.B"]);
+		expect(d.querySelector('HideCustomAction[Location="cbs.Fly.B"]')).not.toBeNull();
+		expect(d.querySelector('CommandDefinition[Id="cbs.B.Command"]')).not.toBeNull();
+	});
+
+	it("M2: a move the layer can't apply is an error, never a silent no-op", () => {
+		expect(() =>
+			mergeScopeChanges(layerParts(), parseRibbonDiffParts("<RibbonDiffXml/>"), {
+				movedControls: [{ id: "cbs.Nowhere", groupId: G, sequence: 10 }],
+			}),
+		).toThrow(/cbs\.Nowhere/);
+	});
+
+	it("m2: deleting an inline item while moving the flyout removes it with its command, rule and label", async () => {
+		const { d, plan } = await moveFlyToForm((fly) => {
+			const section = fly.menu!.sections[0];
+			section.controls = section.controls.filter((c) => c.id !== "cbs.Fly.B");
+		});
+		expect(plan.deletedButtonIds).toEqual(["cbs.Fly.B"]);
+		expect(plan.unsupported).toEqual([]);
+		const caEl = d.querySelector('CustomAction[Id="cbs.Fly.CustomAction"]')!;
+		expect(caEl.getAttribute("Location")).toBe(`${FORM_GROUP}.Controls._children`);
+		expect(itemIds(caEl)).toEqual(["cbs.Fly.A"]);
+		expect(d.querySelector('CommandDefinition[Id="cbs.B.Command"]')).toBeNull();
+		expect(d.querySelector('EnableRule[Id="cbs.B.Rule"]')).toBeNull();
+		expect(d.querySelector('LocLabel[Id="cbs.Fly.B.LabelText"]')).toBeNull();
+		expect(d.querySelector('CommandDefinition[Id="cbs.A.Command"]')).not.toBeNull();
+	});
+
+	it("m1: another solution's item in your flyout blocks a move to another location with a clear message", async () => {
+		useOwn(
+			MERGED.replace(
+				'<Button Id="cbs.Fly.C"',
+				'<Button Id="isv.Fly.X" Command="isv.X.Command" Sequence="40" LabelText="Partner" /><Button Id="cbs.Fly.C"',
+			),
+			LAYER_ROWS,
+		);
+		expect(ctl(loadOwn().ribbon, "isv.Fly.X").origin).toBe("managed");
+		const { plan } = await moveFlyToForm();
+		expect(plan.unsupported).toEqual([
+			expect.stringMatching(
+				/^Moving the menu of cbs\.Fly to another location — its item "Partner" \(isv\.Fly\.X\) comes from another solution/,
+			),
+		]);
+	});
+
+	it("m1: re-sequencing your flyout doesn't report the other solution's item as moved", () => {
+		useOwn(
+			MERGED.replace(
+				'<Button Id="cbs.Fly.C"',
+				'<Button Id="isv.Fly.X" Command="isv.X.Command" Sequence="40" LabelText="Partner" /><Button Id="cbs.Fly.C"',
+			),
+			LAYER_ROWS,
+		);
+		const base = loadOwn().ribbon;
+		const cur = loadOwn().ribbon;
+		fly(cur).sequence = 950;
+		const plan = planOf(cur, base);
+		expect(plan.unsupported).toEqual([]);
+		expect(plan.movedButtons).toEqual([{ id: "cbs.Fly", groupId: G, sequence: 950 }]);
+	});
+});
+
+describe("#62 review — new hidden controls, copies, ComboBox menus", () => {
+	const newButton = (id: string, extra: Partial<RibbonButton> = {}): RibbonButton => ({
+		id,
+		label: id,
+		kind: "button",
+		sequence: 10,
+		templateAlias: "",
+		commandId: `${id}.Command`,
+		hidden: false,
+		oob: false,
+		custom: true,
+		managed: false,
+		origin: "unmanaged",
+		...extra,
+	});
+	const ribbonWith = (buttons: RibbonButton[]): RibbonDefinition => ({
+		location: "HomepageGrid",
+		entityLogicalName: "contact",
+		tabs: [
+			{
+				id: "Mscrm.HomepageGrid.contact.MainTab",
+				label: "Main",
+				sequence: 10,
+				tabDisplayRules: [],
+				groups: [
+					{
+						id: G,
+						label: "G",
+						sequence: 10,
+						template: "Mscrm.Templates.Flexible2",
+						buttons,
+					},
+				],
+			},
+		],
+	});
+
+	it("m4: a new hidden item of a new flyout is written and hidden", () => {
+		const flyout = newButton("cbs.New.Fly", {
+			kind: "flyout",
+			menu: {
+				id: "cbs.New.Fly.Menu",
+				sections: [
+					{
+						id: "cbs.New.Fly.S",
+						sequence: 10,
+						displayMode: "Menu16",
+						controlsId: "cbs.New.Fly.S.Controls",
+						controls: [
+							newButton("cbs.New.A"),
+							newButton("cbs.New.B", { hidden: true }),
+						],
+					},
+				],
+			},
+		});
+		const xml = generate(ribbonWith([flyout]), ribbonWith([]));
+		expect(
+			Array.from(doc(xml).querySelectorAll("MenuSection > Controls > Button")).map((b) =>
+				b.getAttribute("Id"),
+			),
+		).toEqual(["cbs.New.A", "cbs.New.B"]);
+		expect(
+			Array.from(doc(xml).querySelectorAll("HideCustomAction")).map((h) =>
+				h.getAttribute("Location"),
+			),
+		).toEqual(["cbs.New.B"]);
+	});
+
+	it("m4: a new hidden button / flyout is written and hidden (not a hide of nothing)", () => {
+		const xml = generate(
+			ribbonWith([newButton("cbs.New.Btn", { hidden: true })]),
+			ribbonWith([]),
+		);
+		expect(customActions(xml).map((c) => c.getAttribute("Location"))).toEqual([
+			`${G}.Controls._children`,
+		]);
+		expect(doc(xml).querySelector('HideCustomAction[Location="cbs.New.Btn"]')).not.toBeNull();
+	});
+
+	it("m3: duplicating a flyout re-bases the ids of raw menu controls", () => {
+		const original = newButton("cbs.Fly", {
+			kind: "flyout",
+			menu: {
+				id: "cbs.Fly.Menu",
+				sections: [
+					{
+						id: "cbs.Fly.S",
+						sequence: 10,
+						controlsId: "cbs.Fly.S.Controls",
+						controls: [newButton("cbs.Fly.A")],
+						rawControls: [
+							{ index: 1, xml: '<ToggleButton Id="cbs.Fly.T" Command="x" />' },
+						],
+					},
+					{
+						id: "cbs.Fly.G",
+						sequence: 20,
+						controlsId: "cbs.Fly.G.Controls",
+						controls: [],
+						rawContent:
+							'<Gallery Id="other.Gallery"><GalleryButton Id="other.G1" /></Gallery>',
+					},
+				],
+			},
+		});
+		const copy = copyControl(original, "cbs.Fly2");
+		const raw = copy.menu!.sections[0].rawControls![0].xml;
+		expect(raw).toBe('<ToggleButton Id="cbs.Fly2.T" Command="x" />');
+		expect(copy.menu!.sections[1].rawContent).toBe(
+			'<Gallery Id="cbs.Fly2.other.Gallery"><GalleryButton Id="cbs.Fly2.other.G1" /></Gallery>',
+		);
+		// Nothing of the copy reuses an id of the original.
+		const ids = (b: RibbonButton) =>
+			JSON.stringify(b.menu).match(/Id=\\"[^\\]*\\"|"id":"[^"]*"|"controlsId":"[^"]*"/g) ??
+			[];
+		for (const id of ids(copy)) expect(ids(original)).not.toContain(id);
+	});
+
+	it("m6: duplicating a dynamic flyout keeps how its menu is populated", () => {
+		const { ribbon } = parseOob();
+		const dynamic = ctl(ribbon, "Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar");
+		const copy = copyControl(dynamic, "cbs.contact.Flows.Copy");
+		expect(copy.source?.attributes).toEqual({
+			PopulateDynamically: "true",
+			PopulateQueryCommand: "Mscrm.DynamicMenu.Grid.Flows.PopulateMenu",
+		});
+		const xml = generate(ribbonWith([copy]), ribbonWith([]));
+		const written = doc(xml).querySelector('FlyoutAnchor[Id="cbs.contact.Flows.Copy"]')!;
+		expect(written.getAttribute("PopulateDynamically")).toBe("true");
+		expect(written.getAttribute("PopulateQueryCommand")).toBe(
+			"Mscrm.DynamicMenu.Grid.Flows.PopulateMenu",
+		);
+		// Not reported as an empty new menu.
+		expect(planOf(ribbonWith([copy]), ribbonWith([])).unsupported).toEqual([]);
+	});
+
+	it("t2: editing an out-of-the-box ComboBox with a menu is reported, not written without its menu", () => {
+		const combo = (label: string) =>
+			newButton("Mscrm.Combo", {
+				kind: "comboBox",
+				label,
+				oob: true,
+				custom: false,
+				origin: "oob",
+				menu: {
+					id: "Mscrm.Combo.Menu",
+					sections: [
+						{
+							id: "Mscrm.Combo.S",
+							sequence: 10,
+							controlsId: "Mscrm.Combo.S.Controls",
+							controls: [],
+						},
+					],
+				},
+			});
+		const plan = planOf(ribbonWith([combo("Changed")]), ribbonWith([combo("Combo")]));
+		expect(plan.unsupported).toEqual([
+			expect.stringMatching(/^Editing the flyout \/ split button "Changed"/),
+		]);
 	});
 });

@@ -123,6 +123,12 @@ export function copyMenu(
 	if (!menu) return undefined;
 	const rebase = (id: string) =>
 		id.startsWith(oldId) ? `${newId}${id.slice(oldId.length)}` : `${newId}.${id}`;
+	// Controls kept as raw XML (ToggleButton, Gallery, …) get new ids too (#62 review m3).
+	const rebaseXml = (xml: string) =>
+		xml.replace(
+			/(\sId=")([^"]*)(")/g,
+			(_, a: string, id: string, b: string) => `${a}${rebase(id)}${b}`,
+		);
 	return {
 		...menu,
 		id: rebase(menu.id),
@@ -131,16 +137,34 @@ export function copyMenu(
 			id: rebase(s.id),
 			controlsId: rebase(s.controlsId),
 			controls: s.controls.map((c) => copyControl(c, rebase(c.id))),
+			...(s.rawControls
+				? { rawControls: s.rawControls.map((r) => ({ ...r, xml: rebaseXml(r.xml) })) }
+				: {}),
+			...(s.rawContent !== undefined ? { rawContent: rebaseXml(s.rawContent) } : {}),
 		})),
 	};
 }
 
+/** Attributes that make a menu populate itself at runtime; a copy keeps them (#62 review m6). */
+const DYNAMIC_MENU_ATTRIBUTES = ["PopulateDynamically", "PopulateOnlyOnce", "PopulateQueryCommand"];
+
 /** A copy of a control as a new, unmanaged control with id `newId` (menu included). */
 export function copyControl(control: RibbonButton, newId: string): RibbonButton {
+	const dynamic = DYNAMIC_MENU_ATTRIBUTES.filter(
+		(a) => control.source?.attributes[a] !== undefined,
+	);
 	return {
 		...control,
 		id: newId,
-		source: undefined,
+		// The copy must not reuse the original's tokens / attributes — except
+		// how its menu is populated.
+		source: dynamic.length
+			? {
+					attributes: Object.fromEntries(
+						dynamic.map((a) => [a, control.source!.attributes[a]]),
+					),
+				}
+			: undefined,
 		custom: true,
 		oob: false,
 		managed: false,

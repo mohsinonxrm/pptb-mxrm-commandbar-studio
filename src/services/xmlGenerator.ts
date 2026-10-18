@@ -126,7 +126,10 @@ interface ButtonChange {
 /**
  * Classifies every button of `current` against `baseline` (paired by
  * occurrence). Items of a menu whose flyout / split button is itself new are
- * skipped: they are written inline with it, as one CustomAction (#27).
+ * written inline with it, as one CustomAction (#27) — only their hiding is a
+ * change of its own. A new control that is hidden is written AND hidden: the
+ * hide of a control that doesn't exist would do nothing (#62 review m4), and
+ * a new control is also how a moved one is re-placed (#57).
  */
 function classifyButtons(current: RibbonDefinition, baseline: RibbonDefinition): ButtonChange[] {
 	const base = indexButtons(baseline);
@@ -137,11 +140,17 @@ function classifyButtons(current: RibbonDefinition, baseline: RibbonDefinition):
 	};
 	const out: ButtonChange[] = [];
 	for (const [key, entry] of cur) {
-		if (insideNewMenu(entry)) continue;
 		const baseButton = base.get(key)?.button;
 		const button = entry.button;
-		if (button.hidden && !baseButton?.hidden) out.push({ entry, change: "hide" });
-		else if (!baseButton) out.push({ entry, change: "new" });
+		if (insideNewMenu(entry)) {
+			if (button.hidden) out.push({ entry, change: "hide" });
+			continue;
+		}
+		if (!baseButton) {
+			// An out-of-the-box / managed control isn't yours to write: only hide it.
+			if (!(button.hidden && (button.oob || button.managed))) out.push({ entry, change: "new" });
+			if (button.hidden) out.push({ entry, change: "hide" });
+		} else if (button.hidden && !baseButton.hidden) out.push({ entry, change: "hide" });
 		else if (hasOobOverrideChanges(baseButton, button)) out.push({ entry, change: "override" });
 	}
 	return out;
@@ -224,7 +233,7 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 			// button carries its whole <Menu> inline.
 			const location = menu ? `${menu.controlsId}._children` : `${groupId}.Controls._children`;
 			customActions.push(generateCustomAction(button, location, locLabels, sink, lang));
-			emittedButtons.push(button, ...menuItemsOf(button).filter((b) => !b.hidden));
+			emittedButtons.push(button, ...menuItemsOf(button));
 		} else {
 			// Present in the loaded ribbon AND modified (icon / label / tooltip /
 			// command etc.) → emit an override CustomAction (Location = the
@@ -842,10 +851,9 @@ function generateMenu(
 			.map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
 			.join("");
 		if (section.rawContent !== undefined) return `<MenuSection${sectionAttrs}>${section.rawContent}</MenuSection>`;
-		// A hidden item of a menu written in full is simply not written.
-		const children = section.controls
-			.filter((c) => !c.hidden)
-			.map((c) => generateButtonElement(c, storeLocLabels, sink, lang, true));
+		// Hidden items are written too: they get a HideCustomAction of their
+		// own (classifyButtons), so a moved flyout keeps them (#62 review M2).
+		const children = section.controls.map((c) => generateButtonElement(c, storeLocLabels, sink, lang, true));
 		for (const raw of [...(section.rawControls ?? [])].sort((a, b) => a.index - b.index)) {
 			children.splice(Math.min(raw.index, children.length), 0, raw.xml);
 		}

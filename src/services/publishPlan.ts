@@ -141,6 +141,12 @@ export function planScope(input: PlanInput): ScopePlan {
 	// New flyouts / split buttons without (visible) menu items (#27).
 	const newMenus: { id: string; label: string }[] = [];
 
+	// Every control placed anywhere in the scope now: the menu items of a flyout
+	// moved to another location reappear there with it (#62 review m1).
+	const placedAnywhere = new Set(
+		input.locations.flatMap(({ current }) => Array.from(indexButtons(current).values(), (e) => e.button.id)),
+	);
+
 	for (const { current, baseline } of input.locations) {
 		const summary = summarizeRibbonDiff(current, baseline);
 		if (
@@ -172,6 +178,15 @@ export function planScope(input: PlanInput): ScopePlan {
 			const id = b.button.id;
 			const c = cur.get(key);
 			if (!c) {
+				const movedWith = b.menu && placedAnywhere.has(id) && placedAnywhere.has(b.menu.parentId);
+				if (movedWith && b.button.origin !== "unmanaged") {
+					// Moving the flyout would copy another solution's item into your
+					// customizations (the moved flyout is written with its menu).
+					unsupported.push(
+						`Moving the menu of ${b.menu!.parentId} to another location — its item "${b.button.label}" (${id}) comes from another solution and can't be moved with it; move the flyout back`,
+					);
+					continue;
+				}
 				// "unmanaged" is set from the table's unmanaged layer at load.
 				if (b.button.origin === "unmanaged") deleted.push(id);
 				else unsupported.push(`Removing "${b.button.label}" (${id}) — only your own unmanaged buttons can be deleted; hide it instead`);
@@ -182,7 +197,8 @@ export function planScope(input: PlanInput): ScopePlan {
 				unsupported.push(`Changing the kind of "${c.button.label}" (${id}) — not supported yet`);
 			}
 			const edited = hasOobOverrideChanges(b.button, c.button);
-			if (edited && isMenuKind(c.button.kind) && b.button.origin !== "unmanaged") {
+			// Any control with a <Menu> (a ComboBox too): an override would drop it.
+			if (edited && (isMenuKind(c.button.kind) || !!c.button.menu) && b.button.origin !== "unmanaged") {
 				// An override replaces the whole control, menu included, and the
 				// loaded menu also holds what other solutions add to it (#27).
 				unsupported.push(
@@ -199,11 +215,11 @@ export function planScope(input: PlanInput): ScopePlan {
 					`Changing the icon of "${c.button.label}" (${id}) to a built-in icon — not supported yet; choose an SVG web resource`,
 				);
 			}
-			if (
-				c.groupId !== b.groupId ||
-				c.button.sequence !== b.button.sequence ||
-				c.menu?.controlsId !== b.menu?.controlsId
-			) {
+			// A menu item is placed by its section's Controls, not by the group its
+			// flyout happens to be in (it moves with the flyout, #62 review m1).
+			const placeChanged =
+				c.menu || b.menu ? c.menu?.controlsId !== b.menu?.controlsId : c.groupId !== b.groupId;
+			if (placeChanged || c.button.sequence !== b.button.sequence) {
 				// Your own button: its CustomAction is moved in place. Anything else
 				// would need a hide plus a copy, which CBS doesn't write (yet). A menu
 				// item moves within its menu section's Controls (#27).
