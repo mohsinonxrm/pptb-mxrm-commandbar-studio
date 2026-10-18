@@ -37,10 +37,11 @@ import { useSelectionStore } from "@/store/selectionStore";
 import {
 	OPEN_RECORD_ITEM_COMMAND_ID,
 	OPEN_RECORD_ITEM_LOCATIONS,
-	canRemoveOpenRecordCarriers,
 	defaultOpenRecordCommand,
+	openRecordCarrierOwnership,
 	openRecordCarrierPlacement,
 	openRecordCarriers,
+	openRecordCommandUsers,
 } from "@/utils/openRecordItem";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
@@ -274,11 +275,13 @@ export interface RibbonStore extends RibbonStoreState {
 	 * or off for the home grid or the sub-grid (see utils/openRecordItem). On:
 	 * a button using the command (the carrier Microsoft's recipe adds) goes on
 	 * the location's main tab, and the command is added with a placeholder
-	 * JavaScript action unless it is loaded already. Off: the location's
-	 * carriers are deleted, and the command too when no carrier is left and it
+	 * JavaScript action unless it is loaded already. Off: the carriers the
+	 * switch created in the location are deleted (other buttons using the
+	 * command stay), and the command too when no button uses it any more and it
 	 * was created this session; the layer's copy is removed by the publish with
-	 * its last carrier. One undo step. Returns false when it can't be done: no
-	 * group to put the carrier in, or a carrier that isn't yours.
+	 * the last button using it. One undo step. Returns false when it can't be
+	 * done: no group to put the carrier in, or a carrier that isn't yours (or
+	 * whose provenance isn't known yet).
 	 */
 	setOpenRecordOverride(location: RibbonLocation, enabled: boolean, idPrefix: string): boolean;
 	/**
@@ -1639,13 +1642,17 @@ export const useRibbonStore = create<RibbonStore>()(
 				return true;
 			}
 			if (carriers.length === 0) return true;
-			if (!canRemoveOpenRecordCarriers(carriers)) return false;
+			// Provenance not resolved yet ("unknown") or another solution's: not deleted.
+			const layerControls = state.layers.entity?.controlIds;
+			if (carriers.some((c) => openRecordCarrierOwnership(c, layerControls) !== "yours")) return false;
 			get().batch(() => {
+				// Only the carriers the switch created: a button of your own that
+				// uses the command stays (#22 review).
 				for (const c of carriers) get().deleteButton(location, c.tabId, c.groupId, c.button.id);
 				const s = get();
-				const inUse = Object.values(s.ribbons).some((r) => openRecordCarriers(r).length > 0);
+				const inUse = Object.values(s.ribbons).some((r) => openRecordCommandUsers(r).length > 0);
 				// A command the layer defines stays in the session: the publish
-				// removes it from the layer together with its last carrier.
+				// removes it from the layer together with the last button using it.
 				if (!inUse && !s.baselineCommands.some((c) => c.id === OPEN_RECORD_ITEM_COMMAND_ID)) {
 					set((st) =>
 						record(

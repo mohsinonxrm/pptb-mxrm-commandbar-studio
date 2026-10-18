@@ -24,15 +24,26 @@ export const OPEN_RECORD_ITEM_COMMAND_ID = "Mscrm.OpenRecordItem";
 /** Locations with entity-bound grids, where the override applies. */
 export const OPEN_RECORD_ITEM_LOCATIONS: readonly RibbonLocation[] = ["HomepageGrid", "SubGrid"];
 
-/** A control of a location that uses Mscrm.OpenRecordItem (a carrier). */
+/** A control of a location that uses Mscrm.OpenRecordItem. */
 export interface OpenRecordCarrier {
 	tabId: string;
 	groupId: string;
 	button: RibbonButton;
 }
 
-/** Controls of `ribbon` that use Mscrm.OpenRecordItem. */
-export function openRecordCarriers(ribbon: RibbonDefinition | undefined): OpenRecordCarrier[] {
+/**
+ * Ids of the carriers the switch creates (`newButtonIds`):
+ * `{prefix}.{table}.{HomepageGrid|SubGrid}.OpenRecordItem[n].Button`.
+ */
+const CARRIER_ID = /\.(HomepageGrid|SubGrid)\.OpenRecordItem\d*\.Button$/;
+
+/** Whether `button` is a carrier the switch created (and may delete). */
+export function isOpenRecordCarrier(button: Pick<RibbonButton, "id" | "commandId">): boolean {
+	return button.commandId === OPEN_RECORD_ITEM_COMMAND_ID && CARRIER_ID.test(button.id);
+}
+
+/** Every control of `ribbon` that uses Mscrm.OpenRecordItem (carriers and your own buttons alike). */
+export function openRecordCommandUsers(ribbon: RibbonDefinition | undefined): OpenRecordCarrier[] {
 	const out: OpenRecordCarrier[] = [];
 	for (const tab of ribbon?.tabs ?? [])
 		for (const group of tab.groups)
@@ -41,9 +52,28 @@ export function openRecordCarriers(ribbon: RibbonDefinition | undefined): OpenRe
 	return out;
 }
 
-/** Whether every carrier can be removed: only controls of your unmanaged layer (or this session) can be deleted. */
-export function canRemoveOpenRecordCarriers(carriers: readonly OpenRecordCarrier[]): boolean {
-	return carriers.every((c) => c.button.origin === "unmanaged");
+/**
+ * The carriers of `ribbon` the switch created. Only these are deleted when it
+ * is turned off: another button that uses the command (e.g. one of your own)
+ * stays, and so does the command while it does (#22 review).
+ */
+export function openRecordCarriers(ribbon: RibbonDefinition | undefined): OpenRecordCarrier[] {
+	return openRecordCommandUsers(ribbon).filter((c) => isOpenRecordCarrier(c.button));
+}
+
+/**
+ * Whether a carrier can be deleted: yours (unmanaged layer or this session),
+ * "unknown" while its provenance isn't resolved and the layer doesn't list it,
+ * else another solution's.
+ */
+export function openRecordCarrierOwnership(
+	carrier: OpenRecordCarrier,
+	layerControlIds?: Iterable<string>,
+): "yours" | "unknown" | "theirs" {
+	const origin = carrier.button.origin;
+	if (origin === "unmanaged") return "yours";
+	if (origin === undefined) return [...(layerControlIds ?? [])].includes(carrier.button.id) ? "yours" : "unknown";
+	return "theirs";
 }
 
 /**

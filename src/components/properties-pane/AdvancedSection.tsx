@@ -15,9 +15,11 @@ import { findGroupControl } from "@/utils/ribbonMenu";
 import {
 	OPEN_RECORD_ITEM_COMMAND_ID,
 	OPEN_RECORD_ITEM_LOCATIONS,
-	canRemoveOpenRecordCarriers,
+	isOpenRecordCarrier,
+	openRecordCarrierOwnership,
 	openRecordCarrierPlacement,
 	openRecordCarriers,
+	openRecordCommandUsers,
 } from "@/utils/openRecordItem";
 
 const useStyles = makeStyles({
@@ -62,6 +64,7 @@ export const AdvancedSection: React.FC = () => {
 	const clearSelection = useSelectionStore((s) => s.clearSelection);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const sessionPrefix = useSessionStore((s) => s.publisherPrefix);
+	const layerControlIds = useRibbonStore((s) => s.layers.entity?.controlIds);
 
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
@@ -69,13 +72,18 @@ export const AdvancedSection: React.FC = () => {
 	const button = findGroupControl(group, selectedButtonId);
 	const showOpenRecordItemToggle = OPEN_RECORD_ITEM_LOCATIONS.includes(location);
 
-	// The override is on for this location while a control here uses the
-	// command (the carrier, see utils/openRecordItem) — that is also what
-	// comes back from the layer on reload (#22).
+	// The override is on for this location while the carrier the switch
+	// created is here (see utils/openRecordItem) — that is also what comes
+	// back from the layer on reload (#22).
 	const openRecordCarrierList = openRecordCarriers(ribbon);
 	const hasOpenRecordOverride = openRecordCarrierList.length > 0;
-	const openRecordLocked = hasOpenRecordOverride && !canRemoveOpenRecordCarriers(openRecordCarrierList);
+	const ownership = openRecordCarrierList.map((c) => openRecordCarrierOwnership(c, layerControlIds));
+	const openRecordTheirs = ownership.includes("theirs");
+	// Provenance not resolved: wait rather than call it another solution's.
+	const openRecordUnknown = !openRecordTheirs && ownership.includes("unknown");
 	const openRecordNoGroup = !hasOpenRecordOverride && !openRecordCarrierPlacement(ribbon);
+	// Other buttons (e.g. your own) using the command: turning off keeps them and the command.
+	const otherOpenRecordUsers = openRecordCommandUsers(ribbon).filter((c) => !isOpenRecordCarrier(c.button));
 
 	const handleOpenRecordToggle = (checked: boolean) => {
 		const prefix = activeSolution?.publisherPrefix?.trim() || sessionPrefix?.trim() || "new";
@@ -155,7 +163,7 @@ export const AdvancedSection: React.FC = () => {
 					<Switch
 						label={`Override default record open behavior on the ${location === "SubGrid" ? "sub-grid" : "home grid"} (Mscrm.OpenRecordItem)`}
 						checked={hasOpenRecordOverride}
-						disabled={openRecordLocked || openRecordNoGroup}
+						disabled={openRecordTheirs || openRecordUnknown || openRecordNoGroup}
 						onChange={(_, d) => handleOpenRecordToggle(d.checked)}
 					/>
 					<Text size={100} className={styles.note}>
@@ -167,12 +175,26 @@ export const AdvancedSection: React.FC = () => {
 						command bar — the override only reaches a grid through a button there; don&apos;t
 						hide that button. <strong>Unified Interface only.</strong> The Command Editor will open
 						so you can set the real web resource and function name; Publish is blocked until you
-						do. Turning it off removes the button, and the command once no button uses it.
+						do. Turning it off removes that button, and the command once no button uses it.
 					</Text>
-					{openRecordLocked && (
+					{openRecordTheirs && (
 						<Text size={100} className={styles.note}>
-							A button from another solution uses Mscrm.OpenRecordItem here, so the override can&apos;t
-							be turned off from your customizations.
+							The &quot;Open record&quot; button here comes from another solution, so the override
+							can&apos;t be turned off from your customizations.
+						</Text>
+					)}
+					{openRecordUnknown && (
+						<Text size={100} className={styles.note}>
+							CBS doesn&apos;t know yet which solution the &quot;Open record&quot; button here comes
+							from (its solution layers haven&apos;t loaded), so it isn&apos;t removed — reload the
+							table if this doesn&apos;t clear.
+						</Text>
+					)}
+					{otherOpenRecordUsers.length > 0 && (
+						<Text size={100} className={styles.note}>
+							Also using Mscrm.OpenRecordItem here:{" "}
+							{otherOpenRecordUsers.map((c) => c.button.id).join(", ")}. Turning the override off
+							keeps {otherOpenRecordUsers.length === 1 ? "it" : "them"} and the command.
 						</Text>
 					)}
 					{openRecordNoGroup && (

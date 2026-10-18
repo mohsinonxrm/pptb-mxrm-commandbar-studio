@@ -14,14 +14,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Override default record open behavior** (`Mscrm.OpenRecordItem`, home grid and sub-grid)
   now publishes, can be turned off, and survives a reload. Following Microsoft's recipe, turning
   it on adds the `Mscrm.OpenRecordItem` command and an **Open record** button that uses it to the
-  location's command bar; turning it off removes the button, and the command once no button
-  uses it. Publishing is blocked while the command's JavaScript action has no web resource or
-  function.
+  location's command bar; turning it off removes only that button (your own buttons using the
+  command stay), and the command once no button uses it. Publishing is blocked while the
+  command's JavaScript action has no web resource or function, and the pre-publish check warns
+  when that button is hidden or the command gets display rules.
 - The **Translations** chips list only the button's own labels (`Btn1` no longer shows `Btn10`'s).
 - **Switching solution** clears the table list, the loaded table's ribbon, its pending edits and
   undo history, and the selection (the restore banner still offers the auto-saved edits when the
   table is opened again). Picking the solution that is already active keeps everything.
-- Removing or re-ordering **rule steps** no longer moves a step's inputs to its neighbour.
+- Removing or re-ordering **rule steps** no longer moves a step's inputs to its neighbour, and an
+  undo / redo of the steps no longer leaves them on the wrong step.
+- The **Command Editor** closes when the command it shows is undone away.
 
 ### 🧹 Unsupported command actions ([#28](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/28))
 

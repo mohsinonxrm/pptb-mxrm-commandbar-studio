@@ -10,7 +10,14 @@ import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { layerSnapshotFromParts } from "@/services/dataverse/ribbonLayerService";
 import { reconcileWithLayer } from "@/services/dataverse/ribbonService";
 import { useRibbonStore } from "@/store/ribbonStore";
-import { OPEN_RECORD_ITEM_COMMAND_ID as OPEN, openRecordCarriers } from "@/utils/openRecordItem";
+import {
+	OPEN_RECORD_ITEM_COMMAND_ID as OPEN,
+	isOpenRecordCarrier,
+	openRecordCarrierOwnership,
+	openRecordCarriers,
+	openRecordCommandUsers,
+} from "@/utils/openRecordItem";
+import { validatePublishRibbonDiff } from "@/services/xmlValidator";
 import type { CommandDefinition, RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -35,7 +42,7 @@ const carrierButton = (id: string) =>
 	`<Button Id="${id}" Command="${OPEN}" Sequence="910" LabelText="$LocLabels:${id}.LabelText" ToolTipTitle="$LocLabels:${id}.ToolTipTitle" ToolTipDescription="$LocLabels:${id}.ToolTipDescription" TemplateAlias="o1" />`;
 
 /** RetrieveEntityRibbon for one location: the Management group with your own button, optionally a carrier. */
-function merged(location: "HomepageGrid" | "SubGrid", carrier?: string, withOpenCommand = false) {
+function merged(location: "HomepageGrid" | "SubGrid", carrier?: string, withOpenCommand = false, extra = "") {
 	const mgmt = location === "HomepageGrid" ? HG_MGMT : SG_MGMT;
 	const tab = mgmt.replace(/\.Management$/, "");
 	return `<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs>
@@ -46,6 +53,7 @@ function merged(location: "HomepageGrid" | "SubGrid", carrier?: string, withOpen
           <Button Id="Mscrm.${location}.${T}.Edit" Command="Mscrm.EditSelectedRecord" Sequence="20" LabelText="$Resources:Ribbon.HomepageGrid.Edit" TemplateAlias="o1" />
           ${location === "HomepageGrid" ? `<Button Id="cbs.Mine" Command="cbs.Mine.Command" Sequence="900" LabelText="Mine" TemplateAlias="o1" />` : ""}
           ${carrier ? carrierButton(carrier) : ""}
+          ${extra}
         </Controls>
       </Group>
     </Groups>
@@ -64,6 +72,8 @@ const ca = (id: string, location: string, inner: string) =>
 	`<CustomAction Id="${id}" Location="${location}" Sequence="910"><CommandUIDefinition>${inner}</CommandUIDefinition></CustomAction>`;
 const label = (id: string, text: string) =>
 	`<LocLabel Id="${id}"><Titles><Title languagecode="1033" description="${text}"/></Titles></LocLabel>`;
+/** A button of your own that uses the override command (not a carrier the switch created). */
+const MY_OPEN = `<Button Id="cbs.MyOpen" Command="${OPEN}" Sequence="920" LabelText="My open" TemplateAlias="o1" />`;
 const carrierRows = (id: string, mgmt: string) => [
 	{ difftype: 0, rdx: ca(`${id}.CustomAction`, `${mgmt}.Controls._children`, carrierButton(id)) },
 	{ difftype: 3, rdx: label(`${id}.LabelText`, "Open record") },
@@ -72,7 +82,14 @@ const carrierRows = (id: string, mgmt: string) => [
 ];
 
 /** The table's unmanaged layer: your button, plus the carriers / the override command when given. */
-function layerParts(opts: { carriers?: ("HomepageGrid" | "SubGrid")[]; openCommand?: boolean } = {}) {
+type LoadOptions = {
+	carriers?: ("HomepageGrid" | "SubGrid")[];
+	openCommand?: boolean;
+	mergedOpenCommand?: boolean;
+	/** Your own button cbs.MyOpen on the home grid, using the command. */
+	myOpen?: boolean;
+};
+function layerParts(opts: LoadOptions = {}) {
 	return partsFromRibbonTables({
 		diffs: [
 			{
@@ -83,6 +100,7 @@ function layerParts(opts: { carriers?: ("HomepageGrid" | "SubGrid")[]; openComma
 					`<Button Id="cbs.Mine" Command="cbs.Mine.Command" Sequence="900" LabelText="Mine" TemplateAlias="o1" />`,
 				),
 			},
+			...(opts.myOpen ? [{ difftype: 0, rdx: ca("cbs.MyOpen.CustomAction", `${HG_MGMT}.Controls._children`, MY_OPEN) }] : []),
 			...(opts.carriers ?? []).flatMap((l) =>
 				carrierRows(l === "HomepageGrid" ? HG_CARRIER : SG_CARRIER, l === "HomepageGrid" ? HG_MGMT : SG_MGMT),
 			),
@@ -102,10 +120,15 @@ const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entit
  * location, layer ownership, and command definitions the merged ribbon lacks
  * filled in from the layer.
  */
-function loadStore(opts: { carriers?: ("HomepageGrid" | "SubGrid")[]; openCommand?: boolean; mergedOpenCommand?: boolean } = {}) {
+function loadStore(opts: LoadOptions = {}) {
 	layer = layerParts(opts);
 	const hg = parseRibbonXml(
-		merged("HomepageGrid", opts.carriers?.includes("HomepageGrid") ? HG_CARRIER : undefined, opts.mergedOpenCommand),
+		merged(
+			"HomepageGrid",
+			opts.carriers?.includes("HomepageGrid") ? HG_CARRIER : undefined,
+			opts.mergedOpenCommand,
+			opts.myOpen ? MY_OPEN : "",
+		),
 		"HomepageGrid",
 		T,
 	);
@@ -329,5 +352,87 @@ describe("#22 — Mscrm.OpenRecordItem override", () => {
 		expect(openRecordCarriers(useRibbonStore.getState().ribbons.HomepageGrid)).toHaveLength(1);
 		expect(useRibbonStore.getState().setOpenRecordOverride("Form", true, "cbs")).toBe(false);
 		expect(useRibbonStore.getState().setOpenRecordOverride("Application", true, "cbs")).toBe(false);
+	});
+});
+
+describe("#22 review — Mscrm.OpenRecordItem override", () => {
+	const set = (location: RibbonLocation, on: boolean) =>
+		useRibbonStore.getState().setOpenRecordOverride(location, on, "cbs");
+	const hgUsers = () => openRecordCommandUsers(useRibbonStore.getState().ribbons.HomepageGrid).map((c) => c.button.id);
+
+	it("off deletes only the carrier: your own button using the command stays, and so does the command", async () => {
+		loadStore({ carriers: ["HomepageGrid"], openCommand: true, myOpen: true });
+		expect(set("HomepageGrid", false)).toBe(true);
+		expect(hgUsers()).toEqual(["cbs.MyOpen"]);
+		const { doc, plan } = await build();
+		expect(plan.deletedButtonIds).toEqual([HG_CARRIER]);
+		expect(ids(doc, "CommandDefinitions > CommandDefinition")).toContain(OPEN);
+		expect(doc.querySelector(`Button[Id="cbs.MyOpen"]`)?.getAttribute("Command")).toBe(OPEN);
+		expect(doc.querySelector(`[Id="${HG_CARRIER}"]`)).toBeNull();
+	});
+
+	it("off in the same session keeps a new command another button uses", () => {
+		set("HomepageGrid", true);
+		useRibbonStore.getState().createButton({
+			location: "HomepageGrid",
+			tabId: `Mscrm.HomepageGrid.${T}.MainTab`,
+			groupId: HG_MGMT,
+			button: { id: "cbs.Other", label: "Other", kind: "button", templateAlias: "o1", commandId: OPEN, hidden: false, oob: false, custom: true, managed: false },
+		});
+		expect(set("HomepageGrid", false)).toBe(true);
+		expect(hgUsers()).toEqual(["cbs.Other"]);
+		expect(openCommandOf()).toBeDefined();
+	});
+
+	it("your own button using the command isn't the switch's carrier: on adds one", () => {
+		loadStore({ openCommand: true, myOpen: true });
+		expect(openRecordCarriers(useRibbonStore.getState().ribbons.HomepageGrid)).toEqual([]);
+		expect(set("HomepageGrid", true)).toBe(true);
+		expect(hgUsers().sort()).toEqual(["cbs.MyOpen", HG_CARRIER].sort());
+		expect(isOpenRecordCarrier({ id: "cbs.MyOpen", commandId: OPEN })).toBe(false);
+		expect(isOpenRecordCarrier({ id: `cbs.${T}.SubGrid.OpenRecordItem2.Button`, commandId: OPEN })).toBe(true);
+	});
+
+	it("a carrier without resolved provenance is yours when the layer lists it, else not removed yet", () => {
+		loadStore({ carriers: ["HomepageGrid"], openCommand: true });
+		const s = useRibbonStore.getState();
+		const unresolved = JSON.parse(JSON.stringify(s.ribbons));
+		delete openRecordCarriers(unresolved.HomepageGrid)[0].button.origin;
+		s.loadWorkspace({ ...s, ribbons: unresolved, layers: s.layers });
+		expect(set("HomepageGrid", false)).toBe(true);
+		expect(openRecordCarriers(useRibbonStore.getState().ribbons.HomepageGrid)).toEqual([]);
+
+		const snap = s.layers.entity!;
+		s.loadWorkspace({ ...s, ribbons: unresolved, layers: { entity: { ...snap, controlIds: [] }, application: null } });
+		const [carrier] = openRecordCarriers(useRibbonStore.getState().ribbons.HomepageGrid);
+		expect(openRecordCarrierOwnership(carrier, [])).toBe("unknown");
+		expect(set("HomepageGrid", false)).toBe(false);
+		expect(openRecordCarriers(useRibbonStore.getState().ribbons.HomepageGrid)).toHaveLength(1);
+	});
+
+	it("warns before publishing a hidden carrier", async () => {
+		loadStore({ carriers: ["HomepageGrid"], openCommand: true });
+		const [c] = openRecordCarriers(useRibbonStore.getState().ribbons.HomepageGrid);
+		useRibbonStore.getState().setButtonProp("HomepageGrid", c.tabId, c.groupId, c.button.id, { hidden: true });
+		const { parts } = await build();
+		expect(validatePublishRibbonDiff(parts).filter((f) => f.code === "open-record-hidden")).toEqual([
+			expect.objectContaining({ severity: "warning", elementId: HG_CARRIER }),
+		]);
+	});
+
+	it("warns before publishing display rules that hide the command's button", async () => {
+		loadStore({ carriers: ["HomepageGrid"], openCommand: true });
+		expect(useRibbonStore.getState().hideWithDisplayRules(OPEN)).toBe(true);
+		const { parts } = await build();
+		const found = validatePublishRibbonDiff(parts).filter((f) => f.code === "open-record-hidden");
+		expect(found).toEqual([expect.objectContaining({ severity: "warning", elementId: OPEN })]);
+		expect(found[0].message).toContain("Mscrm.HideOnModern + Mscrm.ShowOnlyOnModern");
+	});
+
+	it("doesn't warn about a shown carrier", async () => {
+		useRibbonStore.getState().setOpenRecordOverride("HomepageGrid", true, "cbs");
+		setOpenAction();
+		const { parts } = await build();
+		expect(validatePublishRibbonDiff(parts).filter((f) => f.code === "open-record-hidden")).toEqual([]);
 	});
 });

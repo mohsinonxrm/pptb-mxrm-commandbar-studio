@@ -214,6 +214,13 @@ export const CommandEditorPanel: React.FC = () => {
 		}
 	}, [command]);
 
+	// The command went away while the editor was open (an undo of the step that
+	// added it, #22 review): close the editor instead of leaving it open on
+	// nothing (a redo would otherwise pop it up again).
+	useEffect(() => {
+		if (commandEditorOpen && commandEditorId && !command) closeCommandEditor();
+	}, [commandEditorOpen, commandEditorId, command, closeCommandEditor]);
+
 	const commandIdError = useMemo(() => {
 		if (!command) return "";
 		if (!draftCommandId.trim()) return "Command ID is required.";

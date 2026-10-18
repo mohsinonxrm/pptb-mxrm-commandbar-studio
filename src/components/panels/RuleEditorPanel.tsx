@@ -102,6 +102,8 @@ const useStyles = makeStyles({
 	},
 });
 
+const NO_STEPS: RuleStep[] = [];
+
 export const RuleEditorPanel: React.FC = () => {
 	const styles = useStyles();
 	const ruleEditorOpen = useUIStore((s) => s.ruleEditorOpen);
@@ -132,7 +134,8 @@ export const RuleEditorPanel: React.FC = () => {
 
 	// Steps have no id: keys that stay with a step when another one is removed
 	// or moved, so its inputs and local state don't jump to a neighbour (#22).
-	const stepKeys = useStableKeys(`${ruleEditorKind}:${activeRule?.id ?? ""}`, activeRule?.steps.length ?? 0);
+	// Steps changed from elsewhere (undo / redo) get new keys.
+	const stepKeys = useStableKeys(`${ruleEditorKind}:${activeRule?.id ?? ""}`, activeRule?.steps ?? NO_STEPS);
 	const sortableIds = stepKeys.keys;
 
 	const usedBy = commands.filter((c) =>
@@ -145,6 +148,7 @@ export const RuleEditorPanel: React.FC = () => {
 		if (!activeRule) return;
 		const newSteps = [...activeRule.steps];
 		newSteps[index] = updated;
+		stepKeys.update();
 		if (isEnable) {
 			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
 		} else {

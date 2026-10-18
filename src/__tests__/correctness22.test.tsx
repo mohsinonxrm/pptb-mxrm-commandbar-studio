@@ -8,6 +8,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { IdentitySection } from "@/components/properties-pane/IdentitySection";
 import { RuleEditorPanel } from "@/components/panels/RuleEditorPanel";
+import { CommandEditorPanel } from "@/components/panels/CommandEditorPanel";
+import { useStableKeys } from "@/hooks/useStableKeys";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
@@ -18,6 +20,12 @@ import type { Solution } from "@/types/solution";
 import type { EntityMetadata } from "@/types/entity";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+// jsdom has no ResizeObserver; Fluent's drawer (the Command Editor) uses one.
+globalThis.ResizeObserver ??= class {
+	observe() {}
+	unobserve() {}
+	disconnect() {}
+};
 
 const T = "account";
 const MAIN = `Mscrm.HomepageGrid.${T}.MainTab`;
@@ -80,6 +88,7 @@ afterEach(() => {
 	act(() => root.unmount());
 	container.remove();
 	useUIStore.getState().closeRuleEditor();
+	useUIStore.getState().closeCommandEditor();
 });
 
 describe("#22 — Identity section translations match the button's own labels", () => {
@@ -193,17 +202,78 @@ describe("#22 — rule steps keep their React keys", () => {
 		expect(items()).toEqual([second, third]);
 	});
 
-	it("editing a step keeps every step's element", () => {
+	it("steps changed from elsewhere (an undo of a move) get new elements, not stale ones", () => {
 		openRule();
 		const before = items();
 		const rule = useRibbonStore.getState().displayRules.find((r) => r.id === "cbs.Rule")!;
-		// An edit that keeps the number of steps (also an undo of one) keeps the keys.
+		// Same number of steps, other order: as an undo / redo of a move leaves it.
 		act(() =>
 			useRibbonStore.getState().upsertDisplayRule({
 				...rule,
-				steps: [{ kind: "FormStateRule", state: "ReadOnly" }, ...rule.steps.slice(1)],
+				steps: [rule.steps[1], rule.steps[0], rule.steps[2]],
 			}),
 		);
-		expect(items()).toEqual(before);
+		expect(items()).toHaveLength(3);
+		for (const li of items()) expect(before).not.toContain(li);
+	});
+});
+
+describe("#22 review — useStableKeys", () => {
+	type Api = ReturnType<typeof useStableKeys>;
+	let api: Api;
+	function Harness({ items }: { items: readonly string[] }) {
+		api = useStableKeys("scope", items);
+		return null;
+	}
+	const render = (items: readonly string[]) => act(() => root.render(<Harness items={items} />));
+
+	it("keys follow a move, and are made anew when the list is replaced from elsewhere (undo)", () => {
+		const original = ["A", "B", "C"];
+		render(original);
+		const [kA, kB, kC] = api.keys;
+		// Our move, then the store's moved list.
+		act(() => api.move(0, 1));
+		render(["B", "A", "C"]);
+		expect(api.keys).toEqual([kB, kA, kC]);
+		// Undo restores the original list: no key may stay on the wrong item.
+		render(original);
+		expect(api.keys).toHaveLength(3);
+		expect(api.keys[0]).not.toBe(kB);
+		expect(api.keys[1]).not.toBe(kA);
+		for (const k of api.keys) expect([kA, kB, kC]).not.toContain(k);
+	});
+
+	it("an edit in place keeps every key", () => {
+		render(["A", "B"]);
+		const keys = api.keys;
+		act(() => api.update());
+		render(["A2", "B"]);
+		expect(api.keys).toEqual(keys);
+	});
+
+	it("re-rendering the same list keeps the keys", () => {
+		const list = ["A", "B"];
+		render(list);
+		const keys = api.keys;
+		render(list);
+		expect(api.keys).toEqual(keys);
+	});
+});
+
+describe("#22 review — the Command Editor after an undo", () => {
+	it("closes when the command it shows is undone away", () => {
+		loadTable([button("cbs.One")]);
+		act(() => root.render(<CommandEditorPanel />));
+		act(() => {
+			useRibbonStore.getState().setOpenRecordOverride("HomepageGrid", true, "cbs");
+			useUIStore.getState().openCommandEditor("Mscrm.OpenRecordItem");
+		});
+		expect(useUIStore.getState().commandEditorOpen).toBe(true);
+		act(() => useRibbonStore.getState().undo());
+		expect(useRibbonStore.getState().commands.some((c) => c.id === "Mscrm.OpenRecordItem")).toBe(false);
+		expect(useUIStore.getState().commandEditorOpen).toBe(false);
+		// A redo doesn't pop the editor up again.
+		act(() => useRibbonStore.getState().redo());
+		expect(useUIStore.getState().commandEditorOpen).toBe(false);
 	});
 });
