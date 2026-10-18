@@ -900,6 +900,55 @@ describe("#26 / #31 — Customise Button", () => {
 			expect(storePlan().hasChanges).toBe(false);
 		});
 
+		it("returns the id now at the target: the copy's, your own button's, or null", () => {
+			loadStore();
+			const s = useRibbonStore.getState();
+			expect(s.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" })).toBe(`cbs.${EDIT}`);
+			expect(s.moveButton(src("cbs.Mine"), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" })).toBe("cbs.Mine");
+			expect(s.moveButton(src(EDIT), { groupId: MGMT, tabId: MAIN, location: "HomepageGrid", beforeButtonId: EDIT })).toBeNull();
+		});
+
+		it("a move to a missing group changes nothing (no copy, no hide, no history)", () => {
+			loadStore();
+			expect(
+				useRibbonStore.getState().moveButton(src(EDIT), { groupId: "nope", tabId: MAIN, location: "HomepageGrid" }),
+			).toBeNull();
+			expect(useRibbonStore.getState().past).toHaveLength(0);
+			expect(mgmt().buttons.find((b) => b.id === EDIT)!.hidden).toBeFalsy();
+			expect(mgmt().buttons.some((b) => b.id === `cbs.${EDIT}`)).toBe(false);
+		});
+
+		it("the hidden original of a copy-move can't be moved again, nor copied to another ribbon", () => {
+			loadStore({
+				location: "Application",
+				entityLogicalName: "",
+				tabs: [
+					{
+						id: "Mscrm.BasicHomeTab",
+						label: "Home",
+						sequence: 10,
+						tabDisplayRules: [],
+						groups: [{ id: "App.G", label: "G", sequence: 10, template: "Mscrm.Templates.Flexible2", buttons: [] }],
+					},
+				],
+			} as RibbonDefinition);
+			const s = useRibbonStore.getState();
+			s.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" });
+			const before = useRibbonStore.getState().past.length;
+			expect(s.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" })).toBeNull();
+			expect(useRibbonStore.getState().past.length).toBe(before);
+			expect(storePlan().unsupported).toEqual([]);
+			expect(
+				s.moveButton(src(`Mscrm.HomepageGrid.${T}.Delete`), {
+					groupId: "App.G",
+					tabId: "Mscrm.BasicHomeTab",
+					location: "Application",
+				}),
+			).toBeNull();
+			expect(useRibbonStore.getState().past.length).toBe(before);
+			expect(useRibbonStore.getState().ribbons.Application.tabs[0].groups[0].buttons).toEqual([]);
+		});
+
 		it("your own buttons still move in place, and flyouts are not copied", () => {
 			loadStore();
 			const s = useRibbonStore.getState();

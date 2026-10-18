@@ -393,8 +393,9 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 		const parsed = parseDrop(String(over.id));
 		if (!parsed) return;
 
+		let movedId: string | null = null;
 		if (parsed.kind === "slot") {
-			moveButton(
+			movedId = moveButton(
 				{ groupId: srcGroupId, buttonId: String(active.id), tabId: tab.id, location },
 				{
 					groupId: parsed.groupId,
@@ -405,11 +406,14 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 			);
 		} else if (parsed.kind === "group" && parsed.groupId !== srcGroupId) {
 			// Dropped on group container (empty group or outside all slots)
-			moveButton(
+			movedId = moveButton(
 				{ groupId: srcGroupId, buttonId: String(active.id), tabId: tab.id, location },
 				{ groupId: parsed.groupId, tabId: tab.id, location },
 			);
 		}
+		// A button that isn't yours moves as a copy with a new id (#26): select the copy.
+		if (movedId && movedId !== String(active.id))
+			selectButtonInContext(location, tab.id, parsed.groupId, movedId);
 	}
 
 	// Empty tab state
@@ -706,7 +710,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 										icon={<ArrowMoveRegular />}
 										disabled={isGlobalOobReadOnly(btnMenu.button)}
 										onClick={() => {
-											moveButton(
+											const movedId = moveButton(
 												{
 													groupId: btnMenu.groupId,
 													buttonId: btnMenu.button.id,
@@ -715,6 +719,8 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 												},
 												{ groupId: g.id, tabId: tab.id, location },
 											);
+											// A button that isn't yours moves as a copy (#26): select the copy.
+											if (movedId) selectButtonInContext(location, tab.id, g.id, movedId);
 											setBtnMenu(null);
 										}}
 									>

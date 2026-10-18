@@ -179,7 +179,12 @@ export interface RibbonStore extends RibbonStoreState {
 	batch(fn: () => void): void;
 
 	// Mutations
-	moveButton(src: DragSource, dst: DragTarget): void;
+	/**
+	 * Moves a button to `dst`. Returns the id of the button now at `dst` — a
+	 * new copy's id when a button that isn't yours was moved (#26) — or null
+	 * when nothing moved.
+	 */
+	moveButton(src: DragSource, dst: DragTarget): string | null;
 	setButtonProp(
 		location: RibbonLocation,
 		tabId: string,
@@ -775,22 +780,34 @@ export const useRibbonStore = create<RibbonStore>()(
 			const srcTab = state.ribbons[src.location].tabs.find((t) => t.id === src.tabId);
 			const srcGroup = srcTab?.groups.find((g) => g.id === src.groupId);
 			const original = srcGroup?.buttons.find((b) => b.id === src.buttonId);
-			if (
-				original &&
-				srcGroup &&
+			const dstGroup = state.ribbons[dst.location].tabs
+				.find((t) => t.id === dst.tabId)
+				?.groups.find((g) => g.id === dst.groupId);
+			if (!original || !srcGroup || !dstGroup) return null;
+			const notYours =
 				// Only when its origin is known: provenance sets it on load.
 				original.origin !== undefined &&
 				original.origin !== "unmanaged" &&
-				isLoadedButton(state, src.location, original.id) &&
-				canCustomiseButton(src.location, src.tabId, original)
-			) {
-				if (isMoveInPlace(srcGroup, src, dst)) return;
+				isLoadedButton(state, src.location, original.id);
+			if (notYours && !original.menu && !isMenuKind(original.kind) && !isReadOnlyGlobalOobButton(src.location, src.tabId, original)) {
+				if (isMoveInPlace(srcGroup, src, dst)) return null;
+				const refuse = (why: string) => {
+					useRuntimeLogStore.getState().logWarn("ribbon", `Can't move ${original.id}: ${why}`);
+					return null;
+				};
+				// Already customised (or hidden otherwise): its copy is what moves.
+				if (original.hidden) return refuse("it's hidden — move your copy of it instead.");
+				// A copy belongs in the same ribbon as the original: the table's
+				// commands and rules aren't in the application ribbon, nor the reverse.
+				if ((src.location === "Application") !== (dst.location === "Application"))
+					return refuse("it isn't yours, and a copy can't move between the table's ribbon and the application ribbon.");
 				const { activeSolution, publisherPrefix } = useSessionStore.getState();
 				const prefix = activeSolution?.publisherPrefix?.trim() || publisherPrefix?.trim() || "new";
+				let moved: string | null = null;
 				get().batch(() => {
 					const copyId = get().customiseButton(src.location, src.tabId, src.groupId, src.buttonId, prefix);
 					if (!copyId) return;
-					get().moveButton({ ...src, buttonId: copyId }, dst);
+					moved = get().moveButton({ ...src, buttonId: copyId }, dst);
 					useRuntimeLogStore
 						.getState()
 						.logInfo(
@@ -798,8 +815,10 @@ export const useRibbonStore = create<RibbonStore>()(
 							`${original.id} isn't yours, so it can't be moved: moved your copy ${copyId} instead and hid the original.`,
 						);
 				});
-				return;
+				return moved;
 			}
+			// Read-only global buttons don't move (and don't make an empty history entry).
+			if (isReadOnlyGlobalOobButton(src.location, src.tabId, original)) return null;
 			set((state) =>
 				commitMutation(
 					state,
@@ -864,6 +883,7 @@ export const useRibbonStore = create<RibbonStore>()(
 					},
 				),
 			);
+			return src.buttonId;
 		},
 
 		setButtonProp(location, tabId, groupId, buttonId, patch) {
