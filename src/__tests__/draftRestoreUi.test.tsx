@@ -1,7 +1,7 @@
 /**
  * #16 — the restore banner and the unpublished-changes dialog.
  */
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
@@ -171,5 +171,25 @@ describe("#16 — switching with unpublished changes", () => {
 		click("Discard");
 		expect(useSessionStore.getState().activeSolution?.id).toBe("sol-b");
 		expect(readDraft(KEY)).toBeNull();
+	});
+});
+
+describe("#16 — a full browser storage", () => {
+	it("warns, and Keep as draft is disabled", () => {
+		act(() => load());
+		const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+		});
+		try {
+			act(() => useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"));
+			expect(document.body.textContent).toContain("can't be saved as a draft: the browser storage is full");
+			act(() => useDraftStore.getState().requestEntitySwitch(entity("contact")));
+			expect(findButton("Keep as draft")?.disabled).toBe(true);
+			click("Cancel");
+			expect(useSessionStore.getState().activeEntity?.logicalName).toBe(T);
+			expect(buttonsNow()).toEqual([]);
+		} finally {
+			setItem.mockRestore();
+		}
 	});
 });

@@ -13,6 +13,8 @@
  * - Switching table or solution with unpublished changes asks first: keep the
  *   draft (offered again when the table is reopened in the same solution),
  *   discard the changes, or cancel.
+ * - Storage full: when the draft can't be saved, `saveFailed` is set (the
+ *   banner warns) and "Keep as draft" doesn't switch, so nothing is lost.
  */
 import { create } from "zustand";
 import { useRibbonStore, type RibbonStoreState } from "@/store/ribbonStore";
@@ -21,6 +23,7 @@ import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import {
 	baselineFingerprint,
 	deleteDraft,
+	draftWorkspace,
 	readDraft,
 	sameDraftKey,
 	writeDraft,
@@ -44,6 +47,8 @@ export interface DraftStore {
 	pendingBaselineChanged: boolean;
 	/** A table / solution switch waiting for the user's answer (unpublished changes). */
 	pendingSwitch: PendingSwitch | null;
+	/** The last save of the draft failed (browser storage full or unavailable): the changes are only in memory. */
+	saveFailed: boolean;
 
 	/** A workspace load starts: the store's workspace no longer belongs to any draft. */
 	beginLoad(): void;
@@ -64,26 +69,30 @@ export function hasUnpublishedChanges(): boolean {
 	return useDraftStore.getState().target !== null && useRibbonStore.getState().mutationsSincePublish > 0;
 }
 
-let saveFailed = false;
-
-/** Writes (or, with nothing to publish, removes) the draft of the loaded workspace. */
-function saveOrClear(state: RibbonStoreState): void {
+/**
+ * Writes (or, with nothing to publish, removes) the draft of the loaded
+ * workspace. False when the draft couldn't be saved.
+ */
+function saveOrClear(state: RibbonStoreState): boolean {
 	const { target, pending } = useDraftStore.getState();
 	// A draft waiting for Restore / Discard is not overwritten (nor removed).
-	if (!target || pending) return;
+	if (!target || pending) return true;
 	const table = state.ribbons.HomepageGrid.entityLogicalName;
-	if (table && table.toLowerCase() !== target.entityLogicalName.toLowerCase()) return;
-	if (state.mutationsSincePublish === 0) {
-		deleteDraft(target);
-		return;
-	}
-	const ok = writeDraft(target, state);
+	if (table && table.toLowerCase() !== target.entityLogicalName.toLowerCase()) return true;
+	let ok = true;
+	if (state.mutationsSincePublish === 0) deleteDraft(target);
+	else ok = writeDraft(target, state);
+	const { saveFailed } = useDraftStore.getState();
 	if (!ok && !saveFailed) {
 		useRuntimeLogStore
 			.getState()
-			.logWarn("ribbon", "Unsaved changes could not be saved as a draft (browser storage is full or unavailable).");
+			.logWarn(
+				"ribbon",
+				"Unsaved changes could not be saved as a draft (browser storage is full or unavailable): publish them, or they are lost when Command Bar Studio closes.",
+			);
 	}
-	saveFailed = !ok;
+	if (ok === saveFailed) useDraftStore.setState({ saveFailed: !ok });
+	return ok;
 }
 
 /** What a draft depends on: a change of any of these saves it again. */
@@ -152,9 +161,10 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 	pending: null,
 	pendingBaselineChanged: false,
 	pendingSwitch: null,
+	saveFailed: false,
 
 	beginLoad() {
-		set({ target: null, pending: null, pendingBaselineChanged: false });
+		set({ target: null, pending: null, pendingBaselineChanged: false, saveFailed: false });
 	},
 
 	workspaceLoaded(key) {
@@ -172,9 +182,8 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 		if (!target || !pending || !sameDraftKey(target, pending.key)) return false;
 		set({ pending: null, pendingBaselineChanged: false });
 		// Autosave writes the restored workspace (it is a change).
-		useRibbonStore
-			.getState()
-			.restoreWorkspace(pending.workspace, `saved ${new Date(pending.savedAt).toLocaleString()}`);
+		const ribbons = useRibbonStore.getState();
+		ribbons.restoreWorkspace(draftWorkspace(pending, ribbons), `saved ${new Date(pending.savedAt).toLocaleString()}`);
 		return true;
 	},
 
@@ -189,14 +198,21 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 
 	requestEntitySwitch(entity) {
 		if (useSessionStore.getState().activeEntity?.logicalName === entity.logicalName) return;
-		if (hasUnpublishedChanges()) set({ pendingSwitch: { kind: "entity", entity } });
+		if (hasUnpublishedChanges()) {
+			// Whether "Keep as draft" can keep them: the draft is saved now.
+			saveOrClear(useRibbonStore.getState());
+			set({ pendingSwitch: { kind: "entity", entity } });
+		}
 		else applySwitch({ kind: "entity", entity });
 	},
 
 	requestSolutionSwitch(solution) {
 		// Picking the solution that is already active isn't a switch.
 		if (useSessionStore.getState().activeSolution?.id === solution.id) return;
-		if (hasUnpublishedChanges()) set({ pendingSwitch: { kind: "solution", solution } });
+		if (hasUnpublishedChanges()) {
+			saveOrClear(useRibbonStore.getState());
+			set({ pendingSwitch: { kind: "solution", solution } });
+		}
 		else applySwitch({ kind: "solution", solution });
 	},
 
@@ -207,12 +223,14 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 			set({ pendingSwitch: null });
 			return;
 		}
-		// "keep": autosave has written the draft already. While an earlier
+		// "keep": autosave has written the draft; it is saved again to be sure,
+		// and when that fails (storage full) nothing switches. While an earlier
 		// draft waits for Restore / Discard, that one is what is kept.
+		if (choice === "keep" && !saveOrClear(useRibbonStore.getState())) return;
 		if (choice === "discard" && target && !pending) deleteDraft(target);
 		// The workspace no longer belongs to a draft: resetting it (and the
 		// load that follows) must not touch the one kept.
-		set({ pendingSwitch: null, target: null, pending: null, pendingBaselineChanged: false });
+		set({ pendingSwitch: null, target: null, pending: null, pendingBaselineChanged: false, saveFailed: false });
 		resetWorkspace();
 		applySwitch(pendingSwitch);
 	},

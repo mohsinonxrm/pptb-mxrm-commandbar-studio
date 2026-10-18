@@ -114,11 +114,13 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 ### 💾 Persistence
 - Unpublished changes are saved as a draft in `localStorage` after every change, per org,
   solution and table: everything the publish needs (canvas, commands, rules, labels,
-  un-hides, customised / uncustomised commands)
+  un-hides, customised / uncustomised commands). Only what differs from the loaded ribbon
+  is stored, compressed: a few KB per table
 - When the table loads again, a banner offers to **Restore** the draft on top of the ribbon
   as loaded (one undo step) or **Discard** it
 - Switching table or solution with unpublished changes asks first: **Keep as draft**,
-  **Discard** or **Cancel**
+  **Discard** or **Cancel**. When the browser storage is full, a banner says so and
+  **Keep as draft** is disabled, so the changes are never dropped silently
 - Pane widths, collapsed state, view mode all persisted
 
 ---

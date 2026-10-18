@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restored correctly).
 - Switching table or solution with unpublished changes asks first: **Keep as draft**
   (offered again when you reopen the table in that solution), **Discard** or **Cancel**.
+- A draft stores only what differs from the loaded ribbon (changed, added and removed tabs,
+  groups, buttons, commands, rules and labels), deflated: a few KB instead of over a million
+  characters per table, so drafts of several tables fit in `localStorage`. What the server
+  added since the draft was saved is kept on restore.
+- When a draft can't be saved (browser storage full), a banner says so, and **Keep as draft**
+  is disabled (and never switches) so the changes aren't lost.
 
 ### 🧹 Unsupported command actions ([#28](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/28))
 

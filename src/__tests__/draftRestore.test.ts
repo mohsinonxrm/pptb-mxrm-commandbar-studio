@@ -5,6 +5,8 @@
  * a fresh load (the baseline), it yields the same publish plan.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { parseRibbonXml } from "@/services/xmlParser";
 import { partsFromRibbonTables, ownControlIds } from "@/services/ribbonDiffMerge";
 import { layerSnapshotFromParts, locLabelsFromParts } from "@/services/dataverse/ribbonLayerService";
@@ -17,6 +19,7 @@ import {
 	DRAFT_FORMAT,
 	discardOutdatedDrafts,
 	draftStorageKey,
+	draftWorkspace,
 	readDraft,
 	type DraftKey,
 } from "@/services/ribbonDraft";
@@ -129,6 +132,8 @@ const ENTITY_LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form"];
 
 const store = () => useRibbonStore.getState();
 const drafts = () => useDraftStore.getState();
+/** The workspace the stored draft rebuilds over the loaded ribbon. */
+const savedWorkspace = () => draftWorkspace(readDraft(KEY)!, store());
 
 /**
  * A fresh load of the table, as App does it: the load starts, the workspace
@@ -198,7 +203,7 @@ function expectRoundTrip(edit: () => void) {
 	expect(workspaceOf(store())).toEqual(before.workspace);
 	expect(store().mutationsSincePublish).toBeGreaterThan(0);
 	// The restored workspace is the draft now (saved again for the next session).
-	expect(readDraft(KEY)?.workspace).toEqual(before.workspace);
+	expect(savedWorkspace()).toEqual(before.workspace);
 	return before.plans;
 }
 
@@ -385,15 +390,15 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 
 		freshLoad();
 		store().hideOobButton("HomepageGrid", MAIN, COLLAB, `Mscrm.HomepageGrid.${T}.Share`);
-		expect(readDraft(KEY)?.workspace).toEqual(saved.workspace);
+		expect(readDraft(KEY)?.delta).toEqual(saved.delta);
 		store().undo();
-		expect(readDraft(KEY)?.workspace).toEqual(saved.workspace);
+		expect(readDraft(KEY)?.delta).toEqual(saved.delta);
 		store().redo();
 
 		drafts().discardDraft();
 		expect(drafts().pending).toBeNull();
 		const now = readDraft(KEY)!;
-		expect(now.workspace).toEqual(JSON.parse(JSON.stringify(workspaceOf(store()))));
+		expect(draftWorkspace(now, store())).toEqual(JSON.parse(JSON.stringify(workspaceOf(store()))));
 		expect(plans().entity.deletedButtonIds).toEqual([]);
 	});
 
@@ -442,7 +447,9 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 			`cbs:ribbon:https___contoso.crm.dynamics.com:${T}`,
 			JSON.stringify({ ribbons: {}, commands: [], savedAt: "2026-01-01T00:00:00Z" }),
 		);
-		expect(discardOutdatedDrafts()).toBe(1);
+		// A draft of the first #16 format (the whole workspace, uncompressed) too.
+		localStorage.setItem(`cbs:draft:v2:https%3A%2F%2Fcontoso.crm.dynamics.com:${SOLUTION_A}:${T}`, "{}");
+		expect(discardOutdatedDrafts()).toBe(2);
 		expect(localStorage.length).toBe(0);
 
 		localStorage.setItem(draftStorageKey(KEY), JSON.stringify({ format: DRAFT_FORMAT - 1, key: KEY, workspace: {} }));
@@ -464,6 +471,18 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 		expect(drafts().pendingBaselineChanged).toBe(false);
 		freshLoad(KEY, `<Button Id="other.Button" Command="${DELETE}" Sequence="950" LabelText="Other" TemplateAlias="o1" />`);
 		expect(drafts().pendingBaselineChanged).toBe(true);
+	});
+
+	it("only the changes are restored: what the server added since is kept", () => {
+		freshLoad();
+		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
+		freshLoad(KEY, `<Button Id="other.Button" Command="${DELETE}" Sequence="950" LabelText="Other" TemplateAlias="o1" />`);
+		expect(drafts().restoreDraft()).toBe(true);
+		const ids = store().ribbons.HomepageGrid.tabs[0].groups[0].buttons.map((b) => b.id);
+		expect(ids).toContain("other.Button");
+		expect(ids).not.toContain("cbs.Mine2");
+		expect(plans().entity.deletedButtonIds).toEqual(["cbs.Mine2"]);
+		expect(plans().entity.unsupported).toEqual([]);
 	});
 
 	it("nothing is saved while no table is loaded", () => {
@@ -537,9 +556,9 @@ describe("#16 — switching table or solution with unpublished changes", () => {
 		expect(useSessionStore.getState().activeEntity).toBeNull();
 		expect(readDraft(KEY)).not.toBeNull();
 		// Editing what is left on the canvas doesn't touch the kept draft.
-		const kept = readDraft(KEY)!.workspace;
+		const kept = readDraft(KEY)!.delta;
 		store().hideOobButton("HomepageGrid", MAIN, COLLAB, `Mscrm.HomepageGrid.${T}.Share`);
-		expect(readDraft(KEY)!.workspace).toEqual(kept);
+		expect(readDraft(KEY)!.delta).toEqual(kept);
 	});
 
 	it("while an earlier draft waits for Restore / Discard, switching keeps that draft", () => {
@@ -550,6 +569,123 @@ describe("#16 — switching table or solution with unpublished changes", () => {
 		store().hideOobButton("HomepageGrid", MAIN, COLLAB, `Mscrm.HomepageGrid.${T}.Share`);
 		drafts().requestEntitySwitch(entity("account"));
 		drafts().resolveSwitch("discard");
-		expect(readDraft(KEY)?.workspace).toEqual(saved.workspace);
+		expect(readDraft(KEY)?.delta).toEqual(saved.delta);
+	});
+});
+
+const fixture = (name: string) => readFileSync(resolve(__dirname, "../__fixtures__/ribbon", name), "utf-8");
+
+describe("#16 — draft size and a full browser storage", () => {
+	const CONTACT_TAB = "Mscrm.HomepageGrid.contact.MainTab";
+
+	/** A realistic workspace: contact's home grid, an application ribbon, ~500 commands and ~250 rules. */
+	function loadContact() {
+		drafts().beginLoad();
+		const home = parseRibbonXml(fixture("contact-homepage-menus.xml"), "HomepageGrid", "contact");
+		const defs = parseRibbonXml(fixture("contact-oob-commands-rules.xml"), "HomepageGrid", "contact");
+		const app = parseRibbonXml(fixture("app-oob-subset.xml"), "Application", "{!EntityLogicalName}");
+		const byId = <X extends { id: string }>(...lists: X[][]) => [...new Map(lists.flat().map((x) => [x.id, x])).values()];
+		// The home grid tab on every location, as a table ribbon has them.
+		const asLocation = (location: RibbonLocation): RibbonDefinition => ({
+			...JSON.parse(JSON.stringify(home.ribbon)),
+			location,
+		});
+		store().loadWorkspace({
+			ribbons: {
+				HomepageGrid: asLocation("HomepageGrid"),
+				SubGrid: asLocation("SubGrid"),
+				Form: asLocation("Form"),
+				Application: app.ribbon,
+			},
+			commands: byId(defs.commands, home.commands, app.commands),
+			enableRules: byId(defs.enableRules, home.enableRules, app.enableRules),
+			displayRules: byId(defs.displayRules, home.displayRules, app.displayRules),
+			locLabels: [],
+		});
+		drafts().workspaceLoaded({ ...KEY, entityLogicalName: "contact" });
+		const s = store();
+		expect(s.commands.length).toBeGreaterThan(300);
+		expect(s.enableRules.length + s.displayRules.length).toBeGreaterThan(200);
+	}
+	const CONTACT_KEY = { ...KEY, entityLogicalName: "contact" };
+
+	function twoEdits() {
+		const s = store();
+		const group = s.ribbons.HomepageGrid.tabs.find((t) => t.id === CONTACT_TAB)!.groups[0];
+		const button = group.buttons.find((b) => !b.hidden)!;
+		s.hideOobButton("HomepageGrid", CONTACT_TAB, group.id, button.id);
+		const cmd = store().commands[0];
+		store().upsertCommand({ ...cmd, actions: [...cmd.actions, { kind: "javascript", library: "$webresource:cbs_/a.js", functionName: "Cbs.a", params: [] }] });
+	}
+
+	it("stores only the changes, compressed: a small fraction of the workspace", () => {
+		useSessionStore.setState({ activeEntity: entity("contact") });
+		loadContact();
+		twoEdits();
+		const stored = localStorage.getItem(draftStorageKey(CONTACT_KEY))!;
+		const whole = JSON.stringify(workspaceOf(store())).length;
+		// Before: the whole workspace, uncompressed.
+		expect(whole).toBeGreaterThan(500_000);
+		expect(stored.length).toBeLessThan(5_000);
+		expect(stored.length).toBeLessThan(whole / 100);
+		// Only the changed location is in it, and only the changed command in full.
+		const { delta } = readDraft(CONTACT_KEY)!;
+		expect(Object.keys(delta.ribbons)).toEqual(["HomepageGrid"]);
+		expect(delta.commands).toEqual({ set: [expect.objectContaining({ id: store().commands[0].id })], drop: [], add: [] });
+	});
+
+	it("the compact draft restores the same plan over a fresh load", () => {
+		useSessionStore.setState({ activeEntity: entity("contact") });
+		loadContact();
+		twoEdits();
+		const before = { plans: plans(), workspace: JSON.parse(JSON.stringify(workspaceOf(store()))) };
+		expect(before.plans.entity.hasChanges).toBe(true);
+		loadContact();
+		expect(drafts().restoreDraft()).toBe(true);
+		expect(plans()).toEqual(before.plans);
+		expect(workspaceOf(store())).toEqual(before.workspace);
+	});
+
+	describe("with the storage full", () => {
+		let setItem: ReturnType<typeof vi.spyOn>;
+		const fillStorage = () => {
+			setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+				throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+			});
+		};
+		afterEach(() => setItem?.mockRestore());
+
+		it("says so, and Keep as draft doesn't switch (nothing is lost); Discard still does", () => {
+			freshLoad();
+			fillStorage();
+			store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
+			expect(drafts().saveFailed).toBe(true);
+			expect(readDraft(KEY)).toBeNull();
+
+			drafts().requestEntitySwitch(entity("account"));
+			expect(drafts().pendingSwitch).not.toBeNull();
+			drafts().resolveSwitch("keep");
+			expect(drafts().pendingSwitch).not.toBeNull();
+			expect(useSessionStore.getState().activeEntity?.logicalName).toBe(T);
+			expect(plans().entity.deletedButtonIds).toEqual(["cbs.Mine2"]);
+
+			drafts().resolveSwitch("discard");
+			expect(useSessionStore.getState().activeEntity?.logicalName).toBe("account");
+		});
+
+		it("Keep works again once the draft can be saved", () => {
+			freshLoad();
+			fillStorage();
+			store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
+			drafts().requestEntitySwitch(entity("account"));
+			drafts().resolveSwitch("keep");
+			expect(useSessionStore.getState().activeEntity?.logicalName).toBe(T);
+
+			setItem.mockRestore();
+			drafts().resolveSwitch("keep");
+			expect(drafts().saveFailed).toBe(false);
+			expect(useSessionStore.getState().activeEntity?.logicalName).toBe("account");
+			expect(readDraft(KEY)).not.toBeNull();
+		});
 	});
 });
