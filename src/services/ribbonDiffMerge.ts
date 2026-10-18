@@ -11,6 +11,8 @@
  * element Id, then the whole thing is serialized once per table.
  */
 
+import { canonicalXml } from "@/services/ribbonXmlCanonical";
+
 /** One XML element kept as its serialized string, keyed by its identity. */
 type ElementMap = Map<string, string>;
 
@@ -234,6 +236,126 @@ ${join(parts.locLabels, "    ")}
 </RibbonDiffXml>`;
 }
 
+/**
+ * `JavaScriptFunction`s calling a platform library. Dataverse rewrites these on
+ * import (e.g. `/_static/_common/scripts/CommandBarActions.js` +
+ * `Mscrm.CommandBarActions.*` is stored as `$webresource:Main_system_library.js`
+ * + `XrmCore.Commands.*`), so their library, function and parameters can't be
+ * compared — only that an action is there.
+ */
+function isPlatformAction(el: Element): boolean {
+	if (el.tagName !== "JavaScriptFunction") return false;
+	const library = (el.getAttribute("Library") ?? "").trim();
+	const fn = el.getAttribute("FunctionName") ?? "";
+	return (
+		library.startsWith("/_") ||
+		/^\$webresource:Main_system_library\.js$/i.test(library) ||
+		/^(XrmCore|Mscrm)\./.test(fn)
+	);
+}
+
+/**
+ * The part of an element's XML that survives an import unchanged: canonical
+ * form (attribute order, whitespace, boolean spelling, command containers),
+ * LocLabel titles in language order, and platform-library actions reduced to
+ * their presence.
+ */
+export function stableElementXml(part: keyof RibbonDiffParts, xml: string): string {
+	const el = elementOf(xml);
+	if (part === "commandDefinitions") {
+		for (const fn of Array.from(el.getElementsByTagName("JavaScriptFunction"))) {
+			if (!isPlatformAction(fn)) continue;
+			fn.parentNode?.replaceChild(el.ownerDocument.createElement("PlatformJavaScriptFunction"), fn);
+		}
+	}
+	if (part === "locLabels") {
+		for (const titles of Array.from(el.getElementsByTagName("Titles"))) {
+			const sorted = Array.from(titles.children).sort(
+				(a, b) => Number(a.getAttribute("languagecode")) - Number(b.getAttribute("languagecode")),
+			);
+			for (const t of sorted) titles.appendChild(t);
+		}
+	}
+	return canonicalXml(el, { normalizeCommands: part === "commandDefinitions" });
+}
+
+const sameStable = (part: keyof RibbonDiffParts, a: string, b: string) => {
+	try {
+		return stableElementXml(part, a) === stableElementXml(part, b);
+	} catch {
+		return a === b;
+	}
+};
+
+const titlesOf = (xml: string) =>
+	Array.from(elementOf(xml).getElementsByTagName("Title")).map(
+		(t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description") ?? ""}`,
+	);
+
+/**
+ * True when `actual` holds what was imported as `expected`. A LocLabel only
+ * needs a subset of its titles: an organisation without a language pack may
+ * not keep that language's title.
+ */
+function landed(part: keyof RibbonDiffParts, expected: string, actual: string): boolean {
+	if (part !== "locLabels") return sameStable(part, expected, actual);
+	try {
+		const want = new Set(titlesOf(expected));
+		const got = titlesOf(actual);
+		return got.length > 0 && got.every((t) => want.has(t));
+	} catch {
+		return expected === actual;
+	}
+}
+
+/** `part:id` of every element of `after` that is new or whose content differs from `before`. */
+export function changedRibbonDiffKeys(before: RibbonDiffParts, after: RibbonDiffParts): string[] {
+	const out: string[] = [];
+	for (const part of Object.keys(after) as (keyof RibbonDiffParts)[]) {
+		for (const [id, xml] of after[part]) {
+			const prev = before[part].get(id);
+			if (prev === undefined || !sameStable(part, prev, xml)) out.push(`${part}:${id}`);
+		}
+	}
+	return out;
+}
+
+export interface RibbonDiffComparison {
+	/** Expected elements the actual layer doesn't have (`part:id`). */
+	missing: string[];
+	/** Elements of the actual layer that weren't expected. */
+	unexpected: string[];
+	/** Elements listed in `contentKeys` present on both sides whose content differs. */
+	differing: string[];
+}
+
+/**
+ * Element-level comparison of two layers, used to verify a publish (#46).
+ * Every element is compared by identity (`part:id`); the elements in
+ * `contentKeys` (what the publish changed) are also compared by content, in
+ * the form that survives an import (stableElementXml) — so a rule, command or
+ * label edit that never landed is reported, not "verified".
+ */
+export function compareRibbonDiffParts(
+	expected: RibbonDiffParts,
+	actual: RibbonDiffParts,
+	options: { contentKeys?: Iterable<string> } = {},
+): RibbonDiffComparison {
+	const missing: string[] = [];
+	const unexpected: string[] = [];
+	const differing: string[] = [];
+	const content = new Set(options.contentKeys ?? []);
+	for (const part of Object.keys(expected) as (keyof RibbonDiffParts)[]) {
+		for (const [id, xml] of expected[part]) {
+			const got = actual[part].get(id);
+			if (got === undefined) missing.push(`${part}:${id}`);
+			else if (content.has(`${part}:${id}`) && !landed(part, xml, got)) differing.push(`${part}:${id}`);
+		}
+		for (const id of actual[part].keys()) if (!expected[part].has(id)) unexpected.push(`${part}:${id}`);
+	}
+	return { missing, unexpected, differing };
+}
+
 export function countRibbonDiffParts(parts: RibbonDiffParts): number {
 	return Object.values(parts).reduce((n, m: ElementMap) => n + m.size, 0);
 }
@@ -253,6 +375,14 @@ function isChildrenLocation(location: string | null): boolean {
 	return !!location && location.endsWith("._children");
 }
 
+/** A control the layer moves (Location / Sequence of the CustomAction that adds it). */
+export interface MovedControl {
+	id: string;
+	/** The group the control now belongs to. */
+	groupId: string;
+	sequence: number;
+}
+
 export interface ScopeMergeOptions {
 	/** Commands the user edited this session — only these may replace the layer's copy. */
 	editedCommandIds?: Iterable<string>;
@@ -270,6 +400,18 @@ export interface ScopeMergeOptions {
 	 * listed here or another control in the layer still uses it.
 	 */
 	retainedCommandIds?: Iterable<string>;
+	/**
+	 * Tabs and groups deleted this session (#48). The layer's CustomActions that
+	 * add them are removed together with everything placed inside them (child
+	 * CustomActions, overrides / hides / scaling of their controls) and the
+	 * LocLabels, commands and tab display rules nothing else uses any more. A
+	 * group nested inside a tab CustomAction is removed from that tab in place.
+	 */
+	deletedContainerIds?: Iterable<string>;
+	/** Controls the layer adds that were moved or re-sequenced this session (#26). */
+	movedControls?: Iterable<MovedControl>;
+	/** TabDisplayRules (by TabCommand) the session removed from a tab the layer adds (#49). */
+	removedTabCommands?: Iterable<string>;
 }
 
 /** Ids of the controls the layer itself adds (`CustomAction Location="…._children"`). */
@@ -281,6 +423,74 @@ export function ownControlIds(parts: RibbonDiffParts): Set<string> {
 		if (ca.tagName === "CustomAction" && id && isChildrenLocation(ca.getAttribute("Location"))) out.add(id);
 	}
 	return out;
+}
+
+/**
+ * Ids of the tabs and groups the layer itself adds: the `Tab` / `Group` of a
+ * `…._children` CustomAction, plus the groups declared inline inside such a tab
+ * (that is how CBS and Ribbon Workbench write a new tab).
+ */
+export function ownContainerIds(parts: RibbonDiffParts): Set<string> {
+	const out = new Set<string>();
+	for (const xml of parts.customActions.values()) {
+		const ca = elementOf(xml);
+		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+		const ctrl = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+		if (!ctrl || (ctrl.tagName !== "Tab" && ctrl.tagName !== "Group")) continue;
+		const id = ctrl.getAttribute("Id");
+		if (id) out.add(id);
+		for (const g of Array.from(ctrl.getElementsByTagName("Group"))) {
+			const gid = g.getAttribute("Id");
+			if (gid) out.add(gid);
+		}
+	}
+	return out;
+}
+
+/** A `HideCustomAction` in the layer: `location` is the id of the hidden control / group / tab. */
+export interface LayerHide {
+	hideActionId: string;
+	location: string;
+}
+
+/** Every `HideCustomAction` of the layer (#47: the merged ribbon has them applied, so the hidden controls are invisible). */
+export function hideActionsOf(parts: RibbonDiffParts): LayerHide[] {
+	const out: LayerHide[] = [];
+	for (const xml of parts.customActions.values()) {
+		const el = elementOf(xml);
+		if (el.tagName !== "HideCustomAction") continue;
+		const location = el.getAttribute("Location");
+		if (location) out.push({ hideActionId: el.getAttribute("HideActionId") ?? "", location });
+	}
+	return out;
+}
+
+/** Ids of every element with an `Id` inside `el` (including `el`). */
+function idsWithin(el: Element): string[] {
+	const out: string[] = [];
+	const own = el.getAttribute("Id");
+	if (own) out.push(own);
+	for (const d of Array.from(el.getElementsByTagName("*"))) {
+		const id = d.getAttribute("Id");
+		if (id) out.push(id);
+	}
+	return out;
+}
+
+/** `Command` attributes used inside `el` (including `el`). */
+function commandsWithin(el: Element): string[] {
+	const out: string[] = [];
+	for (const d of [el, ...Array.from(el.getElementsByTagName("*"))]) {
+		const c = d.getAttribute("Command");
+		if (c) out.push(c);
+	}
+	return out;
+}
+
+/** The container a `…._children` location adds to (`X.Controls._children` → X). */
+function childrenParent(location: string | null): string | null {
+	const m = location?.match(/^(.+)\.(?:Controls|Groups)\._children$/);
+	return m ? m[1] : null;
 }
 
 /**
@@ -337,18 +547,30 @@ export function mergeScopeChanges(
 		else if (location) overrideAt.set(location, key);
 	}
 
+	// Controls the delta adds (`…._children`): never removed below, whatever
+	// the deletes say — a control cut from one location and pasted into another
+	// is deleted there and re-added here (#57 review).
+	const readded = new Set<string>();
+
 	for (const [key, xml] of delta.customActions) {
 		const ca = elementOf(xml);
 		const ctrl = controlOf(xml);
 		const ctrlId = ctrl?.getAttribute("Id") ?? null;
 		const targetKey = ctrlId ? ownControl.get(ctrlId) : undefined;
-		if (ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !isChildrenLocation(ca.getAttribute("Location"))) {
-			// Edit of a control the layer owns → replace it inside its own CustomAction.
-			const target = elementOf(existing.customActions.get(targetKey)!);
+		const adds = ca.tagName === "CustomAction" && isChildrenLocation(ca.getAttribute("Location"));
+		if (adds && ctrlId) readded.add(ctrlId);
+		const container = ctrl?.tagName === "Tab" || ctrl?.tagName === "Group";
+		if (ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !(adds && container)) {
+			// Edit of a control the layer owns → replace it inside its own
+			// CustomAction. A control the delta adds again (moved to another
+			// location) also takes the new Location: one CustomAction per control,
+			// keeping the layer's CustomAction id.
+			const target = elementOf(merged.customActions.get(targetKey) ?? existing.customActions.get(targetKey)!);
 			const def = firstChild(target, "CommandUIDefinition")!;
 			const imported = withChildrenOf(target.ownerDocument.importNode(ctrl, true) as Element, def.firstElementChild);
 			def.replaceChild(imported, def.firstElementChild!);
-			const seq = ctrl.getAttribute("Sequence");
+			if (adds) target.setAttribute("Location", ca.getAttribute("Location")!);
+			const seq = ctrl.getAttribute("Sequence") ?? (adds ? ca.getAttribute("Sequence") : null);
 			if (seq) target.setAttribute("Sequence", seq);
 			merged.customActions.set(targetKey, s.serializeToString(target));
 			continue;
@@ -370,8 +592,23 @@ export function mergeScopeChanges(
 		merged.customActions.set(key, xml);
 	}
 
-	// Removals.
+	// Moves / re-sequencing of controls the layer adds (#26): the control keeps
+	// its CustomAction, which now places it in its new group at its new sequence.
+	for (const move of options.movedControls ?? []) {
+		const key = ownControl.get(move.id);
+		const xml = key ? merged.customActions.get(key) : undefined;
+		if (!key || !xml) continue;
+		const ca = elementOf(xml);
+		ca.setAttribute("Location", `${move.groupId}.Controls._children`);
+		ca.setAttribute("Sequence", String(move.sequence));
+		firstChild(ca, "CommandUIDefinition")?.firstElementChild?.setAttribute("Sequence", String(move.sequence));
+		merged.customActions.set(key, s.serializeToString(ca));
+	}
+
+	// Removals. Labels of removed controls are dropped further down, once no
+	// remaining control references them.
 	const removedCommands = new Set<string>();
+	const removedLabels = new Set<string>();
 	for (const [key, xml] of Array.from(merged.customActions)) {
 		const el = elementOf(xml);
 		if (el.tagName === "HideCustomAction") {
@@ -380,13 +617,68 @@ export function mergeScopeChanges(
 		}
 		const ctrl = controlOf(xml);
 		const ctrlId = ctrl?.getAttribute("Id");
-		if (ctrlId && deleted.has(ctrlId) && isChildrenLocation(el.getAttribute("Location"))) {
+		if (ctrlId && deleted.has(ctrlId) && !readded.has(ctrlId) && isChildrenLocation(el.getAttribute("Location"))) {
 			merged.customActions.delete(key);
 			// Only the labels this control references — not every id that merely
 			// starts with its id (#11 review N11).
-			for (const m of xml.matchAll(LOC_LABEL_REF)) merged.locLabels.delete(m[1]);
+			for (const m of xml.matchAll(LOC_LABEL_REF)) removedLabels.add(m[1]);
 			const commandId = ctrl?.getAttribute("Command");
 			if (commandId) removedCommands.add(commandId);
+		}
+	}
+
+	// Deleted tabs / groups (#48), and everything placed inside them.
+	const removedTabCommandCandidates = new Set<string>();
+	const gone = new Set(options.deletedContainerIds ?? []);
+	const forget = (el: Element, xml: string) => {
+		for (const id of idsWithin(el)) gone.add(id);
+		for (const c of commandsWithin(el)) removedCommands.add(c);
+		for (const t of [el, ...Array.from(el.getElementsByTagName("Tab"))]) {
+			const c = t.tagName === "Tab" ? t.getAttribute("Command") : null;
+			if (c) removedTabCommandCandidates.add(c);
+		}
+		for (const m of xml.matchAll(LOC_LABEL_REF)) removedLabels.add(m[1]);
+	};
+	for (let changed = gone.size > 0; changed; ) {
+		changed = false;
+		for (const [key, xml] of Array.from(merged.customActions)) {
+			const el = elementOf(xml);
+			const location = el.getAttribute("Location");
+			if (el.tagName === "HideCustomAction") {
+				// A hide of something that no longer exists.
+				if (location && gone.has(location)) {
+					merged.customActions.delete(key);
+					changed = true;
+				}
+				continue;
+			}
+			const ctrl = firstChild(el, "CommandUIDefinition")?.firstElementChild ?? null;
+			const ctrlId = ctrl?.getAttribute("Id") ?? null;
+			const parent = childrenParent(location);
+			const removeWhole =
+				(!!ctrlId && gone.has(ctrlId) && isChildrenLocation(location)) || // the container itself
+				(!!parent && gone.has(parent)) || // placed inside a deleted container
+				(!isChildrenLocation(location) && !!location && gone.has(location)) || // override of a removed control
+				(!!ctrl?.getAttribute("GroupId") && gone.has(ctrl.getAttribute("GroupId")!)); // MaxSize / Scale of a removed group
+			if (removeWhole) {
+				merged.customActions.delete(key);
+				if (ctrl) forget(ctrl, xml);
+				changed = true;
+				continue;
+			}
+			if (ctrl?.tagName !== "Tab") continue;
+			// Groups (and their scaling) declared inline in a tab the layer adds.
+			const inline = Array.from(ctrl.getElementsByTagName("*")).filter((d) => {
+				if (d.tagName === "Group") return gone.has(d.getAttribute("Id") ?? "");
+				return (d.tagName === "MaxSize" || d.tagName === "Scale") && gone.has(d.getAttribute("GroupId") ?? "");
+			});
+			if (inline.length === 0) continue;
+			for (const d of inline) {
+				forget(d, s.serializeToString(d));
+				d.parentNode?.removeChild(d);
+			}
+			merged.customActions.set(key, s.serializeToString(el));
+			changed = true;
 		}
 	}
 
@@ -418,6 +710,20 @@ export function mergeScopeChanges(
 	}
 	for (const [id, xml] of delta.tabDisplayRules) merged.tabDisplayRules.set(id, xml);
 	for (const [id, xml] of delta.templates) merged.templates.set(id, xml);
+
+	// Labels of removed controls / tabs / groups and tab display rules of
+	// removed tabs, unless still used.
+	const stillUsed = (needle: string) =>
+		Array.from(merged.customActions.values()).some((xml) => xml.includes(needle));
+	for (const id of removedLabels) {
+		if (!delta.locLabels.has(id) && !stillUsed(`$LocLabels:${id}"`)) merged.locLabels.delete(id);
+	}
+	for (const cmd of removedTabCommandCandidates) {
+		if (!delta.tabDisplayRules.has(cmd) && !stillUsed(`Command="${cmd}"`)) merged.tabDisplayRules.delete(cmd);
+	}
+	for (const cmd of options.removedTabCommands ?? []) {
+		if (!delta.tabDisplayRules.has(cmd)) merged.tabDisplayRules.delete(cmd);
+	}
 
 	for (const [id, xml] of delta.locLabels) {
 		const prev = existing.locLabels.get(id);

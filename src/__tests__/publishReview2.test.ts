@@ -347,6 +347,9 @@ describe("N1 — every publish refreshes Unified Interface metadata", () => {
 				publisherName: "CBS Test",
 				publisherPrefix: "cbstest",
 			} as never,
+			// This fake never stores what is imported, so the content check of the
+			// verification (#57 review) re-reads the layer: don't wait between reads.
+			verifyDelayMs: 0,
 		});
 		expect(deploySolution).toHaveBeenCalledTimes(2);
 	});

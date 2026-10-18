@@ -268,7 +268,7 @@ describe("D5 — deletes, un-hides and unsupported changes", () => {
 		expect(doc.querySelector('HideCustomAction[HideActionId="rw.hide.Merge"]')).toBeNull();
 	});
 
-	it("reports moves of existing buttons and deletes of platform buttons as unsupported", () => {
+	it("plans moves of your own buttons (#26) and reports deletes of platform buttons as unsupported", () => {
 		const base = load().ribbon;
 		const cur = clone(base);
 		buttonIn(cur, "rw.contact.Existing.Button").sequence = 5;
@@ -276,8 +276,18 @@ describe("D5 — deletes, un-hides and unsupported changes", () => {
 			(b) => b.id !== "Mscrm.HomepageGrid.contact.NewRecord",
 		);
 		const { plan } = publishXml(base, cur);
-		expect(plan.unsupported.some((u) => u.includes("re-ordering"))).toBe(true);
+		expect(plan.movedButtons.map((m) => m.id)).toEqual(["rw.contact.Existing.Button"]);
+		expect(plan.unsupported.some((u) => u.includes("re-ordering"))).toBe(false);
 		expect(plan.unsupported.some((u) => u.includes("Mscrm.HomepageGrid.contact.NewRecord"))).toBe(true);
+	});
+
+	it("reports moves of buttons from other solutions as unsupported", () => {
+		const base = load().ribbon;
+		const cur = clone(base);
+		buttonIn(cur, "Mscrm.HomepageGrid.contact.NewRecord").sequence = 999;
+		const { plan } = publishXml(base, cur);
+		expect(plan.movedButtons).toEqual([]);
+		expect(plan.unsupported.some((u) => u.includes("re-ordering"))).toBe(true);
 	});
 });
 
