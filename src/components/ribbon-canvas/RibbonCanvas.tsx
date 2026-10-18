@@ -25,6 +25,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { useUIStore } from "@/store/uiStore";
 import type { RibbonLocation } from "@/types/ribbon";
+import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ClassicRibbon } from "./ClassicRibbon";
 import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
@@ -328,6 +329,13 @@ export function RibbonCanvas({
 						Buttons added to GlobalTab appear in the persistent global command bar at the top of
 						every page. OOB GlobalTab buttons are read-only and cannot be customized.
 					</MessageBarBody>
+				</MessageBar>
+			)}
+
+			{/* A custom tab: what Unified Interface does with it isn't documented (#58). */}
+			{currentTab && !/^(Mscrm|Microsoft)\./.test(currentTab.id) && (
+				<MessageBar intent="warning" style={{ flexShrink: 0 }}>
+					<MessageBarBody>{UCI_TAB_NOTE}</MessageBarBody>
 				</MessageBar>
 			)}
 

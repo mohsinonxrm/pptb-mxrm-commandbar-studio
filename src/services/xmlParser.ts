@@ -142,7 +142,8 @@ function parseTabs(doc: Document): RibbonTab[] {
 		tabEl.querySelectorAll(":scope > Groups > Group").forEach((groupEl) => {
 			const groupId = groupEl.getAttribute("Id") ?? "";
 			if (!groupId) return;
-			const groupLabel = groupEl.getAttribute("Label") ?? groupId;
+			// Raw token like the tab's Title (`$LocLabels:…` is resolved for display).
+			const groupLabel = groupEl.getAttribute("Title") ?? groupEl.getAttribute("Label") ?? groupId;
 			const groupSeq = parseInt(groupEl.getAttribute("Sequence") ?? "0", 10);
 			const template = groupEl.getAttribute("Template") ?? "";
 

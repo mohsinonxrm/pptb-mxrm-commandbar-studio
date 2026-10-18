@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shape of RetrieveEntityRibbon(contact, All) after CBS published (#58, #59):
+  a new group with two buttons on the home grid's main tab, and a new tab on the
+  home grid, the form and the sub-grid. Grid and form tabs share the entity's
+  one Mscrm.Tabs collection; the sub-grid tab sits in the sub-grid contextual
+  group. Which location a custom tab belongs to is only known from its
+  TabDisplayRule. RetrieveEntityRibbon returns no LocLabels: `$LocLabels:`
+  titles resolve from the unmanaged layer.
+-->
+<RibbonDefinitions>
+  <RibbonDefinition>
+    <UI>
+      <Ribbon>
+        <Tabs Id="Mscrm.Tabs">
+          <Tab Id="Mscrm.HomepageGrid.contact.MainTab" Command="Mscrm.HomepageGrid.contact.MainTab" Title="Contacts" Description="Contacts" Sequence="100">
+            <Scaling Id="Mscrm.HomepageGrid.contact.MainTab.Scaling">
+              <MaxSize Id="Mscrm.HomepageGrid.contact.MainTab.Management.MaxSize" GroupId="Mscrm.HomepageGrid.contact.MainTab.Management" Sequence="10" Size="LargeMedium" />
+              <MaxSize Id="cbs.contact.Approvals.Group.MaxSize" GroupId="cbs.contact.Approvals.Group" Sequence="60" Size="LargeLarge" />
+            </Scaling>
+            <Groups Id="Mscrm.HomepageGrid.contact.MainTab.Groups">
+              <Group Id="Mscrm.HomepageGrid.contact.MainTab.Management" Command="Mscrm.Enabled" Sequence="10" Title="Records" Template="Mscrm.Templates.Flexible2">
+                <Controls Id="Mscrm.HomepageGrid.contact.MainTab.Management.Controls">
+                  <Button Id="Mscrm.HomepageGrid.contact.NewRecord" Command="Mscrm.NewRecordFromGrid" Sequence="10" LabelText="$Resources:Ribbon.HomepageGrid.MainTab.New" TemplateAlias="o1" ModernImage="New" />
+                  <Button Id="Mscrm.HomepageGrid.contact.DeleteMenu" Command="Mscrm.DeleteSelectedRecord" Sequence="40" LabelText="$Resources:Ribbon.HomepageGrid.MainTab.Management.Delete" TemplateAlias="o1" ModernImage="Remove" />
+                </Controls>
+              </Group>
+              <Group Id="cbs.contact.Approvals.Group" Title="$LocLabels:cbs.contact.Approvals.Group.Title" Sequence="60" Template="Mscrm.Templates.Flexible2">
+                <Controls Id="cbs.contact.Approvals.Group.Controls">
+                  <Button Id="cbs.contact.Approve.Button" Command="cbs.contact.Approve.Command" LabelText="$LocLabels:cbs.contact.Approve.Button.LabelText" TemplateAlias="o1" Sequence="10" ModernImage="$webresource:cbs_/icons/approve.svg" />
+                  <Button Id="cbs.contact.Reject.Button" Command="cbs.contact.Reject.Command" LabelText="$LocLabels:cbs.contact.Reject.Button.LabelText" TemplateAlias="o1" Sequence="20" />
+                </Controls>
+              </Group>
+            </Groups>
+          </Tab>
+          <Tab Id="cbs.contact.HomepageGrid.Tools.Tab" Command="cbs.contact.HomepageGrid.Tools.Tab.Command" Title="$LocLabels:cbs.contact.HomepageGrid.Tools.Tab.Title" Sequence="500">
+            <Scaling Id="cbs.contact.HomepageGrid.Tools.Tab.Scaling">
+              <MaxSize Id="cbs.contact.Tools.Group.MaxSize" GroupId="cbs.contact.Tools.Group" Sequence="10" Size="LargeLarge" />
+            </Scaling>
+            <Groups Id="cbs.contact.HomepageGrid.Tools.Tab.Groups">
+              <Group Id="cbs.contact.Tools.Group" Title="$LocLabels:cbs.contact.Tools.Group.Title" Sequence="10" Template="Mscrm.Templates.Flexible2">
+                <Controls Id="cbs.contact.Tools.Group.Controls">
+                  <Button Id="cbs.contact.Sync.Button" Command="cbs.contact.Sync.Command" LabelText="$LocLabels:cbs.contact.Sync.Button.LabelText" TemplateAlias="o1" Sequence="10" />
+                </Controls>
+              </Group>
+            </Groups>
+          </Tab>
+          <Tab Id="Mscrm.Form.contact.MainTab" Command="Mscrm.Form.contact.MainTab" Title="Contact" Sequence="10">
+            <Groups Id="Mscrm.Form.contact.MainTab.Groups">
+              <Group Id="Mscrm.Form.contact.MainTab.Save" Command="Mscrm.Enabled" Sequence="10" Title="Save" Template="Mscrm.Templates.Flexible2">
+                <Controls Id="Mscrm.Form.contact.MainTab.Save.Controls">
+                  <Button Id="Mscrm.Form.contact.SaveAndClose" Command="Mscrm.SaveAndClosePrimary" Sequence="20" LabelText="$Resources:Ribbon.Form.MainTab.Save.SaveAndClose" TemplateAlias="o1" ModernImage="SaveAndClose" />
+                </Controls>
+              </Group>
+            </Groups>
+          </Tab>
+          <Tab Id="cbs.contact.Form.Review.Tab" Command="cbs.contact.Form.Review.Tab.Command" Title="$LocLabels:cbs.contact.Form.Review.Tab.Title" Sequence="500">
+            <Scaling Id="cbs.contact.Form.Review.Tab.Scaling" />
+            <Groups Id="cbs.contact.Form.Review.Tab.Groups">
+              <Group Id="cbs.contact.Review.Group" Title="$LocLabels:cbs.contact.Review.Group.Title" Sequence="10" Template="Mscrm.Templates.Flexible2">
+                <Controls Id="cbs.contact.Review.Group.Controls" />
+              </Group>
+            </Groups>
+          </Tab>
+        </Tabs>
+        <ContextualTabs Id="Mscrm.ContextualTabs">
+          <ContextualGroup Id="Mscrm.SubGrid.contact.ContextualTabs" Command="Mscrm.SubGrid.contact.ContextualTabs" Color="Orange" ContextualGroupId="Mscrm.SubGrid.contact.ContextualTabs" Title="$Resources:Mscrm_SubGrid_EntityLogicalName_ContextualTabs_Title" Sequence="500">
+            <Tab Id="Mscrm.SubGrid.contact.MainTab" Command="Mscrm.SubGrid.contact.MainTab" Title="Contacts" Sequence="10">
+              <Groups Id="Mscrm.SubGrid.contact.MainTab.Groups">
+                <Group Id="Mscrm.SubGrid.contact.MainTab.Management" Command="Mscrm.Enabled" Sequence="10" Title="Records" Template="Mscrm.Templates.Flexible2">
+                  <Controls Id="Mscrm.SubGrid.contact.MainTab.Management.Controls">
+                    <Button Id="Mscrm.SubGrid.contact.AddNewStandard" Command="Mscrm.AddNewRecordFromSubGridStandard" Sequence="20" LabelText="$Resources:Ribbon.SubGrid.AddNew" TemplateAlias="o1" ModernImage="New" />
+                  </Controls>
+                </Group>
+              </Groups>
+            </Tab>
+            <Tab Id="cbs.contact.SubGrid.Extra.Tab" Command="cbs.contact.SubGrid.Extra.Tab.Command" Title="$LocLabels:cbs.contact.SubGrid.Extra.Tab.Title" Sequence="500">
+              <Scaling Id="cbs.contact.SubGrid.Extra.Tab.Scaling" />
+              <Groups Id="cbs.contact.SubGrid.Extra.Tab.Groups" />
+            </Tab>
+          </ContextualGroup>
+        </ContextualTabs>
+      </Ribbon>
+    </UI>
+    <Templates>
+      <RibbonTemplates Id="Mscrm.Templates" />
+    </Templates>
+    <CommandDefinitions>
+      <CommandDefinition Id="cbs.contact.Approve.Command">
+        <EnableRules />
+        <DisplayRules />
+        <Actions>
+          <JavaScriptFunction FunctionName="Cbs.approve" Library="$webresource:cbs_/scripts/contact.js">
+            <CrmParameter Value="SelectedControlSelectedItemIds" />
+          </JavaScriptFunction>
+        </Actions>
+      </CommandDefinition>
+      <CommandDefinition Id="cbs.contact.Reject.Command">
+        <EnableRules />
+        <DisplayRules />
+        <Actions>
+          <JavaScriptFunction FunctionName="Cbs.reject" Library="$webresource:cbs_/scripts/contact.js" />
+        </Actions>
+      </CommandDefinition>
+      <CommandDefinition Id="cbs.contact.Sync.Command">
+        <EnableRules />
+        <DisplayRules />
+        <Actions>
+          <JavaScriptFunction FunctionName="Cbs.sync" Library="$webresource:cbs_/scripts/contact.js" />
+        </Actions>
+      </CommandDefinition>
+      <CommandDefinition Id="cbs.contact.HomepageGrid.Tools.Tab.Command">
+        <EnableRules />
+        <DisplayRules />
+        <Actions />
+      </CommandDefinition>
+      <CommandDefinition Id="cbs.contact.Form.Review.Tab.Command">
+        <EnableRules />
+        <DisplayRules />
+        <Actions />
+      </CommandDefinition>
+      <CommandDefinition Id="cbs.contact.SubGrid.Extra.Tab.Command">
+        <EnableRules />
+        <DisplayRules />
+        <Actions />
+      </CommandDefinition>
+    </CommandDefinitions>
+    <RuleDefinitions>
+      <TabDisplayRules>
+        <TabDisplayRule TabCommand="cbs.contact.HomepageGrid.Tools.Tab.Command">
+          <EntityRule EntityName="contact" Context="HomePageGrid" AppliesTo="PrimaryEntity" />
+        </TabDisplayRule>
+        <TabDisplayRule TabCommand="cbs.contact.Form.Review.Tab.Command">
+          <EntityRule EntityName="contact" Context="Form" AppliesTo="PrimaryEntity" />
+        </TabDisplayRule>
+        <TabDisplayRule TabCommand="cbs.contact.SubGrid.Extra.Tab.Command">
+          <EntityRule EntityName="contact" Context="SubGridStandard" />
+          <EntityRule EntityName="contact" Context="SubGridAssociated" />
+        </TabDisplayRule>
+      </TabDisplayRules>
+      <DisplayRules />
+      <EnableRules />
+    </RuleDefinitions>
+  </RibbonDefinition>
+</RibbonDefinitions>

@@ -82,7 +82,21 @@ export interface ScopePlan {
 	editedTabIds: string[];
 	/** Human-readable descriptions of changes CBS cannot publish yet. */
 	unsupported: string[];
+	/** Things that publish but may not do what the user expects (they don't block the publish). */
+	warnings: string[];
 }
+
+/**
+ * What Unified Interface does with a custom tab (#58). Microsoft: in Unified
+ * Interface "tabs and groups still act as containers for controls, but there is
+ * no visual indication of these containers"
+ * (https://learn.microsoft.com/power-apps/developer/model-driven-apps/command-bar-ribbon-presentation).
+ * Which tabs' buttons its command bar takes is not documented.
+ */
+export const UCI_TAB_NOTE =
+	"Unified Interface doesn't show tabs: there, tabs and groups are only containers for buttons. Microsoft doesn't " +
+	"document whether the command bar includes the buttons of a custom tab, so check them in the app after publishing. " +
+	"To be sure a button shows in Unified Interface, add it to a group on the main tab.";
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -107,6 +121,7 @@ function buttonLabelRefs(button: RibbonButton): string[] {
 
 export function planScope(input: PlanInput): ScopePlan {
 	const unsupported: string[] = [];
+	const warnings: string[] = [];
 	const deleted: string[] = [];
 	const unhidden: string[] = [];
 	const deletedContainers: string[] = [];
@@ -206,7 +221,17 @@ export function planScope(input: PlanInput): ScopePlan {
 			const tabRef = locRef(tab.label);
 			if (tabRef) referencedLabels.add(tabRef);
 			const bt = baseTabs.get(tab.id);
-			if (!bt) generatorLabels.add(`${tab.id}.Title`);
+			if (!bt) {
+				generatorLabels.add(`${tab.id}.Title`);
+				// A new table tab gets a default display rule; on the application
+				// ribbon there's no default, and without a rule the tab never shows.
+				if (current.location === "Application" && (tab.tabDisplayRules ?? []).length === 0) {
+					unsupported.push(
+						`New tab ${tab.id} has no tab display rule, so it would never be shown — add one in Tab rules`,
+					);
+				}
+				warnings.push(`New tab "${tab.label}" (${tab.id}): ${UCI_TAB_NOTE}`);
+			}
 			if (bt && bt.label !== tab.label) unsupported.push(`Renaming tab ${tab.id} — not supported yet`);
 			if (bt && !same(bt.tabDisplayRules ?? [], tab.tabDisplayRules ?? [])) {
 				if (!ownContainers.has(tab.id)) {
@@ -353,5 +378,6 @@ export function planScope(input: PlanInput): ScopePlan {
 		editedLocLabelIds,
 		editedTabIds,
 		unsupported: [...new Set(unsupported)],
+		warnings: [...new Set(warnings)],
 	};
 }

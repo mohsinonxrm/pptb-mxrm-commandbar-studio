@@ -21,6 +21,9 @@ import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { UCI_TAB_NOTE } from "@/services/publishPlan";
+
+const LOCATION_NAMES = { HomepageGrid: "home grid", Form: "form", SubGrid: "sub-grid", Application: "" } as const;
 
 const useStyles = makeStyles({
 	surface: {
@@ -66,7 +69,9 @@ export const NewTabModal: React.FC = () => {
 	const prefix = publisherPrefix || "new";
 	const entityName = activeEntity?.logicalName ?? "entity";
 	const safeName = label.replace(/\s+/g, "");
-	const generatedId = `${prefix}.${entityName}.${safeName}.Tab`;
+	// The location is part of the id: the same name on the grid and the form
+	// would otherwise collide (both tabs live in the table's one ribbon).
+	const generatedId = `${prefix}.${entityName}.${location}.${safeName}.Tab`;
 	const finalId = customId || generatedId;
 
 	const handleCreate = () => {
@@ -103,8 +108,15 @@ export const NewTabModal: React.FC = () => {
 						<MessageBar intent="info">
 							<MessageBarBody>
 								<Text size={200}>
-									Tabs are hidden by default. Add a Tab Display Rule to make the tab visible.
+									{location === "Application"
+										? "A tab is shown only where a Tab Display Rule allows it. Add one in Tab rules before publishing."
+										: `The tab gets a Tab Display Rule for this table's ${LOCATION_NAMES[location]}. You can change it in Tab rules.`}
 								</Text>
+							</MessageBarBody>
+						</MessageBar>
+						<MessageBar intent="warning">
+							<MessageBarBody>
+								<Text size={200}>{UCI_TAB_NOTE}</Text>
 							</MessageBarBody>
 						</MessageBar>
 

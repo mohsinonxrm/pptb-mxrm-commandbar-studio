@@ -93,7 +93,8 @@ const ca = (id: string, location: string, seq: number, inner: string) =>
 const label = (id: string, ...titles: [number, string][]) =>
 	`<LocLabel Id="${id}"><Titles>${titles.map(([l, d]) => `<Title languagecode="${l}" description="${d}" />`).join("")}</Titles></LocLabel>`;
 
-// The table's unmanaged layer, as the ribbon component tables return it.
+// The table's unmanaged layer, as the ribbon component tables return it. The
+// controls of the layer's own tab and group are written inside them (#58, #59).
 const LAYER_ROWS = {
 	diffs: [
 		{
@@ -102,28 +103,16 @@ const LAYER_ROWS = {
 				"cbs.Tab.CustomAction",
 				"Mscrm.Tabs._children",
 				500,
-				`<Tab Id="cbs.Tab" Command="cbs.Tab.Command" Title="$LocLabels:cbs.Tab.Title" Sequence="500"><Groups Id="cbs.Tab.Groups"><Group Id="cbs.Tab.G1" Title="$LocLabels:cbs.Tab.G1.Title" Sequence="10" Template="Mscrm.Templates.Flexible2"><Controls Id="cbs.Tab.G1.Controls" /></Group><Group Id="cbs.Tab.G2" Title="$LocLabels:cbs.Tab.G2.Title" Sequence="20" Template="Mscrm.Templates.Flexible2"><Controls Id="cbs.Tab.G2.Controls" /></Group></Groups><Scaling Id="cbs.Tab.Scaling"><MaxSize Id="cbs.Tab.G1.MaxSize" GroupId="cbs.Tab.G1" Sequence="10" Size="LargeLarge" /><MaxSize Id="cbs.Tab.G2.MaxSize" GroupId="cbs.Tab.G2" Sequence="20" Size="LargeLarge" /></Scaling></Tab>`,
+				`<Tab Id="cbs.Tab" Command="cbs.Tab.Command" Title="$LocLabels:cbs.Tab.Title" Sequence="500"><Groups Id="cbs.Tab.Groups"><Group Id="cbs.Tab.G1" Title="$LocLabels:cbs.Tab.G1.Title" Sequence="10" Template="Mscrm.Templates.Flexible2"><Controls Id="cbs.Tab.G1.Controls"><Button Id="cbs.B1" Command="cbs.B1.Command" Sequence="10" LabelText="$LocLabels:cbs.B1.LabelText" TemplateAlias="o1" /></Controls></Group><Group Id="cbs.Tab.G2" Title="$LocLabels:cbs.Tab.G2.Title" Sequence="20" Template="Mscrm.Templates.Flexible2"><Controls Id="cbs.Tab.G2.Controls"><Button Id="cbs.B2" Command="cbs.Shared.Command" Sequence="10" LabelText="Two" TemplateAlias="o1" /></Controls></Group></Groups><Scaling Id="cbs.Tab.Scaling"><MaxSize Id="cbs.Tab.G1.MaxSize" GroupId="cbs.Tab.G1" Sequence="10" Size="LargeLarge" /><MaxSize Id="cbs.Tab.G2.MaxSize" GroupId="cbs.Tab.G2" Sequence="20" Size="LargeLarge" /></Scaling></Tab>`,
 			),
 		},
 		{
 			difftype: 0,
-			rdx: ca("cbs.B1.CustomAction", "cbs.Tab.G1.Controls._children", 10, `<Button Id="cbs.B1" Command="cbs.B1.Command" Sequence="10" LabelText="$LocLabels:cbs.B1.LabelText" TemplateAlias="o1" />`),
-		},
-		{
-			difftype: 0,
-			rdx: ca("cbs.B2.CustomAction", "cbs.Tab.G2.Controls._children", 10, `<Button Id="cbs.B2" Command="cbs.Shared.Command" Sequence="10" LabelText="Two" TemplateAlias="o1" />`),
-		},
-		{
-			difftype: 0,
-			rdx: ca("cbs.Grp.CustomAction", `${MAIN}.Groups._children`, 100, `<Group Id="cbs.Grp" Title="$LocLabels:cbs.Grp.Title" Sequence="100" Template="Mscrm.Templates.Flexible2"><Controls Id="cbs.Grp.Controls" /></Group>`),
+			rdx: ca("cbs.Grp.CustomAction", `${MAIN}.Groups._children`, 100, `<Group Id="cbs.Grp" Title="$LocLabels:cbs.Grp.Title" Sequence="100" Template="Mscrm.Templates.Flexible2"><Controls Id="cbs.Grp.Controls"><Button Id="cbs.B3" Command="cbs.Shared.Command" Sequence="10" LabelText="$LocLabels:cbs.B3.LabelText" TemplateAlias="o1" /></Controls></Group>`),
 		},
 		{
 			difftype: 0,
 			rdx: ca("cbs.Grp.MaxSize.CustomAction", `${MAIN}.Scaling._children`, 120, `<MaxSize Id="cbs.Grp.MaxSize" GroupId="cbs.Grp" Sequence="120" Size="LargeLarge" />`),
-		},
-		{
-			difftype: 0,
-			rdx: ca("cbs.B3.CustomAction", "cbs.Grp.Controls._children", 10, `<Button Id="cbs.B3" Command="cbs.Shared.Command" Sequence="10" LabelText="$LocLabels:cbs.B3.LabelText" TemplateAlias="o1" />`),
 		},
 		{
 			difftype: 0,
@@ -248,7 +237,8 @@ describe("#47 — controls hidden by the layer can be un-hidden", () => {
 		const { doc } = await build(parsed.ribbon, parsed, { unhiddenLayerHideIds: [refresh] });
 		expect(doc.querySelectorAll("HideCustomAction")).toHaveLength(0);
 		// Nothing else is lost.
-		expect(ids(doc, "CustomActions > CustomAction")).toHaveLength(8);
+		expect(ids(doc, "CustomActions > CustomAction")).toHaveLength(5);
+		expect(doc.querySelectorAll("Button")).toHaveLength(5);
 	});
 
 	it("the store tracks pending un-hides and drops them from the list once published", () => {
@@ -296,9 +286,10 @@ describe("#48 — deleting a tab or group the layer adds", () => {
 		const { doc } = await build(parsed.ribbon, parsed);
 		const cas = ids(doc, "CustomActions > CustomAction");
 		expect(cas).not.toContain("cbs.Tab.CustomAction");
-		expect(cas).not.toContain("cbs.B1.CustomAction");
-		expect(cas).not.toContain("cbs.B2.CustomAction");
-		expect(cas).toEqual(expect.arrayContaining(["cbs.Grp.CustomAction", "cbs.B3.CustomAction", "cbs.B4.CustomAction", "cbs.B5.CustomAction"]));
+		expect(doc.querySelector('Button[Id="cbs.B1"]')).toBeNull();
+		expect(doc.querySelector('Button[Id="cbs.B2"]')).toBeNull();
+		expect(cas).toEqual(expect.arrayContaining(["cbs.Grp.CustomAction", "cbs.B4.CustomAction", "cbs.B5.CustomAction"]));
+		expect(doc.querySelector('Group[Id="cbs.Grp"] Button[Id="cbs.B3"]')).not.toBeNull();
 		const labels = ids(doc, "LocLabels > LocLabel");
 		for (const gone of ["cbs.Tab.Title", "cbs.Tab.G1.Title", "cbs.Tab.G2.Title", "cbs.B1.LabelText"]) expect(labels).not.toContain(gone);
 		expect(labels).toEqual(expect.arrayContaining(["cbs.Grp.Title", "cbs.B3.LabelText", "cbs.B4.LabelText"]));
@@ -323,7 +314,7 @@ describe("#48 — deleting a tab or group the layer adds", () => {
 		expect(ids(tabEl.ownerDocument, 'Tab[Id="cbs.Tab"] Group')).toEqual(["cbs.Tab.G1"]);
 		expect(tabEl.querySelector('MaxSize[GroupId="cbs.Tab.G2"]')).toBeNull();
 		expect(tabEl.querySelector('MaxSize[GroupId="cbs.Tab.G1"]')).not.toBeNull();
-		expect(ids(doc, "CustomActions > CustomAction")).not.toContain("cbs.B2.CustomAction");
+		expect(doc.querySelector('Button[Id="cbs.B2"]')).toBeNull();
 		expect(ids(doc, "LocLabels > LocLabel")).not.toContain("cbs.Tab.G2.Title");
 		expect(ids(doc, "LocLabels > LocLabel")).toContain("cbs.Tab.Title");
 		expect(doc.querySelectorAll("TabDisplayRule")).toHaveLength(1);
@@ -403,7 +394,7 @@ describe("#49 — translation-only and existing-tab display rule edits", () => {
 		);
 		expect(titles.sort()).toEqual(["1031=Vier!", "1033=Four", "1036=Quatre"]);
 		// No CustomAction is touched.
-		expect(doc.querySelectorAll("CustomActions > CustomAction")).toHaveLength(8);
+		expect(doc.querySelectorAll("CustomActions > CustomAction")).toHaveLength(5);
 	});
 
 	it("a translation of the tab title (referenced by the tab) is published", () => {
@@ -616,10 +607,12 @@ describe("#26 — moving / re-sequencing your own buttons", () => {
 		const { doc, plan: p } = await build(parsed.ribbon, parsed);
 		expect(p.unsupported).toEqual([]);
 		expect(p.movedButtons).toEqual([{ id: "cbs.B4", groupId: "cbs.Tab.G1", sequence: 20 }]);
-		const caEl = doc.querySelector('CustomAction[Id="cbs.B4.CustomAction"]')!;
-		expect(caEl.getAttribute("Location")).toBe("cbs.Tab.G1.Controls._children");
-		expect(caEl.getAttribute("Sequence")).toBe("20");
-		expect(caEl.querySelector("Button")!.getAttribute("Sequence")).toBe("20");
+		// The destination is the layer's own group: the button is written inside it (#59).
+		expect(doc.querySelector('CustomAction[Id="cbs.B4.CustomAction"]')).toBeNull();
+		const moved = doc.querySelector('Tab[Id="cbs.Tab"] Group[Id="cbs.Tab.G1"] > Controls > Button[Id="cbs.B4"]')!;
+		expect(moved.getAttribute("Sequence")).toBe("20");
+		expect(moved.getAttribute("LabelText")).toBe("$LocLabels:cbs.B4.LabelText");
+		expect(ids(doc, "LocLabels > LocLabel")).toContain("cbs.B4.LabelText");
 		// Moved, not copied.
 		expect(doc.querySelectorAll('Button[Id="cbs.B4"]')).toHaveLength(1);
 	});
@@ -672,10 +665,10 @@ describe("compareRibbonDiffParts (#46 verification)", () => {
 	it("reports missing and unexpected elements by part and id", () => {
 		const a = layerParts();
 		const b = layerParts();
-		b.customActions.delete("ca:cbs.B1.CustomAction");
+		b.customActions.delete("ca:cbs.B4.CustomAction");
 		b.locLabels.set("extra", label("extra", [1033, "x"]));
 		expect(compareRibbonDiffParts(a, b)).toEqual({
-			missing: ["customActions:ca:cbs.B1.CustomAction"],
+			missing: ["customActions:ca:cbs.B4.CustomAction"],
 			unexpected: ["locLabels:extra"],
 			differing: [],
 		});

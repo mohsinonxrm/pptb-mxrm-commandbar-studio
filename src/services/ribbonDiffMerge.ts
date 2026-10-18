@@ -414,13 +414,110 @@ export interface ScopeMergeOptions {
 	removedTabCommands?: Iterable<string>;
 }
 
-/** Ids of the controls the layer itself adds (`CustomAction Location="…._children"`). */
+const isContainer = (el: Element | null | undefined): el is Element => el?.tagName === "Tab" || el?.tagName === "Group";
+
+const escapeAttr = (v: string) =>
+	v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/**
+ * The controls written inside a Tab / Group element: the children of its
+ * `<Controls>` collections (a new tab or group carries the controls created
+ * with it inline — #58, #59).
+ */
+function nestedControls(container: Element): Element[] {
+	return Array.from(container.getElementsByTagName("Controls")).flatMap((c) => Array.from(c.children));
+}
+
+/** The element with this Id inside `root` (including `root`). */
+function findById(root: Element, id: string): Element | null {
+	if (root.getAttribute("Id") === id) return root;
+	for (const d of Array.from(root.getElementsByTagName("*"))) if (d.getAttribute("Id") === id) return d;
+	return null;
+}
+
+/**
+ * Ids of the controls the layer itself adds: the control of a
+ * `CustomAction Location="…._children"`, and the controls written inside a tab
+ * or group such a CustomAction adds.
+ */
 export function ownControlIds(parts: RibbonDiffParts): Set<string> {
 	const out = new Set<string>();
 	for (const xml of parts.customActions.values()) {
 		const ca = elementOf(xml);
-		const id = controlOf(xml)?.getAttribute("Id");
-		if (ca.tagName === "CustomAction" && id && isChildrenLocation(ca.getAttribute("Location"))) out.add(id);
+		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+		const ctrl = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+		const id = ctrl?.getAttribute("Id");
+		if (id) out.add(id);
+		if (isContainer(ctrl)) {
+			for (const c of nestedControls(ctrl)) {
+				const cid = c.getAttribute("Id");
+				if (cid) out.add(cid);
+			}
+		}
+	}
+	return out;
+}
+
+/**
+ * Moves every `X.Controls._children` / `X.Groups._children` /
+ * `X.Scaling._children` CustomAction whose X is a group or tab ANOTHER
+ * CustomAction of the layer adds into that container, in place (#59).
+ *
+ * Dataverse files each CustomAction under a tab. For a container the layer
+ * adds, a separate child CustomAction was filed under the concrete entity tab
+ * while the container is filed under the `{!EntityLogicalName}` template tab,
+ * so Dataverse dropped the child (the "empty new group" of #59). Written
+ * inside the container, it is part of the same element. This also repairs
+ * layers written by earlier CBS versions.
+ */
+export function foldIntoOwnContainers(customActions: ElementMap): ElementMap {
+	const out = new Map(customActions);
+	const s = serializer();
+	for (let folded = true; folded; ) {
+		folded = false;
+		// Containers (tab / group id) → key of the CustomAction that adds them.
+		const host = new Map<string, string>();
+		for (const [key, xml] of out) {
+			const ca = elementOf(xml);
+			if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+			const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+			if (!isContainer(root)) continue;
+			for (const el of [root, ...Array.from(root.getElementsByTagName("Group"))]) {
+				const id = el.getAttribute("Id");
+				if (id && !host.has(id)) host.set(id, key);
+			}
+		}
+		for (const [key, xml] of out) {
+			const ca = elementOf(xml);
+			if (ca.tagName !== "CustomAction") continue;
+			const m = /^(.+)\.(Controls|Groups|Scaling)\._children$/.exec(ca.getAttribute("Location") ?? "");
+			const child = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+			const hostKey = m ? host.get(m[1]) : undefined;
+			if (!m || !child || !hostKey || hostKey === key) continue;
+			const [, parentId, slot] = m;
+			const hostCa = elementOf(out.get(hostKey)!);
+			const container = findById(hostCa, parentId);
+			if (!container || container.tagName !== (slot === "Controls" ? "Group" : "Tab")) continue;
+			const doc = hostCa.ownerDocument;
+			let slotEl = firstChild(container, slot);
+			if (!slotEl) {
+				slotEl = doc.createElement(slot);
+				slotEl.setAttribute("Id", `${parentId}.${slot}`);
+				// RibbonCore.xsd TabType: Scaling comes before Groups.
+				const groups = slot === "Scaling" ? firstChild(container, "Groups") : undefined;
+				container.insertBefore(slotEl, groups ?? null);
+			}
+			const imported = doc.importNode(child, true) as Element;
+			const seq = ca.getAttribute("Sequence");
+			if (!imported.getAttribute("Sequence") && seq) imported.setAttribute("Sequence", seq);
+			// Scaling is applied in document order: every MaxSize before any Scale (#40).
+			const firstScale = imported.tagName === "MaxSize" ? firstChild(slotEl, "Scale") : undefined;
+			slotEl.insertBefore(imported, firstScale ?? null);
+			out.set(hostKey, s.serializeToString(hostCa));
+			out.delete(key);
+			folded = true;
+			break;
+		}
 	}
 	return out;
 }
@@ -545,7 +642,24 @@ export function mergeScopeChanges(
 		const location = ca.getAttribute("Location");
 		if (ctrl?.getAttribute("Id") && isChildrenLocation(location)) ownControl.set(ctrl.getAttribute("Id")!, key);
 		else if (location) overrideAt.set(location, key);
+		// Controls written inside a tab / group the layer adds (#59).
+		if (isChildrenLocation(location) && isContainer(ctrl)) {
+			for (const c of nestedControls(ctrl)) {
+				const id = c.getAttribute("Id");
+				if (id && !ownControl.has(id)) ownControl.set(id, key);
+			}
+		}
 	}
+	// The control with this id inside the CustomAction stored under `key`
+	// (its root control, or one written inside its tab / group).
+	const locate = (key: string, id: string) => {
+		const xml = merged.customActions.get(key);
+		if (!xml) return { ca: null, el: null, nested: false };
+		const ca = elementOf(xml);
+		const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild ?? null;
+		const el = root?.getAttribute("Id") === id ? root : root && isContainer(root) ? findById(root, id) : null;
+		return { ca, el, nested: !!el && el !== root };
+	};
 
 	// Controls the delta adds (`…._children`): never removed below, whatever
 	// the deletes say — a control cut from one location and pasted into another
@@ -560,19 +674,56 @@ export function mergeScopeChanges(
 		const adds = ca.tagName === "CustomAction" && isChildrenLocation(ca.getAttribute("Location"));
 		if (adds && ctrlId) readded.add(ctrlId);
 		const container = ctrl?.tagName === "Tab" || ctrl?.tagName === "Group";
-		if (ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !(adds && container)) {
+		if (adds && container) {
+			// A new tab / group with controls written inside it. One of them may be
+			// your own control moved here from another location of the table: it
+			// is defined here now, so its previous definition goes.
+			for (const c of nestedControls(ctrl!)) {
+				const id = c.getAttribute("Id");
+				if (!id) continue;
+				readded.add(id);
+				const prevKey = ownControl.get(id);
+				const prev = prevKey ? locate(prevKey, id) : null;
+				if (!prevKey || !prev?.ca || !prev.el) continue;
+				if (prev.nested) {
+					prev.el.parentNode!.removeChild(prev.el);
+					merged.customActions.set(prevKey, s.serializeToString(prev.ca));
+				} else {
+					merged.customActions.delete(prevKey);
+				}
+			}
+		}
+		const owned = ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !(adds && container);
+		const found = owned ? locate(targetKey!, ctrlId!) : null;
+		if (owned && found?.ca && found.el && found.nested) {
+			// A control written inside the layer's own tab / group. Edited → replaced
+			// where it is; added again elsewhere (moved) → taken out here, and the
+			// delta's CustomAction places it (folded in below when that's a
+			// container of the layer too).
+			const { ca: target, el } = found;
+			if (adds) {
+				el.parentNode!.removeChild(el);
+				merged.customActions.set(key, xml);
+			} else {
+				const imported = withChildrenOf(target.ownerDocument.importNode(ctrl!, true) as Element, el);
+				el.parentNode!.replaceChild(imported, el);
+			}
+			merged.customActions.set(targetKey!, s.serializeToString(target));
+			continue;
+		}
+		if (owned && found?.ca && found.el) {
 			// Edit of a control the layer owns → replace it inside its own
 			// CustomAction. A control the delta adds again (moved to another
 			// location) also takes the new Location: one CustomAction per control,
 			// keeping the layer's CustomAction id.
-			const target = elementOf(merged.customActions.get(targetKey) ?? existing.customActions.get(targetKey)!);
+			const target = found.ca;
 			const def = firstChild(target, "CommandUIDefinition")!;
-			const imported = withChildrenOf(target.ownerDocument.importNode(ctrl, true) as Element, def.firstElementChild);
+			const imported = withChildrenOf(target.ownerDocument.importNode(ctrl!, true) as Element, def.firstElementChild);
 			def.replaceChild(imported, def.firstElementChild!);
 			if (adds) target.setAttribute("Location", ca.getAttribute("Location")!);
-			const seq = ctrl.getAttribute("Sequence") ?? (adds ? ca.getAttribute("Sequence") : null);
+			const seq = ctrl!.getAttribute("Sequence") ?? (adds ? ca.getAttribute("Sequence") : null);
 			if (seq) target.setAttribute("Sequence", seq);
-			merged.customActions.set(targetKey, s.serializeToString(target));
+			merged.customActions.set(targetKey!, s.serializeToString(target));
 			continue;
 		}
 		const location = ca.getAttribute("Location");
@@ -598,6 +749,24 @@ export function mergeScopeChanges(
 		const key = ownControl.get(move.id);
 		const xml = key ? merged.customActions.get(key) : undefined;
 		if (!key || !xml) continue;
+		const found = locate(key, move.id);
+		if (!found.ca || !found.el) continue; // already placed by the delta (written inside a new tab / group)
+		if (found.nested) {
+			// Written inside the layer's tab / group: taken out and given its own
+			// CustomAction at the new place (folded into the destination below
+			// when that is a container of the layer too).
+			const el = found.el;
+			el.parentNode!.removeChild(el);
+			merged.customActions.set(key, s.serializeToString(found.ca));
+			el.setAttribute("Sequence", String(move.sequence));
+			let caId = `${move.id}.CustomAction`;
+			while (merged.customActions.has(`ca:${caId}`)) caId += "_";
+			merged.customActions.set(
+				`ca:${caId}`,
+				`<CustomAction Id="${escapeAttr(caId)}" Location="${escapeAttr(`${move.groupId}.Controls._children`)}" Sequence="${move.sequence}"><CommandUIDefinition>${s.serializeToString(el)}</CommandUIDefinition></CustomAction>`,
+			);
+			continue;
+		}
 		const ca = elementOf(xml);
 		ca.setAttribute("Location", `${move.groupId}.Controls._children`);
 		ca.setAttribute("Sequence", String(move.sequence));
@@ -617,14 +786,30 @@ export function mergeScopeChanges(
 		}
 		const ctrl = controlOf(xml);
 		const ctrlId = ctrl?.getAttribute("Id");
-		if (ctrlId && deleted.has(ctrlId) && !readded.has(ctrlId) && isChildrenLocation(el.getAttribute("Location"))) {
+		const children = isChildrenLocation(el.getAttribute("Location"));
+		if (ctrlId && deleted.has(ctrlId) && !readded.has(ctrlId) && children) {
 			merged.customActions.delete(key);
 			// Only the labels this control references — not every id that merely
 			// starts with its id (#11 review N11).
 			for (const m of xml.matchAll(LOC_LABEL_REF)) removedLabels.add(m[1]);
 			const commandId = ctrl?.getAttribute("Command");
 			if (commandId) removedCommands.add(commandId);
+			continue;
 		}
+		// Controls written inside the layer's own tab / group.
+		const root = firstChild(el, "CommandUIDefinition")?.firstElementChild;
+		if (!children || !isContainer(root)) continue;
+		const removedHere = nestedControls(root).filter((c) => {
+			const id = c.getAttribute("Id") ?? "";
+			return deleted.has(id) && !readded.has(id);
+		});
+		if (removedHere.length === 0) continue;
+		for (const c of removedHere) {
+			for (const m of s.serializeToString(c).matchAll(LOC_LABEL_REF)) removedLabels.add(m[1]);
+			for (const cmd of commandsWithin(c)) removedCommands.add(cmd);
+			c.parentNode?.removeChild(c);
+		}
+		merged.customActions.set(key, s.serializeToString(el));
 	}
 
 	// Deleted tabs / groups (#48), and everything placed inside them.
@@ -681,6 +866,9 @@ export function mergeScopeChanges(
 			changed = true;
 		}
 	}
+
+	// Children of the layer's own tabs / groups go inside them (#59).
+	merged.customActions = foldIntoOwnContainers(merged.customActions);
 
 	const keepUnlessEdited = (key: "commandDefinitions" | "enableRules" | "displayRules", edited: Set<string>) => {
 		for (const [id, xml] of delta[key]) {

@@ -41,6 +41,18 @@ function dedupeById<T extends { id: string }>(items: T[]): T[] {
 	return deduped;
 }
 
+/** The location a custom tab's display rules show it in (the first EntityRule with a Context). */
+function locationFromTabDisplayRules(tab: RibbonTab): EntityRibbonLocation | undefined {
+	for (const tdr of tab.tabDisplayRules)
+		for (const rule of tdr.rules) {
+			if (rule.kind !== "EntityRule") continue;
+			if (rule.context === "Form") return "Form";
+			if (rule.context === "HomePageGrid") return "HomepageGrid";
+			if (rule.context === "SubGridStandard" || rule.context === "SubGridAssociated") return "SubGrid";
+		}
+	return undefined;
+}
+
 /**
  * Splits the merged entity-ribbon tabs into the three EntityRibbonLocation
  * buckets based on the Microsoft tab-ID naming convention documented at
@@ -49,11 +61,13 @@ function dedupeById<T extends { id: string }>(items: T[]): T[] {
  *   - Mscrm.HomepageGrid.<entity>.* → HomepageGrid
  *   - Mscrm.SubGrid.<entity>.*     → SubGrid
  *
- * Tabs without a recognized prefix default to HomepageGrid (most common
- * fallback for custom tabs). This may need to be refined once we observe
- * real customer ribbon shapes in PPTB.
+ * A custom tab (e.g. one CBS or Ribbon Workbench added) has its own id. All of
+ * an entity's grid and form tabs live in the one `Mscrm.Tabs` collection, so
+ * the tab's TabDisplayRule says where it belongs (#58): an EntityRule with
+ * Context `Form` → Form, `HomePageGrid` → HomepageGrid, `SubGridStandard` /
+ * `SubGridAssociated` → SubGrid. Tabs with neither default to HomepageGrid.
  */
-function splitTabsByLocation(
+export function splitTabsByLocation(
 	tabs: RibbonTab[],
 	entityLogicalName: string,
 ): Record<EntityRibbonLocation, RibbonDefinition> {
@@ -71,9 +85,7 @@ function splitTabsByLocation(
 		} else if (tab.id.startsWith("Mscrm.HomepageGrid.")) {
 			buckets.HomepageGrid.push(tab);
 		} else {
-			// Custom / unrecognized tab. Default to HomepageGrid; the user can
-			// still see and edit it.
-			buckets.HomepageGrid.push(tab);
+			buckets[locationFromTabDisplayRules(tab) ?? "HomepageGrid"].push(tab);
 		}
 	}
 

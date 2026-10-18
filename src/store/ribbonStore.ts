@@ -16,6 +16,7 @@ import type {
 	ScalingDefinition,
 } from "@/types/ribbon";
 import type { LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import { defaultTabDisplayRules, newTabCommandId } from "@/services/xmlGenerator";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -761,11 +762,19 @@ export const useRibbonStore = create<RibbonStore>()(
 					state,
 					(ribbons) => {
 						const ribbon = ribbons[location];
+						const id = tabDef.id ?? `tab_${Date.now()}`;
+						// A tab is shown only where a TabDisplayRule bound to its Command
+						// allows it (#58), so a new table tab starts with the rule for the
+						// location it was added to; the user can change it in Tab rules.
+						const commandId = newTabCommandId({ ...tabDef, id } as RibbonTab);
 						const newTab: RibbonTab = {
-							id: tabDef.id ?? `tab_${Date.now()}`,
+							id,
 							label: tabDef.label ?? "New Tab",
 							sequence: tabDef.sequence ?? (ribbon.tabs.length + 1) * 10,
-							tabDisplayRules: [],
+							commandId,
+							tabDisplayRules: tabDef.tabDisplayRules?.length
+								? tabDef.tabDisplayRules
+								: defaultTabDisplayRules(location, ribbon.entityLogicalName, commandId),
 							groups: [],
 						};
 						ribbon.tabs.push(newTab);

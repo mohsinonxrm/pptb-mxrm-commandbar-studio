@@ -306,6 +306,7 @@ function DroppableSlot({
 }
 
 export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
+	const locLabels = useRibbonStore((s) => s.locLabels);
 	const moveButton = useRibbonStore((s) => s.moveButton);
 	const createGroup = useRibbonStore((s) => s.createGroup);
 	const deleteButton = useRibbonStore((s) => s.deleteButton);
@@ -534,7 +535,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 								content={`Template: ${group.template || "Flexible2"}`}
 								relationship="description"
 							>
-								<div style={useStyles.groupLabel}>{group.label}</div>
+								<div style={useStyles.groupLabel}>{resolveDisplayLabel(group.label, locLabels)}</div>
 							</Tooltip>
 						</DroppableGroupContainer>
 					))}

@@ -7,6 +7,7 @@ import {
 	generateEnableRule,
 	generateDisplayRule,
 	generateTabDisplayRulesForTab,
+	newTabCommandId,
 } from "@/services/xmlGenerator";
 import {
 	emptyRibbonDiffParts,
@@ -269,7 +270,12 @@ export async function buildMergedRibbonDiffXml(
 	const keepOnly = (map: Map<string, string>, ids: string[]) => {
 		for (const id of Array.from(map.keys())) if (!ids.includes(id)) map.delete(id);
 	};
-	keepOnly(delta.commandDefinitions, input.plan.editedCommandIds);
+	// …plus the Command of each tab created this session (#58): the generator
+	// defines it with the tab, and its TabDisplayRule refers to it.
+	const newTabCommands = input.locations.flatMap((loc) =>
+		loc.current.tabs.filter((t) => !loc.baseline.tabs.some((b) => b.id === t.id)).map(newTabCommandId),
+	);
+	keepOnly(delta.commandDefinitions, [...input.plan.editedCommandIds, ...newTabCommands]);
 	keepOnly(delta.enableRules, input.plan.editedEnableRuleIds);
 	keepOnly(delta.displayRules, input.plan.editedDisplayRuleIds);
 

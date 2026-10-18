@@ -168,6 +168,7 @@ export const BulkPublishModal: React.FC = () => {
 	}, [planFor, activeEntity, ribbons]);
 	const includeApplicationRibbon = appPlan.hasChanges && solutionSupportsAppRibbon;
 	const unsupported = [...(entityPlan?.unsupported ?? []), ...appPlan.unsupported];
+	const warnings = [...(entityPlan?.warnings ?? []), ...appPlan.warnings];
 	const scopes = [
 		...(activeEntity && entityPlan?.hasChanges ? [activeEntity.logicalName] : []),
 		...(includeApplicationRibbon ? ["Application ribbon"] : []),
@@ -326,6 +327,19 @@ export const BulkPublishModal: React.FC = () => {
 										<ul style={{ margin: `${tokens.spacingVerticalXS} 0 0`, paddingLeft: 20 }}>
 											{unsupported.map((u) => (
 												<li key={u}>{u}</li>
+											))}
+										</ul>
+									</MessageBarBody>
+								</MessageBar>
+							)}
+
+							{warnings.length > 0 && !done && (
+								<MessageBar intent="warning" layout="multiline">
+									<MessageBarBody>
+										<strong>Check after publishing:</strong>
+										<ul style={{ margin: `${tokens.spacingVerticalXS} 0 0`, paddingLeft: 20 }}>
+											{warnings.map((w) => (
+												<li key={w}>{w}</li>
 											))}
 										</ul>
 									</MessageBarBody>

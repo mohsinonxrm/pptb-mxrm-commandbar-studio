@@ -13,6 +13,7 @@ import type {
 	ScaleStep,
 	RibbonGroup,
 	RibbonTab,
+	TabDisplayRule,
 } from "@/types/ribbon";
 import {
 	buttonLabelId,
@@ -93,9 +94,87 @@ export function indexButtons(def: RibbonDefinition): Map<string, IndexedButton> 
 	return out;
 }
 
+/**
+ * The `Command` of a tab created in CBS. A tab is only shown when a
+ * TabDisplayRule names its Command (TabCommand), so a new tab always gets one
+ * (#58; https://learn.microsoft.com/power-apps/developer/model-driven-apps/define-ribbon-tab-display-rules).
+ */
+export function newTabCommandId(tab: RibbonTab): string {
+	return tab.commandId || `${tab.id}.Command`;
+}
+
+/**
+ * Where a new tab is added. An entity has no tab collection of its own: grid
+ * and form tabs go into the application's `Mscrm.Tabs`, and the TabDisplayRule
+ * decides where they show. The sub-grid ribbon is a contextual group of the
+ * entity ribbon, so its tabs go there (Microsoft's "Add a custom tab to a
+ * specific entity" walkthrough).
+ */
+export function newTabLocation(location: RibbonLocation, entityLogicalName: string): string {
+	return location === "SubGrid" ? `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs._children` : "Mscrm.Tabs._children";
+}
+
+/**
+ * The TabDisplayRule a new entity tab gets when the user didn't define one:
+ * an EntityRule for the table in the tab's location. Without a rule the tab is
+ * never shown and RetrieveEntityRibbon doesn't return it (#58). The application
+ * ribbon has no default (a tab there needs a PageRule or EntityRule the user
+ * chooses).
+ */
+export function defaultTabDisplayRules(
+	location: RibbonLocation,
+	entityLogicalName: string,
+	tabCommand: string,
+): TabDisplayRule[] {
+	switch (location) {
+		case "HomepageGrid":
+			return [
+				{
+					tabCommand,
+					rules: [{ kind: "EntityRule", entityName: entityLogicalName, context: "HomePageGrid", appliesTo: "PrimaryEntity" }],
+				},
+			];
+		case "Form":
+			return [
+				{
+					tabCommand,
+					rules: [{ kind: "EntityRule", entityName: entityLogicalName, context: "Form", appliesTo: "PrimaryEntity" }],
+				},
+			];
+		case "SubGrid":
+			return [
+				{
+					tabCommand,
+					rules: [
+						{ kind: "EntityRule", entityName: entityLogicalName, context: "SubGridStandard" },
+						{ kind: "EntityRule", entityName: entityLogicalName, context: "SubGridAssociated" },
+					],
+				},
+			];
+		default:
+			return [];
+	}
+}
+
+/**
+ * A tab created this session as it is written: with a Command, and with the
+ * default display rule when it has none. Rules with no TabCommand are bound to
+ * the tab's Command.
+ */
+export function effectiveNewTab(tab: RibbonTab, location: RibbonLocation, entityLogicalName: string): RibbonTab {
+	const commandId = newTabCommandId(tab);
+	const rules = (tab.tabDisplayRules ?? []).map((r) => ({ ...r, tabCommand: r.tabCommand || commandId }));
+	return {
+		...tab,
+		commandId,
+		tabDisplayRules: rules.length > 0 ? rules : defaultTabDisplayRules(location, entityLogicalName, commandId),
+	};
+}
+
 export function generateRibbonDiffXml(input: GeneratorInput): string {
 	const { current, baseline, commands, enableRules, displayRules, locLabels } = input;
 	const lang = input.languageCode ?? 1033;
+	const isApplication = input.location === "Application";
 
 	const baselineButtons = indexButtons(baseline);
 	const baselineTabIds = new Set<string>();
@@ -107,11 +186,19 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	}
 	// Pairs each current button with the same occurrence in the baseline.
 	const seenIds = new Map<string, number>();
-	const baselineFor = (button: RibbonButton): RibbonButton | undefined => {
-		const n = seenIds.get(button.id) ?? 0;
-		seenIds.set(button.id, n + 1);
-		return baselineButtons.get(`${button.id}#${n}`)?.button;
-	};
+	const baselineOf = new Map<RibbonButton, RibbonButton | undefined>();
+	for (const tab of current.tabs)
+		for (const group of tab.groups)
+			for (const button of group.buttons) {
+				const n = seenIds.get(button.id) ?? 0;
+				seenIds.set(button.id, n + 1);
+				baselineOf.set(button, baselineButtons.get(`${button.id}#${n}`)?.button);
+			}
+
+	// Tabs created this session, as written (Command + display rules).
+	const newTabs = current.tabs
+		.filter((t) => !baselineTabIds.has(t.id))
+		.map((t) => effectiveNewTab(t, input.location, input.entityLogicalName));
 
 	const tabCustomActions: string[] = [];
 	const groupCustomActions: string[] = [];
@@ -135,26 +222,53 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// ribbonLayerService. The generator deliberately ignores button.custom.)
 	const emittedButtons: RibbonButton[] = [];
 
-	// 1. New tabs (not present in the OOB baseline) — emit the whole tab with
-	//    its groups so the buttons inside have an anchor. Documented anchor:
-	//    Location="Mscrm.Tabs._children".
-	for (const tab of current.tabs) {
-		if (!baselineTabIds.has(tab.id)) {
-			tabCustomActions.push(generateTabCustomAction(tab, current.scalingByTab?.[tab.id], sink, lang));
+	// Controls written INSIDE a new tab / group (#58, #59). Dataverse files each
+	// CustomAction under a tab; a separate `{newGroupId}.Controls._children`
+	// CustomAction is filed under the concrete entity tab while the group it
+	// targets is filed under the `{!EntityLogicalName}` template tab, so the
+	// button never reached the ribbon. Microsoft's samples write a new group's
+	// or tab's controls inline. Only buttons created this
+	// session are inlined: an existing button moved into the new group keeps its
+	// own CustomAction (the merge relocates it and folds it in).
+	const inlineControls = (group: RibbonGroup): string[] => {
+		const out: string[] = [];
+		for (const button of group.buttons) {
+			if (button.hidden || baselineOf.get(button)) continue;
+			out.push(generateButtonElement(button, locLabels, sink, lang));
+			emittedButtons.push(button);
 		}
+		return out;
+	};
+	const inNewContainer = new Set<RibbonButton>();
+
+	// 1. New tabs (not present in the baseline) — the whole tab with its groups
+	//    and their controls in one CustomAction.
+	for (const tab of newTabs) {
+		const inline = new Map(tab.groups.map((g) => [g.id, inlineControls(g)] as const));
+		for (const g of tab.groups) for (const b of g.buttons) if (!b.hidden && !baselineOf.get(b)) inNewContainer.add(b);
+		tabCustomActions.push(
+			generateTabCustomAction(
+				tab,
+				current.scalingByTab?.[tab.id],
+				newTabLocation(input.location, input.entityLogicalName),
+				inline,
+				sink,
+				lang,
+			),
+		);
 	}
 
-	// 2. New groups inside an EXISTING tab → Location="{tabId}.Groups._children",
-	//    plus a MaxSize for the group in the tab's scaling (classic ribbons
-	//    need one per group; #40). Groups inside a brand-new tab are emitted by
-	//    the new-tab branch above.
+	// 2. New groups inside an EXISTING tab → Location="{tabId}.Groups._children"
+	//    with their controls inline, plus a MaxSize for the group in the tab's
+	//    scaling (classic ribbons need one per group; #40).
 	const newGroupMaxSizes: string[] = [];
 	for (const tab of current.tabs) {
 		if (!baselineTabIds.has(tab.id)) continue;
 		const scaling = current.scalingByTab?.[tab.id];
 		for (const group of tab.groups) {
 			if (!baselineGroupIds.has(group.id)) {
-				groupCustomActions.push(generateGroupCustomAction(group, tab.id, sink, lang));
+				for (const b of group.buttons) if (!b.hidden && !baselineOf.get(b)) inNewContainer.add(b);
+				groupCustomActions.push(generateGroupCustomAction(group, tab.id, inlineControls(group), sink, lang));
 				// A MaxSize the user configured is emitted by the scaling diff below.
 				const maxSize = defaultMaxSize(group);
 				if (maxSize && !scaling?.maxSizes.some((m) => m.groupId === group.id)) {
@@ -169,7 +283,8 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	for (const tab of current.tabs) {
 		for (const group of tab.groups) {
 			for (const button of group.buttons) {
-				const baseButton = baselineFor(button);
+				if (inNewContainer.has(button)) continue; // written inside its new tab / group
+				const baseButton = baselineOf.get(button);
 
 				if (button.hidden && !baseButton?.hidden) {
 					// Visible button the user wants hidden.
@@ -198,6 +313,14 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	for (const button of emittedButtons) {
 		if (button.commandId) referencedCommandIds.add(button.commandId);
 	}
+	// A new tab's Command is defined with it (an empty command, as in
+	// Microsoft's custom-tab walkthrough) unless the model already has one.
+	const tabCommands: CommandDefinition[] = [];
+	for (const tab of newTabs) {
+		const id = tab.commandId!;
+		referencedCommandIds.add(id);
+		if (!commands.some((c) => c.id === id)) tabCommands.push({ id, enableRules: [], displayRules: [], actions: [] });
+	}
 
 	// Emit command/rule DEFINITIONS only for custom (non-system) elements.
 	// System `Mscrm.*` / `Microsoft.*` commands already exist in the platform —
@@ -208,9 +331,10 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// the command has at least one action defined: a parsed-but-unmodified OOB
 	// command has no actions (the parser only understands JS/URL); a deliberate
 	// override always has actions.
-	const referencedCommands = commands.filter(
-		(c) => referencedCommandIds.has(c.id) && (!isSystemRibbonId(c.id) || c.actions.length > 0),
-	);
+	const referencedCommands = [
+		...commands.filter((c) => referencedCommandIds.has(c.id) && (!isSystemRibbonId(c.id) || c.actions.length > 0)),
+		...tabCommands,
+	];
 
 	const referencedEnableRuleIds = new Set<string>();
 	const referencedDisplayRuleIds = new Set<string>();
@@ -243,10 +367,8 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// Tab display rules only for tabs this session created. Existing tabs' rules
 	// already live in the platform / unmanaged layer; re-emitting them copied
 	// Microsoft's rules into the customization (#40).
-	const isApplication = input.location === "Application";
-	const tabDisplayRulesXml = current.tabs
-		.filter((t) => !baselineTabIds.has(t.id))
-		.filter((t) => t.tabDisplayRules && t.tabDisplayRules.length > 0)
+	const tabDisplayRulesXml = newTabs
+		.filter((t) => t.tabDisplayRules.length > 0)
 		.map((t) => generateTabDisplayRulesForTab(t, isApplication))
 		.filter(Boolean)
 		.join("\n      ");
@@ -500,13 +622,13 @@ function generateHideCustomAction(button: RibbonButton, _groupId: string): strin
 
 /**
  * Emits a CustomAction that creates a NEW group inside an existing tab.
- * Location pattern per Microsoft docs: `{tabId}.Groups._children`. The group's
- * `<Controls>` is left empty here — the buttons inside it are emitted as their
- * own CustomActions targeting `{groupId}.Controls._children`.
+ * Location pattern per Microsoft docs: `{tabId}.Groups._children`. The
+ * controls created with the group are written inside its `<Controls>` (#59).
  */
 function generateGroupCustomAction(
 	group: RibbonGroup,
 	tabId: string,
+	controls: string[],
 	sink: (label: LocLabel) => void,
 	lang = 1033,
 ): string {
@@ -516,28 +638,32 @@ function generateGroupCustomAction(
     Location="${escapeXml(tabId)}.Groups._children"
     Sequence="${group.sequence}">
     <CommandUIDefinition>
-      ${generateGroupElement(group, sink, false, lang)}
+      ${generateGroupElement(group, sink, false, controls, lang)}
     </CommandUIDefinition>
   </CustomAction>`;
 }
 
 /**
- * Emits a CustomAction that creates a NEW tab. Documented anchor for adding a
- * tab to an entity ribbon: `Location="Mscrm.Tabs._children"`. The tab's groups
- * are emitted inline (so buttons inside them have an anchor); the buttons
- * themselves are still emitted as separate CustomActions targeting
- * `{groupId}.Controls._children`.
+ * Emits a CustomAction that creates a NEW tab (`tab` as returned by
+ * effectiveNewTab, so it has a Command). Grid and form tabs are added at
+ * `Mscrm.Tabs._children`, sub-grid tabs at the entity's contextual group
+ * (newTabLocation). Groups and the controls created with them are written
+ * inline (#58).
  */
 function generateTabCustomAction(
 	tab: RibbonTab,
 	scaling: ScalingDefinition | undefined,
+	location: string,
+	controlsByGroup: Map<string, string[]>,
 	sink: (label: LocLabel) => void,
 	lang = 1033,
 ): string {
 	const titleId = `${tab.id}.Title`;
 	sink({ id: titleId, titles: [{ languageCode: lang, description: tab.label }] });
 	const commandAttr = tab.commandId ? ` Command="${escapeXml(tab.commandId)}"` : "";
-	const groupsXml = tab.groups.map((g) => generateGroupElement(g, sink, true, lang)).join("\n        ");
+	const groupsXml = tab.groups
+		.map((g) => generateGroupElement(g, sink, true, controlsByGroup.get(g.id) ?? [], lang))
+		.join("\n        ");
 	// RibbonCore.xsd TabType: <Scaling Id> comes before <Groups>, with a MaxSize
 	// for each group (MaxSize elements before Scale elements) — #40.
 	const maxSizes = scaling?.maxSizes.length
@@ -554,7 +680,7 @@ function generateTabCustomAction(
           ${scalingSteps.join("\n          ")}
         </Scaling>`;
 	return `<CustomAction Id="${escapeXml(tab.id)}.CustomAction"
-    Location="Mscrm.Tabs._children"
+    Location="${escapeXml(location)}"
     Sequence="${tab.sequence}">
     <CommandUIDefinition>
       <Tab Id="${escapeXml(tab.id)}"${commandAttr} Title="${escapeXml(locLabelRef(titleId))}" Sequence="${tab.sequence}">
@@ -568,14 +694,15 @@ function generateTabCustomAction(
 }
 
 /**
- * A `<Group>` element with an empty `<Controls>` collection. Used both inside a
- * new-tab CustomAction and (standalone) inside a new-group CustomAction.
- * `nested` controls indentation only.
+ * A `<Group>` element with its `<Controls>` (the given control elements, or
+ * empty). Used both inside a new-tab CustomAction and (standalone) inside a
+ * new-group CustomAction. `nested` = inside a new tab.
  */
 function generateGroupElement(
 	group: RibbonGroup,
 	sink: (label: LocLabel) => void,
 	nested: boolean,
+	controls: string[] = [],
 	lang = 1033,
 ): string {
 	const titleId = `${group.id}.Title`;
@@ -585,8 +712,14 @@ function generateGroupElement(
 		sink({ id: titleId, titles: [{ languageCode: lang, description: group.label }] });
 	}
 	const template = normalizeGroupTemplate(group.template);
+	const controlsXml =
+		controls.length === 0
+			? `<Controls Id="${escapeXml(group.id)}.Controls"/>`
+			: `<Controls Id="${escapeXml(group.id)}.Controls">
+            ${controls.join("\n            ")}
+          </Controls>`;
 	return `<Group Id="${escapeXml(group.id)}" Title="${escapeXml(locLabelRef(titleId))}" Sequence="${group.sequence}" Template="${escapeXml(template)}">
-          <Controls Id="${escapeXml(group.id)}.Controls"/>
+          ${controlsXml}
         </Group>`;
 }
 
