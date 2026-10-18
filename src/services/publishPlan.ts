@@ -17,7 +17,7 @@ import type {
 } from "@/types/ribbon";
 import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
 import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
-import { CONTROL_TAG_BY_KIND, isReadOnlyControlKind } from "@/utils/controlKinds";
+import { CONTROL_TAG_BY_KIND, controlCommandIds, isReadOnlyControlKind } from "@/utils/controlKinds";
 
 /**
  * What the scope's unmanaged ribbon layer owns, as read at load (or refreshed
@@ -167,6 +167,8 @@ function buttonLabelRefs(button: RibbonButton): string[] {
 		const id = locRef(v);
 		if (id) out.push(id);
 	}
+	// A control written verbatim (#42): the labels its children reference too.
+	for (const m of button.source?.xml?.matchAll(/\$LocLabels:([^"'\s<]+)/g) ?? []) if (!out.includes(m[1])) out.push(m[1]);
 	return out;
 }
 
@@ -293,7 +295,8 @@ export function planScope(input: PlanInput): ScopePlan {
 		// Keyed by occurrence: the application ribbon repeats control ids.
 		const cur = indexButtons(current);
 		const base = indexButtons(baseline);
-		for (const { button } of cur.values()) if (button.commandId) referencedCommandIds.add(button.commandId);
+		// Every command a control uses: a verbatim control's QueryCommand, … too (#42).
+		for (const { button } of cur.values()) for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
 
 		for (const [key, { button }] of cur) {
 			const refs = buttonLabelRefs(button);
@@ -317,6 +320,14 @@ export function planScope(input: PlanInput): ScopePlan {
 					// customizations (the moved flyout is written with its menu).
 					unsupported.push(
 						`Moving the menu of ${b.menu!.parentId} to another location — its item "${b.button.label}" (${id}) comes from another solution and can't be moved with it; move the flyout back`,
+					);
+					continue;
+				}
+				// A read-only kind is written to its new location as loaded (#42):
+				// its <Menu> there also holds what other solutions add to it.
+				if (isReadOnlyControlKind(b.button.kind) && placedAnywhere.has(id) && /<Menu[\s>/]/.test(b.button.source?.xml ?? "")) {
+					unsupported.push(
+						`Moving the <${CONTROL_TAG_BY_KIND[b.button.kind]}> "${b.button.label}" (${id}) to another location — its menu may hold items of other solutions; move it within its location instead`,
 					);
 					continue;
 				}

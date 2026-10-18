@@ -25,7 +25,7 @@ import {
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { freeMaxSizeSequence, maxSizeBand } from "@/services/scalingSequence";
 import { menuItemsOf } from "@/utils/ribbonMenu";
-import { CONTROL_TAG_BY_KIND, isReadOnlyControlKind } from "@/utils/controlKinds";
+import { CONTROL_TAG_BY_KIND, controlCommandIds, isReadOnlyControlKind } from "@/utils/controlKinds";
 
 interface GeneratorInput {
 	current: RibbonDefinition;
@@ -372,13 +372,8 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 
 	// Collect referenced commands / rules from the EMITTED buttons only.
 	const referencedCommandIds = new Set<string>();
-	for (const button of emittedButtons) {
-		if (button.commandId) referencedCommandIds.add(button.commandId);
-		// A control written verbatim (#42) brings its other commands too:
-		// QueryCommand, CommandMenuOpen, … and its menu items' commands.
-		if (isReadOnlyControlKind(button.kind))
-			for (const m of button.source?.xml?.matchAll(VERBATIM_COMMAND_ATTRIBUTE) ?? []) referencedCommandIds.add(m[1]);
-	}
+	// A control written verbatim (#42) brings its other commands too: QueryCommand, … (controlCommandIds).
+	for (const button of emittedButtons) for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
 	// A new tab's Command is defined with it (an empty command, as in
 	// Microsoft's custom-tab walkthrough) unless the model already has one.
 	const tabCommands: CommandDefinition[] = [];
@@ -1143,10 +1138,6 @@ function dedupeLocLabels(labels: LocLabel[]): LocLabel[] {
 	}
 	return Array.from(byId.values());
 }
-
-/** Attributes of a control (RibbonWSS.xsd) that name a command. */
-const VERBATIM_COMMAND_ATTRIBUTE =
-	/\s(?:Command|QueryCommand|MenuCommand|PopulateQueryCommand|CommandMenuOpen|CommandMenuClose|CommandPreview|CommandPreviewRevert|CommandRevert)="([^"]+)"/g;
 
 function buttonKindToTag(kind: RibbonButton["kind"]): string {
 	return CONTROL_TAG_BY_KIND[kind] ?? "Button";

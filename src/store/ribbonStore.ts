@@ -31,7 +31,7 @@ import {
 	removeMenuItem,
 } from "@/utils/ribbonMenu";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
-import { isReadOnlyControlKind } from "@/utils/controlKinds";
+import { isReadOnlyControlKind, renameCommandInXml } from "@/utils/controlKinds";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
@@ -1625,6 +1625,8 @@ export const useRibbonStore = create<RibbonStore>()(
 								if (button.commandId === oldId) {
 									button.commandId = newId;
 								}
+								// A control written verbatim (#42) names the command in its XML.
+								if (button.source?.xml) button.source.xml = renameCommandInXml(button.source.xml, oldId, newId);
 							}
 						}
 					}

@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Button, Caption1, makeStyles, Subtitle2, Text, tokens } from "@fluentui/react-components";
 import { EyeOffRegular, EyeRegular, LockClosedRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
+import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { CONTROL_KIND_LABELS, CONTROL_TAG_BY_KIND } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
@@ -59,6 +61,12 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 	const styles = useStyles();
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
+	const hideOobButton = useRibbonStore((s) => s.hideOobButton);
+	const hideWithDisplayRules = useRibbonStore((s) => s.hideWithDisplayRules);
+	const [hideWarning, setHideWarning] = useState(false);
+	// As on the canvas: an out-of-the-box global command bar control can't be
+	// changed, and hiding another out-of-the-box control asks first.
+	const globalOob = location === "Application" && tabId === "Mscrm.GlobalTab" && button.oob && !button.custom;
 	const kind = CONTROL_KIND_LABELS[button.kind];
 	const field = (label: string, value: string | undefined) =>
 		value ? (
@@ -84,12 +92,33 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 			<div>
 				<Button
 					size="small"
+					disabled={globalOob}
 					icon={button.hidden ? <EyeRegular /> : <EyeOffRegular />}
-					onClick={() => setButtonProp(location, tabId, groupId, button.id, { hidden: !button.hidden })}
+					onClick={() =>
+						!button.hidden && button.oob
+							? setHideWarning(true)
+							: setButtonProp(location, tabId, groupId, button.id, { hidden: !button.hidden })
+					}
 				>
 					{button.hidden ? "Unhide" : "Hide"}
 				</Button>
 			</div>
+			{hideWarning && (
+				<HideOobWarningModal
+					open
+					buttonLabel={button.label}
+					commandId={button.commandId}
+					onConfirmHide={() => {
+						hideOobButton(location, tabId, groupId, button.id);
+						setHideWarning(false);
+					}}
+					onConfirmDisplayRule={() => {
+						hideWithDisplayRules(button.commandId);
+						setHideWarning(false);
+					}}
+					onCancel={() => setHideWarning(false)}
+				/>
+			)}
 			{button.source?.xml && (
 				<div className={styles.field}>
 					<Caption1>XML</Caption1>

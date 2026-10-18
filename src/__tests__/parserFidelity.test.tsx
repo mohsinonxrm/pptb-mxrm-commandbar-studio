@@ -412,15 +412,131 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 		// Its QueryCommand is written with it, not only its Command.
 		const commands = Array.from(parseXmlElement(rdx).getElementsByTagName("CommandDefinition")).map((c) => c.getAttribute("Id"));
 		expect(commands.sort()).toEqual(["mxrm.T.Toggle.Command", "mxrm.T.Toggle.Query"]);
+		// …and the publish plan (whose edited commands are what the publish keeps) has both.
+		const p = planScope({
+			locations: [{ current: result.ribbons.HomepageGrid, baseline: loaded }],
+			commands: result.commands,
+			baselineCommands: [],
+			enableRules: [],
+			baselineEnableRules: [],
+			displayRules: [],
+			baselineDisplayRules: [],
+		});
+		expect(p.editedCommandIds.sort()).toEqual(["mxrm.T.Toggle.Command", "mxrm.T.Toggle.Query"]);
+		expect(result.notApplied.filter((n) => n.includes("mxrm.T.Toggle.Query"))).toEqual([]);
 	});
 
-	it("a copy (duplicate) carries the XML with its own ids", () => {
-		const dropDown = control(parse(ribbonDoc(ALL_CONTROLS)).ribbon, "mxrm.T.DropDown");
-		const copy = copyControl(dropDown, "mxrm.T.DropDown2");
+	it("adding one to an existing group by import is reported, not silently skipped", () => {
+		const loaded = parse(ribbonDoc(BUTTON)).ribbon;
+		const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: E, tabs: [] });
+		const result = importRibbonDiffXml({
+			xml: `<RibbonDiffXml><CustomActions><CustomAction Id="x.CustomAction" Location="${TAB}.Groups._children" Sequence="30"><CommandUIDefinition><Group Id="${GROUP}" Sequence="10"><Controls Id="${GROUP}.Controls">${TOGGLE}</Controls></Group></CommandUIDefinition></CustomAction></CustomActions></RibbonDiffXml>`,
+			ribbons: { HomepageGrid: loaded, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+			commands: [],
+			enableRules: [],
+			displayRules: [],
+			locLabels: [],
+			entityLogicalName: E,
+			activeLocation: "HomepageGrid",
+		});
+		expect(result.notApplied.some((n) => n.startsWith("mxrm.T.Toggle:") && n.includes("<ToggleButton>"))).toBe(true);
+	});
+
+	it("a copy (duplicate) carries the XML with its own ids, its MRU InitialItem included", () => {
+		const loaded = parse(ribbonDoc(ALL_CONTROLS)).ribbon;
+		const copy = copyControl(control(loaded, "mxrm.T.DropDown"), "mxrm.T.DropDown2");
 		const el = parseXmlElement(copy.source!.xml!);
 		expect(el.getAttribute("Id")).toBe("mxrm.T.DropDown2");
 		expect(el.getElementsByTagName("Menu")[0].getAttribute("Id")).toBe("mxrm.T.DropDown2.Menu");
+		expect(el.getElementsByTagName("Button")[0].getAttribute("Id")).toBe("mxrm.T.DropDown2.A");
 		expect(el.getAttribute("Command")).toBe("mxrm.T.DropDown.Command");
+		const mru = parseXmlElement(copyControl(control(loaded, "mxrm.T.Mru"), "mxrm.T.Mru2").source!.xml!);
+		expect(mru.getAttribute("InitialItem")).toBe("mxrm.T.Mru2.A");
+		expect(mru.getElementsByTagName("Button")[0].getAttribute("Id")).toBe("mxrm.T.Mru2.A");
+	});
+
+	it("duplicating one, or its group, in the store keeps its XML (with new ids) and its label", () => {
+		const grid = parse(ribbonDoc(ALL_CONTROLS)).ribbon;
+		const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: E, tabs: [] });
+		const store = useRibbonStore.getState();
+		store.loadWorkspace({
+			ribbons: { HomepageGrid: grid, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+			commands: [],
+			displayRules: [],
+			enableRules: [],
+			locLabels: [],
+		});
+		store.duplicateGroup("HomepageGrid", TAB, GROUP);
+		store.duplicateButton("HomepageGrid", TAB, GROUP, "mxrm.T.Spinner");
+		const groups = useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups;
+		const spinnerCopy = groups[0].buttons.find((b) => b.id.startsWith("mxrm.T.Spinner_copy_"))!;
+		expect(spinnerCopy.label).toBe("mxrm.T.Spinner");
+		expect(parseXmlElement(spinnerCopy.source!.xml!).getAttribute("Id")).toBe(spinnerCopy.id);
+		expect(parseXmlElement(spinnerCopy.source!.xml!).getElementsByTagName("Unit")).toHaveLength(1);
+		const groupCopy = groups.find((g) => g.id.startsWith(`${GROUP}_copy_`))!;
+		for (const b of groupCopy.buttons.filter((x) => x.kind !== "button")) {
+			expect(parseXmlElement(b.source!.xml!).getAttribute("Id")).toBe(b.id);
+		}
+		const rdx = generate(useRibbonStore.getState().ribbons.HomepageGrid, grid);
+		const copyGroup = customActionContent(rdx).find((c) => c.el.getAttribute("Id") === groupCopy.id)!;
+		const kinds = Array.from(copyGroup.el.getElementsByTagName("Controls")[0].children).map((c) => c.tagName);
+		expect(kinds).toEqual(["Button", "ToggleButton", "Label", "DropDown", "MRUSplitButton", "Spinner", "GalleryButton"]);
+	});
+
+	it("moving your own one with a <Menu> to another location is reported; one without moves", () => {
+		const own = parse(ribbonDoc(ALL_CONTROLS)).ribbon;
+		const formBaseline = parse(ribbonDoc(""), "Form").ribbon;
+		const grid = clone(own);
+		const form = clone(formBaseline);
+		for (const id of ["mxrm.T.DropDown", "mxrm.T.Toggle"]) {
+			form.tabs[0].groups[0].buttons.push(clone(control(grid, id)));
+			grid.tabs[0].groups[0].buttons = grid.tabs[0].groups[0].buttons.filter((b) => b.id !== id);
+		}
+		const p = planScope({
+			locations: [
+				{ current: grid, baseline: own },
+				{ current: form, baseline: formBaseline },
+			],
+			commands: [],
+			baselineCommands: [],
+			enableRules: [],
+			baselineEnableRules: [],
+			displayRules: [],
+			baselineDisplayRules: [],
+		});
+		expect(p.unsupported.filter((u) => u.includes("mxrm.T.DropDown"))).toHaveLength(1);
+		expect(p.unsupported.filter((u) => u.includes("mxrm.T.Toggle"))).toEqual([]);
+	});
+
+	it("renaming a command updates the XML of a read-only control that names it", () => {
+		const grid = parse(ribbonDoc(ALL_CONTROLS)).ribbon;
+		const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: E, tabs: [] });
+		const store = useRibbonStore.getState();
+		store.loadWorkspace({
+			ribbons: { HomepageGrid: grid, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+			commands: [{ id: "mxrm.T.Toggle.Query", enableRules: [], displayRules: [], actions: [] }],
+			displayRules: [],
+			enableRules: [],
+			locLabels: [],
+		});
+		expect(store.renameCommandId("mxrm.T.Toggle.Query", "mxrm.T.Toggle.State")).toBe(true);
+		const toggle = control(useRibbonStore.getState().ribbons.HomepageGrid, "mxrm.T.Toggle");
+		expect(parseXmlElement(toggle.source!.xml!).getAttribute("QueryCommand")).toBe("mxrm.T.Toggle.State");
+		expect(parseXmlElement(toggle.source!.xml!).getAttribute("Command")).toBe("mxrm.T.Toggle.Command");
+	});
+
+	it("deleting your own one drops the commands only it used, QueryCommand included", () => {
+		const layer = parseRibbonDiffParts(
+			`<RibbonDiffXml><CustomActions><CustomAction Id="mxrm.T.Toggle.CustomAction" Location="${GROUP}.Controls._children" Sequence="20"><CommandUIDefinition>${TOGGLE}</CommandUIDefinition></CustomAction></CustomActions><CommandDefinitions>${[
+				"mxrm.T.Toggle.Command",
+				"mxrm.T.Toggle.Query",
+			]
+				.map((id) => `<CommandDefinition Id="${id}"><EnableRules /><DisplayRules /><Actions /></CommandDefinition>`)
+				.join("")}</CommandDefinitions></RibbonDiffXml>`,
+		);
+		const merged = mergeScopeChanges(layer, parseRibbonDiffParts("<RibbonDiffXml/>"), { deletedControlIds: ["mxrm.T.Toggle"] });
+		expect(merged.customActions.size).toBe(0);
+		expect([...merged.commandDefinitions.keys()]).toEqual([]);
 	});
 
 	it("editing one isn't published (they are read-only)", () => {

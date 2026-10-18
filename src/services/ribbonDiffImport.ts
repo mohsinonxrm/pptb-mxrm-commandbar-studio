@@ -13,6 +13,7 @@ import { parseRibbonXml } from "@/services/xmlParser";
 import { hasOobOverrideChanges } from "@/services/xmlGenerator";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { applyButtonOrigin } from "@/utils/ribbonProvenance";
+import { controlCommandIds, isReadOnlyControlKind, KIND_BY_CONTROL_TAG } from "@/utils/controlKinds";
 
 /**
  * Applies a RibbonDiffXml (e.g. exported by Ribbon Workbench or from a
@@ -341,8 +342,9 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		if (src.tooltipBodyToken) button.tooltipBody = text(src.tooltipBodyToken, "");
 	};
 	/** `$LocLabels:` references neither the XML nor the session defines: the import would fail. */
-	const checkLabels = (item: { id: string; source?: { attributes: Record<string, string> } }) => {
-		for (const v of Object.values(item.source?.attributes ?? {}))
+	const checkLabels = (item: { id: string; source?: { attributes: Record<string, string>; xml?: string } }) => {
+		// A control kept verbatim (#42): its children's references too.
+		for (const v of item.source?.xml ? [item.source.xml] : Object.values(item.source?.attributes ?? {}))
 			for (const [, id] of v.matchAll(LOC_LABEL_REF))
 				if (!locLabels.some((l) => l.id === id)) {
 					notApplied.push(
@@ -529,6 +531,11 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 			);
 			for (const control of elementChildren(el.querySelector(":scope > Controls"))) {
 				if (CONTROL_TAGS.has(control.tagName)) addControl(ca, control, id, undefined);
+				else if (isReadOnlyControlKind(KIND_BY_CONTROL_TAG[control.tagName])) {
+					notApplied.push(
+						`${control.getAttribute("Id") ?? "(no Id)"}: adding a <${control.tagName}> to an existing group isn't supported — Command Bar Studio shows it read-only.`,
+					);
+				}
 			}
 			return;
 		}
@@ -684,7 +691,7 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 	for (const location of LOCATIONS)
 		for (const tab of ribbons[location].tabs)
 			for (const group of tab.groups)
-				for (const b of group.buttons) if (b.commandId) usedCommands.add(b.commandId);
+				for (const b of group.buttons) for (const id of controlCommandIds(b)) usedCommands.add(id);
 	for (const c of addedTabCommands) usedCommands.add(c);
 	const usedEnable = new Set<string>();
 	const usedDisplay = new Set<string>();
