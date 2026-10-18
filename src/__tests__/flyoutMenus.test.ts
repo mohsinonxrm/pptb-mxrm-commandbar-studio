@@ -788,6 +788,154 @@ describe("#27 your own flyout — merged into the layer", () => {
 	});
 });
 
+const FORM_GROUP = `Mscrm.Form.${T}.MainTab.Save`;
+const formRibbon = (): RibbonDefinition => ({
+	location: "Form",
+	entityLogicalName: T,
+	tabs: [
+		{
+			id: `Mscrm.Form.${T}.MainTab`,
+			label: "Form",
+			sequence: 10,
+			tabDisplayRules: [],
+			groups: [
+				{ id: FORM_GROUP, label: "Save", sequence: 10, template: "Flexible2", buttons: [] },
+			],
+		},
+	],
+});
+
+/** Cuts your own flyout from the home grid and pastes it on the form (#57 move + #27 menu). */
+async function moveFlyToForm(edit: (moved: RibbonButton) => void = () => {}) {
+	const { buildMergedRibbonDiffXml } = await import("@/services/dataverse/publishService");
+	const parsed = loadOwn();
+	const base = loadOwn();
+	const from = group(parsed.ribbon, G);
+	const moved = from.buttons.find((b) => b.id === "cbs.Fly")!;
+	from.buttons = from.buttons.filter((b) => b !== moved);
+	edit(moved);
+	const form = formRibbon();
+	form.tabs[0].groups[0].buttons.push(moved);
+	const locations = [
+		{ current: parsed.ribbon, baseline: base.ribbon },
+		{ current: form, baseline: formRibbon() },
+	];
+	const plan = planScope({
+		locations,
+		commands: parsed.commands,
+		baselineCommands: base.commands,
+		enableRules: parsed.enableRules,
+		baselineEnableRules: base.enableRules,
+		displayRules: parsed.displayRules,
+		baselineDisplayRules: base.displayRules,
+		locLabels: parsed.locLabels,
+		baselineLocLabels: base.locLabels,
+		layer: layerSnapshotFromParts(layerParts()),
+	});
+	const result = await buildMergedRibbonDiffXml({
+		entity: { logicalName: T, schemaName: T },
+		locations,
+		commands: parsed.commands,
+		enableRules: parsed.enableRules,
+		displayRules: parsed.displayRules,
+		locLabels: parsed.locLabels,
+		plan,
+		languageCode: 1033,
+	});
+	return { plan, d: doc(result.xml) };
+}
+
+describe("#27 + #57 — moving your own flyout to another location", () => {
+	it("is planned as a move of the flyout and its items, with nothing unsupported", async () => {
+		const { plan } = await moveFlyToForm();
+		expect(plan.unsupported).toEqual([]);
+		expect(plan.deletedButtonIds).toEqual([]);
+		expect(plan.movedButtons.map((m) => m.id).sort()).toEqual([
+			"cbs.Fly",
+			"cbs.Fly.A",
+			"cbs.Fly.B",
+			"cbs.Fly.C",
+		]);
+		expect(plan.movedButtons.find((m) => m.id === "cbs.Fly")).toEqual({
+			id: "cbs.Fly",
+			groupId: FORM_GROUP,
+			sequence: 900,
+		});
+		expect(plan.movedButtons.find((m) => m.id === "cbs.Fly.A")?.controlsId).toBe(
+			"cbs.Fly.Section.Controls",
+		);
+	});
+
+	it("keeps exactly one CustomAction for the flyout, with its <Menu>, at the new location", async () => {
+		const { d } = await moveFlyToForm();
+		const flyouts = d.querySelectorAll('FlyoutAnchor[Id="cbs.Fly"]');
+		expect(flyouts).toHaveLength(1);
+		const caEl = flyouts[0].closest("CustomAction")!;
+		expect(caEl.getAttribute("Id")).toBe("cbs.Fly.CustomAction");
+		expect(caEl.getAttribute("Location")).toBe(`${FORM_GROUP}.Controls._children`);
+		expect(itemIds(caEl)).toEqual(["cbs.Fly.A", "cbs.Fly.B"]);
+		// The item the layer adds with its own CustomAction stays there, defined once.
+		expect(d.querySelectorAll('Button[Id="cbs.Fly.C"]')).toHaveLength(1);
+		expect(
+			d.querySelector('CustomAction[Id="cbs.Fly.C.CustomAction"]')?.getAttribute("Location"),
+		).toBe("cbs.Fly.Section.Controls._children");
+		for (const id of ["cbs.Fly.A", "cbs.Fly.B"])
+			expect(d.querySelectorAll(`Button[Id="${id}"]`)).toHaveLength(1);
+		// Nothing the menu uses is dropped.
+		const commands = Array.from(
+			d.querySelectorAll("CommandDefinitions > CommandDefinition"),
+		).map((c) => c.getAttribute("Id"));
+		expect(commands).toEqual(expect.arrayContaining(["cbs.A.Command", "cbs.B.Command"]));
+		expect(d.querySelector('EnableRule[Id="cbs.B.Rule"]')).not.toBeNull();
+		const labels = Array.from(d.querySelectorAll("LocLabels > LocLabel")).map((l) =>
+			l.getAttribute("Id"),
+		);
+		expect(labels).toEqual(
+			expect.arrayContaining([
+				"cbs.Fly.LabelText",
+				"cbs.Fly.A.LabelText",
+				"cbs.Fly.B.LabelText",
+			]),
+		);
+	});
+
+	it("a menu item edited while moving is written in place in the moved flyout", async () => {
+		const { d, plan } = await moveFlyToForm((fly) => {
+			fly.menu!.sections[0].controls[0].label = "Uno";
+		});
+		expect(plan.unsupported).toEqual([]);
+		const caEl = d.querySelector('CustomAction[Id="cbs.Fly.CustomAction"]')!;
+		expect(caEl.getAttribute("Location")).toBe(`${FORM_GROUP}.Controls._children`);
+		expect(itemIds(caEl)).toEqual(["cbs.Fly.A", "cbs.Fly.B"]);
+		expect(
+			d
+				.querySelector('LocLabel[Id="cbs.Fly.A.LabelText"] Title')!
+				.getAttribute("description"),
+		).toBe("Uno");
+	});
+
+	it("after the move merge, an item of a flyout that didn't move is still edited in place", () => {
+		const delta = parseRibbonDiffParts(
+			`<RibbonDiffXml><CustomActions>${ca(
+				"cbs.Fly.A.Override.CustomAction",
+				"cbs.Fly.A",
+				10,
+				'<Button Id="cbs.Fly.A" Command="cbs.A.Command" Sequence="10" LabelText="$LocLabels:cbs.Fly.A.LabelText" ToolTipTitle="Tip" />',
+			)}</CustomActions></RibbonDiffXml>`,
+		);
+		const merged = mergeScopeChanges(layerParts(), delta);
+		expect([...merged.customActions.keys()]).not.toContain(
+			"ca:cbs.Fly.A.Override.CustomAction",
+		);
+		const fly = parseXmlElement(merged.customActions.get("ca:cbs.Fly.CustomAction")!);
+		expect(fly.getAttribute("Location")).toBe(`${G}.Controls._children`);
+		expect(fly.querySelector('Button[Id="cbs.Fly.A"]')!.getAttribute("ToolTipTitle")).toBe(
+			"Tip",
+		);
+		expect(itemIds(fly)).toEqual(["cbs.Fly.A", "cbs.Fly.B"]);
+	});
+});
+
 describe("#27 store — menu items are edited like buttons", () => {
 	function load(): { tabId: string; groupId: string } {
 		const parsed = loadOwn();
@@ -797,15 +945,13 @@ describe("#27 store — menu items are edited like buttons", () => {
 			Form: { location: "Form", entityLogicalName: T, tabs: [] },
 			Application: { location: "Application", entityLogicalName: "", tabs: [] },
 		};
-		useRibbonStore
-			.getState()
-			.loadWorkspace({
-				ribbons,
-				commands: parsed.commands,
-				displayRules: [],
-				enableRules: [],
-				locLabels: parsed.locLabels,
-			});
+		useRibbonStore.getState().loadWorkspace({
+			ribbons,
+			commands: parsed.commands,
+			displayRules: [],
+			enableRules: [],
+			locLabels: parsed.locLabels,
+		});
 		return { tabId: parsed.ribbon.tabs[0].id, groupId: G };
 	}
 	const cur = () => useRibbonStore.getState().ribbons.HomepageGrid;

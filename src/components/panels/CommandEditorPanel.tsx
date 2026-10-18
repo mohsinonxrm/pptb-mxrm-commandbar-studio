@@ -140,6 +140,7 @@ export const CommandEditorPanel: React.FC = () => {
 	const [codeEditable, setCodeEditable] = useState(false);
 	const [codeLoading, setCodeLoading] = useState(false);
 	const [codeError, setCodeError] = useState<string | null>(null);
+	const [codeWarning, setCodeWarning] = useState<string | null>(null);
 	const [codeValue, setCodeValue] = useState("");
 	const [codeDirty, setCodeDirty] = useState(false);
 	const [codeWebResourceName, setCodeWebResourceName] = useState<string | null>(null);
@@ -240,6 +241,7 @@ export const CommandEditorPanel: React.FC = () => {
 		setCodeEditable(editable);
 		setCodeLoading(true);
 		setCodeError(null);
+		setCodeWarning(null);
 		setCodeDirty(false);
 		setCodeWebResourceName(wrName);
 
@@ -267,13 +269,15 @@ export const CommandEditorPanel: React.FC = () => {
 		if (!codeEditable || codeActionIndex === null || !codeWebResourceName) return;
 		setCodeLoading(true);
 		setCodeError(null);
+		setCodeWarning(null);
 		try {
-			await saveWebResource(
+			const saved = await saveWebResource(
 				codeWebResourceName,
 				encodeUtf8Base64(codeValue),
 				inferWebResourceTypeCode(codeWebResourceName),
 				{ displayName: codeWebResourceName.split("/").pop() },
 			);
+			setCodeWarning(saved.solutionWarning ?? null);
 			setCodeDirty(false);
 		} catch (error: unknown) {
 			setCodeError(error instanceof Error ? error.message : "Failed to save web resource content.");
@@ -416,6 +420,11 @@ export const CommandEditorPanel: React.FC = () => {
 							{codeError && (
 								<MessageBar intent="error">
 									<MessageBarBody>{codeError}</MessageBarBody>
+								</MessageBar>
+							)}
+							{codeWarning && (
+								<MessageBar intent="warning">
+									<MessageBarBody>{codeWarning}</MessageBarBody>
 								</MessageBar>
 							)}
 							{codeLoading ? (

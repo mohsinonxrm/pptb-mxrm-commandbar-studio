@@ -149,6 +149,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 	const [loading, setLoading] = useState(false);
 	const [uploading, setUploading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [warning, setWarning] = useState<string | null>(null);
 
 	const [search, setSearch] = useState("");
 	const [typeFilter, setTypeFilter] = useState("all");
@@ -233,6 +234,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 		if (!open) return;
 		setLoading(true);
 		setError(null);
+		setWarning(null);
 		loadWebResources()
 			.then((rows) => setWebResources(rows))
 			.catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
@@ -275,6 +277,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 
 	const handleUpload = async (file: File) => {
 		setUploading(true);
+		setWarning(null);
 		try {
 			const content = await encodeFile(file);
 			const ext = getExt(file.name);
@@ -292,10 +295,13 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 					svg: 11,
 					resx: 12,
 				}[ext] ?? 4;
-			await saveWebResource(inferWebResourceName(file), content, typeCode, {
+			const saved = await saveWebResource(inferWebResourceName(file), content, typeCode, {
 				displayName: file.name,
 			});
 			await reloadResources();
+			setWarning(saved.solutionWarning ?? null);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : String(err));
 		} finally {
 			setUploading(false);
 		}
@@ -379,6 +385,11 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 						{error && (
 							<MessageBar intent="error">
 								<MessageBarBody>{error}</MessageBarBody>
+							</MessageBar>
+						)}
+						{warning && (
+							<MessageBar intent="warning">
+								<MessageBarBody>{warning}</MessageBarBody>
 							</MessageBar>
 						)}
 

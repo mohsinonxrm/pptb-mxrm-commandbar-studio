@@ -96,11 +96,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Web resources are added to the active solution** — icons, uploads from the web
   resource browser and scripts saved from the command editor are added to the active
   unmanaged solution (`AddSolutionComponent`), so the ribbon's dependency travels with
-  the solution.
+  the solution. Saving a web resource without an unmanaged solution selected shows a
+  warning (it only lands in the Default solution); the icon picker requires one.
 - **Fluent icons are published** — picking a Fluent icon uploads it as an SVG web
-  resource named `<prefix>_/icons/cbs/<icon>.svg` (`_filled` for the filled variant),
-  reusing an existing one with that name, and the button's `ModernImage` points at it.
-  The filled/regular switch is now honoured. If the upload fails the button is left
+  resource named `<prefix>_/icons/cbs/<icon>.svg` (`<icon>.filled.svg` for the filled
+  variant), reusing an existing one with that name, and the button's `ModernImage`
+  points at it. The web resource is published (retrying while another solution
+  operation runs) whenever it hasn't been published in this session yet, so an icon
+  whose first publish failed is published on the next pick.
+  The filled/regular switch is now honoured, also when the icon's name equals the
+  button's original `ModernImage`. If the upload fails the button is left
   unchanged and the picker shows the error (previously the button kept a preview-only
   icon that was never published). The properties pane shows the `ModernImage` that
   Publish will write.

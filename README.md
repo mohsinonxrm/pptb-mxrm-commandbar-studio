@@ -156,7 +156,7 @@ Command Bar Studio runs **inside [Power Platform ToolBox](https://www.powerplatf
 
 Icons you pick or upload, and scripts you save, are created as web resources and
 added to the selected solution. A Fluent icon is uploaded as an SVG web resource named
-`<prefix>_/icons/cbs/<icon>.svg`.
+`<prefix>_/icons/cbs/<icon>.svg` (`<icon>.filled.svg` for the filled variant).
 
 If you turn on Dataverse impersonation for the tool in PPTB 1.2.7, web resources,
 the solution import and the publish run as the impersonated user.

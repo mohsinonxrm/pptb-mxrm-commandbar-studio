@@ -731,11 +731,27 @@ function resolveButtonText(
  * image32 / image16 / icon — a Fluent icon picked in CBS is uploaded as an SVG
  * web resource (#51); a bare Fluent name is a canvas-preview value only and is
  * never written (it doesn't resolve).
+ *
+ * "Unchanged" needs both the icon name AND the image fields to match what was
+ * loaded: picking the filled variant of an icon whose name equals the loaded
+ * ModernImage (e.g. "Add" → `$webresource:…/add.filled.svg`) leaves `icon`
+ * as it was but points the images at a new web resource, which must win.
  */
 export function effectiveModernImage(button: RibbonButton): string | undefined {
 	const src = button.source;
-	if (src && normalizeModernImage(src.modernImage) === button.icon) return src.modernImage;
-	return [button.image32, button.image16, button.icon].find((v) => v?.startsWith("$webresource:"));
+	const isWebResource = (v?: string): v is string => !!v?.startsWith("$webresource:");
+	const pickedImages = (
+		[
+			[button.image32, "Image32by32"],
+			[button.image16, "Image16by16"],
+		] as const
+	)
+		.filter(([value, attr]) => isWebResource(value) && value !== src?.attributes[attr])
+		.map(([value]) => value);
+	if (src && normalizeModernImage(src.modernImage) === button.icon && pickedImages.length === 0) {
+		return src.modernImage;
+	}
+	return pickedImages[0] ?? [button.image32, button.image16, button.icon].find(isWebResource);
 }
 
 function generateButtonElement(

@@ -27,9 +27,9 @@ const RIBBON = `<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs>
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 const firstButton = (def: RibbonDefinition) => def.tabs[0].groups[0].buttons[0];
 
-/** What IconPickerModal writes for a picked Fluent icon. */
-function pickFluentIcon(button: RibbonButton, pascalName: string) {
-	const ref = `$webresource:${fluentIconWebResourceName("cbstest", pascalName)}`;
+/** What IconPickerModal writes for a picked Fluent icon (`icon` carries no variant). */
+function pickFluentIcon(button: RibbonButton, pascalName: string, variant: "regular" | "filled" = "regular") {
+	const ref = `$webresource:${fluentIconWebResourceName("cbstest", pascalName, variant)}`;
 	Object.assign(button, { icon: pascalName.toLowerCase(), image16: ref, image32: ref });
 	return ref;
 }
@@ -103,6 +103,33 @@ describe("effectiveModernImage", () => {
 		const b = firstButton(load().ribbon);
 		const ref = pickFluentIcon(b, "Star");
 		expect(effectiveModernImage(b)).toBe(ref);
+	});
+
+	it("uses the picked web resource when the icon name equals the loaded ModernImage (filled variant)", () => {
+		const b = firstButton(load().ribbon); // ModernImage="New" → icon "new"
+		const ref = pickFluentIcon(b, "New", "filled");
+		expect(b.icon).toBe("new"); // same as the loaded icon: only the images tell the variant
+		expect(ref).toBe("$webresource:cbstest_/icons/cbs/new.filled.svg");
+		expect(effectiveModernImage(b)).toBe(ref);
+	});
+
+	it("uses the picked web resource when the regular icon's name equals the loaded ModernImage", () => {
+		const b = firstButton(load().ribbon);
+		const ref = pickFluentIcon(b, "New");
+		expect(effectiveModernImage(b)).toBe(ref);
+	});
+
+	it("keeps the loaded ModernImage when only a non-web-resource image path changes", () => {
+		const b = firstButton(load().ribbon);
+		b.image16 = "/_imgs/ribbon/Other_16.png";
+		expect(effectiveModernImage(b)).toBe("New");
+	});
+
+	it("keeps the loaded ModernImage when loaded web resource images are unchanged", () => {
+		const b = firstButton(load().ribbon);
+		b.source!.attributes["Image32by32"] = "$webresource:cbstest_/legacy32.png";
+		b.image32 = "$webresource:cbstest_/legacy32.png";
+		expect(effectiveModernImage(b)).toBe("New");
 	});
 
 	it("is undefined for a preview-only Fluent name", () => {
