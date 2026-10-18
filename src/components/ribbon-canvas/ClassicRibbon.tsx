@@ -43,10 +43,11 @@ import {
 	type DragOverEvent,
 	closestCenter,
 } from "@dnd-kit/core";
-import { useRibbonStore } from "@/store/ribbonStore";
+import { ownContainerIds, useRibbonStore } from "@/store/ribbonStore";
 import { CustomiseMenuItems } from "@/components/ribbon-canvas/CustomiseMenuItems";
 import { useSelectionStore } from "@/store/selectionStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { canDeleteControl, canDeleteGroup } from "@/utils/ribbonProvenance";
 import { useUIStore } from "@/store/uiStore";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import FluentIcon from "@/components/shared/FluentIcon";
@@ -315,6 +316,8 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 	const moveButton = useRibbonStore((s) => s.moveButton);
 	const createGroup = useRibbonStore((s) => s.createGroup);
 	const deleteButton = useRibbonStore((s) => s.deleteButton);
+	const baseline = useRibbonStore((s) => s.baseline);
+	const layers = useRibbonStore((s) => s.layers);
 	const duplicateButton = useRibbonStore((s) => s.duplicateButton);
 	const duplicateGroup = useRibbonStore((s) => s.duplicateGroup);
 	const setGroupTemplate = useRibbonStore((s) => s.setGroupTemplate);
@@ -724,7 +727,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 										Move to: {g.label}
 									</MenuItem>
 								))}
-							{btnMenu.button.origin === "unmanaged" && (
+							{canDeleteControl(btnMenu.button, baseline[location]) && (
 								<>
 									<MenuDivider />
 									<MenuItem
@@ -809,18 +812,23 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 							>
 								Change template…
 							</MenuItem>
-							<MenuDivider />
-							<MenuItem
-								icon={<DeleteRegular />}
-								onClick={() => {
-									if (window.confirm(`Delete group "${grpMenu.group.label}"?`)) {
-										deleteGroup(location, tab.id, grpMenu.group.id);
-									}
-									setGrpMenu(null);
-								}}
-							>
-								Delete group
-							</MenuItem>
+							{/* Only your own group with only your own buttons (#17 review). */}
+							{canDeleteGroup(grpMenu.group, baseline[location], ownContainerIds({ layers }, location)) && (
+								<>
+									<MenuDivider />
+									<MenuItem
+										icon={<DeleteRegular />}
+										onClick={() => {
+											if (window.confirm(`Delete group "${grpMenu.group.label}"?`)) {
+												deleteGroup(location, tab.id, grpMenu.group.id);
+											}
+											setGrpMenu(null);
+										}}
+									>
+										Delete group
+									</MenuItem>
+								</>
+							)}
 						</MenuList>
 					</MenuPopover>
 				</Menu>

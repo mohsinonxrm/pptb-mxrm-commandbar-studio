@@ -4,6 +4,7 @@ import { SearchRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { useDraftStore } from "@/store/draftStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { findGroupControl, groupControls } from "@/utils/ribbonMenu";
 import { isReadOnlyControlKind } from "@/utils/controlKinds";
@@ -115,7 +116,7 @@ export const CommandPalette: React.FC = () => {
 	const enableRules = useRibbonStore((s) => s.enableRules);
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const entities = useSessionStore((s) => s.entities);
-	const setActiveEntity = useSessionStore((s) => s.setActiveEntity);
+	const requestEntitySwitch = useDraftStore((s) => s.requestEntitySwitch);
 	const location = useSelectionStore((s) => s.location);
 	const tabId = useSelectionStore((s) => s.tabId);
 	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
@@ -325,7 +326,7 @@ export const CommandPalette: React.FC = () => {
 					subtitle: e.logicalName,
 					kind: "entity",
 					action: () => {
-						setActiveEntity(e);
+						requestEntitySwitch(e);
 						close();
 					},
 				});

@@ -31,6 +31,7 @@ import {
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { useDraftStore } from "@/store/draftStore";
 
 const useStyles = makeStyles({
 	root: {
@@ -113,7 +114,7 @@ export function TopBar() {
 	const redo = useRibbonStore((s) => s.redo);
 	const solutions = useSessionStore((s) => s.solutions);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
-	const setActiveSolution = useSessionStore((s) => s.setActiveSolution);
+	const requestSolutionSwitch = useDraftStore((s) => s.requestSolutionSwitch);
 	const openBulkPublish = useUIStore((s) => s.openBulkPublish);
 	const openXmlDrawer = useUIStore((s) => s.openXmlDrawer);
 	const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
@@ -179,7 +180,8 @@ export function TopBar() {
 	const handleOptionSelect: ComboboxProps["onOptionSelect"] = (_, data) => {
 		const sol = solutions.find((s) => s.id === data.optionValue);
 		if (sol) {
-			setActiveSolution(sol);
+			// Asks first when there are unpublished changes (#16).
+			requestSolutionSwitch(sol);
 			setPickerOpen(false);
 			setQuery("");
 		}

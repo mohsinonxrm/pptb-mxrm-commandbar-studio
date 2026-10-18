@@ -18,6 +18,7 @@ import type {
 import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
 import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 import { CONTROL_TAG_BY_KIND, controlCommandIds, isReadOnlyControlKind } from "@/utils/controlKinds";
+import { isOwnControl } from "@/utils/ribbonProvenance";
 
 /**
  * What the scope's unmanaged ribbon layer owns, as read at load (or refreshed
@@ -331,8 +332,9 @@ export function planScope(input: PlanInput): ScopePlan {
 					);
 					continue;
 				}
-				// "unmanaged" is set from the table's unmanaged layer at load.
-				if (b.button.origin === "unmanaged") deleted.push(id);
+				// "unmanaged" is set from the table's unmanaged layer at load. The
+				// canvas deletes by the same rule (canDeleteControl, #17).
+				if (isOwnControl(b.button)) deleted.push(id);
 				else unsupported.push(`Removing "${b.button.label}" (${id}) — only your own unmanaged buttons can be deleted; hide it instead`);
 				continue;
 			}
