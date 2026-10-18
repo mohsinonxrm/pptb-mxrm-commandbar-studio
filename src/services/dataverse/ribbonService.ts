@@ -136,6 +136,13 @@ export async function fetchEntityRibbonAllLocations(
 	// Parse once with a neutral location; we'll bucket the tabs ourselves below.
 	const parsed = parseRibbonXml(xml, "HomepageGrid", entityLogicalName, layerLocLabels);
 	const ribbons = splitTabsByLocation(parsed.ribbon.tabs, entityLogicalName);
+	// Loaded scaling and template layouts go with the location of their tab (#35).
+	for (const def of Object.values(ribbons)) {
+		const ids = new Set(def.tabs.map((t) => t.id));
+		const scaling = Object.entries(parsed.ribbon.scalingByTab ?? {}).filter(([tabId]) => ids.has(tabId));
+		if (scaling.length) def.scalingByTab = Object.fromEntries(scaling);
+		if (parsed.ribbon.templateLayouts) def.templateLayouts = parsed.ribbon.templateLayouts;
+	}
 
 	useRuntimeLogStore
 		.getState()

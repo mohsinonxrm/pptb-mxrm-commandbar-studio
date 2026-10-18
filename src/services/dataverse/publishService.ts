@@ -31,6 +31,13 @@ import {
 } from "@/services/dataverse/environmentService";
 import type { ScopePlan } from "@/services/publishPlan";
 import { verifyRibbonImport } from "@/services/importJobVerification";
+import {
+	validatePublishRibbonDiff,
+	webResourceReferences,
+	type PublishFinding,
+	type PublishValidationContext,
+	type WebResourceStatus,
+} from "@/services/xmlValidator";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type {
 	RibbonDefinition,
@@ -38,6 +45,7 @@ import type {
 	EnableRule,
 	DisplayRule,
 	LocLabel,
+	ScalingDefinition,
 } from "@/types/ribbon";
 
 const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
@@ -120,6 +128,14 @@ export interface PublishRibbonInput {
 	enableRules: EnableRule[];
 	displayRules: DisplayRule[];
 	locLabels: LocLabel[];
+	/**
+	 * Commands and rules as loaded (what exists outside this session's edits).
+	 * With them, the pre-publish check also reports commands and rules that are
+	 * referenced but not defined (#35).
+	 */
+	baselineCommands?: CommandDefinition[];
+	baselineEnableRules?: EnableRule[];
+	baselineDisplayRules?: DisplayRule[];
 	/** What changed in this scope (see publishPlan.planScope). */
 	plan: Pick<ScopePlan, "editedCommandIds" | "editedEnableRuleIds" | "editedDisplayRuleIds" | "deletedButtonIds" | "unhiddenButtonIds"> &
 		Partial<Pick<ScopePlan, "deletedContainerIds" | "movedButtons" | "editedLocLabelIds" | "editedTabIds">>;
@@ -187,6 +203,8 @@ export async function buildMergedRibbonDiffXml(
 	changedCount: number;
 	/** `part:id` of the elements this publish adds or changes in the layer (checked by content after publishing). */
 	changedKeys: string[];
+	/** `part:id` of the elements the layer doesn't have yet. */
+	newKeys: string[];
 }> {
 	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
 	const plan = {
@@ -324,7 +342,97 @@ export async function buildMergedRibbonDiffXml(
 		preservedCount: countRibbonDiffParts(existing),
 		changedCount: countRibbonDiffParts(delta),
 		changedKeys: changedRibbonDiffKeys(existing, merged),
+		newKeys: (Object.keys(merged) as (keyof RibbonDiffParts)[]).flatMap((part) =>
+			Array.from(merged[part].keys())
+				.filter((id) => !existing[part].has(id))
+				.map((id) => `${part}:${id}`),
+		),
 	};
+}
+
+/**
+ * What the pre-publish check needs besides the merged RibbonDiffXml (#35):
+ * which elements this publish adds or changes, and the loaded ribbon (ids,
+ * scaling, group templates) the layer is applied to.
+ */
+export function publishValidationContext(
+	input: Pick<
+		PublishRibbonInput,
+		"locations" | "commands" | "baselineCommands" | "baselineEnableRules" | "baselineDisplayRules"
+	> & { publisherPrefix?: string },
+	merged: { changedKeys: string[]; newKeys: string[] },
+): PublishValidationContext {
+	const elementIds: string[] = [];
+	const tabScaling: Record<string, ScalingDefinition> = {};
+	const groupTemplates: Record<string, string> = {};
+	const templateLayouts: Record<string, string[]> = {};
+	for (const { current, baseline } of input.locations) {
+		Object.assign(tabScaling, baseline.scalingByTab);
+		Object.assign(templateLayouts, baseline.templateLayouts);
+		for (const tab of baseline.tabs) {
+			elementIds.push(tab.id);
+			for (const group of tab.groups) elementIds.push(group.id, ...group.buttons.map((b) => b.id));
+		}
+		for (const def of [baseline, current])
+			for (const tab of def.tabs)
+				for (const group of tab.groups) if (group.template) groupTemplates[group.id] = group.template;
+	}
+	return {
+		changedKeys: merged.changedKeys,
+		newKeys: merged.newKeys,
+		commands: input.commands,
+		known: {
+			commandIds: input.baselineCommands?.map((c) => c.id),
+			enableRuleIds: input.baselineEnableRules?.map((r) => r.id),
+			displayRuleIds: input.baselineDisplayRules?.map((r) => r.id),
+			elementIds,
+		},
+		publisherPrefix: input.publisherPrefix,
+		tabScaling,
+		groupTemplates,
+		templateLayouts,
+	};
+}
+
+/**
+ * The pre-publish check the publish dialog shows (#35): builds the RibbonDiffXml
+ * the publish would import (existing layer + this session's changes) and
+ * validates it. `lookupWebResources` resolves the `$webresource:` references
+ * (one batched Dataverse query); without it they aren't checked.
+ */
+export async function checkBeforePublish(
+	input: Pick<
+		PublishRibbonInput,
+		| "entity"
+		| "locations"
+		| "commands"
+		| "enableRules"
+		| "displayRules"
+		| "locLabels"
+		| "plan"
+		| "languageCode"
+		| "baselineCommands"
+		| "baselineEnableRules"
+		| "baselineDisplayRules"
+	> & { publisherPrefix?: string },
+	options: { lookupWebResources?: (names: string[]) => Promise<Record<string, WebResourceStatus>> } = {},
+): Promise<{ findings: PublishFinding[]; xml: string }> {
+	const merged = await buildMergedRibbonDiffXml(input);
+	const context = publishValidationContext(input, merged);
+	const lookupFindings: PublishFinding[] = [];
+	const names = webResourceReferences(merged.parts);
+	if (options.lookupWebResources && names.length > 0) {
+		try {
+			context.webResources = await options.lookupWebResources(names);
+		} catch (err) {
+			lookupFindings.push({
+				severity: "warning",
+				code: "webresource-lookup",
+				message: `Couldn't check the ${names.length} referenced web resource(s): ${err instanceof Error ? err.message : String(err)}`,
+			});
+		}
+	}
+	return { findings: [...validatePublishRibbonDiff(merged.parts, context), ...lookupFindings], xml: merged.xml };
 }
 
 /**
@@ -407,6 +515,21 @@ export async function publishRibbon(
 		`RibbonDiffXml for ${scopeLabel}: ${merged.preservedCount} existing element(s) preserved, ` +
 			`${merged.changedCount} element(s) from this session, ${merged.elementCount} total.`,
 	);
+
+	// Pre-publish validation (#35): never import what the check rejects.
+	const findings = validatePublishRibbonDiff(
+		merged.parts,
+		publishValidationContext({ ...input, publisherPrefix: input.solution.publisherPrefix }, merged),
+	);
+	for (const f of findings) if (f.severity === "warning") logs.logWarn("publish", f.message);
+	const blocking = findings.filter((f) => f.severity === "error");
+	if (blocking.length > 0) {
+		for (const f of blocking) logs.logError("publish", f.message);
+		throw new Error(
+			`The pre-publish check found ${blocking.length} error(s), so nothing was imported: ` +
+				blocking.map((f) => f.message).join("; "),
+		);
+	}
 
 	const isApplication = input.entity === null;
 	if (isApplication && !input.ribbonCustomizationIds?.length) {

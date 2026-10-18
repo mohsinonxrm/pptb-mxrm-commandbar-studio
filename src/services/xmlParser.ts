@@ -19,6 +19,8 @@ import type {
 	StandardRuleAttributes,
 	CrmParameterValue,
 	EntityProperty,
+	ScalingDefinition,
+	ScaleStep,
 } from "@/types/ribbon";
 import { generateAction, generateRuleStep } from "@/services/xmlGenerator";
 import { canonicalXml, parseXmlElement, sameXml } from "@/services/ribbonXmlCanonical";
@@ -117,8 +119,16 @@ export function parseRibbonXml(
 		}
 	}
 
+	const scalingByTab = parseTabScaling(doc);
+	const templateLayouts = parseTemplateLayouts(doc, tabs);
 	return {
-		ribbon: { location, entityLogicalName, tabs },
+		ribbon: {
+			location,
+			entityLogicalName,
+			tabs,
+			...(Object.keys(scalingByTab).length ? { scalingByTab } : {}),
+			...(Object.keys(templateLayouts).length ? { templateLayouts } : {}),
+		},
 		commands,
 		displayRules,
 		enableRules,
@@ -172,6 +182,43 @@ function parseTabs(doc: Document): RibbonTab[] {
 	});
 
 	return tabs.sort((a, b) => a.sequence - b.sequence);
+}
+
+/**
+ * Each tab's `<Scaling>` as loaded (MaxSize / Scale steps). Kept so the
+ * pre-publish check can see the sequences a new step would collide with (#35).
+ */
+function parseTabScaling(doc: Document): Record<string, ScalingDefinition> {
+	const out: Record<string, ScalingDefinition> = {};
+	const step = (el: Element): ScaleStep => ({
+		id: el.getAttribute("Id") ?? "",
+		groupId: el.getAttribute("GroupId") ?? "",
+		size: el.getAttribute("Size") ?? "",
+		sequence: parseInt(el.getAttribute("Sequence") ?? "0", 10),
+	});
+	doc.querySelectorAll("Tab").forEach((tabEl) => {
+		const tabId = tabEl.getAttribute("Id");
+		const scaling = tabEl.querySelector(":scope > Scaling");
+		if (!tabId || !scaling) return;
+		const maxSizes = Array.from(scaling.querySelectorAll(":scope > MaxSize")).map(step);
+		const scales = Array.from(scaling.querySelectorAll(":scope > Scale")).map(step);
+		if (maxSizes.length + scales.length > 0) out[tabId] = { tabId, maxSizes, scales };
+	});
+	return out;
+}
+
+/** Layout titles of the group templates the tabs' groups use (`GroupTemplate` > `Layout Title`). */
+function parseTemplateLayouts(doc: Document, tabs: RibbonTab[]): Record<string, string[]> {
+	const used = new Set(tabs.flatMap((t) => t.groups.map((g) => g.template)).filter(Boolean));
+	const out: Record<string, string[]> = {};
+	doc.querySelectorAll("GroupTemplate").forEach((el) => {
+		const id = el.getAttribute("Id");
+		if (!id || !used.has(id)) return;
+		out[id] = Array.from(el.querySelectorAll(":scope > Layout"))
+			.map((l) => l.getAttribute("Title") ?? "")
+			.filter(Boolean);
+	});
+	return out;
 }
 
 /**

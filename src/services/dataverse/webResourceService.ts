@@ -1,6 +1,7 @@
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { useSessionStore } from "@/store/sessionStore";
 import type { WebResource, WebResourceType } from "@/types/webResource";
+import type { WebResourceStatus } from "@/services/xmlValidator";
 
 function getHostDataverseApi(): DataverseAPI.API {
 	const api = (window as Window & typeof globalThis).dataverseAPI;
@@ -182,6 +183,75 @@ export async function upsertWebResource(
 		result.solutionUniqueName = solutionUniqueName;
 	}
 	return result;
+}
+
+/** Names (or ids) per OData `or` filter: keeps a lookup URL well under the request-length limit. */
+const LOOKUP_CHUNK = 40;
+
+const chunks = <T>(items: T[], size: number): T[][] =>
+	Array.from({ length: Math.ceil(items.length / size) }, (_, i) =>
+		items.slice(i * size, (i + 1) * size),
+	);
+
+const odataString = (v: string) => `'${v.replace(/'/g, "''")}'`;
+
+/**
+ * Whether the web resources a ribbon references exist and are in a solution
+ * (#35): one query for the names, one for their solution components (more only
+ * past LOOKUP_CHUNK names). Keyed by lower-case name — Dataverse compares
+ * names case-insensitively. Takes the API so tests can pass a fake.
+ */
+export async function lookupWebResources(
+	api: Pick<DataverseAPI.API, "queryData">,
+	names: string[],
+	solutionId?: string,
+): Promise<Record<string, WebResourceStatus>> {
+	const unique = names.filter(
+		(n, i) => names.findIndex((m) => m.toLowerCase() === n.toLowerCase()) === i,
+	);
+	const out: Record<string, WebResourceStatus> = {};
+	for (const n of unique) out[n.toLowerCase()] = { exists: false, inSolution: false };
+	if (unique.length === 0) return out;
+
+	const byId = new Map<string, string>();
+	for (const part of chunks(unique, LOOKUP_CHUNK)) {
+		const filter = part.map((n) => `name eq ${odataString(n)}`).join(" or ");
+		const result = await api.queryData(
+			`webresourceset?$select=webresourceid,name,ismanaged&$filter=${filter}`,
+		);
+		for (const raw of result.value ?? []) {
+			const r = raw as Record<string, unknown>;
+			const lower = String(r["name"] ?? "").toLowerCase();
+			if (!(lower in out)) continue;
+			out[lower] = { exists: true, inSolution: false, managed: r["ismanaged"] === true };
+			byId.set(String(r["webresourceid"] ?? "").toLowerCase(), lower);
+		}
+	}
+
+	const solution = solutionId?.replace(/[{}]/g, "");
+	if (solution && byId.size > 0) {
+		for (const part of chunks([...byId.keys()], LOOKUP_CHUNK)) {
+			const ids = part.map((id) => `objectid eq ${id}`).join(" or ");
+			const result = await api.queryData(
+				`solutioncomponents?$select=objectid&$filter=_solutionid_value eq ${solution} and componenttype eq ${WEB_RESOURCE_COMPONENT_TYPE} and (${ids})`,
+			);
+			for (const raw of result.value ?? []) {
+				const lower = byId.get(
+					String((raw as Record<string, unknown>)["objectid"] ?? "").toLowerCase(),
+				);
+				if (lower) out[lower].inSolution = true;
+			}
+		}
+	}
+	return out;
+}
+
+/** lookupWebResources through the PPTB host. */
+export async function loadWebResourceStatus(
+	names: string[],
+	solutionId?: string,
+): Promise<Record<string, WebResourceStatus>> {
+	return lookupWebResources(getHostDataverseApi(), names, solutionId);
 }
 
 export async function loadWebResources(typeFilter?: WebResourceType): Promise<WebResource[]> {
