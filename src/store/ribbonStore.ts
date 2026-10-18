@@ -32,6 +32,7 @@ import {
 } from "@/utils/ribbonMenu";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { useSessionStore } from "@/store/sessionStore";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -565,6 +566,19 @@ export function canCustomiseButton(location: RibbonLocation, tabId: string, butt
 	);
 }
 
+/** Whether a button with this id is in the loaded (baseline) ribbon of the location. */
+function isLoadedButton(state: RibbonStoreState, location: RibbonLocation, id: string): boolean {
+	return state.baseline[location].tabs.some((t) => t.groups.some((g) => g.buttons.some((b) => b.id === id)));
+}
+
+/** A drop that leaves the button where it is (on itself, or just before its next neighbour). */
+function isMoveInPlace(group: RibbonGroup, src: DragSource, dst: DragTarget): boolean {
+	if (src.location !== dst.location || src.tabId !== dst.tabId || src.groupId !== dst.groupId) return false;
+	const idx = group.buttons.findIndex((b) => b.id === src.buttonId);
+	const next = group.buttons[idx + 1]?.id;
+	return dst.beforeButtonId ? dst.beforeButtonId === src.buttonId || dst.beforeButtonId === next : next === undefined;
+}
+
 const LOC_LABEL_TOKEN = /^\$LocLabels:/;
 
 /**
@@ -753,6 +767,39 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		moveButton(src, dst) {
+			// A loaded button that isn't yours can't be moved in place (its
+			// CustomAction isn't in your layer): move a copy of your own and hide
+			// the original instead — Ribbon Workbench's "Customise Button" — as
+			// one undo step (#26).
+			const state = get();
+			const srcTab = state.ribbons[src.location].tabs.find((t) => t.id === src.tabId);
+			const srcGroup = srcTab?.groups.find((g) => g.id === src.groupId);
+			const original = srcGroup?.buttons.find((b) => b.id === src.buttonId);
+			if (
+				original &&
+				srcGroup &&
+				// Only when its origin is known: provenance sets it on load.
+				original.origin !== undefined &&
+				original.origin !== "unmanaged" &&
+				isLoadedButton(state, src.location, original.id) &&
+				canCustomiseButton(src.location, src.tabId, original)
+			) {
+				if (isMoveInPlace(srcGroup, src, dst)) return;
+				const { activeSolution, publisherPrefix } = useSessionStore.getState();
+				const prefix = activeSolution?.publisherPrefix?.trim() || publisherPrefix?.trim() || "new";
+				get().batch(() => {
+					const copyId = get().customiseButton(src.location, src.tabId, src.groupId, src.buttonId, prefix);
+					if (!copyId) return;
+					get().moveButton({ ...src, buttonId: copyId }, dst);
+					useRuntimeLogStore
+						.getState()
+						.logInfo(
+							"ribbon",
+							`${original.id} isn't yours, so it can't be moved: moved your copy ${copyId} instead and hid the original.`,
+						);
+				});
+				return;
+			}
 			set((state) =>
 				commitMutation(
 					state,

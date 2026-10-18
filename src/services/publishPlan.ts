@@ -352,9 +352,11 @@ export function planScope(input: PlanInput): ScopePlan {
 			const placeChanged =
 				c.menu || b.menu ? c.menu?.controlsId !== b.menu?.controlsId : c.groupId !== b.groupId;
 			if (placeChanged || c.button.sequence !== b.button.sequence) {
-				// Your own button: its CustomAction is moved in place. Anything else
-				// would need a hide plus a copy, which CBS doesn't write (yet). A menu
-				// item moves within its menu section's Controls (#27).
+				// Your own button: its CustomAction is moved in place. Moving any other
+				// button moves a copy and hides the original (ribbonStore.moveButton,
+				// #26), so what reaches here is a flyout / split button, a hidden or
+				// read-only button, or a menu item. A menu item moves within its menu
+				// section's Controls (#27).
 				if (b.button.origin === "unmanaged") {
 					moved.push({
 						id,
@@ -364,7 +366,7 @@ export function planScope(input: PlanInput): ScopePlan {
 					});
 				} else {
 					unsupported.push(
-						`Moving or re-ordering "${c.button.label}" (${id}) — only your own unmanaged buttons can be moved; hide it and add a new button instead`,
+						`Moving or re-ordering "${c.button.label}" (${id}) — only your own unmanaged buttons, and copies made with "Customise button", can be moved; undo the move, then hide it and add a new button instead`,
 					);
 				}
 			}

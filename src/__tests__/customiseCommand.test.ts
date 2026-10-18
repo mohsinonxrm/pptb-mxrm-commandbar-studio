@@ -17,6 +17,7 @@ import { planScope, type PlanInput } from "@/services/publishPlan";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { layerSnapshotFromParts } from "@/services/dataverse/ribbonLayerService";
 import { useRibbonStore } from "@/store/ribbonStore";
+import { useSessionStore } from "@/store/sessionStore";
 import { commandProvenance } from "@/utils/commandProvenance";
 import type { RibbonButton, RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
@@ -842,6 +843,73 @@ describe("#26 / #31 — Customise Button", () => {
 		const p = storePlan();
 		expect(p.unsupported).toEqual([]);
 		expect(p.hasChanges).toBe(true);
+	});
+
+	describe("#26 — moving a button that isn't yours moves a copy", () => {
+		const COLLAB = `${MAIN}.Collaborate`;
+		const src = (buttonId: string) => ({ groupId: MGMT, buttonId, tabId: MAIN, location: "HomepageGrid" as const });
+		const collab = () =>
+			useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups.find((g) => g.id === COLLAB)!;
+		// The copy takes the active solution's publisher prefix.
+		beforeEach(() => useSessionStore.setState({ activeSolution: null, publisherPrefix: "cbs" }));
+
+		it("to another group: the original stays hidden in place, your copy moves, publish is allowed", () => {
+			loadStore();
+			const before = useRibbonStore.getState().past.length;
+			useRibbonStore.getState().moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" });
+			const original = mgmt().buttons.find((b) => b.id === EDIT)!;
+			expect(original.hidden).toBe(true);
+			expect(mgmt().buttons.some((b) => b.id === `cbs.${EDIT}`)).toBe(false);
+			expect(collab().buttons.map((b) => b.id)).toEqual([`Mscrm.HomepageGrid.${T}.Share`, `cbs.${EDIT}`]);
+			const p = storePlan();
+			expect(p.unsupported).toEqual([]);
+			expect(p.hasChanges).toBe(true);
+			// Copy, hide and move are one undo step.
+			expect(useRibbonStore.getState().past.length).toBe(before + 1);
+			useRibbonStore.getState().undo();
+			expect(mgmt().buttons.find((b) => b.id === EDIT)!.hidden).toBeFalsy();
+			expect(collab().buttons.map((b) => b.id)).toEqual([`Mscrm.HomepageGrid.${T}.Share`]);
+			expect(storePlan().hasChanges).toBe(false);
+		});
+
+		it("re-ordering in its own group moves the copy before the target", () => {
+			loadStore();
+			useRibbonStore.getState().moveButton(src(`Mscrm.HomepageGrid.${T}.Assign`), {
+				groupId: MGMT,
+				tabId: MAIN,
+				location: "HomepageGrid",
+				beforeButtonId: EDIT,
+			});
+			const ids = mgmt().buttons.map((b) => b.id);
+			expect(ids.indexOf(`cbs.Mscrm.HomepageGrid.${T}.Assign`)).toBe(ids.indexOf(EDIT) - 1);
+			expect(mgmt().buttons.find((b) => b.id === `Mscrm.HomepageGrid.${T}.Assign`)!.hidden).toBe(true);
+			expect(storePlan().unsupported).toEqual([]);
+		});
+
+		it("a drop in place changes nothing", () => {
+			loadStore();
+			const s = useRibbonStore.getState();
+			s.moveButton(src(EDIT), { groupId: MGMT, tabId: MAIN, location: "HomepageGrid", beforeButtonId: EDIT });
+			s.moveButton(src(EDIT), {
+				groupId: MGMT,
+				tabId: MAIN,
+				location: "HomepageGrid",
+				beforeButtonId: `Mscrm.HomepageGrid.${T}.Delete`,
+			});
+			expect(useRibbonStore.getState().past).toHaveLength(0);
+			expect(storePlan().hasChanges).toBe(false);
+		});
+
+		it("your own buttons still move in place, and flyouts are not copied", () => {
+			loadStore();
+			const s = useRibbonStore.getState();
+			s.moveButton(src("cbs.Mine"), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" });
+			expect(collab().buttons.map((b) => b.id)).toContain("cbs.Mine");
+			expect(collab().buttons.some((b) => b.id.startsWith("cbs.cbs."))).toBe(false);
+			s.moveButton(src(`Mscrm.HomepageGrid.${T}.Flows`), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" });
+			expect(collab().buttons.map((b) => b.id)).toContain(`Mscrm.HomepageGrid.${T}.Flows`);
+			expect(storePlan().unsupported).toEqual([expect.stringMatching(/^Moving or re-ordering "Flow"/)]);
+		});
 	});
 
 	it("customising the button and its command together", async () => {
