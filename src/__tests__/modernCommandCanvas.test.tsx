@@ -232,4 +232,73 @@ describe("modern commands on the canvas", () => {
 		expect(pane?.querySelector("input, textarea")).toBeNull();
 		expect(useRibbonStore.getState().mutationsSincePublish).toBe(0);
 	});
+
+	it("draws no chips on the Charts tab and badges a chart control matched from another tab's command", () => {
+		const grid = ribbon("HomepageGrid");
+		grid.tabs.unshift({
+			id: "Mscrm.HomepageGrid.AllEntities.VisualizationTab",
+			label: "Charts",
+			sequence: 5,
+			tabDisplayRules: [],
+			groups: [
+				{
+					id: "Charts",
+					label: "Charts",
+					sequence: 10,
+					template: "Mscrm.Templates.Flexible2",
+					buttons: [button("Mscrm.HomepageGrid.contact.Chart.Edit", "Edit Chart", 10)],
+				},
+			],
+		});
+		useRibbonStore.getState().loadWorkspace({
+			ribbons: {
+				HomepageGrid: grid,
+				SubGrid: ribbon("SubGrid"),
+				Form: ribbon("Form"),
+				Application: { location: "Application", entityLogicalName: "", tabs: [] },
+			},
+			commands: [],
+			displayRules: [],
+			enableRules: [],
+			locLabels: [],
+		});
+		const s = useModernCommandStore.getState();
+		const loaded = s.commands;
+		s.finishLoad(s.beginLoad("contact"), {
+			apps: [],
+			commands: [
+				...loaded,
+				...mapAppActionRows([
+					row({
+						appactionid: "aaaaaaaa-0000-0000-0000-000000000006",
+						name: "Chart.Edit",
+						uniquename: "msdyn_Mscrm.HomepageGrid.{!EntityLogicalName}.Chart.Edit!1",
+						buttonlabeltext: "Edit Chart",
+						context: 0,
+						_contextentity_value: null,
+						contextvalue: null,
+						origin: 1,
+						sequence: 10,
+					}),
+				]),
+			],
+		});
+		const [charts, main] = useRibbonStore.getState().ribbons.HomepageGrid.tabs;
+
+		render(<ModernCommandBar tab={charts} location="HomepageGrid" />);
+		expect(labels()).toEqual(["Edit Chart"]);
+		expect(
+			container.querySelector(
+				'[aria-label="Rendered as modern command Edit Chart in all apps (migrated)"]',
+			),
+		).not.toBeNull();
+
+		render(<ModernCommandBar tab={main} location="HomepageGrid" />);
+		expect(labels()).toEqual([
+			"New",
+			"Send survey — modern command (read-only)",
+			"Refresh",
+			"Tail command — modern command (read-only)",
+		]);
+	});
 });

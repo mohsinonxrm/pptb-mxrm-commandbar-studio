@@ -6,11 +6,12 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { loadModernCommandData } from "@/services/dataverse/modernCommandService";
 import {
+	buildModernLocationModel,
 	buildModernTree,
 	filterModernCommands,
-	findClassicOverrides,
 	flattenModernTree,
 	placeModernCommands,
+	type ModernLocationModel,
 	type ModernPlacement,
 } from "@/services/modernCommands";
 import type { RibbonLocation, RibbonTab } from "@/types/ribbon";
@@ -74,75 +75,75 @@ export function useModernCommandsFor(location: RibbonLocation): ModernCommand[] 
 	);
 }
 
-/**
- * Modern commands render on the location's main command bar only — the first
- * tab of the location, a `…MainTab`, or the global tab.
- */
-function isCommandBarTab(tab: RibbonTab, firstTabId: string | undefined): boolean {
-	return tab.id === firstTabId || /MainTab$/i.test(tab.id) || tab.id === "Mscrm.GlobalTab";
-}
-
 export interface ModernCanvasModel {
 	/** Top-level modern commands (with children) to draw as chips on this tab. */
 	nodes: ModernCommandNode[];
 	/** Where to draw them among the classic buttons (ModernCommandBar). */
 	placement: ModernPlacement;
-	/** Classic buttons a migrated modern command hides or stands in for. */
+	/** Classic buttons (on any tab of the location) a migrated modern command hides or stands in for. */
 	overrides: Map<string, ClassicModernOverride[]>;
 }
 
+/** Diagnostics already written, so each location's list is logged once. */
+const loggedUnmatched = new Set<string>();
+
 /**
- * Everything a canvas view needs to draw modern commands next to a tab's
- * classic buttons. Migrated commands that match a classic button on the tab
- * are not drawn twice: they show as a flag on that button instead.
+ * Location-wide model: migrated commands are matched against the classic
+ * controls of every tab of the location; chips go on its command-bar tab only.
  */
-export function useModernCanvas(location: RibbonLocation, tab: RibbonTab): ModernCanvasModel {
+export function useModernLocation(location: RibbonLocation): ModernLocationModel {
 	const commands = useModernCommandsFor(location);
 	const logicalName = useSessionStore((s) => s.activeEntity?.logicalName) ?? "";
-	const firstTabId = useRibbonStore((s) => s.ribbons[location]?.tabs[0]?.id);
+	const tabs = useRibbonStore((s) => s.ribbons[location]?.tabs);
+	const model = useMemo(
+		() =>
+			buildModernLocationModel({
+				commands,
+				tabs: tabs ?? [],
+				location,
+				entityLogicalName: logicalName,
+			}),
+		[commands, tabs, location, logicalName],
+	);
 
-	const model = useMemo(() => {
-		const classic = tab.groups.flatMap((g) =>
-			g.buttons.map((b) => ({ id: b.id, sequence: b.sequence })),
-		);
-		const overrides = findClassicOverrides(
-			commands,
-			classic.map((b) => b.id),
-			logicalName,
-		);
-		// Migrated commands matching a classic button on this tab are represented
-		// by that button (flagged when they hide / replace it, silent when they're
-		// disabled and the classic button shows) — never drawn a second time.
-		const matched = findClassicOverrides(
-			commands,
-			classic.map((b) => b.id),
-			logicalName,
-			{ includeDisabled: true },
-		);
-		const shownAsOverride = new Set([...matched.values()].flat().map((o) => o.command.id));
-		const nodes = isCommandBarTab(tab, firstTabId)
-			? buildModernTree(commands.filter((c) => !shownAsOverride.has(c.id)))
-			: [];
-		return { nodes, placement: placeModernCommands(classic, nodes), overrides };
-	}, [commands, logicalName, tab, firstTabId]);
-
-	// Diagnostics: migrated commands drawn as chips have no classic control on
-	// this tab (the unique-name convention is undocumented). Logged once per set.
-	const unmatchedMigrated = flattenModernTree(model.nodes)
-		.filter((c) => c.origin !== "default")
-		.map((c) => c.uniqueName)
-		.join(", ");
+	// Diagnostics: migrated commands with no classic control anywhere in the
+	// location (the unique-name convention is undocumented). Logged once.
+	const unmatched = model.unmatchedMigrated.map((c) => c.uniqueName).join(", ");
 	useEffect(() => {
-		if (!unmatchedMigrated) return;
+		const key = `${logicalName}|${location}|${unmatched}`;
+		if (!unmatched || loggedUnmatched.has(key)) return;
+		loggedUnmatched.add(key);
 		useRuntimeLogStore
 			.getState()
 			.logInfo(
 				"ribbon",
-				`Migrated modern commands without a classic control on ${tab.id}: ${unmatchedMigrated}`,
+				`Migrated modern commands without a classic control in ${logicalName} ${location}: ${unmatched}`,
 			);
-	}, [unmatchedMigrated, tab.id]);
+	}, [unmatched, logicalName, location]);
 
 	return model;
+}
+
+/**
+ * Everything a canvas view needs to draw modern commands next to a tab's
+ * classic buttons. Migrated commands that match a classic control anywhere in
+ * the location are not drawn: they show as a flag on that control instead.
+ * Chips appear only on the location's command-bar tab (the table's MainTab),
+ * as Unified Interface renders one flat command bar per location.
+ */
+export function useModernCanvas(location: RibbonLocation, tab: RibbonTab): ModernCanvasModel {
+	const model = useModernLocation(location);
+	return useMemo(() => {
+		const classic = tab.groups.flatMap((g) =>
+			g.buttons.map((b) => ({ id: b.id, sequence: b.sequence })),
+		);
+		const nodes = tab.id === model.commandBarTabId ? model.nodes : [];
+		return {
+			nodes,
+			placement: placeModernCommands(classic, nodes),
+			overrides: model.overrides,
+		};
+	}, [model, tab]);
 }
 
 /** Overrides for one classic button at a location (properties pane). */
@@ -150,16 +151,11 @@ export function useClassicOverrides(
 	location: RibbonLocation,
 	buttonId: string | undefined,
 ): ClassicModernOverride[] {
-	const commands = useModernCommandsFor(location);
-	const logicalName = useSessionStore((s) => s.activeEntity?.logicalName) ?? "";
-	return useMemo(
-		() =>
-			buttonId
-				? (findClassicOverrides(commands, [buttonId], logicalName).get(buttonId) ?? [])
-				: [],
-		[commands, buttonId, logicalName],
-	);
+	const { overrides } = useModernLocation(location);
+	return (buttonId && overrides.get(buttonId)) || NO_OVERRIDES;
 }
+
+const NO_OVERRIDES: ClassicModernOverride[] = [];
 
 /**
  * The selected modern command, when it is visible at the current location and

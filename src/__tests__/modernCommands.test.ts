@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
 	appliesToApp,
 	buildAppList,
+	buildModernLocationModel,
 	buildModernTree,
+	commandBarTabId,
 	classicIdCandidates,
 	describeModernCommand,
 	describeOverride,
@@ -421,6 +423,95 @@ describe("migrated contact Home Grid commands (live unique names)", () => {
 		const templated = controls.map((id) => id.replace(".contact.", ".{!EntityLogicalName}."));
 		const matched = findClassicOverrides(rows, templated, "contact", { includeDisabled: true });
 		expect([...matched.values()].flat()).toHaveLength(rows.length - 1);
+	});
+});
+
+// Regression for the second live check of #74: classic counterparts of
+// migrated commands live on other tabs of the location (Charts / View), and
+// chips were drawn on every tab instead of only the table's MainTab.
+describe("buildModernLocationModel (whole location)", () => {
+	const tab = (id: string, buttonIds: string[]) => ({
+		id,
+		groups: [{ buttons: buttonIds.map((b) => ({ id: b })) }],
+	});
+	// Live tab order: the shared Charts tab can come first.
+	const tabs = [
+		tab("Mscrm.HomepageGrid.AllEntities.VisualizationTab", [
+			"Mscrm.HomepageGrid.contact.Chart.Edit",
+			"Mscrm.HomepageGrid.contact.Chart.Delete",
+			"Mscrm.HomepageGrid.contact.Chart.RefreshButton",
+		]),
+		tab("Mscrm.HomepageGrid.contact.MainTab", [
+			"Mscrm.HomepageGrid.contact.NewRecord",
+			"Mscrm.HomepageGrid.contact.Edit",
+		]),
+		tab("Mscrm.HomepageGrid.contact.View", [
+			"Mscrm.HomepageGrid.contact.RefreshButton",
+			"Mscrm.HomepageGrid.contact.SaveFiltersToCurrentSystemView",
+		]),
+	];
+	const migrated = (suffix: string) =>
+		cmd({
+			uniquename: `msdyn_Mscrm.HomepageGrid.{!EntityLogicalName}.${suffix}!1`,
+			name: suffix,
+			origin: 1,
+			context: 0,
+			_contextentity_value: null,
+			contextvalue: null,
+		});
+	const commands = [
+		...[
+			"RefreshButton",
+			"Chart.Edit",
+			"Chart.Delete",
+			"SaveFiltersToCurrentSystemView",
+			"NewRecord",
+			"Edit",
+		].map(migrated),
+		migrated("NotInThisRibbon"),
+		cmd({ uniquename: "new_SendSurvey", name: "SendSurvey", origin: 0 }),
+	];
+	const model = buildModernLocationModel({
+		commands,
+		tabs,
+		location: "HomepageGrid",
+		entityLogicalName: "contact",
+	});
+
+	it("matches migrated commands against every tab of the location", () => {
+		expect([...model.overrides.keys()].sort()).toEqual([
+			"Mscrm.HomepageGrid.contact.Chart.Delete",
+			"Mscrm.HomepageGrid.contact.Chart.Edit",
+			"Mscrm.HomepageGrid.contact.Edit",
+			"Mscrm.HomepageGrid.contact.NewRecord",
+			"Mscrm.HomepageGrid.contact.RefreshButton",
+			"Mscrm.HomepageGrid.contact.SaveFiltersToCurrentSystemView",
+		]);
+	});
+
+	it("draws chips only for designer commands and migrated ones without a counterpart", () => {
+		expect(model.nodes.map((n) => n.command.uniqueName)).toEqual([
+			"msdyn_Mscrm.HomepageGrid.{!EntityLogicalName}.NotInThisRibbon!1",
+			"new_SendSurvey",
+		]);
+		expect(model.unmatchedMigrated.map((c) => c.name)).toEqual(["NotInThisRibbon"]);
+	});
+
+	it("puts chips on the table's MainTab, never on the shared Charts tab", () => {
+		expect(model.commandBarTabId).toBe("Mscrm.HomepageGrid.contact.MainTab");
+		expect(
+			commandBarTabId(
+				[
+					{ id: "Mscrm.HomepageGrid.AllEntities.VisualizationTab" },
+					{ id: "Custom.MainTab" },
+				],
+				"HomepageGrid",
+				"contact",
+			),
+		).toBe("Custom.MainTab");
+		expect(commandBarTabId([{ id: "Mscrm.GlobalTab" }], "Application", "contact")).toBe(
+			"Mscrm.GlobalTab",
+		);
 	});
 });
 

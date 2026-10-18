@@ -390,6 +390,67 @@ export function findClassicOverrides(
 	return out;
 }
 
+/**
+ * The tab Unified Interface renders as the location's flat command bar, where
+ * modern commands appear: the table's `Mscrm.<Location>.<table>.MainTab`, else
+ * another `…MainTab` that isn't a shared `AllEntities` tab, else the global
+ * tab (Application), else the first tab. Never e.g. the Charts
+ * (`AllEntities.VisualizationTab`) tab.
+ */
+export function commandBarTabId(
+	tabs: { id: string }[],
+	location: RibbonLocation,
+	entityLogicalName: string,
+): string | undefined {
+	const lower = (s: string) => s.toLowerCase();
+	const own = `mscrm.${lower(location)}.${lower(entityLogicalName)}.maintab`;
+	return (
+		tabs.find((t) => lower(t.id) === own)?.id ??
+		tabs.find((t) => /maintab$/i.test(t.id) && !/\.allentities\./i.test(t.id))?.id ??
+		tabs.find((t) => t.id === "Mscrm.GlobalTab")?.id ??
+		tabs[0]?.id
+	);
+}
+
+export interface ModernLocationModel {
+	/** The tab modern chips are drawn on (see commandBarTabId). */
+	commandBarTabId: string | undefined;
+	/** Top-level commands to draw as chips there: designer-made, or migrated with no classic control in the location. */
+	nodes: ModernCommandNode[];
+	/** Classic controls on any tab of the location that a migrated command hides or stands in for. */
+	overrides: Map<string, ClassicModernOverride[]>;
+	/** Migrated commands with no classic control anywhere in the location (diagnostics). */
+	unmatchedMigrated: ModernCommand[];
+}
+
+/**
+ * Modern commands for one canvas location. Migrated commands are matched
+ * against the classic controls of EVERY tab of the location (their classic
+ * counterpart may live on the Charts or View tab), so they're drawn as a chip
+ * only when the location has no counterpart at all.
+ */
+export function buildModernLocationModel(input: {
+	commands: ModernCommand[];
+	tabs: { id: string; groups: { buttons: { id: string }[] }[] }[];
+	location: RibbonLocation;
+	entityLogicalName: string;
+}): ModernLocationModel {
+	const { commands, tabs, location, entityLogicalName } = input;
+	const controlIds = tabs.flatMap((t) => t.groups.flatMap((g) => g.buttons.map((b) => b.id)));
+	const overrides = findClassicOverrides(commands, controlIds, entityLogicalName);
+	const matched = findClassicOverrides(commands, controlIds, entityLogicalName, {
+		includeDisabled: true,
+	});
+	const matchedIds = new Set([...matched.values()].flat().map((o) => o.command.id));
+	const unmatched = commands.filter((c) => !matchedIds.has(c.id));
+	return {
+		commandBarTabId: commandBarTabId(tabs, location, entityLogicalName),
+		nodes: buildModernTree(unmatched),
+		overrides,
+		unmatchedMigrated: unmatched.filter((c) => c.origin !== "default"),
+	};
+}
+
 export interface ModernPlacement {
 	/** Modern commands to render immediately before the classic button with this id. */
 	before: Map<string, ModernCommandNode[]>;
