@@ -2,21 +2,8 @@ import React from "react";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { findGroupControl } from "@/utils/ribbonMenu";
-import { isOwnControl } from "@/utils/ribbonProvenance";
-import type { RibbonButton } from "@/types/ribbon";
+import { deleteBlockedReason } from "@/utils/ribbonProvenance";
 import { HideOobWarningModal } from "./HideOobWarningModal";
-
-/** Why a button can't be deleted, in words (#17). */
-function deleteBlockedReason(button: RibbonButton): string {
-	if (button.origin === "oob") return "It's part of the out-of-the-box ribbon.";
-	if (button.origin === "managed") {
-		return button.solutionName
-			? `It comes from the managed solution "${button.solutionName}".`
-			: "It comes from a managed solution.";
-	}
-	if (isOwnControl(button)) return "It was loaded from another solution, or its menu holds items from one.";
-	return "It comes from another solution.";
-}
 
 /**
  * Delete pressed on a button that isn't yours (#17): explains why it can't be
@@ -36,14 +23,15 @@ export const HideInsteadOfDeleteModal: React.FC = () => {
 				)
 			: undefined,
 	);
-	if (!target || !button) return null;
+	const baseline = useRibbonStore((s) => (target ? s.baseline[target.location] : undefined));
+	if (!target || !button || !baseline) return null;
 
 	return (
 		<HideOobWarningModal
 			open
 			buttonLabel={button.label}
 			commandId={button.commandId}
-			deleteBlockedReason={deleteBlockedReason(button)}
+			deleteBlockedReason={deleteBlockedReason(button, baseline)}
 			onConfirmHide={() => {
 				useRibbonStore.getState().hideOobButton(target.location, target.tabId, target.groupId, target.buttonId);
 				announce("Button hidden");

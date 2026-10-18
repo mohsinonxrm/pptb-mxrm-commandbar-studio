@@ -6,10 +6,11 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
-import { canDeleteControl } from "@/utils/ribbonProvenance";
+import { canDeleteControl, canDeleteGroup, canDeleteTab, deleteBlockedReason } from "@/utils/ribbonProvenance";
 import { findGroupControl, groupControls } from "@/utils/ribbonMenu";
 import { planScope } from "@/services/publishPlan";
-import type { RibbonButton, RibbonDefinition, RibbonLocation, RibbonOrigin } from "@/types/ribbon";
+import type { LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import type { RibbonButton, RibbonDefinition, RibbonGroup, RibbonLocation, RibbonOrigin } from "@/types/ribbon";
 
 // #17 — Delete / Backspace remove only your own buttons (the rule publish
 // applies); the canvas shortcuts stay out of text fields and dialogs.
@@ -75,11 +76,45 @@ function homepage(): RibbonDefinition {
 							flyout("cbs.MyFly", "unmanaged", [control("msdyn.MyFly.TheirItem", "managed")]),
 						],
 					},
+					// Your own groups (the layer adds them) in the out-of-the-box tab.
+					groupDef("cbs.MyGroup", [control("cbs.MyGroup.Button", "unmanaged")]),
+					groupDef("cbs.MixedGroup", [
+						control("cbs.MixedGroup.Button", "unmanaged"),
+						control("msdyn.MixedGroup.Theirs", "managed", { sequence: 20 }),
+					]),
 				],
+			},
+			// Your own tabs: one with only your own controls, one holding another
+			// solution's group.
+			{
+				id: "cbs.MyTab",
+				label: "Mine",
+				sequence: 20,
+				tabDisplayRules: [],
+				groups: [groupDef("cbs.MyTab.Group", [control("cbs.MyTab.Button", "unmanaged")])],
+			},
+			{
+				id: "cbs.MixedTab",
+				label: "Mixed",
+				sequence: 30,
+				tabDisplayRules: [],
+				groups: [groupDef("msdyn.MixedTab.Group", [control("msdyn.MixedTab.Button", "managed")])],
 			},
 		],
 	};
 }
+
+function groupDef(id: string, buttons: RibbonButton[]): RibbonGroup {
+	return { id, label: id, sequence: 50, template: "Mscrm.Templates.Flexible2", buttons };
+}
+
+/** What the table's unmanaged layer adds: your own controls, tabs and groups. */
+const LAYER: LayerSnapshot = {
+	controlIds: ["cbs.Mine", "cbs.MyFly", "cbs.MyGroup.Button", "cbs.MixedGroup.Button", "cbs.MyTab.Button"],
+	containerIds: ["cbs.MyGroup", "cbs.MixedGroup", "cbs.MyTab", "cbs.MyTab.Group", "cbs.MixedTab"],
+	locLabelIds: [],
+	hides: [],
+};
 
 const empty = (location: RibbonLocation): RibbonDefinition => ({
 	location,
@@ -99,6 +134,7 @@ function load() {
 		enableRules: [],
 		displayRules: [],
 		locLabels: [],
+		layers: { entity: LAYER },
 	});
 }
 
@@ -125,7 +161,7 @@ function select(id: string) {
 
 beforeEach(() => {
 	load();
-	useUIStore.setState({ hideInsteadOfDelete: null, commandPaletteOpen: false });
+	useUIStore.setState({ hideInsteadOfDelete: null, commandPaletteOpen: false, bulkPublishOpen: false });
 	useRuntimeLogStore.getState().clear();
 	container = document.createElement("div");
 	document.body.appendChild(container);
@@ -360,6 +396,176 @@ describe("other shortcuts in text fields and dialogs", () => {
 		press(inside, "s", true);
 		expect(copies()).toHaveLength(0);
 		expect(findGroupControl(group(), "cbs.Mine")!.label).toBe("Renamed");
+		expect(useUIStore.getState().bulkPublishOpen).toBe(false);
+	});
+});
+
+// #17 review — a tab or group goes with every control in it, so it is deleted
+// only when it is yours and so is everything in it (the publish rule).
+describe("tabs and groups", () => {
+	const state = () => useRibbonStore.getState();
+	const tabIds = () => state().ribbons.HomepageGrid.tabs.map((t) => t.id);
+	const groupIds = () => state().ribbons.HomepageGrid.tabs.flatMap((t) => t.groups.map((g) => g.id));
+	const tabOf = (id: string) => state().ribbons.HomepageGrid.tabs.find((t) => t.id === id)!;
+	const groupOf = (id: string) => state().ribbons.HomepageGrid.tabs.flatMap((t) => t.groups).find((g) => g.id === id)!;
+	const base = () => state().baseline.HomepageGrid;
+	const warnings = () => useRuntimeLogStore.getState().entries.filter((e) => e.level === "warn");
+
+	it("canDeleteGroup / canDeleteTab: yours, with only your own controls", () => {
+		expect(canDeleteGroup(groupOf("cbs.MyGroup"), base(), LAYER.containerIds)).toBe(true);
+		expect(canDeleteGroup(groupOf(GROUP), base(), LAYER.containerIds)).toBe(false);
+		expect(canDeleteGroup(groupOf("cbs.MixedGroup"), base(), LAYER.containerIds)).toBe(false);
+		expect(canDeleteTab(tabOf("cbs.MyTab"), base(), LAYER.containerIds)).toBe(true);
+		expect(canDeleteTab(tabOf(TAB), base(), LAYER.containerIds)).toBe(false);
+		expect(canDeleteTab(tabOf("cbs.MixedTab"), base(), LAYER.containerIds)).toBe(false);
+		// Without the layer, nothing loaded is known to be yours.
+		expect(canDeleteGroup(groupOf("cbs.MyGroup"), base(), undefined)).toBe(false);
+	});
+
+	it("the store refuses an out-of-the-box group, and your own group holding another solution's button", () => {
+		for (const id of [GROUP, "cbs.MixedGroup"]) {
+			act(() => state().deleteGroup("HomepageGrid", TAB, id));
+			expect(groupIds()).toContain(id);
+		}
+		expect(state().past).toHaveLength(0);
+		expect(state().mutationsSincePublish).toBe(0);
+		expect(warnings()).toHaveLength(2);
+		expect(warnings()[0].message).toMatch(/only your own/);
+	});
+
+	it("the store deletes your own group as one undo step", () => {
+		act(() => state().deleteGroup("HomepageGrid", TAB, "cbs.MyGroup"));
+		expect(groupIds()).not.toContain("cbs.MyGroup");
+		expect(state().past).toHaveLength(1);
+		act(() => state().undo());
+		expect(groupIds()).toContain("cbs.MyGroup");
+	});
+
+	it("the store refuses an out-of-the-box tab, and your own tab holding another solution's group", () => {
+		for (const id of [TAB, "cbs.MixedTab"]) {
+			act(() => state().deleteTab("HomepageGrid", id));
+			expect(tabIds()).toContain(id);
+		}
+		expect(state().past).toHaveLength(0);
+		expect(warnings()).toHaveLength(2);
+	});
+
+	it("the store deletes your own tab, and a tab or group created this session", () => {
+		act(() => state().deleteTab("HomepageGrid", "cbs.MyTab"));
+		expect(tabIds()).not.toContain("cbs.MyTab");
+		act(() => state().createTab("HomepageGrid", { id: "cbs.NewTab", label: "New" }));
+		act(() =>
+			state().createGroup({ location: "HomepageGrid", tabId: "cbs.NewTab", group: groupDef("cbs.NewGroup", []) }),
+		);
+		act(() => state().deleteGroup("HomepageGrid", "cbs.NewTab", "cbs.NewGroup"));
+		expect(groupIds()).not.toContain("cbs.NewGroup");
+		act(() => state().deleteTab("HomepageGrid", "cbs.NewTab"));
+		expect(tabIds()).not.toContain("cbs.NewTab");
+		expect(warnings()).toHaveLength(0);
+	});
+
+	it("agrees with publish: what it refuses, publish refuses too", () => {
+		const plan = (edit: (def: RibbonDefinition) => void) => {
+			const current = homepage();
+			edit(current);
+			return planScope({
+				locations: [{ current, baseline: base() }],
+				commands: [],
+				baselineCommands: [],
+				enableRules: [],
+				baselineEnableRules: [],
+				displayRules: [],
+				baselineDisplayRules: [],
+				layer: { containerIds: LAYER.containerIds, locLabelIds: [] },
+			});
+		};
+		const withoutGroup = (id: string) =>
+			plan((def) => def.tabs.forEach((t) => (t.groups = t.groups.filter((g) => g.id !== id))));
+		const withoutTab = (id: string) => plan((def) => (def.tabs = def.tabs.filter((t) => t.id !== id)));
+		const clean = (p: ReturnType<typeof plan>) => p.unsupported.length === 0;
+
+		expect(clean(withoutGroup("cbs.MyGroup"))).toBe(true);
+		expect(clean(withoutGroup(GROUP))).toBe(false);
+		expect(clean(withoutGroup("cbs.MixedGroup"))).toBe(false);
+		expect(clean(withoutTab("cbs.MyTab"))).toBe(true);
+		expect(clean(withoutTab(TAB))).toBe(false);
+		// Your own tab with another solution's group in it: the group's
+		// CustomAction would point at a tab that no longer exists.
+		expect(clean(withoutTab("cbs.MixedTab"))).toBe(false);
+	});
+});
+
+describe("deleteBlockedReason", () => {
+	const base = () => useRibbonStore.getState().baseline.HomepageGrid;
+	const ctl = (id: string) => findGroupControl(group(), id)!;
+
+	it("names where the button comes from", () => {
+		expect(deleteBlockedReason(ctl("Mscrm.HomepageGrid.account.Edit"), base())).toMatch(/out-of-the-box/);
+		expect(deleteBlockedReason(ctl("msdyn.account.Managed"), base())).toMatch(/managed solution "Field Service"/);
+		expect(deleteBlockedReason(ctl("cbs.MyFly"), base())).toMatch(/menu holds items from another solution/);
+	});
+
+	it("says an override made this session is an override, not another solution's button", () => {
+		act(() =>
+			useRibbonStore.getState().customizeOobButton("HomepageGrid", TAB, GROUP, "Mscrm.HomepageGrid.account.Edit"),
+		);
+		const reason = deleteBlockedReason(ctl("Mscrm.HomepageGrid.account.Edit"), base());
+		expect(reason).toMatch(/override/);
+		expect(reason).toMatch(/out-of-the-box/);
+		expect(reason).not.toMatch(/another solution/);
+	});
+});
+
+// #17 review — editor drawers (OverlayDrawer, aria-modal) keep workspace
+// undo / redo / save outside their text fields, as before; dialogs, menus and
+// popovers block every shortcut; Ctrl+S never reaches the browser.
+describe("shortcuts in editor drawers", () => {
+	function drawer(): HTMLButtonElement {
+		const surface = document.createElement("div");
+		surface.className = "fui-OverlayDrawer";
+		surface.setAttribute("role", "dialog");
+		surface.setAttribute("aria-modal", "true");
+		const inside = document.createElement("button");
+		surface.appendChild(inside);
+		document.body.appendChild(surface);
+		return inside;
+	}
+	const label = () => findGroupControl(group(), "cbs.Mine")!.label;
+
+	it("Ctrl+Z / Ctrl+Y undo and redo the workspace outside text fields", () => {
+		act(() => useRibbonStore.getState().setButtonProp("HomepageGrid", TAB, GROUP, "cbs.Mine", { label: "Renamed" }));
+		const inside = drawer();
+		press(inside, "z", true);
+		expect(label()).toBe("cbs.Mine");
+		press(inside, "y", true);
+		expect(label()).toBe("Renamed");
+	});
+
+	it("Ctrl+S opens publish", () => {
+		press(drawer(), "s", true);
+		expect(useUIStore.getState().bulkPublishOpen).toBe(true);
+	});
+
+	it("Delete and Ctrl+D don't touch the canvas", () => {
+		select("cbs.Mine");
+		const inside = drawer();
+		press(inside, "Delete");
+		press(inside, "d", true);
+		expect(ids().filter((id) => id.startsWith("cbs.Mine"))).toEqual(["cbs.Mine"]);
+	});
+
+	it("a dialog still blocks them, and Ctrl+S never reaches the browser there", () => {
+		const dialog = document.createElement("div");
+		dialog.setAttribute("role", "dialog");
+		dialog.setAttribute("aria-modal", "true");
+		const inside = document.createElement("button");
+		dialog.appendChild(inside);
+		document.body.appendChild(dialog);
+		const save = new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true, cancelable: true });
+		act(() => {
+			inside.dispatchEvent(save);
+		});
+		expect(save.defaultPrevented).toBe(true);
 		expect(useUIStore.getState().bulkPublishOpen).toBe(false);
 	});
 });

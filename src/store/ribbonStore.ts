@@ -32,7 +32,7 @@ import {
 } from "@/utils/ribbonMenu";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
-import { canDeleteControl } from "@/utils/ribbonProvenance";
+import { canDeleteControl, canDeleteGroup, canDeleteTab } from "@/utils/ribbonProvenance";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -331,6 +331,14 @@ export function workspaceIds(
 		for (const id of snap?.controlIds ?? []) ids.add(id);
 	}
 	return ids;
+}
+
+/** Tabs and groups the location's unmanaged layer adds; undefined when it couldn't be read. */
+export function ownContainerIds(
+	state: Pick<RibbonStoreState, "layers">,
+	location: RibbonLocation,
+): string[] | undefined {
+	return state.layers[location === "Application" ? "application" : "entity"]?.containerIds;
 }
 
 function cloneRibbons(
@@ -1206,6 +1214,18 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		deleteGroup(location, tabId, groupId) {
+			// Only your own group, holding only your own controls (#17 review).
+			const current = get();
+			const group = current.ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId);
+			if (group && !canDeleteGroup(group, current.baseline[location], ownContainerIds(current, location))) {
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"ribbon",
+						`Group "${group.label}" (${groupId}) was not deleted: only your own groups, with only your own buttons in them, can be deleted — hide its buttons instead.`,
+					);
+				return;
+			}
 			set((state) =>
 				commitMutation(
 					state,
@@ -1297,6 +1317,18 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		deleteTab(location, tabId) {
+			// Only your own tab, holding only your own groups and controls (#17 review).
+			const current = get();
+			const tab = current.ribbons[location].tabs.find((t) => t.id === tabId);
+			if (tab && !canDeleteTab(tab, current.baseline[location], ownContainerIds(current, location))) {
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"ribbon",
+						`Tab "${tab.label}" (${tabId}) was not deleted: only your own tabs, with only your own groups and buttons in them, can be deleted.`,
+					);
+				return;
+			}
 			set((state) =>
 				commitMutation(
 					state,

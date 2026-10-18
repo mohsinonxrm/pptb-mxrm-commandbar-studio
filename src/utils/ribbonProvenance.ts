@@ -1,4 +1,11 @@
-import type { RibbonButton, RibbonDefinition, RibbonLocation, RibbonOrigin } from "@/types/ribbon";
+import type {
+	RibbonButton,
+	RibbonDefinition,
+	RibbonGroup,
+	RibbonLocation,
+	RibbonOrigin,
+	RibbonTab,
+} from "@/types/ribbon";
 import { groupControls, withMenuItems } from "@/utils/ribbonMenu";
 
 /**
@@ -75,6 +82,11 @@ export function isOwnControl(button: Pick<RibbonButton, "origin">): boolean {
  * button is deleted with its menu, so every item must be deletable too.
  */
 export function canDeleteControl(button: RibbonButton, baseline: RibbonDefinition): boolean {
+	return deletableControls(loadedOwnership(baseline), [button]);
+}
+
+/** Whether each control loaded with the workspace was yours, by id. */
+function loadedOwnership(baseline: RibbonDefinition): Map<string, boolean> {
 	const loaded = new Map<string, boolean>();
 	for (const tab of baseline.tabs)
 		for (const group of tab.groups)
@@ -82,7 +94,65 @@ export function canDeleteControl(button: RibbonButton, baseline: RibbonDefinitio
 				// The application ribbon repeats ids: yours only if every occurrence is.
 				loaded.set(control.id, (loaded.get(control.id) ?? true) && isOwnControl(control));
 			}
-	return withMenuItems([button]).every((control) => loaded.get(control.id) ?? isOwnControl(control));
+	return loaded;
+}
+
+function deletableControls(loaded: Map<string, boolean>, buttons: RibbonButton[]): boolean {
+	return withMenuItems(buttons).every((control) => loaded.get(control.id) ?? isOwnControl(control));
+}
+
+/** Tab / group ids the scope's unmanaged layer adds (LayerSnapshot.containerIds). */
+export type OwnContainerIds = ReadonlySet<string> | readonly string[] | undefined;
+
+/**
+ * Whether a tab or group is yours — publishPlan's rule for removing one: it
+ * was created this session, or the unmanaged layer adds it. Unknown (no layer
+ * read) means not yours for anything loaded.
+ */
+function isOwnContainer(id: string, loaded: boolean, own: OwnContainerIds): boolean {
+	if (!loaded) return true;
+	if (!own) return false;
+	return "has" in own ? own.has(id) : own.includes(id);
+}
+
+/**
+ * Whether a group can be deleted (#17 review): it goes with every control in
+ * it, so it must be yours and so must they — otherwise publish refuses the
+ * removal, or deletes your group and leaves another solution's CustomAction
+ * pointing at it.
+ */
+export function canDeleteGroup(group: RibbonGroup, baseline: RibbonDefinition, own: OwnContainerIds): boolean {
+	const loaded = baseline.tabs.some((t) => t.groups.some((g) => g.id === group.id));
+	return isOwnContainer(group.id, loaded, own) && deletableControls(loadedOwnership(baseline), group.buttons);
+}
+
+/** Whether a tab can be deleted (#17 review): yours, and so is every group and control in it. */
+export function canDeleteTab(tab: RibbonTab, baseline: RibbonDefinition, own: OwnContainerIds): boolean {
+	const loaded = baseline.tabs.some((t) => t.id === tab.id);
+	return isOwnContainer(tab.id, loaded, own) && tab.groups.every((g) => canDeleteGroup(g, baseline, own));
+}
+
+/** Why a control can't be deleted, in words (#17): where it comes from. */
+export function deleteBlockedReason(button: RibbonButton, baseline: RibbonDefinition): string {
+	// As loaded: "Create override…" makes the canvas copy yours, not the original.
+	let loaded: RibbonButton | undefined;
+	for (const tab of baseline.tabs)
+		for (const group of tab.groups) loaded ??= groupControls(group).find((c) => c.id === button.id);
+	const from = loaded ?? button;
+	const source =
+		from.origin === "oob"
+			? "the out-of-the-box ribbon"
+			: from.origin === "managed"
+				? from.solutionName
+					? `the managed solution "${from.solutionName}"`
+					: "a managed solution"
+				: undefined;
+	if (source && isOwnControl(button)) {
+		return `It is your override of a button from ${source}: the original stays in the ribbon underneath it.`;
+	}
+	if (source) return `It comes from ${source}.`;
+	if (isOwnControl(from)) return "Its menu holds items from another solution.";
+	return "It comes from another solution.";
 }
 
 /**

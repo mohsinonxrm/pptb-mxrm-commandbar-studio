@@ -20,13 +20,31 @@ export function isTextEntryTarget(target: EventTarget | null): boolean {
 const OVERLAY_SELECTOR =
 	'[role="dialog"], [role="alertdialog"], [role="menu"], [role="menubar"], [role="listbox"], .fui-PopoverSurface, .fui-MenuPopover';
 
+/** The editor drawers (command / rule editors, XML, diff, …): Fluent drawers. */
+const DRAWER_SELECTOR = ".fui-OverlayDrawer, .fui-InlineDrawer";
+
+/** An OverlayDrawer is a modal dialog too, but an editor, not a question (#17 review). */
+const isDrawer = (el: Element) => !!el.closest(DRAWER_SELECTOR) && !el.matches('[role="alertdialog"]');
+
 /**
- * Focus in a dialog, popover or menu — or a modal dialog is open: the canvas
- * shortcuts must not act behind it (#17).
+ * Focus in a dialog, popover or menu — or a modal dialog is open: no shortcut
+ * acts behind it (#17). The editor drawers don't count (see isInDrawer).
  */
 export function isInOverlay(target: EventTarget | null): boolean {
-	if (target instanceof Element && target.closest(OVERLAY_SELECTOR)) return true;
-	return !!document.querySelector('[aria-modal="true"], [role="alertdialog"]');
+	const overlay = target instanceof Element ? target.closest(OVERLAY_SELECTOR) : null;
+	if (overlay && !isDrawer(overlay)) return true;
+	return Array.from(document.querySelectorAll('[aria-modal="true"], [role="alertdialog"]')).some(
+		(el) => !isDrawer(el),
+	);
+}
+
+/**
+ * Focus in an editor drawer: workspace undo / redo / save work there as on
+ * the canvas, but keys that edit the selected button (Delete, Ctrl+D, cut /
+ * paste) don't — the canvas isn't what has focus (#17 review).
+ */
+export function isInDrawer(target: EventTarget | null): boolean {
+	return target instanceof Element && !!target.closest(DRAWER_SELECTOR);
 }
 
 export function useKeyboardShortcuts() {
@@ -70,8 +88,11 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Nothing acts behind a dialog, popover or menu (#17): its own keys
-			// belong to it.
-			if (isInOverlay(target)) return;
+			// belong to it. Ctrl+S never reaches the browser's Save dialog.
+			if (isInOverlay(target)) {
+				if (ctrl && e.key === "s") e.preventDefault();
+				return;
+			}
 
 			// Command palette: Ctrl+K / Cmd+K
 			if (ctrl && e.key === "k") {
@@ -111,6 +132,9 @@ export function useKeyboardShortcuts() {
 				}
 				return;
 			}
+
+			// The rest edits the selected button: not from an editor drawer.
+			if (isInDrawer(target)) return;
 
 			// Duplicate: Ctrl+D / Cmd+D
 			if (ctrl && e.key === "d") {
