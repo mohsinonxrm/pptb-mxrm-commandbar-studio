@@ -248,10 +248,12 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 			try {
 				const src = JSON.parse(internalPayload);
 				if (src?.buttonId) {
-					moveButton(
+					const movedId = moveButton(
 						{ groupId: src.groupId, buttonId: src.buttonId, tabId: tab.id, location },
 						{ groupId, beforeButtonId: beforeButtonId ?? undefined, tabId: tab.id, location },
 					);
+					// A button that isn't yours moves as a copy with a new id (#26): select the copy.
+					if (movedId && movedId !== src.buttonId) selectButtonInContext(location, tab.id, groupId, movedId);
 				}
 			} catch {
 				/* ignore malformed payload */
@@ -571,7 +573,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									icon={<ArrowMoveRegular />}
 									disabled={isGlobalOobReadOnly(btnMenu.button)}
 									onClick={() => {
-										moveButton(
+										const movedId = moveButton(
 											{
 												groupId: btnMenu.groupId,
 												buttonId: btnMenu.button.id,
@@ -580,6 +582,8 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 											},
 											{ groupId: t.groupId, tabId: tab.id, location },
 										);
+										// A button that isn't yours moves as a copy (#26): select the copy.
+										if (movedId) selectButtonInContext(location, tab.id, t.groupId, movedId);
 										setBtnMenu(null);
 									}}
 								>
