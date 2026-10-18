@@ -55,6 +55,7 @@ import { RenameGroupDialog } from "@/components/modals/RenameGroupDialog";
 import { ChangeGroupTemplateDialog } from "@/components/modals/ChangeGroupTemplateDialog";
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
 import FluentIcon from "@/components/shared/FluentIcon";
+import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonGroup, RibbonTab, RibbonLocation } from "@/types/ribbon";
 
 // ---------------------------------------------------------------------------
@@ -374,6 +375,8 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 
 	const isGlobalOobReadOnly = (button: RibbonButton) =>
 		location === "Application" && tab.id === "Mscrm.GlobalTab" && button.oob && !button.custom;
+	// ToggleButton, Label, DropDown, …: shown, hidden / moved / deleted, never edited (#42).
+	const isReadOnlyKind = (button: RibbonButton) => isReadOnlyControlKind(button.kind);
 
 	function handleDragStart(event: DragStartEvent) {
 		setActiveId(String(event.active.id));
@@ -635,7 +638,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 							</MenuItem>
 							<MenuItem
 								icon={<ImageRegular />}
-								disabled={isGlobalOobReadOnly(btnMenu.button)}
+								disabled={isGlobalOobReadOnly(btnMenu.button) || isReadOnlyKind(btnMenu.button)}
 								onClick={() => {
 									selectButtonInContext(location, tab.id, btnMenu.groupId, btnMenu.button.id);
 									openIconPicker();
@@ -646,7 +649,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 							</MenuItem>
 							<MenuItem
 								icon={<TranslateRegular />}
-								disabled={isGlobalOobReadOnly(btnMenu.button)}
+								disabled={isGlobalOobReadOnly(btnMenu.button) || isReadOnlyKind(btnMenu.button)}
 								onClick={() => {
 									openLocalizationEditor(btnMenu.button.id);
 									setBtnMenu(null);
@@ -689,7 +692,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 							{(btnMenu.button.origin === "oob" || btnMenu.button.origin === "managed") && (
 								<MenuItem
 									icon={<AppsAddInRegular />}
-									disabled={isGlobalOobReadOnly(btnMenu.button)}
+									disabled={isGlobalOobReadOnly(btnMenu.button) || isReadOnlyKind(btnMenu.button)}
 									onClick={() => {
 										customizeOobButton(location, tab.id, btnMenu.groupId, btnMenu.button.id);
 										setBtnMenu(null);
@@ -932,6 +935,9 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 	const isGlobalOobReadOnly =
 		location === "Application" && tabId === "Mscrm.GlobalTab" && button.oob && !button.custom;
 	const displayLabel = resolveDisplayLabel(button.label, locLabels);
+	// A kind CBS shows read-only (#42) says what it is: "Toggle button", "Spinner", …
+	const readOnlyKind = isReadOnlyControlKind(button.kind) ? CONTROL_KIND_LABELS[button.kind] : undefined;
+	const kindNote = readOnlyKind ? ` (${readOnlyKind}, read-only)` : "";
 
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
 		id: button.id,
@@ -996,7 +1002,7 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 			content={
 				isGlobalOobReadOnly
 					? "OOB global command bar buttons cannot be customized."
-					: `${displayLabel}${button.hidden ? " — hidden" : ""}`
+					: `${displayLabel}${kindNote}${button.hidden ? " — hidden" : ""}`
 			}
 			relationship="label"
 		>
@@ -1009,7 +1015,7 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 				data-ribbon-btn-id={button.id}
 				style={tileStyle}
 				aria-selected={isSelected}
-				aria-label={`${displayLabel}${button.hidden ? " — hidden" : ""}${button.custom ? " (custom)" : ""}${button.managed ? " (read-only)" : ""}`}
+				aria-label={`${displayLabel}${kindNote}${button.hidden ? " — hidden" : ""}${button.custom ? " (custom)" : ""}${button.managed ? " (read-only)" : ""}`}
 				onClick={() => selectButtonInContext(location, tabId, groupId, button.id)}
 				onFocus={() => selectButtonInContext(location, tabId, groupId, button.id)}
 				onKeyDown={(event) => {
@@ -1052,6 +1058,21 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 				>
 					{displayLabel}
 				</span>
+				{readOnlyKind && (
+					<span
+						style={{
+							fontSize: tokens.fontSizeBase100,
+							lineHeight: "1",
+							maxWidth: "56px",
+							overflow: "hidden",
+							textOverflow: "ellipsis",
+							whiteSpace: "nowrap",
+							color: tokens.colorNeutralForeground3,
+						}}
+					>
+						{readOnlyKind}
+					</span>
+				)}
 				{/* Flyout / split button: its menu opens under the canvas when selected (#27). */}
 				{button.menu && <ChevronDownRegular fontSize={10} aria-label="Has a menu" />}
 				{/* Badges */}

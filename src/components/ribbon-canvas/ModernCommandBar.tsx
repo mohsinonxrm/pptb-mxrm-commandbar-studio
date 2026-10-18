@@ -42,6 +42,7 @@ import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
 import { overrideNote } from "@/services/modernCommands";
 import { ModernCommandChip } from "./modern/ModernCommandChip";
 import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
+import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds";
 
 const DRAG_MIME = "application/x-rw-btn";
 // Drag-source MIME emitted by SolutionElementsPane when the user drags an
@@ -203,6 +204,10 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 
 	const isGlobalOobReadOnly = (button: RibbonButton) =>
 		location === "Application" && tab.id === "Mscrm.GlobalTab" && button.oob && !button.custom;
+	// ToggleButton, Label, DropDown, …: shown, hidden / moved / deleted, never edited (#42).
+	const isReadOnlyKind = (button: RibbonButton) => isReadOnlyControlKind(button.kind);
+	const kindNote = (button: RibbonButton) =>
+		isReadOnlyKind(button) ? ` (${CONTROL_KIND_LABELS[button.kind]}, read-only)` : "";
 
 	// Flatten all buttons in group order. Unlike the old design, ALL buttons are
 	// rendered in a horizontally-scrollable lane — no truncation/overflow menu —
@@ -323,7 +328,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							content={
 								isGlobalOobReadOnly(button)
 									? "OOB global command bar buttons cannot be customized."
-									: `${resolveDisplayLabel(button.label, locLabels)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`
+									: `${resolveDisplayLabel(button.label, locLabels)}${kindNote(button)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`
 							}
 							relationship="label"
 						>
@@ -338,7 +343,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									.filter(Boolean)
 									.join(" ")}
 								aria-selected={selectedButtonId === button.id}
-								aria-label={`${resolveDisplayLabel(button.label, locLabels)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`}
+								aria-label={`${resolveDisplayLabel(button.label, locLabels)}${kindNote(button)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`}
 								onClick={() => selectButtonInContext(location, tab.id, groupId, button.id)}
 								onContextMenu={(e) => {
 									e.preventDefault();
@@ -354,6 +359,11 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							>
 								<FluentIcon name={button.icon || "apps_add_in"} size={16} />
 								<Text size={200}>{resolveDisplayLabel(button.label, locLabels)}</Text>
+								{isReadOnlyKind(button) && (
+									<Badge size="extra-small" appearance="outline" color="informative">
+										{CONTROL_KIND_LABELS[button.kind]}
+									</Badge>
+								)}
 								{/* Flyout / split button: its menu opens under the bar when selected (#27). */}
 								{button.menu && <ChevronDownRegular fontSize={12} aria-label="Has a menu" />}
 								{button.hidden && <EyeOffRegular fontSize={12} aria-hidden />}
@@ -466,7 +476,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							</MenuItem>
 							<MenuItem
 								icon={<ImageRegular />}
-								disabled={isGlobalOobReadOnly(btnMenu.button)}
+								disabled={isGlobalOobReadOnly(btnMenu.button) || isReadOnlyKind(btnMenu.button)}
 								onClick={() => {
 									selectButtonInContext(location, tab.id, btnMenu.groupId, btnMenu.button.id);
 									openIconPicker();
@@ -477,7 +487,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							</MenuItem>
 							<MenuItem
 								icon={<TranslateRegular />}
-								disabled={isGlobalOobReadOnly(btnMenu.button)}
+								disabled={isGlobalOobReadOnly(btnMenu.button) || isReadOnlyKind(btnMenu.button)}
 								onClick={() => {
 									openLocalizationEditor(btnMenu.button.id);
 									setBtnMenu(null);
@@ -518,7 +528,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							{(btnMenu.button.origin === "oob" || btnMenu.button.origin === "managed") && (
 								<MenuItem
 									icon={<AppsAddInRegular />}
-									disabled={isGlobalOobReadOnly(btnMenu.button)}
+									disabled={isGlobalOobReadOnly(btnMenu.button) || isReadOnlyKind(btnMenu.button)}
 									onClick={() => {
 										customizeOobButton(location, tab.id, btnMenu.groupId, btnMenu.button.id);
 										setBtnMenu(null);

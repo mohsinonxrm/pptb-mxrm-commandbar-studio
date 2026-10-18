@@ -37,6 +37,7 @@ import {
 } from "@/utils/ribbonMenu";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import { isPlatformText } from "@/utils/displayLabel";
+import { isReadOnlyControlKind, renameCommandInXml } from "@/utils/controlKinds";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { canDeleteControl, canDeleteGroup, canDeleteTab } from "@/utils/ribbonProvenance";
 import { onSolutionSwitch, useSessionStore } from "@/store/sessionStore";
@@ -614,6 +615,8 @@ export function canCustomiseButton(location: RibbonLocation, tabId: string, butt
 		!button.hidden &&
 		button.kind !== "flyout" &&
 		button.kind !== "splitButton" &&
+		// Copied from its attributes, which would lose the XML of a read-only kind (#42).
+		!isReadOnlyControlKind(button.kind) &&
 		!isReadOnlyGlobalOobButton(location, tabId, button)
 	);
 }
@@ -1161,7 +1164,9 @@ export const useRibbonStore = create<RibbonStore>()(
 							const platformLabel = isPlatformText(btn.source?.labelToken);
 							const copy: RibbonButton = {
 								...copyControl(btn, `${btn.id}_copy_${Date.now()}`),
-								label: platformLabel ? btn.label : `${btn.label} (copy)`,
+								// A read-only kind is copied as loaded (#42), and a platform text
+								// (`$Resources:`) can't take a " (copy)" suffix (#86): both keep their label.
+								label: isReadOnlyControlKind(btn.kind) || platformLabel ? btn.label : `${btn.label} (copy)`,
 								sequence: btn.sequence + 5,
 							};
 							const place = menuItemPlace(group, buttonId);
@@ -1307,8 +1312,9 @@ export const useRibbonStore = create<RibbonStore>()(
 							...JSON.parse(JSON.stringify(grp)),
 							id: `${grp.id}${stamp}`,
 							label: `${grp.label} (copy)`,
-							// The copy must not reuse an imported group's Title label (#30).
+							// The copy must not reuse an imported group's Title label (#30), nor its Description (#42).
 							source: undefined,
+							description: undefined,
 							sequence: grp.sequence + 5,
 							buttons: grp.buttons.map((b) => copyControl(b, `${b.id}${stamp}`)),
 						};
@@ -1866,6 +1872,8 @@ export const useRibbonStore = create<RibbonStore>()(
 								if (button.commandId === oldId) {
 									button.commandId = newId;
 								}
+								// A control written verbatim (#42) names the command in its XML.
+								if (button.source?.xml) button.source.xml = renameCommandInXml(button.source.xml, oldId, newId);
 							}
 						}
 					}
