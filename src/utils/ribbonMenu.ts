@@ -1,4 +1,5 @@
 import { sourceForCopy } from "@/utils/copyButton";
+import { isPlatformText } from "@/utils/displayLabel";
 import type { RibbonButton, RibbonGroup, RibbonMenu, RibbonMenuSection } from "@/types/ribbon";
 
 /**
@@ -175,7 +176,7 @@ export function copyControl(control: RibbonButton, newId: string): RibbonButton 
 		...(icon?.attributes ?? {}),
 		...Object.fromEntries(dynamic.map((a) => [a, control.source!.attributes[a]])),
 	};
-	const platform = (token?: string) => (token?.startsWith("$Resources:") ? token : undefined);
+	const platform = (token?: string) => (isPlatformText(token) ? token : undefined);
 	const texts = {
 		labelToken: platform(control.source?.labelToken),
 		tooltipTitleToken: platform(control.source?.tooltipTitleToken),

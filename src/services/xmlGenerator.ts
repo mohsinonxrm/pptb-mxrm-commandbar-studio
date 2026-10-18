@@ -23,7 +23,7 @@ import {
 	locLabelRef,
 	sectionTitleLabelId,
 } from "@/utils/locLabelRef";
-import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { isPlatformText, resolveDisplayLabel } from "@/utils/displayLabel";
 import { freeMaxSizeSequence, maxSizeBand } from "@/services/scalingSequence";
 import { menuItemsOf } from "@/utils/ribbonMenu";
 
@@ -905,7 +905,7 @@ function resolveLocalizedAttr(
 		sink(existing ?? { id, titles: [{ languageCode: lang, description: id }] });
 		return value;
 	}
-	if (value.startsWith("$Resources:")) {
+	if (isPlatformText(value)) {
 		return value;
 	}
 	const titles = [{ languageCode: lang, description: value }];

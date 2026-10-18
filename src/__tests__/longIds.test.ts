@@ -109,6 +109,19 @@ describe("copies of an out-of-the-box flyout (#86)", () => {
 	});
 });
 
+describe("parameterised platform texts (#86 review)", () => {
+	it("are kept on copies like plain $Resources: texts", () => {
+		const b = button("cbs.New", {
+			source: {
+				labelToken: "$Resources:Ribbon.HomepageGrid.MainTab.New",
+				tooltipBodyToken: "$Resources(EntityDisplayName):Ribbon.Tooltip.New",
+				attributes: {},
+			},
+		});
+		expect(copyControl(b, "cbs.New2").source?.tooltipBodyToken).toBe("$Resources(EntityDisplayName):Ribbon.Tooltip.New");
+	});
+});
+
 describe("pre-publish check (#86)", () => {
 	const label = (n: number) => `l.${"x".repeat(n - 2)}`;
 	const xml = (inMenu: boolean, n: number) =>
@@ -124,6 +137,16 @@ describe("pre-publish check (#86)", () => {
 	it("blocks a menu item's label id over 128 characters", () => {
 		expect(lengthFindings(true, 128)).toEqual([]);
 		expect(lengthFindings(true, 129)).toEqual([expect.objectContaining({ severity: "error" })]);
+	});
+
+	it("blocks it in a CustomAction that adds an item to an existing menu", () => {
+		const added = (n: number) =>
+			`<RibbonDiffXml><CustomActions><CustomAction Id="cbs.Item.CustomAction" Location="Mscrm.HomepageGrid.t.Send.Controls._children">` +
+			`<CommandUIDefinition><Button Id="cbs.Item" Command="Mscrm.Enabled" LabelText="$LocLabels:${label(n)}"/></CommandUIDefinition></CustomAction></CustomActions></RibbonDiffXml>`;
+		const find = (menuControlsIds?: string[]) =>
+			validatePublishRibbonDiff(added(129), { menuControlsIds }).filter((f) => f.code === "label-id-length");
+		expect(find(["Mscrm.HomepageGrid.t.Send.Controls"])).toEqual([expect.objectContaining({ severity: "error" })]);
+		expect(find()).toEqual([expect.objectContaining({ severity: "warning" })]);
 	});
 
 	it("only warns for a top-level control", () => {

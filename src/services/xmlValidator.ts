@@ -374,6 +374,11 @@ export interface PublishValidationContext {
 	loadedAttributes?: Record<string, Record<string, string>>;
 	/** The solution publisher's customization prefix (e.g. `mxrm`). */
 	publisherPrefix?: string;
+	/**
+	 * `<Controls Id>` of the menu sections of the loaded and edited ribbon: a
+	 * CustomAction at `{id}._children` adds a menu item (#86).
+	 */
+	menuControlsIds?: Iterable<string>;
 	/** Each tab's scaling as loaded (tab id → steps). */
 	tabScaling?: Record<string, ScalingDefinition>;
 	/** Group id → template id, as loaded / edited. */
@@ -577,9 +582,13 @@ export function validatePublishRibbonDiff(
 	// PublishXml fail with 0x80090429 after the import succeeded, leaving the
 	// import unpublished (#86, measured live). Elsewhere longer ids published,
 	// so those are only warned about.
+	const menuControls = new Set(context.menuControlsIds ?? []);
 	for (const { key, el } of customActions) {
+		// A CustomAction that adds an item to an existing menu has no <Menu> of its own.
+		const location = el.getAttribute("Location") ?? "";
+		const addsMenuItem = location.endsWith("._children") && menuControls.has(location.slice(0, -"._children".length));
 		for (const node of Array.from(el.getElementsByTagName("*"))) {
-			const inMenu = !!node.parentElement?.closest("Menu");
+			const inMenu = addsMenuItem || !!node.parentElement?.closest("Menu");
 			for (const attr of LABEL_ATTRIBUTES) {
 				const value = node.getAttribute(attr);
 				if (!value?.startsWith("$LocLabels:")) continue;
