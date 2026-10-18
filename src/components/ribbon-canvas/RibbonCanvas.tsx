@@ -334,7 +334,7 @@ export function RibbonCanvas({
 				</MessageBar>
 			)}
 
-			{currentTab && ribbonViewStyle !== "classic" && isHiddenOnUnifiedInterface(currentTab.id) && (
+			{currentTab && isHiddenOnUnifiedInterface(currentTab.id) && (
 				<MessageBar intent="warning" style={{ flexShrink: 0 }}>
 					<MessageBarBody>
 						Unified Interface doesn&apos;t show this tab&apos;s buttons on the command bar, and they
