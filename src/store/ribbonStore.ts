@@ -53,6 +53,13 @@ export type RibbonStoreState = {
 	pendingUnhides: Record<LayerScope, string[]>;
 	/** Organisation base language (#50). */
 	baseLanguageCode: number;
+	/**
+	 * Out-of-the-box / other solutions' commands customised this session (#31,
+	 * "Customise Command"): copied into the layer on publish, even unchanged.
+	 */
+	customisedCommandIds: string[];
+	/** Commands whose layer copy is removed on publish (#31, "Uncustomise"). */
+	uncustomisedCommandIds: string[];
 	commands: CommandDefinition[];
 	displayRules: DisplayRule[];
 	enableRules: EnableRule[];
@@ -138,7 +145,35 @@ export interface RibbonStore extends RibbonStoreState {
 		groupId: string,
 		buttonId: string,
 	): void;
+	/**
+	 * "Customise Button" (#26, #31): copies a button that isn't yours into a
+	 * new button of your own (id `<idPrefix>.<original id>`, same command,
+	 * same place) and hides the original, so the copy can be changed and moved
+	 * like any of your buttons. Returns the copy's id, or null when the button
+	 * can't be customised this way (your own, hidden, a menu, read-only).
+	 */
+	customiseButton(
+		location: RibbonLocation,
+		tabId: string,
+		groupId: string,
+		buttonId: string,
+		idPrefix: string,
+	): string | null;
 	upsertCommand(cmd: CommandDefinition): void;
+	/**
+	 * "Customise Command" (#31): marks a loaded command to be copied into the
+	 * layer on publish — actions, parameters and rule references as loaded —
+	 * so it can be changed without touching its buttons. Returns false when
+	 * the command isn't loaded.
+	 */
+	customiseCommand(commandId: string): boolean;
+	/**
+	 * "Uncustomise" (#31): the layer's copy of the command is removed on
+	 * publish, so the original applies again. Session edits are discarded.
+	 */
+	uncustomiseCommand(commandId: string): void;
+	/** Discards this session's customise / uncustomise / edits of a command (back to as loaded). */
+	discardCommandChanges(commandId: string): void;
 	/**
 	 * Hides a button reversibly: adds the platform display rules
 	 * Mscrm.HideOnModern + Mscrm.ShowOnlyOnModern (never both true) to its
@@ -279,6 +314,45 @@ function isReadOnlyGlobalOobButton(
 	);
 }
 
+/**
+ * Whether "Customise Button" (#26, #31) applies: a visible button that isn't
+ * yours (your own can be changed and moved directly) and isn't a menu (menus
+ * can't be published yet, #27).
+ */
+export function canCustomiseButton(location: RibbonLocation, tabId: string, button: RibbonButton): boolean {
+	return (
+		button.origin !== "unmanaged" &&
+		!button.hidden &&
+		button.kind !== "flyout" &&
+		button.kind !== "splitButton" &&
+		!isReadOnlyGlobalOobButton(location, tabId, button)
+	);
+}
+
+const LOC_LABEL_TOKEN = /^\$LocLabels:/;
+
+/**
+ * The loaded source of a button for its copy: platform texts (`$Resources:`),
+ * images and other attributes are kept so the copy looks the same, but
+ * `$LocLabels:` tokens are not — those labels belong to the original, and
+ * editing the copy's text must not change them (#11 review N5).
+ */
+function copySource(source: RibbonButton["source"]): RibbonButton["source"] {
+	if (!source) return undefined;
+	const keep = (token?: string) => (token && !LOC_LABEL_TOKEN.test(token) ? token : undefined);
+	const attributes: Record<string, string> = {};
+	for (const [k, v] of Object.entries(source.attributes)) {
+		if (k !== "Id" && !LOC_LABEL_TOKEN.test(v)) attributes[k] = v;
+	}
+	return {
+		...source,
+		labelToken: keep(source.labelToken),
+		tooltipTitleToken: keep(source.tooltipTitleToken),
+		tooltipBodyToken: keep(source.tooltipBodyToken),
+		attributes,
+	};
+}
+
 export const useRibbonStore = create<RibbonStore>()(
 	subscribeWithSelector((set, get) => ({
 		ribbons: cloneRibbons(EMPTY_RIBBONS),
@@ -290,6 +364,8 @@ export const useRibbonStore = create<RibbonStore>()(
 		layers: { ...NO_LAYERS },
 		pendingUnhides: { entity: [], application: [] },
 		baseLanguageCode: 1033,
+		customisedCommandIds: [],
+		uncustomisedCommandIds: [],
 		commands: [],
 		displayRules: [],
 		enableRules: [],
@@ -330,6 +406,8 @@ export const useRibbonStore = create<RibbonStore>()(
 				layers: { ...NO_LAYERS, ...(seed.layers ?? {}) },
 				pendingUnhides: { ...NO_UNHIDES },
 				baseLanguageCode: seed.baseLanguageCode ?? 1033,
+				customisedCommandIds: [],
+				uncustomisedCommandIds: [],
 				templates: [...(seed.templates ?? [])],
 				conflicts: [...(seed.conflicts ?? [])],
 				mutationsSincePublish: 0,
@@ -376,6 +454,8 @@ export const useRibbonStore = create<RibbonStore>()(
 				layers: { ...get().layers },
 				pendingUnhides: { ...get().pendingUnhides },
 				baseLanguageCode: get().baseLanguageCode,
+				customisedCommandIds: [...get().customisedCommandIds],
+				uncustomisedCommandIds: [...get().uncustomisedCommandIds],
 				commands: [...get().commands],
 				displayRules: [...get().displayRules],
 				enableRules: [...get().enableRules],
@@ -391,6 +471,8 @@ export const useRibbonStore = create<RibbonStore>()(
 				ribbons: cloneRibbons(target.snapshot.ribbons),
 				baseline: cloneRibbons(target.snapshot.baseline),
 				commands: [...target.snapshot.commands],
+				customisedCommandIds: [...(target.snapshot.customisedCommandIds ?? [])],
+				uncustomisedCommandIds: [...(target.snapshot.uncustomisedCommandIds ?? [])],
 				displayRules: [...target.snapshot.displayRules],
 				enableRules: [...target.snapshot.enableRules],
 				locLabels: [...target.snapshot.locLabels],
@@ -958,6 +1040,103 @@ export const useRibbonStore = create<RibbonStore>()(
 			);
 		},
 
+		customiseButton(location, tabId, groupId, buttonId, idPrefix) {
+			const state = get();
+			const btn = state.ribbons[location].tabs
+				.find((t) => t.id === tabId)
+				?.groups.find((g) => g.id === groupId)
+				?.buttons.find((b) => b.id === buttonId);
+			if (!btn || !canCustomiseButton(location, tabId, btn)) return null;
+			const taken = new Set(
+				Object.values(state.ribbons).flatMap((r) =>
+					r.tabs.flatMap((t) => t.groups.flatMap((g) => g.buttons.map((b) => b.id))),
+				),
+			);
+			const base = `${(idPrefix || "new").trim()}.${btn.id}`;
+			let id = base;
+			for (let n = 2; taken.has(id); n++) id = `${base}.${n}`;
+			set((s) =>
+				commitMutation(
+					s,
+					(ribbons) => {
+						const group = ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId);
+						const idx = group?.buttons.findIndex((b) => b.id === buttonId) ?? -1;
+						if (!group || idx < 0) return;
+						const original = group.buttons[idx];
+						const copy: RibbonButton = {
+							...original,
+							id,
+							source: copySource(original.source),
+							hidden: false,
+							custom: true,
+							oob: false,
+							managed: false,
+							origin: "unmanaged",
+							solutionName: undefined,
+							publisherName: undefined,
+						};
+						// The copy takes the original's place: right after it (its own
+						// Sequence when one is free before the next button, else the
+						// original's — the original is hidden, so they never show together).
+						const next = group.buttons[idx + 1]?.sequence;
+						if (next === undefined || original.sequence + 1 < next) copy.sequence = original.sequence + 1;
+						original.hidden = true;
+						group.buttons.splice(idx + 1, 0, copy);
+					},
+					{
+						ts: new Date().toISOString(),
+						userId: "",
+						userName: "You",
+						op: "customised",
+						target: buttonId,
+						detail: `copied to ${id}, original hidden`,
+						icon: "copy",
+						color: "info",
+					},
+				),
+			);
+			return id;
+		},
+
+		customiseCommand(commandId) {
+			if (!get().commands.some((c) => c.id === commandId)) return false;
+			set((state) => ({
+				customisedCommandIds: [...state.customisedCommandIds.filter((id) => id !== commandId), commandId],
+				uncustomisedCommandIds: state.uncustomisedCommandIds.filter((id) => id !== commandId),
+				mutationsSincePublish: state.mutationsSincePublish + 1,
+			}));
+			return true;
+		},
+
+		uncustomiseCommand(commandId) {
+			get().discardCommandChanges(commandId);
+			set((state) => ({
+				uncustomisedCommandIds: [...state.uncustomisedCommandIds, commandId],
+				mutationsSincePublish: state.mutationsSincePublish + 1,
+			}));
+		},
+
+		discardCommandChanges(commandId) {
+			set((state) => {
+				const loaded = state.baselineCommands.find((c) => c.id === commandId);
+				const commands = loaded
+					? state.commands.map((c) => (c.id === commandId ? JSON.parse(JSON.stringify(loaded)) : c))
+					: state.commands;
+				const customisedCommandIds = state.customisedCommandIds.filter((id) => id !== commandId);
+				const uncustomisedCommandIds = state.uncustomisedCommandIds.filter((id) => id !== commandId);
+				const changed =
+					commands !== state.commands ||
+					customisedCommandIds.length !== state.customisedCommandIds.length ||
+					uncustomisedCommandIds.length !== state.uncustomisedCommandIds.length;
+				return {
+					commands,
+					customisedCommandIds,
+					uncustomisedCommandIds,
+					mutationsSincePublish: state.mutationsSincePublish + (changed ? 1 : 0),
+				};
+			});
+		},
+
 		hideWithDisplayRules(buttonCommandId) {
 			const cmd = buttonCommandId ? get().commands.find((c) => c.id === buttonCommandId) : undefined;
 			if (!cmd) return false;
@@ -1202,6 +1381,8 @@ export const useRibbonStore = create<RibbonStore>()(
 								baselineEnableRules: JSON.parse(JSON.stringify(state.enableRules)),
 								baselineDisplayRules: JSON.parse(JSON.stringify(state.displayRules)),
 								baselineLocLabels: JSON.parse(JSON.stringify(state.locLabels)),
+								customisedCommandIds: [],
+								uncustomisedCommandIds: [],
 							}
 						: {}),
 					mutationsSincePublish: pending ? Math.max(1, state.mutationsSincePublish) : 0,

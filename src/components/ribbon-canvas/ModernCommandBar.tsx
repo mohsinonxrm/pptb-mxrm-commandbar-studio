@@ -27,6 +27,7 @@ import {
 } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
+import { CustomiseMenuItems } from "@/components/ribbon-canvas/CustomiseMenuItems";
 import { useUIStore } from "@/store/uiStore";
 import FluentIcon from "@/components/shared/FluentIcon";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
@@ -494,6 +495,13 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									Create override…
 								</MenuItem>
 							)}
+							<CustomiseMenuItems
+								location={location}
+								tabId={tab.id}
+								groupId={btnMenu.groupId}
+								button={btnMenu.button}
+								onDone={() => setBtnMenu(null)}
+							/>
 							<MenuDivider />
 							<MenuItem
 								icon={<CopyRegular />}

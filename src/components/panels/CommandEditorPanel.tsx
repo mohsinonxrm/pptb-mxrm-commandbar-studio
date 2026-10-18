@@ -31,6 +31,8 @@ import {
 	saveWebResource,
 } from "@/services/dataverse/webResourceService";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
+import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
+import { useCommandProvenance } from "@/hooks/useCommandProvenance";
 
 const useStyles = makeStyles({
 	drawer: {
@@ -100,6 +102,15 @@ const useStyles = makeStyles({
 	securityNote: {
 		fontSize: tokens.fontSizeBase100,
 	},
+	readOnly: {
+		border: "none",
+		margin: 0,
+		padding: 0,
+		minWidth: 0,
+		display: "flex",
+		flexDirection: "column",
+		gap: tokens.spacingVerticalS,
+	},
 	codePanel: {
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
 		borderRadius: tokens.borderRadiusMedium,
@@ -145,6 +156,8 @@ export const CommandEditorPanel: React.FC = () => {
 	const [codeWebResourceName, setCodeWebResourceName] = useState<string | null>(null);
 
 	const command = commands.find((c) => c.id === commandEditorId);
+	// A command being uncustomised (#31) is removed from the layer on publish: not editable.
+	const readOnly = useCommandProvenance(command?.id)?.provenance === "uncustomising";
 
 	const parseWebResourceName = (library: string): string => {
 		const trimmed = library.trim();
@@ -980,10 +993,14 @@ export const CommandEditorPanel: React.FC = () => {
 
 				<Divider />
 
-				{activeTab === "actions" && renderActionsTab()}
-				{activeTab === "enableRules" && renderRulesTab("enable")}
-				{activeTab === "displayRules" && renderRulesTab("display")}
-				{activeTab === "settings" && renderSettingsTab()}
+				<CommandProvenanceBar commandId={command.id} />
+
+				<fieldset disabled={readOnly} className={styles.readOnly}>
+					{activeTab === "actions" && renderActionsTab()}
+					{activeTab === "enableRules" && renderRulesTab("enable")}
+					{activeTab === "displayRules" && renderRulesTab("display")}
+					{activeTab === "settings" && renderSettingsTab()}
+				</fieldset>
 				{activeTab === "references" && renderReferencesTab()}
 				{activeTab === "versions" && renderVersionsTab()}
 			</DrawerBody>

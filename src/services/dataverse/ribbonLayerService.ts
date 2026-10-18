@@ -23,6 +23,12 @@ export interface LayerSnapshot {
 	locLabelIds: string[];
 	/** HideCustomActions of the layer. */
 	hides: LayerHide[];
+	/**
+	 * CommandDefinitions the layer defines (#31): your own commands and
+	 * out-of-the-box / other solutions' commands customised for this scope.
+	 * Optional: snapshots taken before #31 don't have it.
+	 */
+	commandIds?: string[];
 }
 
 export function layerSnapshotFromParts(parts: RibbonDiffParts): LayerSnapshot {
@@ -31,6 +37,7 @@ export function layerSnapshotFromParts(parts: RibbonDiffParts): LayerSnapshot {
 		containerIds: [...ownContainerIds(parts)],
 		locLabelIds: [...parts.locLabels.keys()],
 		hides: hideActionsOf(parts),
+		commandIds: [...parts.commandDefinitions.keys()],
 	};
 }
 

@@ -80,6 +80,8 @@ export const BulkPublishModal: React.FC = () => {
 	const baselineLocLabels = useRibbonStore((s) => s.baselineLocLabels);
 	const layers = useRibbonStore((s) => s.layers);
 	const pendingUnhides = useRibbonStore((s) => s.pendingUnhides);
+	const customisedCommandIds = useRibbonStore((s) => s.customisedCommandIds);
+	const uncustomisedCommandIds = useRibbonStore((s) => s.uncustomisedCommandIds);
 	const setLayerSnapshot = useRibbonStore((s) => s.setLayerSnapshot);
 	const markPublished = useRibbonStore((s) => s.markPublished);
 	const mutationsSincePublish = useRibbonStore((s) => s.mutationsSincePublish);
@@ -127,6 +129,8 @@ export const BulkPublishModal: React.FC = () => {
 				baselineLocLabels,
 				layer: layers[scope] ?? undefined,
 				unhiddenLayerHideIds: pendingUnhides[scope],
+				customisedCommandIds,
+				uncustomisedCommandIds,
 				commands,
 				baselineCommands,
 				enableRules,
@@ -147,6 +151,8 @@ export const BulkPublishModal: React.FC = () => {
 			baselineLocLabels,
 			layers,
 			pendingUnhides,
+			customisedCommandIds,
+			uncustomisedCommandIds,
 		],
 	);
 	const entityPlan = React.useMemo(
