@@ -305,15 +305,33 @@ describe("loading the workspace (#52, #50, #47)", () => {
 		expect(button.origin).toBe("unmanaged");
 	});
 
-	it("never replaces a command the merged ribbon returned", async () => {
+	it("replaces an out-of-date command or rule with the layer's copy, and adds missing rules (live: stale after publish)", async () => {
 		const { reconcileWithLayer } = await import("@/services/dataverse/ribbonService");
 		const parsed = parseRibbonXml(MERGED, "HomepageGrid", T);
 		const data = {
+			// An older copy of the command (no rule yet) and an older rule (Minimum 0).
 			commands: [{ id: "cbs.Go.Command", enableRules: [], displayRules: [], actions: [] }],
-			enableRules: [],
+			enableRules: [{ id: "cbs.Go.Rule", steps: [{ kind: "SelectionCountRule" as const, minimum: 0 }] }],
 			displayRules: [],
-		};
-		expect(reconcileWithLayer([parsed.ribbon], data, parseRibbonDiffParts(LAYER_XML))).toEqual([]);
-		expect(data.commands[0].actions).toEqual([]);
+		} as unknown as Parameters<typeof reconcileWithLayer>[1];
+		const r = reconcileWithLayer([parsed.ribbon], data, parseRibbonDiffParts(LAYER_XML));
+		expect(r.replaced.sort()).toEqual(["cbs.Go.Command", "cbs.Go.Rule"]);
+		expect(r.added).toEqual([]);
+		expect(data.commands[0].actions[0]).toMatchObject({ kind: "javascript", functionName: "go" });
+		expect(data.commands[0].enableRules).toEqual(["cbs.Go.Rule"]);
+		expect(JSON.stringify(data.enableRules[0])).toContain('"minimum":1');
+	});
+
+	it("leaves definitions that match the layer, and the ones the layer doesn't define, untouched", async () => {
+		const { reconcileWithLayer } = await import("@/services/dataverse/ribbonService");
+		const parsed = parseRibbonXml(MERGED, "HomepageGrid", T);
+		const layer = parseRibbonDiffParts(LAYER_XML);
+		const { definitionsFromParts } = await import("@/services/dataverse/ribbonLayerService");
+		const own = definitionsFromParts(layer);
+		const oob = { id: "Mscrm.Other", enableRules: [], displayRules: [], actions: [] };
+		const data = { commands: [...own.commands, oob], enableRules: [...own.enableRules], displayRules: [] };
+		const before = JSON.stringify(data);
+		expect(reconcileWithLayer([parsed.ribbon], data, layer)).toEqual({ added: [], replaced: [] });
+		expect(JSON.stringify(data)).toBe(before);
 	});
 });
