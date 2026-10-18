@@ -63,6 +63,9 @@ const OPERATION_NAMES: Record<number, string> = {
 	11: "UpdatingMissingPackages",
 };
 
+/** Started / Queued solution-history rows older than this are treated as stuck. */
+export const STALE_OPERATION_MINUTES = 30;
+
 export interface RunningOperation {
 	operation: string;
 	name: string;
@@ -72,10 +75,18 @@ export interface RunningOperation {
 /**
  * Solution operations that are running or queued right now (msdyn_status 0
  * Started / 2 Queued). Rows that started more than `maxAgeMinutes` ago are
- * ignored — a crashed operation can stay "Started" forever. Exports don't
- * block imports and are ignored too. Returns [] when the history can't be read.
+ * ignored — a crashed operation can stay "Started" forever, and the history
+ * has no progress field to tell a stuck row from a slow one. The window is
+ * short on purpose: this check is only an early, advisory wait. An operation
+ * that really is still running past it makes ImportSolution / PublishXml fail
+ * with 0x80071151, which withBusyRetry waits out — so a stuck row delays a
+ * publish by at most this window, not hours. Exports don't block imports and
+ * are ignored too. Returns [] when the history can't be read.
  */
-export async function findRunningSolutionOperations(maxAgeMinutes = 120, now = Date.now()): Promise<RunningOperation[]> {
+export async function findRunningSolutionOperations(
+	maxAgeMinutes = STALE_OPERATION_MINUTES,
+	now = Date.now(),
+): Promise<RunningOperation[]> {
 	const since = now - maxAgeMinutes * 60_000;
 	try {
 		// msdyn_solutionhistory is a virtual table: verified live, a $filter on
@@ -126,7 +137,7 @@ export async function waitForEnvironmentIdle(options: BusyWaitOptions = {}): Pro
 	const now = options.now ?? Date.now;
 	const deadline = now() + (options.timeoutMs ?? 10 * 60_000);
 	for (;;) {
-		const running = await findRunningSolutionOperations(120, now());
+		const running = await findRunningSolutionOperations(STALE_OPERATION_MINUTES, now());
 		if (running.length === 0) return;
 		if (now() >= deadline) {
 			throw new Error(
