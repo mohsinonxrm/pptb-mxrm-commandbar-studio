@@ -202,14 +202,8 @@ export function SolutionElementsPane() {
 									onDragStart={(e) => {
 										e.dataTransfer.setData(
 											DRAG_SE_MIME,
-											JSON.stringify({
-												button: {
-													id: button.id,
-													label: button.label,
-													icon: button.icon,
-													kind: button.kind,
-												},
-											}),
+											// The whole button: a copy keeps its icon, images and command (#60).
+											JSON.stringify({ button }),
 										);
 										e.dataTransfer.effectAllowed = "copy";
 									}}

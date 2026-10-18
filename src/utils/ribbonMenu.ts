@@ -1,3 +1,4 @@
+import { sourceForCopy } from "@/utils/copyButton";
 import type { RibbonButton, RibbonGroup, RibbonMenu, RibbonMenuSection } from "@/types/ribbon";
 
 /**
@@ -153,18 +154,20 @@ export function copyControl(control: RibbonButton, newId: string): RibbonButton 
 	const dynamic = DYNAMIC_MENU_ATTRIBUTES.filter(
 		(a) => control.source?.attributes[a] !== undefined,
 	);
+	// The copy must not reuse the original's tokens / attributes — except its
+	// icon (#60) and how its menu is populated (#62 review m6).
+	const icon = sourceForCopy(control.source);
+	const attributes = {
+		...(icon?.attributes ?? {}),
+		...Object.fromEntries(dynamic.map((a) => [a, control.source!.attributes[a]])),
+	};
 	return {
 		...control,
 		id: newId,
-		// The copy must not reuse the original's tokens / attributes — except
-		// how its menu is populated.
-		source: dynamic.length
-			? {
-					attributes: Object.fromEntries(
-						dynamic.map((a) => [a, control.source!.attributes[a]]),
-					),
-				}
-			: undefined,
+		source:
+			Object.keys(attributes).length > 0
+				? { ...(icon?.modernImage ? { modernImage: icon.modernImage } : {}), attributes }
+				: undefined,
 		custom: true,
 		oob: false,
 		managed: false,

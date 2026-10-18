@@ -1247,9 +1247,13 @@ describe("#62 review — new hidden controls, copies, ComboBox menus", () => {
 		const { ribbon } = parseOob();
 		const dynamic = ctl(ribbon, "Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar");
 		const copy = copyControl(dynamic, "cbs.contact.Flows.Copy");
+		// How the menu is populated, plus the icon a copy keeps (#60) — nothing else.
 		expect(copy.source?.attributes).toEqual({
 			PopulateDynamically: "true",
 			PopulateQueryCommand: "Mscrm.DynamicMenu.Grid.Flows.PopulateMenu",
+			ModernImage: "Flows",
+			Image16by16: "/_imgs/Ribbon/OpenFlows_16.png",
+			Image32by32: "/_imgs/Ribbon/OpenFlows_32.png",
 		});
 		const xml = generate(ribbonWith([copy]), ribbonWith([]));
 		const written = doc(xml).querySelector('FlyoutAnchor[Id="cbs.contact.Flows.Copy"]')!;

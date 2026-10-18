@@ -852,8 +852,8 @@ export const useRibbonStore = create<RibbonStore>()(
 							const { group, button: btn } = found;
 							if (isReadOnlyGlobalOobButton(location, tabId, btn)) return;
 							// The copy is a new control: it must not reuse the original's
-							// LocLabel tokens / attributes (#11 review N5), and its menu
-							// gets ids of its own (#27).
+							// LocLabel tokens / attributes (#11 review N5) — only its icon
+							// (#60, copyControl) — and its menu gets ids of its own (#27).
 							const copy: RibbonButton = {
 								...copyControl(btn, `${btn.id}_copy_${Date.now()}`),
 								label: `${btn.label} (copy)`,

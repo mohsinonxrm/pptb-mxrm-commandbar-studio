@@ -33,6 +33,7 @@ import FluentIcon from "@/components/shared/FluentIcon";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
+import { copyControl } from "@/utils/ribbonMenu";
 
 const DRAG_MIME = "application/x-rw-btn";
 // Drag-source MIME emitted by SolutionElementsPane when the user drags an
@@ -207,6 +208,9 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 
 	function onDropOn(e: React.DragEvent, groupId: string, beforeButtonId: string | null) {
 		e.preventDefault();
+		// A drop on a button must not bubble to the row's fallback drop zone,
+		// which would apply it a second time (into the tab's first group).
+		e.stopPropagation();
 		// Case 1 — re-ordering an existing button within the modern bar.
 		const internalPayload = e.dataTransfer.getData(DRAG_MIME);
 		if (internalPayload) {
@@ -232,14 +236,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 		const sePayload = e.dataTransfer.getData(DRAG_SE_MIME);
 		if (sePayload) {
 			try {
-				const src = JSON.parse(sePayload) as {
-					button?: {
-						id: string;
-						label?: string;
-						icon?: string;
-						kind?: RibbonButton["kind"];
-					};
-				};
+				const src = JSON.parse(sePayload) as { button?: RibbonButton };
 				const seButton = src?.button;
 				if (seButton) {
 					// Use a copy-suffixed ID so we don't clash with the source
@@ -250,13 +247,15 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 						tabId: tab.id,
 						groupId,
 						button: {
-							id: `${seButton.id}${stamp}`,
+							// A copy of the whole button — icon, images, command, tooltips —
+							// as a new control (#60): no LocLabel tokens of the original, and
+							// a menu with ids of its own (#27).
+							...copyControl(seButton, `${seButton.id}${stamp}`),
 							label: seButton.label ?? "New Button",
-							icon: seButton.icon,
 							kind: seButton.kind ?? "button",
 							sequence: 50,
-							templateAlias: "o1",
-							commandId: "",
+							templateAlias: seButton.templateAlias ?? "o1",
+							commandId: seButton.commandId ?? "",
 							hidden: false,
 							oob: false,
 							custom: true,
