@@ -998,9 +998,12 @@ export const useRibbonStore = create<RibbonStore>()(
 							// The copy is a new control: it must not reuse the original's
 							// LocLabel tokens / attributes (#11 review N5) — only its icon
 							// (#60, copyControl) — and its menu gets ids of its own (#27).
+							// A platform text (`$Resources:`) can't take a " (copy)" suffix:
+							// the copy keeps it as it is (#86).
+							const platformLabel = btn.source?.labelToken?.startsWith("$Resources:") ?? false;
 							const copy: RibbonButton = {
 								...copyControl(btn, `${btn.id}_copy_${Date.now()}`),
-								label: `${btn.label} (copy)`,
+								label: platformLabel ? btn.label : `${btn.label} (copy)`,
 								sequence: btn.sequence + 5,
 							};
 							const place = menuItemPlace(group, buttonId);

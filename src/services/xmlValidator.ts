@@ -8,6 +8,7 @@ import {
 } from "@/constants/ruleKinds";
 import { CRM_PARAMETER_VALUE_SET, isNamedCrmParameterValue } from "@/constants/crmParameters";
 import { groupControls } from "@/utils/ribbonMenu";
+import { MAX_LOC_LABEL_ID_LENGTH } from "@/utils/locLabelRef";
 
 export interface ValidationError {
 	message: string;
@@ -301,6 +302,9 @@ function validateSchemaRules(doc: Document, xml: string): ValidationError[] {
 // ---------------------------------------------------------------------------
 
 /** What a pre-publish finding is about (stable, for tests and grouping). */
+/** Attributes that carry a control's or section's text (a `$LocLabels:` reference or literal). */
+const LABEL_ATTRIBUTES = ["LabelText", "ToolTipTitle", "ToolTipDescription", "Alt", "Title", "Description"];
+
 export type PublishCheckCode =
 	| "xml-parse"
 	| "dropped-action"
@@ -315,7 +319,8 @@ export type PublishCheckCode =
 	| "webresource-lookup"
 	| "scaling-collision"
 	| "scaling-size"
-	| "duplicate-id";
+	| "duplicate-id"
+	| "label-id-length";
 
 /** One pre-publish finding. Errors block the publish; warnings don't. */
 export interface PublishFinding {
@@ -565,6 +570,32 @@ export function validatePublishRibbonDiff(
 				`${node.tagName} ${id} has no <Menu> — it would publish as an empty drop-down`,
 				id,
 			);
+		}
+	}
+
+	// A `$LocLabels:` id longer than 128 characters used inside a menu makes
+	// PublishXml fail with 0x80090429 after the import succeeded, leaving the
+	// import unpublished (#86, measured live). Elsewhere longer ids published,
+	// so those are only warned about.
+	for (const { key, el } of customActions) {
+		for (const node of Array.from(el.getElementsByTagName("*"))) {
+			const inMenu = !!node.parentElement?.closest("Menu");
+			for (const attr of LABEL_ATTRIBUTES) {
+				const value = node.getAttribute(attr);
+				if (!value?.startsWith("$LocLabels:")) continue;
+				const labelId = value.slice("$LocLabels:".length);
+				if (labelId.length <= MAX_LOC_LABEL_ID_LENGTH) continue;
+				add(
+					"label-id-length",
+					key,
+					`${node.tagName} ${node.getAttribute("Id") ?? ""} uses label ${labelId} (${labelId.length} characters)` +
+						(inMenu
+							? `: a menu item's label id may have at most ${MAX_LOC_LABEL_ID_LENGTH} characters, or the publish fails after the import — give the control a shorter id`
+							: `: label ids over ${MAX_LOC_LABEL_ID_LENGTH} characters fail inside menus; consider a shorter control id`),
+					node.getAttribute("Id") ?? undefined,
+					!inMenu,
+				);
+			}
 		}
 	}
 

@@ -21,6 +21,7 @@ import {
 	buttonTooltipTitleId,
 	buttonTooltipBodyId,
 	locLabelRef,
+	sectionTitleLabelId,
 } from "@/utils/locLabelRef";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { freeMaxSizeSequence, maxSizeBand } from "@/services/scalingSequence";
@@ -1073,7 +1074,7 @@ function generateMenu(
 		set("Id", section.id);
 		set(
 			"Title",
-			resolveButtonText(section.title, section.attributes?.["Title"], `${section.id}.Title`, storeLocLabels, sink, lang),
+			resolveButtonText(section.title, section.attributes?.["Title"], sectionTitleLabelId(section.id), storeLocLabels, sink, lang),
 		);
 		// A loaded section without Sequence keeps none (the parser reads it as 0).
 		const loadedWithout = !!section.attributes && !("Sequence" in section.attributes) && section.sequence === 0;

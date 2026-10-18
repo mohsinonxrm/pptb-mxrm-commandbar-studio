@@ -122,8 +122,20 @@ export function copyMenu(
 	newId: string,
 ): RibbonMenu | undefined {
 	if (!menu) return undefined;
-	const rebase = (id: string) =>
-		id.startsWith(oldId) ? `${newId}${id.slice(oldId.length)}` : `${newId}.${id}`;
+	// Ids that don't start with the original's (an out-of-the-box menu's items)
+	// get `{newId}.{last segment}`, not `{newId}.{whole id}`: whole ids made item
+	// ids of 150+ characters whose label ids broke PublishXml (#86).
+	const used = new Set<string>();
+	const rebased = new Map<string, string>();
+	const rebase = (id: string) => {
+		const known = rebased.get(id);
+		if (known) return known;
+		let next = id.startsWith(oldId) ? `${newId}${id.slice(oldId.length)}` : `${newId}.${id.split(".").pop() || "Item"}`;
+		for (let n = 2; used.has(next); n++) next = `${next.replace(/_\d+$/, "")}_${n}`;
+		used.add(next);
+		rebased.set(id, next);
+		return next;
+	};
 	// Controls kept as raw XML (ToggleButton, Gallery, …) get new ids too (#62 review m3).
 	const rebaseXml = (xml: string) =>
 		xml.replace(
@@ -155,18 +167,27 @@ export function copyControl(control: RibbonButton, newId: string): RibbonButton 
 		(a) => control.source?.attributes[a] !== undefined,
 	);
 	// The copy must not reuse the original's tokens / attributes — except its
-	// icon (#60) and how its menu is populated (#62 review m6).
+	// icon (#60), how its menu is populated (#62 review m6) and platform texts
+	// (`$Resources:`), which aren't the original's to own: without them the copy
+	// got new labels reading the raw resource key (#86).
 	const icon = sourceForCopy(control.source);
 	const attributes = {
 		...(icon?.attributes ?? {}),
 		...Object.fromEntries(dynamic.map((a) => [a, control.source!.attributes[a]])),
 	};
+	const platform = (token?: string) => (token?.startsWith("$Resources:") ? token : undefined);
+	const texts = {
+		labelToken: platform(control.source?.labelToken),
+		tooltipTitleToken: platform(control.source?.tooltipTitleToken),
+		tooltipBodyToken: platform(control.source?.tooltipBodyToken),
+	};
+	const keptTexts = Object.fromEntries(Object.entries(texts).filter(([, v]) => v !== undefined));
 	return {
 		...control,
 		id: newId,
 		source:
-			Object.keys(attributes).length > 0
-				? { ...(icon?.modernImage ? { modernImage: icon.modernImage } : {}), attributes }
+			Object.keys(attributes).length + Object.keys(keptTexts).length > 0
+				? { ...(icon?.modernImage ? { modernImage: icon.modernImage } : {}), ...keptTexts, attributes }
 				: undefined,
 		custom: true,
 		oob: false,
