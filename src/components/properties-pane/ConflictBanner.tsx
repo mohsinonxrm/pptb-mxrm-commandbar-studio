@@ -12,6 +12,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
 import type { ConflictEntry } from "@/types/ribbon";
+import { findGroupControl } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	banner: {
@@ -33,7 +34,7 @@ export const ConflictBanner: React.FC = () => {
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
 	const group = tab?.groups.find((g) => g.id === selectedGroupId);
-	const button = group?.buttons.find((b) => b.id === selectedButtonId);
+	const button = findGroupControl(group, selectedButtonId);
 
 	// Show the banner when the provenance service identified this button as
 	// coming from a managed solution layer, OR when the store has an explicit

@@ -61,6 +61,7 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 	const commands = useRibbonStore((s) => s.commands);
 	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
+	const batch = useRibbonStore((s) => s.batch);
 	const openCommandEditor = useUIStore((s) => s.openCommandEditor);
 	const [selectedCommandId, setSelectedCommandId] = React.useState("");
 
@@ -68,8 +69,10 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 	const createAndBindCommand = () => {
 		const existingIds = new Set(commands.map((c) => c.id));
 		const newId = generateCommandId("New", "Command", existingIds);
-		upsertCommand({ id: newId, enableRules: [], displayRules: [], actions: [] });
-		setButtonProp(location, tabId, groupId, button.id, { commandId: newId });
+		batch(() => {
+			upsertCommand({ id: newId, enableRules: [], displayRules: [], actions: [] });
+			setButtonProp(location, tabId, groupId, button.id, { commandId: newId });
+		});
 		openCommandEditor(newId);
 	};
 

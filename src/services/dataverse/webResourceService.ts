@@ -253,6 +253,41 @@ export async function saveWebResource(
 }
 
 /**
+ * Adds an existing web resource, picked by name, to the active unmanaged
+ * solution (#61), so a solution export carries the icon a ribbon references.
+ * Throws when no web resource has that name; with a managed or missing active
+ * solution nothing is added and `solutionWarning` says why (also logged).
+ */
+export async function addExistingWebResourceToActiveSolution(
+	name: string,
+	known?: { id: string; isCustom?: boolean },
+): Promise<{ solutionUniqueName?: string; solutionWarning?: string }> {
+	const found = known ?? (await loadWebResourceByName(name));
+	if (!found?.id) throw new Error(`No web resource named ${name} exists in this environment.`);
+	const id = found.id;
+	if (found.isCustom === false) {
+		// A managed web resource belongs to the solution that installed it;
+		// adding it to the user's solution would export a component they don't own.
+		const solutionWarning =
+			`Web resource ${name} is managed, so it isn't added to your solution. ` +
+			`The solution that provides it must be installed wherever you import your customizations.`;
+		useRuntimeLogStore.getState().logWarn("webresource", solutionWarning);
+		return { solutionWarning };
+	}
+	const active = useSessionStore.getState().activeSolution;
+	if (!active || active.isManaged) {
+		const why = active ? `the active solution ${active.uniqueName} is managed` : "no solution is selected";
+		const solutionWarning =
+			`Web resource ${name} was not added to any solution because ${why}. ` +
+			`Select an unmanaged solution and pick the icon again so it travels with your customizations.`;
+		useRuntimeLogStore.getState().logWarn("webresource", solutionWarning);
+		return { solutionWarning };
+	}
+	await addWebResourceToSolution(getHostDataverseApi(), id, active.uniqueName);
+	return { solutionUniqueName: active.uniqueName };
+}
+
+/**
  * Publishes a single web resource via the PublishXml action so a freshly
  * created/updated icon is immediately live (and resolvable by a ribbon that
  * references it). Best-effort — callers should treat failure as non-fatal.

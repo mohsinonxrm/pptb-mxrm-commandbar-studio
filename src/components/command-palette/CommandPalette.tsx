@@ -5,6 +5,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { groupControls } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	backdrop: {
@@ -169,8 +170,14 @@ export const CommandPalette: React.FC = () => {
 				subtitle: "Import RibbonDiffXml from clipboard",
 				kind: "action",
 				action: () => {
-					openImportXml();
 					close();
+					// Opens with the clipboard's XML; empty when it can't be read.
+					const read = navigator.clipboard?.readText?.();
+					if (!read) return openImportXml();
+					read.then(
+						(t) => openImportXml(t.trim().startsWith("<") ? t : ""),
+						() => openImportXml(),
+					);
 				},
 			},
 			{
@@ -247,7 +254,7 @@ export const CommandPalette: React.FC = () => {
 			const allButtons = Object.entries(ribbons).flatMap(([loc, r]) =>
 				r.tabs.flatMap((t) =>
 					t.groups.flatMap((g) =>
-						g.buttons.map((b) => ({
+						groupControls(g).map((b) => ({
 							id: `btn-${b.id}`,
 							label: b.label || b.id,
 							subtitle: `${loc} → ${t.label} → ${g.label}`,

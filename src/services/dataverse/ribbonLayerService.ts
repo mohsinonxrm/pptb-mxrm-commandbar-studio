@@ -1,5 +1,6 @@
 import {
 	hideActionsOf,
+	layerScalingSteps,
 	layerCommandRefs,
 	ownContainerIds,
 	ownControlIds,
@@ -24,6 +25,8 @@ export interface LayerSnapshot {
 	locLabelIds: string[];
 	/** HideCustomActions of the layer. */
 	hides: LayerHide[];
+	/** MaxSize / Scale steps the layer writes (#66 review). */
+	scalingStepIds?: string[];
 	/**
 	 * CommandDefinitions the layer defines (#31): your own commands and
 	 * out-of-the-box / other solutions' commands customised for this scope.
@@ -40,6 +43,7 @@ export function layerSnapshotFromParts(parts: RibbonDiffParts): LayerSnapshot {
 		containerIds: [...ownContainerIds(parts)],
 		locLabelIds: [...parts.locLabels.keys()],
 		hides: hideActionsOf(parts),
+		scalingStepIds: layerScalingSteps(parts).map((s) => s.id),
 		commandIds: [...parts.commandDefinitions.keys()],
 		commandRefIds: [...layerCommandRefs(parts)],
 	};

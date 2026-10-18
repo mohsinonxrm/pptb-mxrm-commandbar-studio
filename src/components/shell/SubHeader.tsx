@@ -96,7 +96,7 @@ export function SubHeader() {
 			<Button appearance="subtle" size="small" icon={<CodeRegular />} onClick={openXmlDrawer}>
 				RibbonDiffXml
 			</Button>
-			<Button appearance="subtle" size="small" icon={<ArrowSwapRegular />} onClick={openImportXml}>
+			<Button appearance="subtle" size="small" icon={<ArrowSwapRegular />} onClick={() => openImportXml()}>
 				Import / Export
 			</Button>
 			<Button
