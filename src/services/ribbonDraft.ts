@@ -226,7 +226,10 @@ function diffList(items: Item[], baseline: Item[], level: Level): ListDelta {
 	});
 }
 
-/** A list delta over a fresh load. A changed or referenced item the load no longer has is dropped. */
+/**
+ * A list delta over a fresh load. An unchanged (referenced) item the load no
+ * longer has is dropped; a changed one is kept as changed, at the end.
+ */
 function patchList(delta: ListDelta, baseline: Item[], level: Level): Item[] {
 	const byId = uniqueById(baseline);
 	if (Array.isArray(delta)) {

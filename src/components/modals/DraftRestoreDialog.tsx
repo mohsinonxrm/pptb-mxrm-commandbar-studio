@@ -22,6 +22,7 @@ import { useDraftStore } from "@/store/draftStore";
 export function DraftRestoreDialog() {
 	const pending = useDraftStore((s) => s.pending);
 	const baselineChanged = useDraftStore((s) => s.pendingBaselineChanged);
+	const restoreError = useDraftStore((s) => s.restoreError);
 	const restoreDraft = useDraftStore((s) => s.restoreDraft);
 	const discardDraft = useDraftStore((s) => s.discardDraft);
 	if (!pending) return null;
@@ -46,12 +47,20 @@ export function DraftRestoreDialog() {
 								</MessageBarBody>
 							</MessageBar>
 						)}
+						{restoreError && (
+							<MessageBar intent="error" layout="multiline" style={{ marginTop: "12px" }}>
+								<MessageBarBody>
+									These changes couldn&apos;t be restored ({restoreError}). Discard them to continue; the details are
+									in the runtime log.
+								</MessageBarBody>
+							</MessageBar>
+						)}
 					</DialogContent>
 					<DialogActions>
 						<Button appearance="secondary" onClick={discardDraft}>
 							Discard
 						</Button>
-						<Button appearance="primary" onClick={() => restoreDraft()}>
+						<Button appearance="primary" disabled={!!restoreError} onClick={() => restoreDraft()}>
 							Restore
 						</Button>
 					</DialogActions>

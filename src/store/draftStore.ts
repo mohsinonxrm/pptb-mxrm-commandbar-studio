@@ -46,6 +46,8 @@ export interface DraftStore {
 	pending: RibbonDraft | null;
 	/** The table's ribbon on the server changed since `pending` was saved. */
 	pendingBaselineChanged: boolean;
+	/** Why restoring `pending` failed (it stays offered, for Discard); null when it didn't. */
+	restoreError: string | null;
 	/** A table / solution switch waiting for the user's answer (unpublished changes). */
 	pendingSwitch: PendingSwitch | null;
 	/** The last save of the draft failed (browser storage full or unavailable): the changes are only in memory. */
@@ -57,7 +59,10 @@ export interface DraftStore {
 	beginLoad(): void;
 	/** The workspace for `key` is loaded: autosave writes its draft, and a saved one is offered. */
 	workspaceLoaded(key: DraftKey): void;
-	/** Puts the pending draft on top of the loaded workspace (one undo step). False when there is none to restore. */
+	/**
+	 * Puts the pending draft on top of the loaded workspace (one undo step).
+	 * False when there is none to restore, or restoring it failed (restoreError).
+	 */
 	restoreDraft(): boolean;
 	/** Deletes the pending draft; later changes are saved again. */
 	discardDraft(): void;
@@ -181,13 +186,14 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 	target: null,
 	pending: null,
 	pendingBaselineChanged: false,
+	restoreError: null,
 	pendingSwitch: null,
 	saveFailed: false,
 	lastSavedAt: null,
 
 	beginLoad() {
 		restoredAt = null;
-		set({ target: null, pending: null, pendingBaselineChanged: false, saveFailed: false, lastSavedAt: null });
+		set({ target: null, pending: null, pendingBaselineChanged: false, restoreError: null, saveFailed: false, lastSavedAt: null });
 	},
 
 	workspaceLoaded(key) {
@@ -196,6 +202,7 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 		set({
 			target: key,
 			pending: draft,
+			restoreError: null,
 			lastSavedAt: draft?.savedAt ?? null,
 			pendingBaselineChanged: !!draft && draft.baselineFingerprint !== baselineFingerprint(useRibbonStore.getState()),
 		});
@@ -205,15 +212,23 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 		const { target, pending } = get();
 		// Only on top of the workspace the draft belongs to, once it is loaded.
 		if (!target || !pending || !sameDraftKey(target, pending.key)) return false;
-		set({ pending: null, pendingBaselineChanged: false });
-		// Autosave writes the restored workspace (it is a change).
 		const ribbons = useRibbonStore.getState();
-		ribbons.restoreWorkspace(draftWorkspace(pending, ribbons), `saved ${new Date(pending.savedAt).toLocaleString()}`);
+		try {
+			// The draft stays offered (and autosave leaves it alone) until this works.
+			ribbons.restoreWorkspace(draftWorkspace(pending, ribbons), `saved ${new Date(pending.savedAt).toLocaleString()}`);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			useRuntimeLogStore.getState().logError("ribbon", `The unsaved changes saved ${pending.savedAt} couldn't be restored: ${message}`);
+			set({ restoreError: message });
+			return false;
+		}
 		const after = useRibbonStore.getState();
 		const top = after.past[after.past.length - 1];
 		if (after.past.length > ribbons.past.length && top?.op === "restored") restoredAt = top.ts;
-		// Nothing restored (the server has it all already): the draft goes.
-		else saveOrClear(after);
+		set({ pending: null, pendingBaselineChanged: false, restoreError: null });
+		// The restored workspace is the draft now; nothing restored (the server
+		// has it all already): the draft goes.
+		saveOrClear(after);
 		return true;
 	},
 
@@ -221,7 +236,7 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 		const { target, pending } = get();
 		if (!pending) return;
 		deleteDraft(pending.key);
-		set({ pending: null, pendingBaselineChanged: false, lastSavedAt: null });
+		set({ pending: null, pendingBaselineChanged: false, restoreError: null, lastSavedAt: null });
 		// Changes made while the draft was offered are saved now.
 		if (target && sameDraftKey(target, pending.key)) saveOrClear(useRibbonStore.getState());
 	},

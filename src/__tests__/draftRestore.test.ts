@@ -239,7 +239,7 @@ let unsubscribe: () => void;
 
 beforeEach(() => {
 	localStorage.clear();
-	useDraftStore.setState({ target: null, pending: null, pendingBaselineChanged: false, pendingSwitch: null, saveFailed: false, lastSavedAt: null });
+	useDraftStore.setState({ target: null, pending: null, pendingBaselineChanged: false, pendingSwitch: null, saveFailed: false, lastSavedAt: null, restoreError: null });
 	useSessionStore.setState({
 		connectionUrl: ORG,
 		activeSolution: solution(SOLUTION_A, "SolutionA"),
@@ -464,6 +464,29 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 		freshLoad();
 		expect(drafts().pending).toBeNull();
 		expect(localStorage.getItem(draftStorageKey(KEY))).toBeNull();
+	});
+
+	it("a draft that fails to restore stays offered, with the error, and isn't overwritten", () => {
+		freshLoad();
+		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
+		const saved = readDraft(KEY)!;
+		freshLoad();
+		// Well-formed outside, broken inside.
+		const broken = { ...drafts().pending!, delta: { ...drafts().pending!.delta, lists: { ...drafts().pending!.delta.lists, commands: { set: [null], drop: [], add: [] } } } };
+		useDraftStore.setState({ pending: broken });
+		const before = JSON.stringify(workspaceOf(store()));
+
+		expect(drafts().restoreDraft()).toBe(false);
+		expect(drafts().pending).toBe(broken);
+		expect(drafts().restoreError).toBeTruthy();
+		expect(JSON.stringify(workspaceOf(store()))).toBe(before);
+		// The stored draft is untouched by later changes until it is discarded.
+		store().hideOobButton("HomepageGrid", MAIN, COLLAB, `Mscrm.HomepageGrid.${T}.Share`);
+		expect(readDraft(KEY)?.delta).toEqual(saved.delta);
+
+		drafts().discardDraft();
+		expect(drafts().pending).toBeNull();
+		expect(drafts().restoreError).toBeNull();
 	});
 
 	it("a damaged draft is not offered", () => {

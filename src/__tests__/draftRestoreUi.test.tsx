@@ -87,7 +87,7 @@ let unsubscribe: () => void;
 
 beforeEach(() => {
 	localStorage.clear();
-	useDraftStore.setState({ target: null, pending: null, pendingBaselineChanged: false, pendingSwitch: null, saveFailed: false, lastSavedAt: null });
+	useDraftStore.setState({ target: null, pending: null, pendingBaselineChanged: false, pendingSwitch: null, saveFailed: false, lastSavedAt: null, restoreError: null });
 	useSessionStore.setState({
 		connectionUrl: ORG,
 		activeSolution: { id: "sol-a", uniqueName: "SolutionA", friendlyName: "Solution A" } as Solution,
@@ -186,6 +186,26 @@ describe("#16 — restore blocks editing until answered", () => {
 		click("Restore");
 		expect(document.body.querySelector('[aria-modal="true"]')).toBeNull();
 		expect(buttonsNow()).toEqual([]);
+	});
+});
+
+describe("#16 — a draft that fails to restore", () => {
+	it("keeps the dialog open with the error; Restore is disabled, Discard works", () => {
+		act(() => load());
+		act(() => useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"));
+		act(() => load());
+		const pending = useDraftStore.getState().pending!;
+		act(() =>
+			useDraftStore.setState({
+				pending: { ...pending, delta: { ...pending.delta, lists: { ...pending.delta.lists, commands: { set: [null], drop: [], add: [] } } } },
+			}),
+		);
+		click("Restore");
+		expect(document.body.querySelector('[aria-modal="true"]')?.textContent).toContain("couldn't be restored");
+		expect(findButton("Restore")?.disabled).toBe(true);
+		click("Discard");
+		expect(document.body.querySelector('[aria-modal="true"]')).toBeNull();
+		expect(readDraft(KEY)).toBeNull();
 	});
 });
 
