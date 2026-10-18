@@ -1232,7 +1232,7 @@ describe("#62 review — new hidden controls, copies, ComboBox menus", () => {
 		const raw = copy.menu!.sections[0].rawControls![0].xml;
 		expect(raw).toBe('<ToggleButton Id="cbs.Fly2.T" Command="x" />');
 		expect(copy.menu!.sections[1].rawContent).toBe(
-			'<Gallery Id="cbs.Fly2.other.Gallery"><GalleryButton Id="cbs.Fly2.other.G1" /></Gallery>',
+			'<Gallery Id="cbs.Fly2.Gallery"><GalleryButton Id="cbs.Fly2.G1" /></Gallery>',
 		);
 		// Nothing of the copy reuses an id of the original.
 		const ids = (b: RibbonButton) =>

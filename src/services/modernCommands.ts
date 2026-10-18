@@ -416,12 +416,25 @@ export function commandBarTabId(
 	);
 }
 
+/** A classic control as far as matching goes: its id and, for a flyout / split button, its menu. */
+export interface ClassicControl {
+	id: string;
+	menu?: { sections: { controls: ClassicControl[] }[] };
+}
+
+/** Every control inside a control's menu, depth first. */
+function menuControlsOf(control: ClassicControl): ClassicControl[] {
+	return (control.menu?.sections ?? []).flatMap((s) =>
+		s.controls.flatMap((c) => [c, ...menuControlsOf(c)]),
+	);
+}
+
 export interface ModernLocationModel {
 	/** The tab modern chips are drawn on (see commandBarTabId). */
 	commandBarTabId: string | undefined;
 	/** Top-level commands to draw as chips there: designer-made, or migrated with no classic control in the location. */
 	nodes: ModernCommandNode[];
-	/** Classic controls on any tab of the location that a migrated command hides or stands in for. */
+	/** Classic controls (menu items included) on any tab of the location that a migrated command hides or stands in for. */
 	overrides: Map<string, ClassicModernOverride[]>;
 	/** Migrated commands with no classic control anywhere in the location (diagnostics). */
 	unmatchedMigrated: ModernCommand[];
@@ -431,43 +444,79 @@ export interface ModernLocationModel {
  * Modern commands for one canvas location. Migrated commands are matched
  * against the classic controls of EVERY tab of the location (their classic
  * counterpart may live on the Charts or View tab), so they're drawn as a chip
- * only when the location has no counterpart at all.
+ * only when the location has no counterpart at all. Flyout / split-button
+ * menu items count as controls too: the command designer keeps a classic menu
+ * item as a child command of the migrated flyout, so hiding one in the
+ * designer hides that menu item. Top-level buttons win when both match.
  */
 export function buildModernLocationModel(input: {
 	commands: ModernCommand[];
-	tabs: { id: string; groups: { buttons: { id: string }[] }[] }[];
+	tabs: { id: string; groups: { buttons: ClassicControl[] }[] }[];
 	location: RibbonLocation;
 	entityLogicalName: string;
 }): ModernLocationModel {
 	const { commands, tabs, location, entityLogicalName } = input;
-	const controlIds = tabs.flatMap((t) => t.groups.flatMap((g) => g.buttons.map((b) => b.id)));
-	const overrides = findClassicOverrides(commands, controlIds, entityLogicalName);
-	const matched = findClassicOverrides(commands, controlIds, entityLogicalName, {
-		includeDisabled: true,
-	});
-	const matchedIds = new Set([...matched.values()].flat().map((o) => o.command.id));
+	const buttons = tabs.flatMap((t) => t.groups.flatMap((g) => g.buttons));
+	const controlIds = [...buttons, ...buttons.flatMap(menuControlsOf)].map((b) => b.id);
+	const byId = new Map(commands.map((c) => [c.id, c]));
+	const rawMatched = new Set(
+		[...findClassicOverrides(commands, controlIds, entityLogicalName, { includeDisabled: true }).values()]
+			.flat()
+			.map((o) => o.command.id),
+	);
+	// A nested command stands in for a classic control only when its parent
+	// does too (a menu item lives in its flyout's menu); otherwise it stays in
+	// its parent's chip.
+	const effective = new Map<string, boolean>();
+	const isMatched = (c: ModernCommand, seen = new Set<string>()): boolean => {
+		const known = effective.get(c.id);
+		if (known !== undefined) return known;
+		// A section ("group" command) inside a migrated menu has no classic
+		// control of its own: look through it to the menu's command.
+		let parent = c.parentId ? byId.get(c.parentId) : undefined;
+		for (const hops = new Set<string>(); parent?.type === "group" && !rawMatched.has(parent.id) && !hops.has(parent.id); ) {
+			hops.add(parent.id);
+			parent = parent.parentId ? byId.get(parent.parentId) : undefined;
+		}
+		const result =
+			rawMatched.has(c.id) && (!parent || (!seen.has(parent.id) && isMatched(parent, seen.add(c.id))));
+		effective.set(c.id, result);
+		return result;
+	};
+	const keep = (map: Map<string, ClassicModernOverride[]>) => {
+		for (const [id, list] of map) {
+			const kept = list.filter((o) => isMatched(o.command));
+			if (kept.length > 0) map.set(id, kept);
+			else map.delete(id);
+		}
+		return map;
+	};
+	const overrides = keep(findClassicOverrides(commands, controlIds, entityLogicalName));
+	// Matched commands with a flag of their own (disabled ones let the classic
+	// control render and get none, so they stay listed on their parent).
+	const flagged = new Set([...overrides.values()].flat().map((o) => o.command.id));
 
 	// Commands nested (at any depth) under a matched migrated command live in
 	// that classic control's menu: no chip of their own; they're listed on the
-	// control's override instead.
-	const byId = new Map(commands.map((c) => [c.id, c]));
+	// control's override instead, unless they have a flag of their own.
 	const matchedAncestor = (c: ModernCommand): string | undefined => {
 		const seen = new Set<string>();
 		for (let p = c.parentId; p && !seen.has(p); p = byId.get(p)?.parentId ?? null) {
 			seen.add(p);
-			if (matchedIds.has(p)) return p;
+			const parent = byId.get(p);
+			if (parent && isMatched(parent)) return p;
 		}
 		return undefined;
 	};
 	const itemsOf = new Map<string, ModernCommand[]>();
 	const unmatched: ModernCommand[] = [];
 	for (const c of commands) {
-		if (matchedIds.has(c.id)) continue;
 		const ancestor = matchedAncestor(c);
 		if (!ancestor) {
-			unmatched.push(c);
+			if (!isMatched(c)) unmatched.push(c);
 			continue;
 		}
+		if (flagged.has(c.id)) continue;
 		const list = itemsOf.get(ancestor) ?? [];
 		list.push(c);
 		itemsOf.set(ancestor, list);

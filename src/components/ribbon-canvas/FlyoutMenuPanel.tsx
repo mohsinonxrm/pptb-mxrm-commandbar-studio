@@ -24,6 +24,9 @@ import FluentIcon from "@/components/shared/FluentIcon";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { groupControls, isMenuKind, menuItemsOf, rootControlOf } from "@/utils/ribbonMenu";
 import { newButtonIds } from "@/utils/idGenerator";
+import { useModernAppNames, useModernLocation } from "@/hooks/useModernCommands";
+import { overrideNote } from "@/services/modernCommands";
+import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
 import type { RibbonButton, RibbonLocation, RibbonMenuSection, RibbonTab } from "@/types/ribbon";
 
 const useStyles = makeStyles({
@@ -112,6 +115,9 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 	const addMenuSection = useRibbonStore((s) => s.addMenuSection);
 	const setMenuSectionProp = useRibbonStore((s) => s.setMenuSectionProp);
 	const deleteMenuSection = useRibbonStore((s) => s.deleteMenuSection);
+	// Menu items a migrated modern command hides or stands in for (#32).
+	const { overrides: modernOverrides } = useModernLocation(location);
+	const modernAppNames = useModernAppNames();
 
 	const group = tab.groups.find((g) => g.id === selectedGroupId);
 	const root = rootControlOf(group, selectedButtonId);
@@ -186,6 +192,7 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 
 	const renderItem = (item: RibbonButton) => {
 		const selected = item.id === selectedButtonId;
+		const modern = modernOverrides.get(item.id);
 		return (
 			<div key={item.id}>
 				<div className={styles.itemRow}>
@@ -199,12 +206,13 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 							.filter(Boolean)
 							.join(" ")}
 						aria-pressed={selected}
-						aria-label={`Menu item ${label(item)}${item.hidden ? " — hidden" : ""}`}
+						aria-label={`Menu item ${label(item)}${item.hidden ? " — hidden" : ""}${overrideNote(modern, modernAppNames)}`}
 						onClick={() => selectButtonInContext(location, tab.id, groupId, item.id)}
 					>
 						<FluentIcon name={item.icon || "apps_add_in"} size={16} />
 						<Text size={200}>{label(item)}</Text>
 						{item.menu && <ChevronDownRegular fontSize={12} aria-hidden />}
+						<ClassicModernOverrideBadge overrides={modern} appNames={modernAppNames} />
 						{item.custom && !loadedIds.has(item.id) && (
 							<Badge size="extra-small" color="brand" appearance="tint">
 								NEW
