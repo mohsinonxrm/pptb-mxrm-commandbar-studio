@@ -308,6 +308,12 @@ export interface RibbonStore extends RibbonStoreState {
 	// Load initial data
 	loadRibbons(ribbons: Record<RibbonLocation, RibbonDefinition>): void;
 	loadWorkspace(seed: RibbonWorkspaceSeed): void;
+	/**
+	 * Puts a saved workspace (unsaved changes of an earlier session, #16) on
+	 * top of the loaded one as ONE undo step. Baselines and layers stay as
+	 * loaded, so the restored edits are changes to publish.
+	 */
+	restoreWorkspace(workspace: WorkspaceSnapshot, detail: string): void;
 }
 
 const MAX_HISTORY = 80;
@@ -353,7 +359,7 @@ function cloneRibbons(
 	return JSON.parse(JSON.stringify(ribbons));
 }
 
-function workspaceOf(state: RibbonStoreState): WorkspaceSnapshot {
+export function workspaceOf(state: RibbonStoreState): WorkspaceSnapshot {
 	// State is updated immutably, so the snapshot can share it.
 	return {
 		ribbons: state.ribbons,
@@ -446,7 +452,7 @@ function commitMutation(
  * Whether the workspace has anything to publish (#34 review): after an undo
  * the change counter alone can't tell, e.g. when undoing past a publish.
  */
-function hasPendingChanges(state: RibbonStoreState): boolean {
+export function hasPendingChanges(state: RibbonStoreState): boolean {
 	const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 	return (
 		state.pendingUnhides.entity.length + state.pendingUnhides.application.length > 0 ||
@@ -701,6 +707,21 @@ export const useRibbonStore = create<RibbonStore>()(
 				future: [],
 			});
 			if (openBatch) openBatch = { snapshot: workspaceOf(get()), meta: null };
+		},
+
+		restoreWorkspace(workspace, detail) {
+			const copy: WorkspaceSnapshot = JSON.parse(JSON.stringify(workspace));
+			set((state) => {
+				// An un-hide of a hide the layer no longer has would publish nothing.
+				const stillHidden = (scope: LayerScope) => {
+					const snap = state.layers[scope];
+					return snap ? copy.pendingUnhides[scope].filter((id) => snap.hides.some((h) => h.location === id)) : copy.pendingUnhides[scope];
+				};
+				const change = { ...copy, pendingUnhides: { entity: stillHidden("entity"), application: stillHidden("application") } };
+				// Nothing to restore (the server has it all): not a change.
+				if (JSON.stringify(workspaceOf({ ...state, ...change })) === JSON.stringify(workspaceOf(state))) return state;
+				return record(state, change, historyMeta("restored", "unsaved changes", detail, "history"));
+			});
 		},
 
 		undo() {
@@ -1912,19 +1933,14 @@ export const useRibbonStore = create<RibbonStore>()(
 					const kept = anyPublished ? dropPublished(e) : e;
 					return i === state.past.length - 1 && kept.coalesceKey ? { ...kept, coalesceKey: undefined } : kept;
 				});
-				const pending =
-					all.some((loc) => JSON.stringify(baseline[loc]) !== JSON.stringify(current[loc])) ||
-					pendingUnhides.entity.length + pendingUnhides.application.length > 0 ||
-					uncustomisedCommandIds.entity.length + uncustomisedCommandIds.application.length > 0;
-				return {
+				const next = {
 					ribbons: current,
 					locLabels,
 					baselineLocLabels,
 					baseline,
 					layers,
 					pendingUnhides,
-					past,
-					future: anyPublished ? state.future.map(dropPublished) : state.future,
+					uncustomisedCommandIds,
 					...(everything
 						? {
 								baselineCommands: JSON.parse(JSON.stringify(state.commands)),
@@ -1934,7 +1950,15 @@ export const useRibbonStore = create<RibbonStore>()(
 								customisedCommandIds: [],
 							}
 						: {}),
-					uncustomisedCommandIds,
+				};
+				// Commands, rules, labels and customisations count too: after a
+				// partial publish (e.g. the table import failed) they are still to
+				// publish (#16 review).
+				const pending = hasPendingChanges({ ...state, ...next });
+				return {
+					...next,
+					past,
+					future: anyPublished ? state.future.map(dropPublished) : state.future,
 					reloadRequiredCommandIds,
 					mutationsSincePublish: pending ? Math.max(1, state.mutationsSincePublish) : 0,
 				};
