@@ -41,6 +41,7 @@ import {
 	clearPersistedRibbonData,
 } from "@/hooks/useRibbonPersistence";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { groupControls } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	leftPaneTabs: {
@@ -234,7 +235,7 @@ export function App() {
 				for (const ribbon of Object.values(workspace.ribbons)) {
 					for (const tab of ribbon.tabs) {
 						for (const group of tab.groups) {
-							for (const btn of group.buttons) {
+							for (const btn of groupControls(group)) {
 								if (btn.origin === "managed" && !seenButtonIds.has(btn.id)) {
 									seenButtonIds.add(btn.id);
 									conflictEntries.push({

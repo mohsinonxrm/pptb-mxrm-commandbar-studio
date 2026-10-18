@@ -24,6 +24,7 @@ import {
 	AppsAddInRegular,
 	LockClosedRegular,
 	AddRegular,
+	ChevronDownRegular,
 } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -325,6 +326,8 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							>
 								<FluentIcon name={button.icon || "apps_add_in"} size={16} />
 								<Text size={200}>{resolveDisplayLabel(button.label, locLabels)}</Text>
+								{/* Flyout / split button: its menu opens under the bar when selected (#27). */}
+								{button.menu && <ChevronDownRegular fontSize={12} aria-label="Has a menu" />}
 								{button.hidden && <EyeOffRegular fontSize={12} aria-hidden />}
 								{button.custom && (
 									<Badge size="extra-small" color="brand" appearance="tint" aria-label="Custom">

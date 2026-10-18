@@ -32,7 +32,9 @@ import {
 } from "@/services/dataverse/publishService";
 import { fetchLayerSnapshot } from "@/services/dataverse/ribbonLayerService";
 import { planScope, type ScopePlan } from "@/services/publishPlan";
+import type { RibbonDiffParts } from "@/services/ribbonDiffMerge";
 import type { RibbonLocation } from "@/types/ribbon";
+import { groupControls } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	content: {
@@ -162,12 +164,13 @@ export const BulkPublishModal: React.FC = () => {
 			for (const l of ENTITY_LOCATIONS)
 				for (const tab of ribbons[l].tabs)
 					for (const group of tab.groups)
-						for (const button of group.buttons) if (button.commandId) tableCommands.add(button.commandId);
+						for (const button of groupControls(group)) if (button.commandId) tableCommands.add(button.commandId);
 		}
 		return planFor(["Application"], "application", tableCommands);
 	}, [planFor, activeEntity, ribbons]);
 	const includeApplicationRibbon = appPlan.hasChanges && solutionSupportsAppRibbon;
 	const unsupported = [...(entityPlan?.unsupported ?? []), ...appPlan.unsupported];
+	const warnings = [...(entityPlan?.warnings ?? []), ...appPlan.warnings];
 	const scopes = [
 		...(activeEntity && entityPlan?.hasChanges ? [activeEntity.logicalName] : []),
 		...(includeApplicationRibbon ? ["Application ribbon"] : []),
@@ -184,6 +187,8 @@ export const BulkPublishModal: React.FC = () => {
 
 		let hadError = false;
 		const published: RibbonLocation[] = [];
+		// The layers as imported: the store takes their scaling / labels (#66 review).
+		const importedLayers: { entity?: RibbonDiffParts; application?: RibbonDiffParts } = {};
 		const errors: { scope: string; message: string }[] = [];
 		const verified: { scope: string; result: PublishVerification }[] = [];
 		const logs = useRuntimeLogStore.getState();
@@ -226,6 +231,7 @@ export const BulkPublishModal: React.FC = () => {
 					(msg) => setProgressMessage(msg),
 				);
 				published.push(...ENTITY_LOCATIONS);
+				importedLayers.entity = result.parts;
 				if (result.verification) verified.push({ scope, result: result.verification });
 				setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
 			} catch (err) {
@@ -253,6 +259,7 @@ export const BulkPublishModal: React.FC = () => {
 					(msg) => setProgressMessage(msg),
 				);
 				published.push("Application");
+				importedLayers.application = result.parts;
 				if (result.verification) verified.push({ scope, result: result.verification });
 				setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
 			} catch (err) {
@@ -276,7 +283,7 @@ export const BulkPublishModal: React.FC = () => {
 
 		// Only scopes that were actually imported (or had nothing to import) are
 		// marked as published; anything else keeps its pending changes.
-		markPublished(published);
+		markPublished(published, importedLayers);
 		// Re-read the layers that were published so ownership, labels and the
 		// "Hidden by customizations" list match the server (#47, #48).
 		if (activeEntity && published.includes("HomepageGrid") && entityPlan?.hasChanges) {
@@ -326,6 +333,19 @@ export const BulkPublishModal: React.FC = () => {
 										<ul style={{ margin: `${tokens.spacingVerticalXS} 0 0`, paddingLeft: 20 }}>
 											{unsupported.map((u) => (
 												<li key={u}>{u}</li>
+											))}
+										</ul>
+									</MessageBarBody>
+								</MessageBar>
+							)}
+
+							{warnings.length > 0 && !done && (
+								<MessageBar intent="info" layout="multiline">
+									<MessageBarBody>
+										<strong>Good to know:</strong>
+										<ul style={{ margin: `${tokens.spacingVerticalXS} 0 0`, paddingLeft: 20 }}>
+											{warnings.map((w) => (
+												<li key={w}>{w}</li>
 											))}
 										</ul>
 									</MessageBarBody>

@@ -5,6 +5,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
 import { generateRuleId, ruleNameFromCommandId } from "@/utils/idGenerator";
+import { findGroupControl } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	section: {
@@ -76,6 +77,7 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
 	const upsertDisplayRule = useRibbonStore((s) => s.upsertDisplayRule);
 	const upsertEnableRule = useRibbonStore((s) => s.upsertEnableRule);
+	const batch = useRibbonStore((s) => s.batch);
 
 	const openRuleEditor = useUIStore((s) => s.openRuleEditor);
 
@@ -83,7 +85,7 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
 	const group = tab?.groups.find((g) => g.id === selectedGroupId);
-	const button = group?.buttons.find((b) => b.id === selectedButtonId);
+	const button = findGroupControl(group, selectedButtonId);
 
 	const command = commands.find((c) => c.id === button?.commandId);
 	const ruleIds = kind === "display" ? (command?.displayRules ?? []) : (command?.enableRules ?? []);
@@ -110,16 +112,20 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 		if (kind === "display") {
 			const existingIds = new Set(displayRules.map((r) => r.id));
 			const newRuleId = generateRuleId(ruleNameFromCommandId(command.id), "Display", existingIds);
-			upsertDisplayRule({ id: newRuleId, steps: [] });
-			upsertCommand({ ...command, displayRules: [...command.displayRules, newRuleId] });
+			batch(() => {
+				upsertDisplayRule({ id: newRuleId, steps: [] });
+				upsertCommand({ ...command, displayRules: [...command.displayRules, newRuleId] });
+			});
 			openRuleEditor(newRuleId, "display");
 			return;
 		}
 
 		const existingIds = new Set(enableRules.map((r) => r.id));
 		const newRuleId = generateRuleId(ruleNameFromCommandId(command.id), "Enable", existingIds);
-		upsertEnableRule({ id: newRuleId, steps: [] });
-		upsertCommand({ ...command, enableRules: [...command.enableRules, newRuleId] });
+		batch(() => {
+			upsertEnableRule({ id: newRuleId, steps: [] });
+			upsertCommand({ ...command, enableRules: [...command.enableRules, newRuleId] });
+		});
 		openRuleEditor(newRuleId, "enable");
 	};
 

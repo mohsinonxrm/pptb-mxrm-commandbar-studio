@@ -18,9 +18,13 @@ import {
 } from "@fluentui/react-components";
 import { DismissRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
-import { useRibbonStore } from "@/store/ribbonStore";
+import { useRibbonStore, workspaceIds } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { generateRibbonId, validateRibbonId } from "@/utils/idGenerator";
 import { useSessionStore } from "@/store/sessionStore";
+import { UCI_TAB_NOTE } from "@/services/publishPlan";
+
+const LOCATION_NAMES = { HomepageGrid: "home grid", Form: "form", SubGrid: "sub-grid", Application: "" } as const;
 
 const useStyles = makeStyles({
 	surface: {
@@ -57,23 +61,39 @@ export const NewTabModal: React.FC = () => {
 
 	const location = useSelectionStore((s) => s.location);
 	const createTab = useRibbonStore((s) => s.createTab);
+	const ribbons = useRibbonStore((s) => s.ribbons);
+	const baseline = useRibbonStore((s) => s.baseline);
+	const layers = useRibbonStore((s) => s.layers);
 	const activeEntity = useSessionStore((s) => s.activeEntity);
-	const publisherPrefix = useSessionStore((s) => s.publisherPrefix);
+	// Re-read so the generated id follows the publisher prefix.
+	useSessionStore((s) => s.publisherPrefix);
 
 	const newTabOpen = useUIStore((s) => s.newTabOpen);
 	const closeNewTab = useUIStore((s) => s.closeNewTab);
 
-	const prefix = publisherPrefix || "new";
-	const entityName = activeEntity?.logicalName ?? "entity";
-	const safeName = label.replace(/\s+/g, "");
-	const generatedId = `${prefix}.${entityName}.${safeName}.Tab`;
-	const finalId = customId || generatedId;
+	// {prefix}.{table}.{Location}.{Label}.Tab, sanitized and unique in the
+	// workspace — the location keeps the same name on the grid and the form
+	// apart, and a second tab with the same label gets its own id (#66 review M3, m6).
+	const ids = React.useMemo(() => workspaceIds({ baseline, layers }, ribbons), [baseline, layers, ribbons]);
+	const table = location === "Application" ? "global" : (activeEntity?.logicalName ?? ribbons[location].entityLogicalName);
+	const generatedId = generateRibbonId(table, `${location}.${label}`, "Tab", ids);
+	const custom = customId.trim();
+	const idError = !custom
+		? null
+		: (validateRibbonId(custom) ??
+			(/[^a-zA-Z0-9._]/.test(custom)
+				? "Use letters, digits, dots and underscores only"
+				: ids.has(custom)
+					? "This ID is already used"
+					: null));
+	const finalId = custom || generatedId;
 
 	const handleCreate = () => {
+		if (idError) return;
+		// No sequence: the store puts the tab after the location's last one.
 		createTab(location, {
 			id: finalId,
 			label,
-			sequence: 100,
 			tabDisplayRules: [],
 			groups: [],
 		});
@@ -103,8 +123,15 @@ export const NewTabModal: React.FC = () => {
 						<MessageBar intent="info">
 							<MessageBarBody>
 								<Text size={200}>
-									Tabs are hidden by default. Add a Tab Display Rule to make the tab visible.
+									{location === "Application"
+										? "A tab is shown only where a Tab Display Rule allows it. Add one in Tab rules before publishing."
+										: `The tab gets a Tab Display Rule for this table's ${LOCATION_NAMES[location]}. You can change it in Tab rules.`}
 								</Text>
+							</MessageBarBody>
+						</MessageBar>
+						<MessageBar intent="info">
+							<MessageBarBody>
+								<Text size={200}>{UCI_TAB_NOTE}</Text>
 							</MessageBarBody>
 						</MessageBar>
 
@@ -112,7 +139,12 @@ export const NewTabModal: React.FC = () => {
 							<Input value={label} onChange={(_, d) => setLabel(d.value)} placeholder="My Tab" />
 						</Field>
 
-						<Field label="Tab ID" hint="Leave blank to auto-generate from label">
+						<Field
+							label="Tab ID"
+							hint="Leave blank to auto-generate from label"
+							validationState={idError ? "error" : "none"}
+							validationMessage={idError ?? undefined}
+						>
 							<Input
 								value={customId}
 								onChange={(_, d) => setCustomId(d.value)}
@@ -136,7 +168,7 @@ export const NewTabModal: React.FC = () => {
 						<Button appearance="secondary" onClick={closeNewTab}>
 							Cancel
 						</Button>
-						<Button appearance="primary" disabled={!label.trim()} onClick={handleCreate}>
+						<Button appearance="primary" disabled={!label.trim() || !!idError} onClick={handleCreate}>
 							Create tab
 						</Button>
 					</DialogActions>

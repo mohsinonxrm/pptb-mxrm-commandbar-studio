@@ -27,6 +27,7 @@ import {
 	AppsAddInRegular,
 	RenameRegular,
 	DocumentRegular,
+	ChevronDownRegular,
 } from "@fluentui/react-icons";
 import {
 	DndContext,
@@ -306,6 +307,9 @@ function DroppableSlot({
 }
 
 export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
+	const locLabels = useRibbonStore((s) => s.locLabels);
+	// Group titles in the organisation's base language (a rename replaces it — #66 review m3).
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
 	const moveButton = useRibbonStore((s) => s.moveButton);
 	const createGroup = useRibbonStore((s) => s.createGroup);
 	const deleteButton = useRibbonStore((s) => s.deleteButton);
@@ -534,7 +538,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 								content={`Template: ${group.template || "Flexible2"}`}
 								relationship="description"
 							>
-								<div style={useStyles.groupLabel}>{group.label}</div>
+								<div style={useStyles.groupLabel}>{resolveDisplayLabel(group.label, locLabels, lang)}</div>
 							</Tooltip>
 						</DroppableGroupContainer>
 					))}
@@ -760,8 +764,9 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 							<MenuItem
 								icon={<RenameRegular />}
 								onClick={() => {
-									const newLabel = window.prompt("Rename group:", grpMenu.group.label);
-									if (newLabel?.trim()) {
+									const shown = resolveDisplayLabel(grpMenu.group.label, locLabels, lang);
+									const newLabel = window.prompt("Rename group:", shown);
+									if (newLabel?.trim() && newLabel.trim() !== shown) {
 										renameGroup(location, tab.id, grpMenu.group.id, newLabel.trim());
 									}
 									setGrpMenu(null);
@@ -982,6 +987,8 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 				>
 					{displayLabel}
 				</span>
+				{/* Flyout / split button: its menu opens under the canvas when selected (#27). */}
+				{button.menu && <ChevronDownRegular fontSize={10} aria-label="Has a menu" />}
 				{/* Badges */}
 				{button.hidden && (
 					<span style={{ position: "absolute", top: 2, right: 2 }} aria-hidden>
