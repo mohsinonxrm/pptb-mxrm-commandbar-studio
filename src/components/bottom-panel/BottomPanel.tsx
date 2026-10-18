@@ -554,16 +554,17 @@ export function BottomPanel() {
 														>
 															View diff
 														</Button>
-														{i < history.length - 1 && (
-															<Button
-																appearance="subtle"
-																size="small"
-																icon={<ArrowCounterclockwiseRegular />}
-																onClick={() => restore(pastIndex)}
-															>
-																Revert to here
-															</Button>
-														)}
+														{/* restore(i) undoes entry i and every later one, so
+														    the oldest entry goes back to the loaded state (#34). */}
+														<Button
+															appearance="subtle"
+															size="small"
+															icon={<ArrowCounterclockwiseRegular />}
+															title="Undo this change and every later one (redo brings them back)"
+															onClick={() => restore(pastIndex)}
+														>
+															Undo from here
+														</Button>
 													</div>
 												</div>
 											</div>

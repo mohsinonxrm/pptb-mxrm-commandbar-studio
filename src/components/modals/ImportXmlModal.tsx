@@ -138,7 +138,8 @@ export const ImportXmlModal: React.FC = () => {
 
 	const handleImport = () => {
 		if (!handleValidate()) return;
-		// One undo step for the whole import (#34).
+		// Append is one undo step (#34). Replace reloads the ribbons
+		// (loadRibbons), which resets the baseline and the undo history.
 		useRibbonStore.getState().batch(() => applyRibbonDiffXml(xmlText, mode));
 		closeImportXml();
 	};

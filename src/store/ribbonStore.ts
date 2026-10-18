@@ -34,9 +34,11 @@ export interface HistoryEntry {
 	color: "success" | "warn" | "info" | "danger";
 	/** The workspace before this entry's change (after it, once the entry is undone). */
 	snapshot: WorkspaceSnapshot;
+	/** Edits with the same key in quick succession extend this entry (typing). */
+	coalesceKey?: string;
 }
 
-type HistoryMeta = Omit<HistoryEntry, "snapshot">;
+type HistoryMeta = Omit<HistoryEntry, "snapshot" | "coalesceKey">;
 
 /**
  * The editable workspace (#34): what undo / redo restore — the canvas, the
@@ -231,20 +233,40 @@ function historyMeta(
 /** The open batch (#34), if any: its actions make one history entry when it closes. */
 let openBatch: { snapshot: WorkspaceSnapshot; meta: HistoryMeta | null } | null = null;
 
+/** Edits of the same thing closer together than this are one undo step (typing). */
+const COALESCE_MS = 1000;
+
 /**
  * Applies a workspace change as one undo step: every user action goes through
  * here, so undo / redo always restore the canvas and the definitions together.
+ * Consecutive edits with the same `coalesceKey` less than COALESCE_MS apart
+ * (typing in a field) extend the last entry instead of adding one.
  */
 function record(
 	state: RibbonStoreState,
 	change: Partial<WorkspaceSnapshot>,
 	meta: HistoryMeta,
+	coalesceKey?: string,
 ): Partial<RibbonStoreState> {
 	if (openBatch) {
 		if (!openBatch.meta) openBatch.meta = meta;
 		return change;
 	}
-	const entry: HistoryEntry = { ...meta, snapshot: workspaceOf(state) };
+	const last = state.past[state.past.length - 1];
+	if (
+		coalesceKey &&
+		last?.coalesceKey === coalesceKey &&
+		state.future.length === 0 &&
+		Date.parse(meta.ts) - Date.parse(last.ts) < COALESCE_MS
+	) {
+		return {
+			...change,
+			past: [...state.past.slice(0, -1), { ...last, ...meta }],
+			// Still counted, so the workspace is saved as the user types.
+			mutationsSincePublish: state.mutationsSincePublish + 1,
+		};
+	}
+	const entry: HistoryEntry = { ...meta, coalesceKey, snapshot: workspaceOf(state) };
 	return {
 		...change,
 		past: [...state.past, entry].slice(-MAX_HISTORY),
@@ -257,10 +279,27 @@ function commitMutation(
 	state: RibbonStoreState,
 	mutator: (ribbons: Record<RibbonLocation, RibbonDefinition>) => void,
 	meta: HistoryMeta,
+	coalesceKey?: string,
 ): Partial<RibbonStoreState> {
 	const next = cloneRibbons(state.ribbons);
 	mutator(next);
-	return record(state, { ribbons: next }, meta);
+	return record(state, { ribbons: next }, meta, coalesceKey);
+}
+
+/**
+ * Whether the workspace has anything to publish (#34 review): after an undo
+ * the change counter alone can't tell, e.g. when undoing past a publish.
+ */
+function hasPendingChanges(state: RibbonStoreState): boolean {
+	const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+	return (
+		state.pendingUnhides.entity.length + state.pendingUnhides.application.length > 0 ||
+		!same(state.ribbons, state.baseline) ||
+		!same(state.commands, state.baselineCommands) ||
+		!same(state.enableRules, state.baselineEnableRules) ||
+		!same(state.displayRules, state.baselineDisplayRules) ||
+		!same(state.locLabels, state.baselineLocLabels)
+	);
 }
 
 /** Inserts or replaces the item with `item.id`; null when it is already there unchanged. */
@@ -418,34 +457,46 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		undo() {
-			const { past, future } = get();
-			if (past.length === 0 || openBatch) return;
-			const entry = past[past.length - 1];
-			set({
-				...entry.snapshot,
-				past: past.slice(0, -1),
-				future: [{ ...entry, snapshot: workspaceOf(get()) }, ...future],
-				mutationsSincePublish: Math.max(0, get().mutationsSincePublish - 1),
-			});
+			get().restore(get().past.length - 1);
 		},
 
 		redo() {
-			const { future } = get();
-			if (future.length === 0 || openBatch) return;
-			const [entry, ...rest] = future;
+			const state = get();
+			if (state.future.length === 0 || openBatch) return;
+			const [entry, ...rest] = state.future;
 			set({
 				...entry.snapshot,
-				past: [...get().past, { ...entry, snapshot: workspaceOf(get()) }],
+				past: [...state.past, { ...entry, snapshot: workspaceOf(state) }],
 				future: rest,
-				mutationsSincePublish: get().mutationsSincePublish + 1,
+				mutationsSincePublish: hasPendingChanges({ ...state, ...entry.snapshot })
+					? state.mutationsSincePublish + 1
+					: 0,
 			});
 		},
 
 		restore(index) {
 			// Back to the workspace before entry `index`: the same as undoing each
-			// later step, so the steps stay redoable and baselines are untouched.
-			if (index < 0 || index >= get().past.length || openBatch) return;
-			while (get().past.length > index) get().undo();
+			// later step (in one update), so the steps stay redoable and baselines
+			// are untouched.
+			const state = get();
+			const { past } = state;
+			if (index < 0 || index >= past.length || openBatch) return;
+			let workspace = workspaceOf(state);
+			let future = state.future;
+			for (let i = past.length - 1; i >= index; i--) {
+				// An undone step never absorbs later typing.
+				future = [{ ...past[i], coalesceKey: undefined, snapshot: workspace }, ...future];
+				workspace = past[i].snapshot;
+			}
+			const steps = past.length - index;
+			set({
+				...workspace,
+				past: past.slice(0, index),
+				future,
+				mutationsSincePublish: hasPendingChanges({ ...state, ...workspace })
+					? Math.max(1, state.mutationsSincePublish - steps)
+					: 0,
+			});
 		},
 
 		batch(fn) {
@@ -537,6 +588,11 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		setButtonProp(location, tabId, groupId, buttonId, patch) {
+			// Typing in a text field is one undo step; toggles and numbers are not merged.
+			const typed = Object.values(patch).every((v) => typeof v === "string");
+			const coalesceKey = typed
+				? `button:${location}:${buttonId}:${Object.keys(patch).sort().join(",")}`
+				: undefined;
 			set((state) =>
 				commitMutation(
 					state,
@@ -558,6 +614,7 @@ export const useRibbonStore = create<RibbonStore>()(
 						icon: "edit",
 						color: "info",
 					},
+					coalesceKey,
 				),
 			);
 		},
@@ -1040,6 +1097,7 @@ export const useRibbonStore = create<RibbonStore>()(
 					added
 						? historyMeta("added", cmd.id, "command", "add", "success")
 						: historyMeta("edited", cmd.id, "command", "edit"),
+					added ? undefined : `command:${cmd.id}`,
 				);
 			});
 		},
@@ -1093,6 +1151,7 @@ export const useRibbonStore = create<RibbonStore>()(
 					added
 						? historyMeta("added", rule.id, "display rule", "add", "success")
 						: historyMeta("edited", rule.id, "display rule", "edit"),
+					added ? undefined : `displayRule:${rule.id}`,
 				);
 			});
 		},
@@ -1137,6 +1196,7 @@ export const useRibbonStore = create<RibbonStore>()(
 					added
 						? historyMeta("added", rule.id, "enable rule", "add", "success")
 						: historyMeta("edited", rule.id, "enable rule", "edit"),
+					added ? undefined : `enableRule:${rule.id}`,
 				);
 			});
 		},
@@ -1175,7 +1235,12 @@ export const useRibbonStore = create<RibbonStore>()(
 				const locLabels = upsertById(state.locLabels, label);
 				if (!locLabels) return state;
 				// Translation edits are publishable changes too (#49).
-				return record(state, { locLabels }, historyMeta("edited", label.id, "label", "translate"));
+				return record(
+					state,
+					{ locLabels },
+					historyMeta("edited", label.id, "label", "translate"),
+					`locLabel:${label.id}`,
+				);
 			});
 		},
 
@@ -1209,6 +1274,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				// Un-hides of published scopes are done: drop them from the hidden list.
 				const layers = { ...state.layers };
 				const pendingUnhides = { ...state.pendingUnhides };
+				const unhidden: Record<LayerScope, string[]> = { entity: [], application: [] };
 				const scopes: [LayerScope, boolean][] = [
 					["entity", ENTITY_LOCATIONS.every((l) => published.includes(l))],
 					["application", published.includes("Application")],
@@ -1219,8 +1285,29 @@ export const useRibbonStore = create<RibbonStore>()(
 					if (snap) {
 						layers[scope] = { ...snap, hides: snap.hides.filter((h) => !pendingUnhides[scope].includes(h.location)) };
 					}
+					unhidden[scope] = pendingUnhides[scope];
 					pendingUnhides[scope] = [];
 				}
+				// The layer no longer hides the published un-hides, so undo must not
+				// bring them back as pending (#34 review).
+				const dropUnhidden = (e: HistoryEntry): HistoryEntry => ({
+					...e,
+					snapshot: {
+						...e.snapshot,
+						pendingUnhides: {
+							entity: e.snapshot.pendingUnhides.entity.filter((id) => !unhidden.entity.includes(id)),
+							application: e.snapshot.pendingUnhides.application.filter(
+								(id) => !unhidden.application.includes(id),
+							),
+						},
+					},
+				});
+				const anyUnhidden = unhidden.entity.length + unhidden.application.length > 0;
+				// Typing after a publish starts a new undo step.
+				const past = state.past.map((e, i) => {
+					const kept = anyUnhidden ? dropUnhidden(e) : e;
+					return i === state.past.length - 1 && kept.coalesceKey ? { ...kept, coalesceKey: undefined } : kept;
+				});
 				const pending =
 					all.some((loc) => JSON.stringify(baseline[loc]) !== JSON.stringify(current[loc])) ||
 					pendingUnhides.entity.length + pendingUnhides.application.length > 0;
@@ -1228,6 +1315,8 @@ export const useRibbonStore = create<RibbonStore>()(
 					baseline,
 					layers,
 					pendingUnhides,
+					past,
+					future: anyUnhidden ? state.future.map(dropUnhidden) : state.future,
 					...(everything
 						? {
 								baselineCommands: JSON.parse(JSON.stringify(state.commands)),

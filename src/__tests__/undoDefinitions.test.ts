@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { HIDE_DISPLAY_RULES, useRibbonStore } from "@/store/ribbonStore";
 import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
@@ -305,13 +305,179 @@ describe("history and baselines (#34)", () => {
 	});
 
 	it("caps history for definition edits and every kept step still undoes", () => {
-		for (let i = 0; i < 90; i++) {
-			store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: `v${i}` }] });
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			for (let i = 0; i < 90; i++) {
+				// Two seconds apart: separate steps, not one typing burst.
+				vi.setSystemTime(Date.UTC(2026, 0, 1) + i * 2000);
+				store().upsertLocLabel({
+					id: "Button1.LabelText",
+					titles: [{ languageCode: 1033, description: `v${i}` }],
+				});
+			}
+		} finally {
+			vi.useRealTimers();
 		}
 		expect(store().past).toHaveLength(80);
 		while (store().past.length > 0) store().undo();
 		// The oldest 10 steps fell off the cap: undo stops at v9.
 		expect(store().locLabels[0].titles[0].description).toBe("v9");
 		expect(store().future).toHaveLength(80);
+	});
+});
+
+describe("typing is one undo step (#34 review)", () => {
+	const typeFunctionName = (text: string) => {
+		for (let i = 1; i <= text.length; i++) {
+			const cmd = command("Cmd1")!;
+			store().upsertCommand({
+				...cmd,
+				actions: [{ kind: "javascript", library: "$webresource:x.js", functionName: text.slice(0, i), params: [] }],
+			});
+		}
+	};
+
+	it("typing an 85-character function name makes one entry", () => {
+		typeFunctionName("a".repeat(85));
+		expect(store().past).toHaveLength(1);
+		expect(store().mutationsSincePublish).toBe(85);
+		store().undo();
+		expect(command("Cmd1")!.actions).toEqual([]);
+		expect(store().mutationsSincePublish).toBe(0);
+	});
+
+	it("create a button, then type: two entries, and two undos remove both", () => {
+		store().batch(() => {
+			store().createButton({
+				location: "HomepageGrid",
+				tabId: "Tab1",
+				groupId: "Group1",
+				button: { id: "Button2", label: "B2", kind: "button", sequence: 20, templateAlias: "o1", commandId: "Cmd2", hidden: false, oob: false, custom: true, managed: false },
+			});
+			store().upsertCommand({ id: "Cmd2", enableRules: [], displayRules: [], actions: [] });
+		});
+		for (const name of ["f", "fo", "foo"]) {
+			store().upsertCommand({ ...command("Cmd2")!, actions: [{ kind: "javascript", library: "x.js", functionName: name, params: [] }] });
+		}
+		expect(store().past).toHaveLength(2);
+
+		store().undo();
+		expect(command("Cmd2")!.actions).toEqual([]);
+		store().undo();
+		expect(command("Cmd2")).toBeUndefined();
+		expect(buttons().map((b) => b.id)).toEqual(["Button1"]);
+	});
+
+	it("a pause, another target or an undo starts a new step", () => {
+		vi.useFakeTimers({ toFake: ["Date"] });
+		try {
+			vi.setSystemTime(Date.UTC(2026, 0, 1));
+			store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "On" }] });
+			vi.setSystemTime(Date.UTC(2026, 0, 1) + 500);
+			store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "Onx" }] });
+			expect(store().past).toHaveLength(1);
+
+			vi.setSystemTime(Date.UTC(2026, 0, 1) + 2000);
+			store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "Onxy" }] });
+			expect(store().past).toHaveLength(2);
+
+			store().upsertEnableRule({ id: "Enable1", steps: [{ kind: "CommandClientTypeRule", type: "Modern" }] });
+			store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "Onxyz" }] });
+			expect(store().past).toHaveLength(4);
+
+			store().undo();
+			store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "Q" }] });
+			expect(store().past).toHaveLength(4);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("typing a button label is one step; toggles are not merged", () => {
+		for (const label of ["N", "Ne", "New"]) {
+			store().setButtonProp("HomepageGrid", "Tab1", "Group1", "Button1", { label });
+		}
+		expect(store().past).toHaveLength(1);
+		store().setButtonProp("HomepageGrid", "Tab1", "Group1", "Button1", { hidden: true });
+		store().setButtonProp("HomepageGrid", "Tab1", "Group1", "Button1", { hidden: false });
+		expect(store().past).toHaveLength(3);
+		store().undo();
+		store().undo();
+		store().undo();
+		expect(buttons()[0].label).toBe("Button 1");
+	});
+
+	it("typing after a publish starts a new step", () => {
+		store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "A" }] });
+		store().markPublished();
+		store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "AB" }] });
+		expect(store().past).toHaveLength(2);
+	});
+});
+
+describe("undo across a publish (#34 review)", () => {
+	it("a published un-hide does not come back as pending on undo", () => {
+		store().setLayerHideUnhidden("entity", "X.Hidden", true);
+		store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "Edited" }] });
+		store().markPublished();
+		expect(store().pendingUnhides.entity).toEqual([]);
+
+		store().undo();
+		expect(store().locLabels[0].titles[0].description).toBe("One");
+		expect(store().pendingUnhides.entity).toEqual([]);
+		store().undo();
+		expect(store().pendingUnhides.entity).toEqual([]);
+	});
+
+	it("an un-hide not yet published still undoes and redoes", () => {
+		store().setLayerHideUnhidden("entity", "X.Hidden", true);
+		store().markPublished(["Application"]);
+		store().undo();
+		expect(store().pendingUnhides.entity).toEqual([]);
+		store().redo();
+		expect(store().pendingUnhides.entity).toEqual(["X.Hidden"]);
+	});
+
+	it("undo past a publish leaves the workspace marked as changed; redo back to it clears that", () => {
+		store().upsertCommand({ ...command("Cmd1")!, enableRules: [] });
+		store().markPublished();
+		expect(store().mutationsSincePublish).toBe(0);
+
+		store().undo();
+		expect(command("Cmd1")!.enableRules).toEqual(["Enable1"]);
+		expect(store().mutationsSincePublish).toBeGreaterThan(0);
+
+		store().redo();
+		expect(store().mutationsSincePublish).toBe(0);
+	});
+
+	it("undo back to the loaded state clears the change count", () => {
+		store().upsertCommand({ ...command("Cmd1")!, enableRules: [] });
+		store().upsertDisplayRule({ id: "Display1", steps: [{ kind: "CommandClientTypeRule", type: "Modern" }] });
+		store().undo();
+		expect(store().mutationsSincePublish).toBe(1);
+		store().undo();
+		expect(store().mutationsSincePublish).toBe(0);
+	});
+});
+
+describe("restore (#34 review)", () => {
+	it("can go back to the loaded state in one update", () => {
+		store().upsertCommand({ ...command("Cmd1")!, enableRules: [] });
+		store().upsertDisplayRule({ id: "Display2", steps: [] });
+		store().setButtonProp("HomepageGrid", "Tab1", "Group1", "Button1", { hidden: true });
+
+		let updates = 0;
+		const unsubscribe = useRibbonStore.subscribe(() => updates++);
+		store().restore(0);
+		unsubscribe();
+
+		expect(updates).toBe(1);
+		expect(store().past).toHaveLength(0);
+		expect(store().future).toHaveLength(3);
+		expect(command("Cmd1")!.enableRules).toEqual(["Enable1"]);
+		expect(store().displayRules.map((r) => r.id)).toEqual(["Display1"]);
+		expect(buttons()[0].hidden).toBe(false);
+		expect(store().mutationsSincePublish).toBe(0);
 	});
 });
