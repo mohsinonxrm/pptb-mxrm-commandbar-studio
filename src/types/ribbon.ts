@@ -155,6 +155,8 @@ export interface RibbonDefinition {
 	tabs: RibbonTab[];
 	flow?: string[];
 	scalingByTab?: Record<string, ScalingDefinition>;
+	/** Layout titles of the group templates this ribbon's groups use, as loaded (template id → titles). */
+	templateLayouts?: Record<string, string[]>;
 }
 
 export interface CommandDefinition {

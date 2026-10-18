@@ -127,12 +127,15 @@ export function parseRibbonXml(
 		}
 	}
 
+	// Layout titles of the templates the groups use, for the pre-publish check (#35).
+	const templateLayouts = parseTemplateLayouts(doc, tabs);
 	return {
 		ribbon: {
 			location,
 			entityLogicalName,
 			tabs,
 			...(Object.keys(scalingByTab).length > 0 ? { scalingByTab } : {}),
+			...(Object.keys(templateLayouts).length ? { templateLayouts } : {}),
 		},
 		commands,
 		displayRules,
@@ -218,6 +221,20 @@ function parseScaling(doc: Document): Record<string, ScalingDefinition> {
 			maxSizes: kids.filter((k) => k.tagName === "MaxSize").map(step),
 			scales: kids.filter((k) => k.tagName === "Scale").map(step),
 		};
+	});
+	return out;
+}
+
+/** Layout titles of the group templates the tabs' groups use (`GroupTemplate` > `Layout Title`). */
+function parseTemplateLayouts(doc: Document, tabs: RibbonTab[]): Record<string, string[]> {
+	const used = new Set(tabs.flatMap((t) => t.groups.map((g) => g.template)).filter(Boolean));
+	const out: Record<string, string[]> = {};
+	doc.querySelectorAll("GroupTemplate").forEach((el) => {
+		const id = el.getAttribute("Id");
+		if (!id || !used.has(id)) return;
+		out[id] = Array.from(el.querySelectorAll(":scope > Layout"))
+			.map((l) => l.getAttribute("Title") ?? "")
+			.filter(Boolean);
 	});
 	return out;
 }

@@ -15,6 +15,7 @@ import {
 	MessageBarBody,
 	Option,
 	ProgressBar,
+	Spinner,
 	Switch,
 	Textarea,
 	Text,
@@ -26,13 +27,17 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import {
+	checkBeforePublish,
 	publishAllAsync,
 	publishRibbon,
+	withCheckTimeout,
 	type PublishVerification,
 } from "@/services/dataverse/publishService";
 import { fetchLayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import { loadWebResourceStatus } from "@/services/dataverse/webResourceService";
 import { planScope, type ScopePlan } from "@/services/publishPlan";
 import type { RibbonDiffParts } from "@/services/ribbonDiffMerge";
+import type { PublishFinding } from "@/services/xmlValidator";
 import type { RibbonLocation } from "@/types/ribbon";
 import { groupControls } from "@/utils/ribbonMenu";
 
@@ -56,7 +61,23 @@ const useStyles = makeStyles({
 
 type PublishStatus = "pending" | "publishing" | "success" | "error";
 
+type ScopeFinding = PublishFinding & { scope: string };
+
+const FindingList: React.FC<{ findings: ScopeFinding[]; showScope: boolean }> = ({ findings, showScope }) => (
+	<ul style={{ margin: `${tokens.spacingVerticalXS} 0 0`, paddingLeft: 20 }}>
+		{findings.map((f, i) => (
+			<li key={i}>
+				{showScope && <strong>{f.scope}: </strong>}
+				{f.message}
+			</li>
+		))}
+	</ul>
+);
+
 const ENTITY_LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form"];
+
+/** How long the pre-publish check may hold Publish back (#35). */
+const PRECHECK_TIMEOUT_MS = 30_000;
 
 /**
  * Publishes the table being edited (all of its ribbon locations in one
@@ -84,6 +105,7 @@ export const BulkPublishModal: React.FC = () => {
 	const pendingUnhides = useRibbonStore((s) => s.pendingUnhides);
 	const customisedCommandIds = useRibbonStore((s) => s.customisedCommandIds);
 	const uncustomisedCommandIds = useRibbonStore((s) => s.uncustomisedCommandIds);
+	const baseLanguageCode = useRibbonStore((s) => s.baseLanguageCode);
 	const setLayerSnapshot = useRibbonStore((s) => s.setLayerSnapshot);
 	const markPublished = useRibbonStore((s) => s.markPublished);
 	const mutationsSincePublish = useRibbonStore((s) => s.mutationsSincePublish);
@@ -183,8 +205,104 @@ export const BulkPublishModal: React.FC = () => {
 		...(includeApplicationRibbon ? ["Application ribbon"] : []),
 	];
 
+	// Pre-publish check (#35): validates the RibbonDiffXml each scope would
+	// import (existing layer + changes). It runs once the plan has nothing
+	// unsupported — the plan already explains those, and a merge of them means
+	// nothing. Errors block Publish; warnings don't.
+	const [checkState, setCheckState] = useState<"idle" | "running" | "done" | "failed">("idle");
+	const [checkFindings, setCheckFindings] = useState<ScopeFinding[]>([]);
+	const [checkError, setCheckError] = useState("");
+	const canCheck = bulkPublishOpen && !!activeSolution && unsupported.length === 0 && scopes.length > 0;
+	const solutionId = activeSolution?.id;
+	const solutionPrefix = activeSolution?.publisherPrefix || publisherPrefix;
+	const runChecks = React.useCallback(async (): Promise<ScopeFinding[]> => {
+		const common = {
+			commands,
+			enableRules,
+			displayRules,
+			locLabels,
+			baselineCommands,
+			baselineEnableRules,
+			baselineDisplayRules,
+			publisherPrefix: solutionPrefix,
+			// Labels are generated in the organisation's base language, as publishRibbon does.
+			languageCode: baseLanguageCode,
+		};
+		const options = { lookupWebResources: (names: string[]) => loadWebResourceStatus(names, solutionId) };
+		const out: ScopeFinding[] = [];
+		if (activeEntity && entityPlan?.hasChanges) {
+			const { findings } = await checkBeforePublish(
+				{
+					...common,
+					entity: { logicalName: activeEntity.logicalName, schemaName: activeEntity.schemaName },
+					locations: ENTITY_LOCATIONS.map((l) => ({ current: ribbons[l], baseline: baseline[l] })),
+					plan: entityPlan,
+				},
+				options,
+			);
+			out.push(...findings.map((f) => ({ ...f, scope: activeEntity.logicalName })));
+		}
+		if (includeApplicationRibbon) {
+			const { findings } = await checkBeforePublish(
+				{
+					...common,
+					entity: null,
+					locations: [{ current: ribbons.Application, baseline: baseline.Application }],
+					plan: appPlan,
+				},
+				options,
+			);
+			out.push(...findings.map((f) => ({ ...f, scope: "Application ribbon" })));
+		}
+		return out;
+	}, [
+		activeEntity,
+		entityPlan,
+		appPlan,
+		includeApplicationRibbon,
+		ribbons,
+		baseline,
+		commands,
+		enableRules,
+		displayRules,
+		locLabels,
+		baselineCommands,
+		baselineEnableRules,
+		baselineDisplayRules,
+		solutionPrefix,
+		solutionId,
+		baseLanguageCode,
+	]);
+	React.useEffect(() => {
+		if (!canCheck || publishing || done) return;
+		let cancelled = false;
+		setCheckState("running");
+		setCheckError("");
+		// A slow environment must not hold Publish back: after the timeout the
+		// check is reported as incomplete; publishRibbon still runs its own check.
+		withCheckTimeout(runChecks(), PRECHECK_TIMEOUT_MS)
+			.then((findings) => {
+				if (cancelled) return;
+				setCheckFindings(findings);
+				setCheckState("done");
+			})
+			.catch((err: unknown) => {
+				if (cancelled) return;
+				setCheckFindings([]);
+				setCheckError(err instanceof Error ? err.message : String(err));
+				setCheckState("failed");
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [canCheck, publishing, done, runChecks]);
+	const checkErrors = checkFindings.filter((f) => f.severity === "error");
+	const checkWarnings = checkFindings.filter((f) => f.severity === "warning");
+	const showFindingScope = new Set(checkFindings.map((f) => f.scope)).size > 1;
+	const checkBlocks = canCheck && (checkState === "running" || checkErrors.length > 0);
+
 	const handlePublish = async () => {
-		if (!activeSolution || unsupported.length > 0 || scopes.length === 0) return;
+		if (!activeSolution || unsupported.length > 0 || scopes.length === 0 || checkBlocks) return;
 		setPublishing(true);
 		setProgressMessage("");
 		setErrorMessages([]);
@@ -205,6 +323,9 @@ export const BulkPublishModal: React.FC = () => {
 			enableRules,
 			displayRules,
 			locLabels,
+			baselineCommands,
+			baselineEnableRules,
+			baselineDisplayRules,
 			publishCustomizations: true,
 			solution: {
 				uniqueName: activeSolution.uniqueName,
@@ -315,6 +436,9 @@ export const BulkPublishModal: React.FC = () => {
 		setProgressMessage("");
 		setErrorMessages([]);
 		setVerifications([]);
+		setCheckState("idle");
+		setCheckFindings([]);
+		setCheckError("");
 		closeBulkPublish();
 	};
 
@@ -355,6 +479,47 @@ export const BulkPublishModal: React.FC = () => {
 												<li key={w}>{w}</li>
 											))}
 										</ul>
+									</MessageBarBody>
+								</MessageBar>
+							)}
+
+							{canCheck && !done && !publishing && checkState === "running" && (
+								<div className={styles.progressRow}>
+									<Spinner size="tiny" />
+									<Text>Checking the ribbon customizations before publishing…</Text>
+								</div>
+							)}
+
+							{canCheck && !done && checkState === "failed" && (
+								<MessageBar intent="warning" layout="multiline">
+									<MessageBarBody>
+										The pre-publish check couldn&apos;t complete ({checkError}). Publishing runs the
+										check again before anything is imported.
+									</MessageBarBody>
+								</MessageBar>
+							)}
+
+							{canCheck && !done && checkErrors.length > 0 && (
+								<MessageBar intent="error" layout="multiline">
+									<MessageBarBody>
+										<strong>
+											Publishing is blocked: the pre-publish check found {checkErrors.length} error
+											{checkErrors.length !== 1 ? "s" : ""}. Fix{" "}
+											{checkErrors.length !== 1 ? "them" : "it"}, then reopen this dialog:
+										</strong>
+										<FindingList findings={checkErrors} showScope={showFindingScope} />
+									</MessageBarBody>
+								</MessageBar>
+							)}
+
+							{canCheck && !done && checkWarnings.length > 0 && (
+								<MessageBar intent="warning" layout="multiline">
+									<MessageBarBody>
+										<strong>
+											{checkWarnings.length} warning{checkWarnings.length !== 1 ? "s" : ""} — you can
+											still publish:
+										</strong>
+										<FindingList findings={checkWarnings} showScope={showFindingScope} />
 									</MessageBarBody>
 								</MessageBar>
 							)}
@@ -525,7 +690,11 @@ export const BulkPublishModal: React.FC = () => {
 								appearance="primary"
 								onClick={() => void handlePublish()}
 								disabled={
-									publishing || !activeSolution || scopes.length === 0 || unsupported.length > 0
+									publishing ||
+									!activeSolution ||
+									scopes.length === 0 ||
+									unsupported.length > 0 ||
+									checkBlocks
 								}
 							>
 								{publishing ? "Publishing..." : "Publish"}
