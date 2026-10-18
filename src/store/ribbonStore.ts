@@ -16,6 +16,7 @@ import type {
 	ScalingDefinition,
 } from "@/types/ribbon";
 import type { LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import { sourceForCopy } from "@/utils/copyButton";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -550,8 +551,8 @@ export const useRibbonStore = create<RibbonStore>()(
 								id: `${btn.id}_copy_${Date.now()}`,
 								label: `${btn.label} (copy)`,
 								// The copy is a new control: it must not reuse the original's
-								// LocLabel tokens / attributes (#11 review N5).
-								source: undefined,
+								// LocLabel tokens / attributes (#11 review N5), only its icon (#60).
+								source: sourceForCopy(btn.source),
 								custom: true,
 								oob: false,
 								managed: false,

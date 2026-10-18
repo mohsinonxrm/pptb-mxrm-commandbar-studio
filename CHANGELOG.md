@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🖼️ Icons on copies and picked web resources ([#60](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/60), [#61](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/61))
+
+- A button **duplicated** or **copied from Solution Elements** keeps its icon (the loaded
+  ModernImage and image16/image32); a copy from Solution Elements also keeps its command
+  and tooltips. Label tokens of the original are still not reused.
+- Picking an **existing web resource** in the icon picker adds it to the active unmanaged
+  solution, so a solution export carries the icon (with a warning when no unmanaged
+  solution is selected; an error when the typed name doesn't exist).
+
 ### 🚀 Publish gaps ([#46](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/46), [#47](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/47), [#48](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/48), [#49](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/49), [#50](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/50), [#52](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/52), [#26](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/26))
 
 - **Hidden by customizations** — controls hidden by a `HideCustomAction` in the

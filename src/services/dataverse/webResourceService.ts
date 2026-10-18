@@ -253,6 +253,31 @@ export async function saveWebResource(
 }
 
 /**
+ * Adds an existing web resource, picked by name, to the active unmanaged
+ * solution (#61), so a solution export carries the icon a ribbon references.
+ * Throws when no web resource has that name; with a managed or missing active
+ * solution nothing is added and `solutionWarning` says why (also logged).
+ */
+export async function addExistingWebResourceToActiveSolution(
+	name: string,
+	knownId?: string,
+): Promise<{ solutionUniqueName?: string; solutionWarning?: string }> {
+	const id = knownId ?? (await loadWebResourceByName(name))?.id;
+	if (!id) throw new Error(`No web resource named ${name} exists in this environment.`);
+	const active = useSessionStore.getState().activeSolution;
+	if (!active || active.isManaged) {
+		const why = active ? `the active solution ${active.uniqueName} is managed` : "no solution is selected";
+		const solutionWarning =
+			`Web resource ${name} was not added to any solution because ${why}. ` +
+			`Select an unmanaged solution and pick the icon again so it travels with your customizations.`;
+		useRuntimeLogStore.getState().logWarn("webresource", solutionWarning);
+		return { solutionWarning };
+	}
+	await addWebResourceToSolution(getHostDataverseApi(), id, active.uniqueName);
+	return { solutionUniqueName: active.uniqueName };
+}
+
+/**
  * Publishes a single web resource via the PublishXml action so a freshly
  * created/updated icon is immediately live (and resolvable by a ribbon that
  * references it). Best-effort — callers should treat failure as non-fatal.

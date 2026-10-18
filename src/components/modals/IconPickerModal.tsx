@@ -26,7 +26,11 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import FluentIcon, { fluentIconToSvg } from "@/components/shared/FluentIcon";
-import { loadWebResources, saveWebResource } from "@/services/dataverse/webResourceService";
+import {
+	addExistingWebResourceToActiveSolution,
+	loadWebResources,
+	saveWebResource,
+} from "@/services/dataverse/webResourceService";
 import { ensureFluentIconWebResource } from "@/services/iconWebResource";
 import { fluentIconWebResourceName, toSnakeCase } from "@/utils/iconWebResourceName";
 import type { WebResource } from "@/types/webResource";
@@ -381,8 +385,32 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 		}
 	};
 
-	const handleSelectWebResource = () => {
+	const handleSelectWebResource = async () => {
 		if (!webResourcePath || !selectedButtonId || !selectedGroupId) return;
+		const logs = useRuntimeLogStore.getState();
+		setIconError(null);
+		// An existing web resource must also be in the active solution, or a
+		// solution export misses the icon the ribbon references (#61).
+		const name = webResourcePath.startsWith("$webresource:")
+			? webResourcePath.slice("$webresource:".length).trim()
+			: null;
+		if (name) {
+			setUploading(true);
+			try {
+				const known = webResources.find((wr) => wr.name === name);
+				const added = await addExistingWebResourceToActiveSolution(name, known?.id);
+				if (added.solutionUniqueName) {
+					logs.logInfo("webresource", `Added web resource ${name} to solution ${added.solutionUniqueName}.`);
+				}
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				setIconError(message);
+				logs.logError("webresource", `Web resource ${name} could not be added to the solution: ${message}`);
+				return;
+			} finally {
+				setUploading(false);
+			}
+		}
 		setButtonProp(location, tabId, selectedGroupId, selectedButtonId, {
 			image16: webResourcePath,
 			image32: webResourcePath,
@@ -633,10 +661,10 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 						{activeTab === "webresource" && (
 							<Button
 								appearance="primary"
-								disabled={!webResourcePath}
-								onClick={handleSelectWebResource}
+								disabled={!webResourcePath || uploading}
+								onClick={() => void handleSelectWebResource()}
 							>
-								Use web resource
+								{uploading ? "Adding icon…" : "Use web resource"}
 							</Button>
 						)}
 					</DialogActions>

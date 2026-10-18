@@ -32,6 +32,7 @@ import FluentIcon from "@/components/shared/FluentIcon";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
+import { sourceForCopy } from "@/utils/copyButton";
 
 const DRAG_MIME = "application/x-rw-btn";
 // Drag-source MIME emitted by SolutionElementsPane when the user drags an
@@ -231,14 +232,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 		const sePayload = e.dataTransfer.getData(DRAG_SE_MIME);
 		if (sePayload) {
 			try {
-				const src = JSON.parse(sePayload) as {
-					button?: {
-						id: string;
-						label?: string;
-						icon?: string;
-						kind?: RibbonButton["kind"];
-					};
-				};
+				const src = JSON.parse(sePayload) as { button?: RibbonButton };
 				const seButton = src?.button;
 				if (seButton) {
 					// Use a copy-suffixed ID so we don't clash with the source
@@ -249,13 +243,16 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 						tabId: tab.id,
 						groupId,
 						button: {
+							// A copy of the whole button — icon, images, command, tooltips —
+							// as a new control (#60): no LocLabel tokens of the original.
+							...seButton,
 							id: `${seButton.id}${stamp}`,
 							label: seButton.label ?? "New Button",
-							icon: seButton.icon,
 							kind: seButton.kind ?? "button",
 							sequence: 50,
-							templateAlias: "o1",
-							commandId: "",
+							templateAlias: seButton.templateAlias ?? "o1",
+							commandId: seButton.commandId ?? "",
+							source: sourceForCopy(seButton.source),
 							hidden: false,
 							oob: false,
 							custom: true,
