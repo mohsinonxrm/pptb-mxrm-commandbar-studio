@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🧾 No form-specific ribbon scope ([#14](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/14))
+
+- Removed the **Specific form only** option (and its form picker) from the properties
+  pane. Form-specific ribbons aren't supported on Unified Interface and CBS never wrote
+  them; form command bar changes apply to every main form of the table, as the pane
+  now says.
+
 ### 🚀 Publish gaps ([#46](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/46), [#47](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/47), [#48](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/48), [#49](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/49), [#50](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/50), [#52](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/52), [#26](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/26))
 
 - **Hidden by customizations** — controls hidden by a `HideCustomAction` in the

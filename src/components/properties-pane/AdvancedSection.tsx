@@ -5,17 +5,11 @@ import {
 	Text,
 	Switch,
 	Badge,
-	Field,
-	Select,
-	MessageBar,
-	MessageBarBody,
 } from "@fluentui/react-components";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
-import { useSessionStore } from "@/store/sessionStore";
 import { useUIStore } from "@/store/uiStore";
 import type { CommandDefinition, DisplayRule, RuleStep } from "@/types/ribbon";
-import { fetchEntityForms } from "@/services/dataverse/entityService";
 
 const useStyles = makeStyles({
 	section: {
@@ -60,15 +54,6 @@ export const AdvancedSection: React.FC = () => {
 	const group = tab?.groups.find((g) => g.id === selectedGroupId);
 	const button = group?.buttons.find((b) => b.id === selectedButtonId);
 	const showOpenRecordItemToggle = location === "HomepageGrid" || location === "SubGrid";
-	const activeEntity = useSessionStore((s) => s.activeEntity);
-	const formRibbonScope = useSessionStore((s) => s.formRibbonScope);
-	const setFormRibbonScope = useSessionStore((s) => s.setFormRibbonScope);
-	const entityForms = useSessionStore((s) => s.entityForms);
-	const setEntityForms = useSessionStore((s) => s.setEntityForms);
-	const selectedFormId = useSessionStore((s) => s.selectedFormId);
-	const setSelectedFormId = useSessionStore((s) => s.setSelectedFormId);
-	const [formsLoading, setFormsLoading] = React.useState(false);
-	const [formsError, setFormsError] = React.useState<string | null>(null);
 
 	const hasOpenRecordOverride = commands.some((c) => c.id === "Mscrm.OpenRecordItem");
 
@@ -138,35 +123,6 @@ export const AdvancedSection: React.FC = () => {
 		}
 	};
 
-	React.useEffect(() => {
-		if (location !== "Form") return;
-		if (!activeEntity?.logicalName) {
-			setEntityForms([]);
-			return;
-		}
-
-		let disposed = false;
-		setFormsLoading(true);
-		setFormsError(null);
-		void fetchEntityForms(activeEntity.logicalName)
-			.then((forms) => {
-				if (disposed) return;
-				setEntityForms(forms);
-			})
-			.catch((error: unknown) => {
-				if (disposed) return;
-				setEntityForms([]);
-				setFormsError(String(error));
-			})
-			.finally(() => {
-				if (!disposed) setFormsLoading(false);
-			});
-
-		return () => {
-			disposed = true;
-		};
-	}, [location, activeEntity?.logicalName, setEntityForms]);
-
 	return (
 		<div className={styles.section}>
 			<Text size={200} weight="semibold">
@@ -198,57 +154,12 @@ export const AdvancedSection: React.FC = () => {
 			)}
 
 			{location === "Form" && (
-				<div style={{ display: "flex", flexDirection: "column", gap: tokens.spacingVerticalXS }}>
-					<Text size={100} weight="semibold" className={styles.note}>
-						Form ribbon scope
-					</Text>
-					<Field label="Scope target">
-						<Select
-							value={formRibbonScope}
-							onChange={(_, d) => setFormRibbonScope(d.value as "entity" | "form")}
-						>
-							<option value="entity">All forms for this table</option>
-							<option value="form">Specific form only</option>
-						</Select>
-					</Field>
-
-					{formRibbonScope === "form" && (
-						<Field label="Form picker" hint="Target systemform for RibbonDiffXml placement">
-							<Select
-								value={selectedFormId}
-								onChange={(_, d) => setSelectedFormId(d.value)}
-								disabled={formsLoading || entityForms.length === 0}
-							>
-								{entityForms.length === 0 && <option value="">No forms available</option>}
-								{entityForms.map((form) => (
-									<option key={form.formId} value={form.formId}>
-										{form.name}
-									</option>
-								))}
-							</Select>
-						</Field>
-					)}
-
-					{formsLoading && (
-						<Text size={100} className={styles.note}>
-							Loading forms...
-						</Text>
-					)}
-
-					{formsError && (
-						<MessageBar intent="warning">
-							<MessageBarBody>
-								Unable to load forms from Dataverse. Specific-form scope requires a valid form ID.
-							</MessageBarBody>
-						</MessageBar>
-					)}
-
-					<Text size={100} className={styles.note}>
-						All forms scope maps to ImportExportXml/Entities/Entity/RibbonDiffXml. Specific form
-						scope maps to
-						ImportExportXml/Entities/Entity/FormXml/forms/systemform/form/RibbonDiffXml.
-					</Text>
-				</div>
+				<Text size={100} className={styles.note}>
+					Form command bar changes apply to every main form of this table
+					(ImportExportXml/Entities/Entity/RibbonDiffXml). Form-specific ribbons
+					(systemform/form/RibbonDiffXml) aren&apos;t supported on Unified Interface, so CBS
+					doesn&apos;t write them (#14).
+				</Text>
 			)}
 
 			<div>
