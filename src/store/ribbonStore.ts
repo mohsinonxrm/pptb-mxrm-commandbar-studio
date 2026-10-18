@@ -25,7 +25,7 @@ import {
 } from "@/services/ribbonDiffMerge";
 import type { LayerOrphan } from "@/services/layerOrphans";
 import { defaultTabDisplayRules, newTabCommandId } from "@/services/xmlGenerator";
-import { generateRibbonId } from "@/utils/idGenerator";
+import { generateRibbonId, newButtonIds } from "@/utils/idGenerator";
 import {
 	copyControl,
 	findGroupControl,
@@ -38,8 +38,20 @@ import {
 } from "@/utils/ribbonMenu";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import { isPlatformText } from "@/utils/displayLabel";
+import { isReadOnlyControlKind, renameCommandInXml } from "@/utils/controlKinds";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { canDeleteControl, canDeleteGroup, canDeleteTab } from "@/utils/ribbonProvenance";
+import { onSolutionSwitch } from "@/store/sessionStore";
+import { useSelectionStore } from "@/store/selectionStore";
+import {
+	OPEN_RECORD_ITEM_COMMAND_ID,
+	OPEN_RECORD_ITEM_LOCATIONS,
+	defaultOpenRecordCommand,
+	openRecordCarrierOwnership,
+	openRecordCarrierPlacement,
+	openRecordCarriers,
+	openRecordCommandUsers,
+} from "@/utils/openRecordItem";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -278,6 +290,20 @@ export interface RibbonStore extends RibbonStoreState {
 	/** Discards this session's customise / uncustomise / edits of a command (back to as loaded). */
 	discardCommandChanges(commandId: string): void;
 	/**
+	 * Turns the override of opening a grid row (Mscrm.OpenRecordItem, #22) on
+	 * or off for the home grid or the sub-grid (see utils/openRecordItem). On:
+	 * a button using the command (the carrier Microsoft's recipe adds) goes on
+	 * the location's main tab, and the command is added with a placeholder
+	 * JavaScript action unless it is loaded already. Off: the carriers the
+	 * switch created in the location are deleted (other buttons using the
+	 * command stay), and the command too when no button uses it any more and it
+	 * was created this session; the layer's copy is removed by the publish with
+	 * the last button using it. One undo step. Returns false when it can't be
+	 * done: no group to put the carrier in, or a carrier that isn't yours (or
+	 * whose provenance isn't known yet).
+	 */
+	setOpenRecordOverride(location: RibbonLocation, enabled: boolean, idPrefix: string): boolean;
+	/**
 	 * Hides a button reversibly: adds the platform display rules
 	 * Mscrm.HideOnModern + Mscrm.ShowOnlyOnModern (never both true) to its
 	 * command. Every button that uses the command is hidden. Returns false when
@@ -327,6 +353,8 @@ export interface RibbonStore extends RibbonStoreState {
 	 * loaded, so the restored edits are changes to publish.
 	 */
 	restoreWorkspace(workspace: WorkspaceSnapshot, detail: string): void;
+	/** Empties the workspace (no table loaded): a solution switch ends the table being edited (#22). */
+	resetWorkspace(): void;
 }
 
 const MAX_HISTORY = 80;
@@ -597,6 +625,8 @@ export function canCustomiseButton(location: RibbonLocation, tabId: string, butt
 		!button.hidden &&
 		button.kind !== "flyout" &&
 		button.kind !== "splitButton" &&
+		// Copied from its attributes, which would lose the XML of a read-only kind (#42).
+		!isReadOnlyControlKind(button.kind) &&
 		!isReadOnlyGlobalOobButton(location, tabId, button)
 	);
 }
@@ -741,6 +771,10 @@ export const useRibbonStore = create<RibbonStore>()(
 				if (JSON.stringify(workspaceOf({ ...state, ...change })) === JSON.stringify(workspaceOf(state))) return state;
 				return record(state, change, historyMeta("restored", "unsaved changes", detail, "history"));
 			});
+		},
+
+		resetWorkspace() {
+			get().loadWorkspace({ ribbons: EMPTY_RIBBONS, commands: [], displayRules: [], enableRules: [], locLabels: [] });
 		},
 
 		undo() {
@@ -1071,7 +1105,9 @@ export const useRibbonStore = create<RibbonStore>()(
 							const platformLabel = isPlatformText(btn.source?.labelToken);
 							const copy: RibbonButton = {
 								...copyControl(btn, `${btn.id}_copy_${Date.now()}`),
-								label: platformLabel ? btn.label : `${btn.label} (copy)`,
+								// A read-only kind is copied as loaded (#42), and a platform text
+								// (`$Resources:`) can't take a " (copy)" suffix (#86): both keep their label.
+								label: isReadOnlyControlKind(btn.kind) || platformLabel ? btn.label : `${btn.label} (copy)`,
 								sequence: btn.sequence + 5,
 							};
 							const place = menuItemPlace(group, buttonId);
@@ -1217,8 +1253,9 @@ export const useRibbonStore = create<RibbonStore>()(
 							...JSON.parse(JSON.stringify(grp)),
 							id: `${grp.id}${stamp}`,
 							label: `${grp.label} (copy)`,
-							// The copy must not reuse an imported group's Title label (#30).
+							// The copy must not reuse an imported group's Title label (#30), nor its Description (#42).
 							source: undefined,
+							description: undefined,
 							sequence: grp.sequence + 5,
 							buttons: grp.buttons.map((b) => copyControl(b, `${b.id}${stamp}`)),
 						};
@@ -1668,6 +1705,67 @@ export const useRibbonStore = create<RibbonStore>()(
 			);
 		},
 
+		setOpenRecordOverride(location, enabled, idPrefix) {
+			if (!OPEN_RECORD_ITEM_LOCATIONS.includes(location)) return false;
+			const state = get();
+			const ribbon = state.ribbons[location];
+			const carriers = openRecordCarriers(ribbon);
+			if (enabled) {
+				if (carriers.length > 0) return true;
+				const at = openRecordCarrierPlacement(ribbon);
+				if (!at) return false;
+				const taken = workspaceIds(state, state.ribbons);
+				for (const c of state.commands) taken.add(c.id);
+				const { id } = newButtonIds(idPrefix, ribbon.entityLogicalName, location, "OpenRecordItem", taken);
+				get().batch(() => {
+					get().createButton({
+						location,
+						tabId: at.tabId,
+						groupId: at.groupId,
+						button: {
+							id,
+							label: "Open record",
+							tooltipTitle: "Open record",
+							tooltipBody: `Runs the table's ${OPEN_RECORD_ITEM_COMMAND_ID} action for the selected row, as opening a row does.`,
+							kind: "button",
+							templateAlias: "o1",
+							commandId: OPEN_RECORD_ITEM_COMMAND_ID,
+							hidden: false,
+							oob: false,
+							custom: true,
+							managed: false,
+						},
+					});
+					if (!get().commands.some((c) => c.id === OPEN_RECORD_ITEM_COMMAND_ID)) {
+						get().upsertCommand(defaultOpenRecordCommand());
+					}
+				});
+				return true;
+			}
+			if (carriers.length === 0) return true;
+			// Provenance not resolved yet ("unknown") or another solution's: not deleted.
+			if (carriers.some((c) => openRecordCarrierOwnership(c) !== "yours")) return false;
+			get().batch(() => {
+				// Only the carriers the switch created: a button of your own that
+				// uses the command stays (#22 review).
+				for (const c of carriers) get().deleteButton(location, c.tabId, c.groupId, c.button.id);
+				const s = get();
+				const inUse = Object.values(s.ribbons).some((r) => openRecordCommandUsers(r).length > 0);
+				// A command the layer defines stays in the session: the publish
+				// removes it from the layer together with the last button using it.
+				if (!inUse && !s.baselineCommands.some((c) => c.id === OPEN_RECORD_ITEM_COMMAND_ID)) {
+					set((st) =>
+						record(
+							st,
+							{ commands: st.commands.filter((c) => c.id !== OPEN_RECORD_ITEM_COMMAND_ID) },
+							historyMeta("removed", OPEN_RECORD_ITEM_COMMAND_ID, "grid open override", "delete", "danger"),
+						),
+					);
+				}
+			});
+			return true;
+		},
+
 		hideWithDisplayRules(buttonCommandId) {
 			const cmd = buttonCommandId ? get().commands.find((c) => c.id === buttonCommandId) : undefined;
 			if (!cmd) return false;
@@ -1715,6 +1813,8 @@ export const useRibbonStore = create<RibbonStore>()(
 								if (button.commandId === oldId) {
 									button.commandId = newId;
 								}
+								// A control written verbatim (#42) names the command in its XML.
+								if (button.source?.xml) button.source.xml = renameCommandInXml(button.source.xml, oldId, newId);
 							}
 						}
 					}
@@ -2017,3 +2117,11 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 	})),
 );
+
+// Switching solution ends the table being edited (#22): its ribbon, commands
+// and history must not stay on the canvas (or reach a publish into the new
+// solution). App.tsx loads the next table when one is picked.
+onSolutionSwitch(() => {
+	useRibbonStore.getState().resetWorkspace();
+	useSelectionStore.getState().clearSelection();
+});

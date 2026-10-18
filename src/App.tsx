@@ -203,7 +203,13 @@ export function App() {
 	useEffect(() => {
 		// Until a table's workspace is loaded, no draft belongs to the store's (#16).
 		useDraftStore.getState().beginLoad();
-		if (!activeEntity?.logicalName) return;
+		// No table (e.g. after switching solution, which also empties the ribbon
+		// store, #22): a previous table's load error or spinner doesn't apply.
+		if (!activeEntity?.logicalName) {
+			setRibbonLoadState("idle");
+			setRibbonLoadError(null);
+			return;
+		}
 
 		let cancelled = false;
 		const draftKey = draftKeyFor(activeEntity.logicalName);

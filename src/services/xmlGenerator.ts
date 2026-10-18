@@ -26,6 +26,7 @@ import {
 import { isPlatformText, resolveDisplayLabel } from "@/utils/displayLabel";
 import { freeMaxSizeSequence, maxSizeBand } from "@/services/scalingSequence";
 import { menuItemsOf } from "@/utils/ribbonMenu";
+import { CONTROL_TAG_BY_KIND, controlCommandIds, isReadOnlyControlKind } from "@/utils/controlKinds";
 
 interface GeneratorInput {
 	current: RibbonDefinition;
@@ -372,9 +373,8 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 
 	// Collect referenced commands / rules from the EMITTED buttons only.
 	const referencedCommandIds = new Set<string>();
-	for (const button of emittedButtons) {
-		if (button.commandId) referencedCommandIds.add(button.commandId);
-	}
+	// A control written verbatim (#42) brings its other commands too: QueryCommand, … (controlCommandIds).
+	for (const button of emittedButtons) for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
 	// A new tab's Command is defined with it (an empty command, as in
 	// Microsoft's custom-tab walkthrough) unless the model already has one.
 	const tabCommands: CommandDefinition[] = [];
@@ -619,6 +619,9 @@ const TEMPLATE_MAX_SIZE: Record<string, string> = {
 	"Mscrm.Templates.ThreeLargeThreeMedium": "Large",
 };
 
+/** The platform group templates whose layouts CBS knows — the choices for a group's template (#18). */
+export const PLATFORM_GROUP_TEMPLATES: readonly string[] = Object.keys(TEMPLATE_MAX_SIZE);
+
 /** The MaxSize Size a new group gets by default, or undefined when its template's layouts aren't known. */
 function defaultMaxSizeSize(group: RibbonGroup): string | undefined {
 	return TEMPLATE_MAX_SIZE[normalizeGroupTemplate(group.template)];
@@ -793,7 +796,7 @@ function generateTabCustomAction(
     Location="${escapeXml(location)}"
     Sequence="${tab.sequence}">
     <CommandUIDefinition>
-      <Tab Id="${escapeXml(tab.id)}"${commandAttr} Title="${escapeXml(title)}" Sequence="${tab.sequence}"${containerAttributes(tab)}>
+      <Tab Id="${escapeXml(tab.id)}"${commandAttr} Title="${escapeXml(title)}"${descriptionAttr(tab, storeLocLabels, sink)} Sequence="${tab.sequence}"${containerAttributes(tab)}>
         ${scalingXml}
         <Groups Id="${escapeXml(tab.id)}.Groups">
         ${groupsXml}
@@ -823,7 +826,7 @@ function generateGroupElement(
 			: `<Controls Id="${escapeXml(group.id)}.Controls">
             ${controls.join("\n            ")}
           </Controls>`;
-	return `<Group Id="${escapeXml(group.id)}" Title="${escapeXml(title)}" Sequence="${group.sequence}" Template="${escapeXml(template)}"${containerAttributes(group)}>
+	return `<Group Id="${escapeXml(group.id)}" Title="${escapeXml(title)}"${descriptionAttr(group, storeLocLabels, sink)} Sequence="${group.sequence}" Template="${escapeXml(template)}"${containerAttributes(group)}>
           ${controlsXml}
         </Group>`;
 }
@@ -856,8 +859,27 @@ function containerTitle(
 	return locLabelRef(titleId);
 }
 
-/** Attributes CBS writes itself on a `<Tab>` / `<Group>`. */
-const CONTAINER_MODELLED_ATTRIBUTES = new Set(["Id", "Command", "Title", "Sequence", "Template"]);
+/**
+ * ` Description="…"` of a tab / group, as loaded (#42; none when it has none),
+ * with the LocLabel it references when the session has it.
+ */
+function descriptionAttr(
+	container: RibbonTab | RibbonGroup,
+	storeLocLabels: LocLabel[],
+	sink: (label: LocLabel) => void,
+): string {
+	const d = container.description;
+	const label = d?.startsWith("$LocLabels:") ? storeLocLabels.find((l) => l.id === d.slice("$LocLabels:".length)) : undefined;
+	if (label) sink(label);
+	return attr("Description", d);
+}
+
+/**
+ * Attributes CBS writes itself on a `<Tab>` / `<Group>` (`Description` from the
+ * model, #42). A tab has no `Template` (RibbonWSS.xsd TabType), so an imported
+ * one is never written back.
+ */
+const CONTAINER_MODELLED_ATTRIBUTES = new Set(["Id", "Command", "Title", "Description", "Sequence", "Template"]);
 
 /** The other attributes of an imported tab / group (Description, images, …), as imported (#30). */
 function containerAttributes(container: RibbonTab | RibbonGroup): string {
@@ -872,7 +894,7 @@ function containerAttributes(container: RibbonTab | RibbonGroup): string {
  * `Mscrm.Templates.Flexible2`). The CBS model often stores just the short name
  * (`Flexible2`), so qualify it when no namespace is present.
  */
-function normalizeGroupTemplate(template: string): string {
+export function normalizeGroupTemplate(template: string): string {
 	const t = template?.trim();
 	if (!t) return "Mscrm.Templates.Flexible2";
 	return t.includes(".") ? t : `Mscrm.Templates.${t}`;
@@ -1006,6 +1028,7 @@ function generateButtonElement(
 ): string {
 	const tag = buttonKindToTag(button.kind);
 	const src = button.source;
+	if (src?.xml && isReadOnlyControlKind(button.kind)) return generateVerbatimControl(button, src.xml, storeLocLabels, sink);
 	// Start from the control exactly as loaded so attributes CBS doesn't model
 	// (Alt, Description, PopulateDynamically, …) survive an edit.
 	const attrs = new Map<string, string>();
@@ -1121,20 +1144,33 @@ function dedupeLocLabels(labels: LocLabel[]): LocLabel[] {
 }
 
 function buttonKindToTag(kind: RibbonButton["kind"]): string {
-	switch (kind) {
-		case "flyout":
-			return "FlyoutAnchor";
-		case "splitButton":
-			return "SplitButton";
-		case "textBox":
-			return "TextBox";
-		case "comboBox":
-			return "ComboBox";
-		case "checkBox":
-			return "CheckBox";
-		default:
-			return "Button";
+	return CONTROL_TAG_BY_KIND[kind] ?? "Button";
+}
+
+/**
+ * A control CBS shows read-only (ToggleButton, Label, DropDown, … — #42),
+ * written as it was loaded: only its Sequence follows the model (a move), and
+ * attributes RetrieveEntityRibbon adds that RibbonDiffXml doesn't allow are
+ * dropped. The `$LocLabels:` it references are written with it when the
+ * session has them (otherwise they are the layer's or the platform's).
+ */
+function generateVerbatimControl(
+	button: RibbonButton,
+	xml: string,
+	storeLocLabels: LocLabel[],
+	sink: (label: LocLabel) => void,
+): string {
+	const el = new DOMParser().parseFromString(xml, "application/xml").documentElement;
+	for (const node of [el, ...Array.from(el.getElementsByTagName("*"))])
+		for (const name of NON_DIFF_ATTRIBUTES) node.removeAttribute(name);
+	el.setAttribute("Id", button.id);
+	if (el.hasAttribute("Sequence") || button.sequence !== 0) el.setAttribute("Sequence", String(button.sequence));
+	const out = new XMLSerializer().serializeToString(el);
+	for (const m of out.matchAll(/\$LocLabels:([^"'\s<]+)/g)) {
+		const label = storeLocLabels.find((l) => l.id === m[1]);
+		if (label) sink(label);
 	}
+	return out;
 }
 
 // ---------------------------------------------------------------------------

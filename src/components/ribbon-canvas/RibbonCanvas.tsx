@@ -33,6 +33,7 @@ import { ClassicRibbon } from "./ClassicRibbon";
 import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
 import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
+import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
 import { ModernAppFilter } from "./modern/ModernAppFilter";
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
@@ -235,6 +236,9 @@ export function RibbonCanvas({
 	const [editingTabId, setEditingTabId] = useState<string | null>(null);
 	const [editValue, setEditValue] = useState("");
 	const inputRef = useRef<HTMLInputElement>(null);
+	// Tab awaiting delete confirmation (#18: window.confirm doesn't work in PPTB).
+	const [deletingTabId, setDeletingTabId] = useState<string | null>(null);
+	const deletingTab = deletingTabId ? ribbons[location].tabs.find((t) => t.id === deletingTabId) : undefined;
 
 	useEffect(() => {
 		if (editingTabId && inputRef.current) inputRef.current.focus();
@@ -431,7 +435,7 @@ export function RibbonCanvas({
 								}}
 								onDelete={
 									currentTab?.id === tab.id && canDeleteTab(tab)
-										? () => deleteTab(location, tab.id)
+										? () => setDeletingTabId(tab.id)
 										: undefined
 								}
 								onEditChange={setEditValue}
@@ -464,23 +468,6 @@ export function RibbonCanvas({
 								</Badge>
 							)}
 						</Button>
-						{currentTab?.template && (
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									gap: 4,
-									paddingRight: tokens.spacingHorizontalS,
-									fontSize: tokens.fontSizeBase100,
-									color: tokens.colorNeutralForeground3,
-								}}
-							>
-								<span>Template:</span>
-								<Badge size="small" appearance="outline">
-									{currentTab.template.split(".").pop() ?? "—"}
-								</Badge>
-							</div>
-						)}
 					</div>
 				</SortableContext>
 			</DndContext>
@@ -527,6 +514,22 @@ export function RibbonCanvas({
 					</>
 				)}
 			</div>
+			{deletingTab && (
+				<ConfirmDialog
+					open
+					title="Delete tab"
+					confirmLabel="Delete tab"
+					destructive
+					onConfirm={() => {
+						deleteTab(location, deletingTab.id);
+						setDeletingTabId(null);
+					}}
+					onCancel={() => setDeletingTabId(null)}
+				>
+					Delete the tab &ldquo;{resolveDisplayLabel(deletingTab.label, locLabels, lang)}&rdquo; and its
+					groups and buttons?
+				</ConfirmDialog>
+			)}
 		</main>
 	);
 }
@@ -559,7 +562,7 @@ interface SortableTabProps {
 	onEditChange: (v: string) => void;
 	onEditCommit: () => void;
 	onEditCancel: () => void;
-	/** Set when the tab can be deleted (your own or new tab, and selected). */
+	/** Set when the tab can be deleted (your own or new tab, and selected); asks to confirm first. */
 	onDelete?: () => void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	styles: Record<string, any>;
@@ -648,7 +651,7 @@ function SortableTab({
 							onPointerDown={(e) => e.stopPropagation()}
 							onClick={(e) => {
 								e.stopPropagation();
-								if (window.confirm(`Delete the tab "${displayLabel}" and its groups and buttons?`)) onDelete();
+								onDelete();
 							}}
 						/>
 					)}

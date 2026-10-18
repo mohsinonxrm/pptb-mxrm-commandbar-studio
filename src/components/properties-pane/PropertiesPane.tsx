@@ -11,6 +11,8 @@ import { AdvancedSection } from "./AdvancedSection";
 import { ConflictBanner } from "./ConflictBanner";
 import { HiddenByCustomizationsSection } from "./HiddenByCustomizationsSection";
 import { OrphanedCustomizationsSection } from "./OrphanedCustomizationsSection";
+import { ReadOnlyControlSection } from "./ReadOnlyControlSection";
+import { isReadOnlyControlKind } from "@/utils/controlKinds";
 import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { ModernCommandProperties, ModernOverrideSection } from "./ModernCommandProperties";
@@ -94,37 +96,49 @@ export function PropertiesPane() {
 							</Caption1>
 						</div>
 					)}
-					<IdentitySection
-						button={button}
-						location={location}
-						tabId={tabId}
-						groupId={selectedGroupId!}
-					/>
-					<Divider />
-					<div className={styles.section}>
-						<CommandSection
+					{isReadOnlyControlKind(button.kind) ? (
+						// ToggleButton, Label, DropDown, …: shown, never edited (#42).
+						<ReadOnlyControlSection
 							button={button}
-							groupId={selectedGroupId!}
-							tabId={tabId}
 							location={location}
+							tabId={tabId}
+							groupId={selectedGroupId!}
 						/>
-					</div>
-					<Divider />
-					<div className={styles.section}>
-						<DisplayRulesSection />
-					</div>
-					<Divider />
-					<div className={styles.section}>
-						<EnableRulesSection />
-					</div>
-					<Divider />
-					<div className={styles.section}>
-						<ScalingSectionSummary />
-					</div>
-					<Divider />
-					<div className={styles.section}>
-						<AdvancedSection />
-					</div>
+					) : (
+						<>
+							<IdentitySection
+								button={button}
+								location={location}
+								tabId={tabId}
+								groupId={selectedGroupId!}
+							/>
+							<Divider />
+							<div className={styles.section}>
+								<CommandSection
+									button={button}
+									groupId={selectedGroupId!}
+									tabId={tabId}
+									location={location}
+								/>
+							</div>
+							<Divider />
+							<div className={styles.section}>
+								<DisplayRulesSection />
+							</div>
+							<Divider />
+							<div className={styles.section}>
+								<EnableRulesSection />
+							</div>
+							<Divider />
+							<div className={styles.section}>
+								<ScalingSectionSummary />
+							</div>
+							<Divider />
+							<div className={styles.section}>
+								<AdvancedSection />
+							</div>
+						</>
+					)}
 				</>
 			)}
 		</aside>

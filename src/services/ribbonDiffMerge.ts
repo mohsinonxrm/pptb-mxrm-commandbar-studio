@@ -13,6 +13,7 @@
 
 import { canonicalXml } from "@/services/ribbonXmlCanonical";
 import type { RibbonDefinition, ScaleStep } from "@/types/ribbon";
+import { COMMAND_ATTRIBUTES } from "@/utils/controlKinds";
 import {
 	resequenceLayerScaling,
 	type LayerScaleStep,
@@ -642,13 +643,14 @@ function idsWithin(el: Element): string[] {
 	return out;
 }
 
-/** `Command` attributes used inside `el` (including `el`). */
+/** Commands used inside `el` (including `el`): `Command`, and QueryCommand, CommandMenuOpen, … (#42). */
 function commandsWithin(el: Element): string[] {
 	const out: string[] = [];
-	for (const d of [el, ...Array.from(el.getElementsByTagName("*"))]) {
-		const c = d.getAttribute("Command");
-		if (c) out.push(c);
-	}
+	for (const d of [el, ...Array.from(el.getElementsByTagName("*"))])
+		for (const name of COMMAND_ATTRIBUTES) {
+			const c = d.getAttribute(name);
+			if (c) out.push(c);
+		}
 	return out;
 }
 

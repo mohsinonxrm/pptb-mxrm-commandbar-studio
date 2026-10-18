@@ -1,46 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Merged account ribbon (HomepageGrid) with the unmanaged layer's CustomActions
+  alongside. Valid against RibbonCore.xsd / RibbonWSS.xsd (#42).
+-->
 <RibbonDefinitions>
-  <Ribbon>
-    <Tabs>
-      <Tab Id="Mscrm.HomepageGrid.account.MainTab" Sequence="10" Title="Home">
-        <Groups>
-          <Group Id="Mscrm.HomepageGrid.account.MainTab.New" Sequence="10" Template="Mscrm.Templates.Flexible2">
-            <Controls DefaultHeight="Large">
-              <Button Id="Mscrm.HomepageGrid.account.MainTab.New.Controls.NewRecord"
-                      TemplateAlias="o1"
-                      Sequence="10"
-                      Command="Mscrm.NewRecordFromGrid"
-                      LabelText="$LocLabels:Mscrm.New.LabelText"
-                      ModernImage="Add"/>
-              <Button Id="Mscrm.HomepageGrid.account.MainTab.New.Controls.DeleteAccount"
-                      TemplateAlias="o2"
-                      Sequence="20"
-                      Command="Mscrm.DeletePrimaryRecord"
-                      LabelText="$LocLabels:Mscrm.Delete.LabelText"
-                      ModernImage="Delete"/>
-              <!-- Custom button added via CustomAction (appears in merged full ribbon) -->
-              <Button Id="Contoso.account.CreditCheck.Button"
-                      Command="Contoso.account.CreditCheck.Command"
-                      LabelText="$LocLabels:Contoso.account.CreditCheck.Button.LabelText"
-                      TemplateAlias="o1"
-                      Sequence="50"
-                      ModernImage="CreditCard"/>
-            </Controls>
-          </Group>
-          <Group Id="Mscrm.HomepageGrid.account.MainTab.Actions" Sequence="20" Template="Mscrm.Templates.Flexible2">
-            <Controls DefaultHeight="Large">
-              <Button Id="Mscrm.HomepageGrid.account.MainTab.Actions.Controls.Email"
-                      TemplateAlias="o1"
-                      Sequence="10"
-                      Command="Mscrm.SendEmail"
-                      LabelText="$LocLabels:Mscrm.Email.LabelText"
-                      ModernImage="Mail"/>
-            </Controls>
-          </Group>
-        </Groups>
-      </Tab>
-    </Tabs>
-  </Ribbon>
+  <UI>
+    <Ribbon>
+      <Tabs Id="Mscrm.Tabs">
+        <Tab Id="Mscrm.HomepageGrid.account.MainTab" Sequence="10" Title="Home">
+          <Scaling Id="Mscrm.HomepageGrid.account.MainTab.Scaling">
+            <MaxSize Id="Mscrm.HomepageGrid.account.MainTab.New.MaxSize" GroupId="Mscrm.HomepageGrid.account.MainTab.New" Sequence="10" Size="LargeLarge"/>
+            <MaxSize Id="Mscrm.HomepageGrid.account.MainTab.Actions.MaxSize" GroupId="Mscrm.HomepageGrid.account.MainTab.Actions" Sequence="20" Size="LargeLarge"/>
+          </Scaling>
+          <Groups Id="Mscrm.HomepageGrid.account.MainTab.Groups">
+            <Group Id="Mscrm.HomepageGrid.account.MainTab.New" Sequence="10" Template="Mscrm.Templates.Flexible2">
+              <Controls Id="Mscrm.HomepageGrid.account.MainTab.New.Controls">
+                <Button Id="Mscrm.HomepageGrid.account.MainTab.New.Controls.NewRecord"
+                        TemplateAlias="o1"
+                        Sequence="10"
+                        Command="Mscrm.NewRecordFromGrid"
+                        LabelText="$LocLabels:Mscrm.New.LabelText"
+                        ModernImage="Add"/>
+                <Button Id="Mscrm.HomepageGrid.account.MainTab.New.Controls.DeleteAccount"
+                        TemplateAlias="o2"
+                        Sequence="20"
+                        Command="Mscrm.DeletePrimaryRecord"
+                        LabelText="$LocLabels:Mscrm.Delete.LabelText"
+                        ModernImage="Delete"/>
+                <!-- Custom button added via CustomAction (appears in merged full ribbon) -->
+                <Button Id="Contoso.account.CreditCheck.Button"
+                        Command="Contoso.account.CreditCheck.Command"
+                        LabelText="$LocLabels:Contoso.account.CreditCheck.Button.LabelText"
+                        TemplateAlias="o1"
+                        Sequence="50"
+                        ModernImage="CreditCard"/>
+              </Controls>
+            </Group>
+            <Group Id="Mscrm.HomepageGrid.account.MainTab.Actions" Sequence="20" Template="Mscrm.Templates.Flexible2">
+              <Controls Id="Mscrm.HomepageGrid.account.MainTab.Actions.Controls">
+                <Button Id="Mscrm.HomepageGrid.account.MainTab.Actions.Controls.Email"
+                        TemplateAlias="o1"
+                        Sequence="10"
+                        Command="Mscrm.SendEmail"
+                        LabelText="$LocLabels:Mscrm.Email.LabelText"
+                        ModernImage="Mail"/>
+              </Controls>
+            </Group>
+          </Groups>
+        </Tab>
+      </Tabs>
+      <ContextualTabs Id="Mscrm.ContextualTabs"/>
+    </Ribbon>
+  </UI>
   <!-- CustomAction: new custom button added by a previous CBS deploy -->
   <CustomActions>
     <CustomAction Id="Contoso.account.CreditCheck.Button.CustomAction"
@@ -119,11 +130,16 @@
     </CommandDefinition>
   </CommandDefinitions>
   <RuleDefinitions>
+    <TabDisplayRules/>
     <DisplayRules>
-      <DisplayRule Id="Mscrm.Enabled"/>
+      <DisplayRule Id="Mscrm.Enabled">
+        <CrmClientTypeRule Type="Web"/>
+      </DisplayRule>
     </DisplayRules>
     <EnableRules>
-      <EnableRule Id="Mscrm.Enabled"/>
+      <EnableRule Id="Mscrm.Enabled">
+        <CrmClientTypeRule Type="Web"/>
+      </EnableRule>
       <EnableRule Id="Mscrm.SelectionCountAtLeastOne">
         <SelectionCountRule Minimum="1" AppliesTo="SelectedEntity"/>
       </EnableRule>

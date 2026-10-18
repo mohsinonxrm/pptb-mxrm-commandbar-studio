@@ -39,6 +39,7 @@ import type { ScopePlan } from "@/services/publishPlan";
 import { describeScalingChange, type ScalingChange } from "@/services/scalingSequence";
 import { ribbonPlaces } from "@/services/layerOrphans";
 import { groupControls } from "@/utils/ribbonMenu";
+import { controlCommandIds } from "@/utils/controlKinds";
 import { verifyRibbonImport } from "@/services/importJobVerification";
 import {
 	validatePublishRibbonDiff,
@@ -388,7 +389,7 @@ export async function buildMergedRibbonDiffXml(
 	for (const loc of input.locations)
 		for (const tab of loc.current.tabs)
 			for (const group of tab.groups)
-				for (const button of groupControls(group)) if (button.commandId) retainedCommandIds.add(button.commandId);
+				for (const button of groupControls(group)) for (const id of controlCommandIds(button)) retainedCommandIds.add(id);
 
 	// Rules other commands of the scope still use stay in the layer when an
 	// uncustomised command (#31) leaves it.

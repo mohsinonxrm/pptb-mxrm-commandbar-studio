@@ -6,7 +6,8 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useDraftStore } from "@/store/draftStore";
 import { useSelectionStore } from "@/store/selectionStore";
-import { groupControls } from "@/utils/ribbonMenu";
+import { findGroupControl, groupControls } from "@/utils/ribbonMenu";
+import { isReadOnlyControlKind } from "@/utils/controlKinds";
 
 const useStyles = makeStyles({
 	backdrop: {
@@ -142,6 +143,10 @@ export const CommandPalette: React.FC = () => {
 		const activeTab = ribbons[location].tabs.find((t) => t.id === tabId);
 		const fallbackGroupId = activeTab?.groups[0]?.id ?? null;
 		const targetGroupId = selectedGroupId ?? fallbackGroupId;
+		// ToggleButton, Label, DropDown, …: their labels aren't edited (#42).
+		const selectedReadOnly = isReadOnlyControlKind(
+			findGroupControl(activeTab?.groups.find((g) => g.id === selectedGroupId), selectedButtonId)?.kind,
+		);
 
 		// Actions
 		const actions: PaletteItem[] = [
@@ -207,12 +212,14 @@ export const CommandPalette: React.FC = () => {
 			{
 				id: "edit-labels",
 				label: "Edit localized labels",
-				subtitle: selectedButtonId
-					? "Open localization editor for selected button"
-					: "Select a button first",
+				subtitle: selectedReadOnly
+					? "The selected control is shown read-only"
+					: selectedButtonId
+						? "Open localization editor for selected button"
+						: "Select a button first",
 				kind: "action",
 				action: () => {
-					if (!selectedButtonId) return;
+					if (!selectedButtonId || selectedReadOnly) return;
 					openLocalizationEditor(selectedButtonId);
 					close();
 				},

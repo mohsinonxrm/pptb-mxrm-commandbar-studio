@@ -21,6 +21,7 @@ import { findLayerOrphans, resolveEntityToken, type LayerOrphan } from "@/servic
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { groupControls, removeMenuItem } from "@/utils/ribbonMenu";
+import { OPEN_RECORD_ITEM_COMMAND_ID } from "@/utils/openRecordItem";
 
 const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
 
@@ -225,13 +226,16 @@ export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
  * publish merges into, so for every command and rule it defines its copy wins:
  * - a button's command the merged ribbon doesn't have is added, with its rules;
  * - a command or rule the merged ribbon returned differently is replaced.
- * Definitions the layer doesn't define are never touched. Returns the ids
- * added and replaced.
+ * Definitions the layer doesn't define are never touched. `alsoCommandIds`
+ * are added the same way even when no button uses them (Mscrm.OpenRecordItem,
+ * #22: the merged ribbon carries only the commands its controls use). Returns
+ * the ids added and replaced.
  */
 export function reconcileWithLayer(
 	defs: RibbonDefinition[],
 	data: Pick<RibbonWorkspaceData, "commands" | "enableRules" | "displayRules">,
 	layer: RibbonDiffParts,
+	alsoCommandIds: readonly string[] = [],
 ): { added: string[]; replaced: string[] } {
 	const out = { added: [] as string[], replaced: [] as string[] };
 	if (layer.commandDefinitions.size + layer.enableRules.size + layer.displayRules.size === 0) return out;
@@ -254,7 +258,9 @@ export function reconcileWithLayer(
 	refresh(data.displayRules, fromLayer.displayRules);
 
 	const known = new Set(data.commands.map((c) => c.id));
-	const missing = new Set<string>();
+	const missing = new Set<string>(
+		alsoCommandIds.filter((id) => !known.has(id) && layer.commandDefinitions.has(id)),
+	);
 	for (const def of defs)
 		for (const tab of def.tabs)
 			for (const group of tab.groups)
@@ -463,7 +469,10 @@ export async function fetchRibbonWorkspace(
 		if (tabs.length > 0) logs.logInfo("ribbon", `Loaded tab(s) ${tabs.join(", ")} from the table's unmanaged layer.`);
 		const own = ownControlIds(entityLayer);
 		for (const def of Object.values(entity.ribbons)) applyLayerOwnership(def, own);
-		logReconciled("RetrieveEntityRibbon", reconcileWithLayer(Object.values(entity.ribbons), entity, entityLayer));
+		logReconciled(
+			"RetrieveEntityRibbon",
+			reconcileWithLayer(Object.values(entity.ribbons), entity, entityLayer, [OPEN_RECORD_ITEM_COMMAND_ID]),
+		);
 	}
 	if (appLayer) {
 		addLayerTabs({ Application: application.ribbon }, appLayer, null, appLabels);
