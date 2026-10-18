@@ -903,7 +903,10 @@ describe("loaded scaling and templates", () => {
 });
 
 describe("checkBeforePublish / publishRibbon", () => {
-	it("reports the collision of a new group's MaxSize with an existing Scale in the merged XML", async () => {
+	it("a new group at an existing Scale's Sequence gets a free MaxSize Sequence (#66): no collision in the merged XML", async () => {
+		// #66 never gives a new group's MaxSize its own Sequence: it is placed
+		// after the tab's last MaxSize (61) and before its first Scale (80). The
+		// collision check itself is covered on fixtures above.
 		layer = emptyRibbonDiffParts();
 		const { checkBeforePublish } = await import("@/services/dataverse/publishService");
 		const lookup = vi.fn(async () => ({}));
@@ -924,10 +927,10 @@ describe("checkBeforePublish / publishRibbon", () => {
 			},
 			{ lookupWebResources: lookup },
 		);
-		expect(xml).toContain('Sequence="80" Size="LargeLarge"');
-		const f = only(findings, "scaling-collision");
-		expect(f.severity).toBe("error");
-		expect(f.message).toMatch(/Sequence 80/);
+		expect(xml).not.toContain('Sequence="80" Size="LargeLarge"');
+		expect(xml).toMatch(/<MaxSize [^>]*GroupId="mxrm\.account\.NewGroup"[^>]*Sequence="6[2-9]"|<MaxSize [^>]*Sequence="6[2-9]"[^>]*GroupId="mxrm\.account\.NewGroup"/);
+		expect(codes(findings, "scaling-collision")).toEqual([]);
+		expect(findings.filter((f) => f.severity === "error")).toEqual([]);
 		// Nothing references a web resource: no lookup.
 		expect(lookup).not.toHaveBeenCalled();
 	});
@@ -990,15 +993,36 @@ describe("checkBeforePublish / publishRibbon", () => {
 		};
 		vi.resetModules();
 		const { publishRibbon } = await import("@/services/dataverse/publishService");
+		// A new button whose command has a Power Fx action (#63 / #35
+		// dropped-action): a scaling collision can't be produced any more (#66).
+		const location = withNewGroup(80);
+		location.current.tabs[0].groups.at(-1)!.buttons.push({
+			id: "mxrm.account.NewGroup.B",
+			label: "B",
+			kind: "button",
+			sequence: 10,
+			templateAlias: "o1",
+			commandId: "mxrm.B.Command",
+			hidden: false,
+			oob: false,
+			custom: true,
+			managed: false,
+		});
+		const powerFx = {
+			id: "mxrm.B.Command",
+			enableRules: [],
+			displayRules: [],
+			actions: [{ kind: "powerFx", expression: "Notify(1)" } as unknown as CommandDefinition["actions"][number]],
+		};
 		await expect(
 			publishRibbon({
 				entity: { logicalName: T },
-				locations: [withNewGroup(80)],
-				commands: [],
+				locations: [location],
+				commands: [powerFx],
 				enableRules: [],
 				displayRules: [],
 				locLabels: [],
-				plan: PLAN,
+				plan: { ...PLAN, editedCommandIds: ["mxrm.B.Command"] },
 				languageCode: 1033,
 				solution: {
 					uniqueName: "S",
@@ -1010,7 +1034,7 @@ describe("checkBeforePublish / publishRibbon", () => {
 				},
 				busy: { sleep: async () => undefined },
 			}),
-		).rejects.toThrow(/pre-publish check found 1 error.*Sequence 80/);
+		).rejects.toThrow(/pre-publish check found 1 error.*Power Fx/);
 		expect(deploySolution).not.toHaveBeenCalled();
 	});
 });

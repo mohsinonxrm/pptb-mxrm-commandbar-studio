@@ -18,6 +18,7 @@ import {
 import { DismissRegular, AddRegular, DeleteRegular, TextAddRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
+import { groupControls } from "@/utils/ribbonMenu";
 
 const KNOWN_LCIDS: Record<number, { name: string; flag: string }> = {
 	1033: { name: "English (US)", flag: "🇺🇸" },
@@ -122,6 +123,7 @@ export const LocalizationEditor: React.FC = () => {
 
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const upsertLocLabel = useRibbonStore((s) => s.upsertLocLabel);
+	const batch = useRibbonStore((s) => s.batch);
 
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const baseLcid = useRibbonStore((s) => s.baseLanguageCode);
@@ -132,7 +134,7 @@ export const LocalizationEditor: React.FC = () => {
 		for (const def of Object.values(ribbons))
 			for (const tab of def.tabs)
 				for (const group of tab.groups)
-					for (const b of group.buttons) if (b.id === buttonId) return b.source;
+					for (const b of groupControls(group)) if (b.id === buttonId) return b.source;
 		return undefined;
 	}, [ribbons, buttonId]);
 	const refOr = (token: string | undefined, fallback: string) =>
@@ -206,15 +208,18 @@ export const LocalizationEditor: React.FC = () => {
 				.filter((e) => e[field])
 				.map((e) => ({ languageCode: e.lcid, description: e[field] as string }));
 
-		if (toTitles("label").length > 0) {
-			upsertLocLabel({ id: labelId, titles: toTitles("label") });
-		}
-		if (toTitles("tooltipTitle").length > 0) {
-			upsertLocLabel({ id: tooltipTitleId, titles: toTitles("tooltipTitle") });
-		}
-		if (toTitles("tooltipBody").length > 0) {
-			upsertLocLabel({ id: tooltipBodyId, titles: toTitles("tooltipBody") });
-		}
+		// One undo step for the whole dialog (#34).
+		batch(() => {
+			if (toTitles("label").length > 0) {
+				upsertLocLabel({ id: labelId, titles: toTitles("label") });
+			}
+			if (toTitles("tooltipTitle").length > 0) {
+				upsertLocLabel({ id: tooltipTitleId, titles: toTitles("tooltipTitle") });
+			}
+			if (toTitles("tooltipBody").length > 0) {
+				upsertLocLabel({ id: tooltipBodyId, titles: toTitles("tooltipBody") });
+			}
+		});
 		closeLocalizationEditor();
 	};
 

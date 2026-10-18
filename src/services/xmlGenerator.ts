@@ -6,6 +6,7 @@ import type {
 	DisplayRule,
 	LocLabel,
 	RibbonButton,
+	RibbonMenu,
 	RuleStep,
 	ActionParameter,
 	RibbonAction,
@@ -13,6 +14,7 @@ import type {
 	ScaleStep,
 	RibbonGroup,
 	RibbonTab,
+	TabDisplayRule,
 } from "@/types/ribbon";
 import {
 	buttonLabelId,
@@ -21,6 +23,8 @@ import {
 	locLabelRef,
 } from "@/utils/locLabelRef";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { freeMaxSizeSequence, maxSizeBand } from "@/services/scalingSequence";
+import { menuItemsOf } from "@/utils/ribbonMenu";
 
 interface GeneratorInput {
 	current: RibbonDefinition;
@@ -71,6 +75,17 @@ export interface IndexedButton {
 	button: RibbonButton;
 	groupId: string;
 	tabId: string;
+	/** Set for a menu item (#27): where in which flyout / split button's menu it lives. */
+	menu?: MenuPlacement;
+}
+
+export interface MenuPlacement {
+	/** indexButtons key of the control whose menu holds the item. */
+	parentKey: string;
+	parentId: string;
+	sectionId: string;
+	/** Id of the section's `<Controls>`: new items go to `{controlsId}._children`. */
+	controlsId: string;
 }
 
 /**
@@ -79,25 +94,152 @@ export interface IndexedButton {
  * ids across tabs (e.g. MailApp.ViewEmailActivity.Button on the global and
  * quick-create tabs), so pairing current and baseline buttons by id alone
  * compares the wrong occurrences and reports phantom edits.
+ *
+ * Menu items (#27) are indexed right after the control whose menu holds them,
+ * so the occurrence count stays stable between the loaded and edited ribbon.
  */
 export function indexButtons(def: RibbonDefinition): Map<string, IndexedButton> {
 	const out = new Map<string, IndexedButton>();
 	const seen = new Map<string, number>();
-	for (const tab of def.tabs)
-		for (const group of tab.groups)
-			for (const button of group.buttons) {
-				const n = seen.get(button.id) ?? 0;
-				seen.set(button.id, n + 1);
-				out.set(`${button.id}#${n}`, { button, groupId: group.id, tabId: tab.id });
-			}
+	const visit = (button: RibbonButton, groupId: string, tabId: string, menu?: MenuPlacement) => {
+		const n = seen.get(button.id) ?? 0;
+		seen.set(button.id, n + 1);
+		const key = `${button.id}#${n}`;
+		out.set(key, menu ? { button, groupId, tabId, menu } : { button, groupId, tabId });
+		for (const section of button.menu?.sections ?? [])
+			for (const item of section.controls)
+				visit(item, groupId, tabId, {
+					parentKey: key,
+					parentId: button.id,
+					sectionId: section.id,
+					controlsId: section.controlsId,
+				});
+	};
+	for (const tab of def.tabs) for (const group of tab.groups) for (const button of group.buttons) visit(button, group.id, tab.id);
 	return out;
+}
+
+/** What publishing a button needs, compared with its loaded (baseline) occurrence. */
+interface ButtonChange {
+	entry: IndexedButton;
+	change: "hide" | "new" | "override";
+}
+
+/**
+ * Classifies every button of `current` against `baseline` (paired by
+ * occurrence). Items of a menu whose flyout / split button is itself new are
+ * written inline with it, as one CustomAction (#27) — only their hiding is a
+ * change of its own. A new control that is hidden is written AND hidden: the
+ * hide of a control that doesn't exist would do nothing (#62 review m4), and
+ * a new control is also how a moved one is re-placed (#57).
+ */
+function classifyButtons(current: RibbonDefinition, baseline: RibbonDefinition): ButtonChange[] {
+	const base = indexButtons(baseline);
+	const cur = indexButtons(current);
+	const insideNewMenu = (entry: IndexedButton) => {
+		for (let p = entry.menu?.parentKey; p; p = cur.get(p)?.menu?.parentKey) if (!base.has(p)) return true;
+		return false;
+	};
+	const out: ButtonChange[] = [];
+	for (const [key, entry] of cur) {
+		const baseButton = base.get(key)?.button;
+		const button = entry.button;
+		if (insideNewMenu(entry)) {
+			if (button.hidden) out.push({ entry, change: "hide" });
+			continue;
+		}
+		if (!baseButton) {
+			// An out-of-the-box / managed control isn't yours to write: only hide it.
+			if (!(button.hidden && (button.oob || button.managed))) out.push({ entry, change: "new" });
+			if (button.hidden) out.push({ entry, change: "hide" });
+		} else if (button.hidden && !baseButton.hidden) out.push({ entry, change: "hide" });
+		else if (hasOobOverrideChanges(baseButton, button)) out.push({ entry, change: "override" });
+	}
+	return out;
+}
+
+/**
+ * The `Command` of a tab created in CBS. A tab is only shown when a
+ * TabDisplayRule names its Command (TabCommand), so a new tab always gets one
+ * (#58; https://learn.microsoft.com/power-apps/developer/model-driven-apps/define-ribbon-tab-display-rules).
+ */
+export function newTabCommandId(tab: RibbonTab): string {
+	return tab.commandId || `${tab.id}.Command`;
+}
+
+/**
+ * Where a new tab is added. An entity has no tab collection of its own: grid
+ * and form tabs go into the application's `Mscrm.Tabs`, and the TabDisplayRule
+ * decides where they show. The sub-grid ribbon is a contextual group of the
+ * entity ribbon, so its tabs go there (Microsoft's "Add a custom tab to a
+ * specific entity" walkthrough).
+ */
+export function newTabLocation(location: RibbonLocation, entityLogicalName: string): string {
+	return location === "SubGrid" ? `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs._children` : "Mscrm.Tabs._children";
+}
+
+/**
+ * The TabDisplayRule a new entity tab gets when the user didn't define one:
+ * an EntityRule for the table in the tab's location. Without a rule the tab is
+ * never shown and RetrieveEntityRibbon doesn't return it (#58). The application
+ * ribbon has no default (a tab there needs a PageRule or EntityRule the user
+ * chooses).
+ */
+export function defaultTabDisplayRules(
+	location: RibbonLocation,
+	entityLogicalName: string,
+	tabCommand: string,
+): TabDisplayRule[] {
+	switch (location) {
+		case "HomepageGrid":
+			return [
+				{
+					tabCommand,
+					rules: [{ kind: "EntityRule", entityName: entityLogicalName, context: "HomePageGrid", appliesTo: "PrimaryEntity" }],
+				},
+			];
+		case "Form":
+			return [
+				{
+					tabCommand,
+					rules: [{ kind: "EntityRule", entityName: entityLogicalName, context: "Form", appliesTo: "PrimaryEntity" }],
+				},
+			];
+		case "SubGrid":
+			return [
+				{
+					tabCommand,
+					rules: [
+						{ kind: "EntityRule", entityName: entityLogicalName, context: "SubGridStandard", appliesTo: "SelectedEntity" },
+						{ kind: "EntityRule", entityName: entityLogicalName, context: "SubGridAssociated", appliesTo: "SelectedEntity" },
+					],
+				},
+			];
+		default:
+			return [];
+	}
+}
+
+/**
+ * A tab created this session as it is written: with a Command, and with the
+ * default display rule when it has none. Rules with no TabCommand are bound to
+ * the tab's Command.
+ */
+export function effectiveNewTab(tab: RibbonTab, location: RibbonLocation, entityLogicalName: string): RibbonTab {
+	const commandId = newTabCommandId(tab);
+	const rules = (tab.tabDisplayRules ?? []).map((r) => ({ ...r, tabCommand: r.tabCommand || commandId }));
+	return {
+		...tab,
+		commandId,
+		tabDisplayRules: rules.length > 0 ? rules : defaultTabDisplayRules(location, entityLogicalName, commandId),
+	};
 }
 
 export function generateRibbonDiffXml(input: GeneratorInput): string {
 	const { current, baseline, commands, enableRules, displayRules, locLabels } = input;
 	const lang = input.languageCode ?? 1033;
+	const isApplication = input.location === "Application";
 
-	const baselineButtons = indexButtons(baseline);
 	const baselineTabIds = new Set<string>();
 	const baselineGroupIds = new Set<string>();
 
@@ -105,13 +247,16 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 		baselineTabIds.add(baseTab.id);
 		for (const baseGroup of baseTab.groups) baselineGroupIds.add(baseGroup.id);
 	}
-	// Pairs each current button with the same occurrence in the baseline.
-	const seenIds = new Map<string, number>();
-	const baselineFor = (button: RibbonButton): RibbonButton | undefined => {
-		const n = seenIds.get(button.id) ?? 0;
-		seenIds.set(button.id, n + 1);
-		return baselineButtons.get(`${button.id}#${n}`)?.button;
-	};
+	// Pairs each current control (menu items too, #27) with the same
+	// occurrence in the baseline.
+	const baselineButtons = indexButtons(baseline);
+	const baselineOf = new Map<RibbonButton, RibbonButton | undefined>();
+	for (const [key, entry] of indexButtons(current)) baselineOf.set(entry.button, baselineButtons.get(key)?.button);
+
+	// Tabs created this session, as written (Command + display rules).
+	const newTabs = current.tabs
+		.filter((t) => !baselineTabIds.has(t.id))
+		.map((t) => effectiveNewTab(t, input.location, input.entityLogicalName));
 
 	const tabCustomActions: string[] = [];
 	const groupCustomActions: string[] = [];
@@ -135,68 +280,107 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// ribbonLayerService. The generator deliberately ignores button.custom.)
 	const emittedButtons: RibbonButton[] = [];
 
-	// 1. New tabs (not present in the OOB baseline) — emit the whole tab with
-	//    its groups so the buttons inside have an anchor. Documented anchor:
-	//    Location="Mscrm.Tabs._children".
-	for (const tab of current.tabs) {
-		if (!baselineTabIds.has(tab.id)) {
-			tabCustomActions.push(generateTabCustomAction(tab, current.scalingByTab?.[tab.id], sink, lang));
+	// Controls written INSIDE a new tab / group (#58, #59). Dataverse files each
+	// CustomAction under a tab; a separate `{newGroupId}.Controls._children`
+	// CustomAction is filed under the concrete entity tab while the group it
+	// targets is filed under the `{!EntityLogicalName}` template tab, so the
+	// button never reached the ribbon. Microsoft's samples write a new group's
+	// or tab's controls inline. Only buttons created this
+	// session are inlined: an existing button moved into the new group keeps its
+	// own CustomAction (the merge relocates it and folds it in).
+	const inlineControls = (group: RibbonGroup): string[] => {
+		const out: string[] = [];
+		for (const button of group.buttons) {
+			if (button.hidden || baselineOf.get(button)) continue;
+			// A new flyout / split button carries its whole <Menu> (#27).
+			out.push(generateButtonElement(button, locLabels, sink, lang, true));
+			emittedButtons.push(button, ...menuItemsOf(button));
 		}
+		return out;
+	};
+	const inNewContainer = new Set<RibbonButton>();
+	// MaxSize of every new group, with a Sequence free in its tab's scaling.
+	const placed = planNewGroupScaling(current, baseline).steps;
+
+	// 1. New tabs (not present in the baseline) — the whole tab with its groups
+	//    and their controls in one CustomAction.
+	for (const tab of newTabs) {
+		const inline = new Map(tab.groups.map((g) => [g.id, inlineControls(g)] as const));
+		for (const g of tab.groups) for (const b of g.buttons) if (!b.hidden && !baselineOf.get(b)) inNewContainer.add(b);
+		tabCustomActions.push(
+			generateTabCustomAction(
+				tab,
+				current.scalingByTab?.[tab.id],
+				newTabLocation(input.location, input.entityLogicalName),
+				inline,
+				placed,
+				sink,
+				lang,
+				locLabels,
+			),
+		);
 	}
 
-	// 2. New groups inside an EXISTING tab → Location="{tabId}.Groups._children",
-	//    plus a MaxSize for the group in the tab's scaling (classic ribbons
-	//    need one per group; #40). Groups inside a brand-new tab are emitted by
-	//    the new-tab branch above.
+	// 2. New groups inside an EXISTING tab → Location="{tabId}.Groups._children"
+	//    with their controls inline, plus a MaxSize for the group in the tab's
+	//    scaling (classic ribbons need one per group; #40).
+	//    The MaxSize gets a Sequence no other step of the tab's scaling uses
+	//    (planNewGroupScaling); a group with no free position gets none — the
+	//    publish plan reports it.
 	const newGroupMaxSizes: string[] = [];
 	for (const tab of current.tabs) {
 		if (!baselineTabIds.has(tab.id)) continue;
-		const scaling = current.scalingByTab?.[tab.id];
 		for (const group of tab.groups) {
 			if (!baselineGroupIds.has(group.id)) {
-				groupCustomActions.push(generateGroupCustomAction(group, tab.id, sink, lang));
-				// A MaxSize the user configured is emitted by the scaling diff below.
-				const maxSize = defaultMaxSize(group);
-				if (maxSize && !scaling?.maxSizes.some((m) => m.groupId === group.id)) {
-					newGroupMaxSizes.push(generateScalingCustomAction(tab.id, "MaxSize", maxSize));
-				}
+				for (const b of group.buttons) if (!b.hidden && !baselineOf.get(b)) inNewContainer.add(b);
+				groupCustomActions.push(generateGroupCustomAction(group, tab.id, inlineControls(group), sink, lang, locLabels));
+				const maxSize = placed.get(group.id);
+				if (maxSize) newGroupMaxSizes.push(generateScalingCustomAction(tab.id, "MaxSize", maxSize));
 			}
 		}
 	}
 	groupCustomActions.push(...newGroupMaxSizes);
 
-	// 3. Buttons.
-	for (const tab of current.tabs) {
-		for (const group of tab.groups) {
-			for (const button of group.buttons) {
-				const baseButton = baselineFor(button);
-
-				if (button.hidden && !baseButton?.hidden) {
-					// Visible button the user wants hidden.
-					hideCustomActions.push(generateHideCustomAction(button, group.id));
-				} else if (!baseButton) {
-					// Not in the loaded ribbon → user created it this session →
-					// emit as a new control under its group.
-					customActions.push(generateCustomAction(button, group.id, locLabels, sink, lang));
-					emittedButtons.push(button);
-				} else if (hasOobOverrideChanges(baseButton, button)) {
-					// Present in the loaded ribbon AND modified (icon / label /
-					// tooltip / command etc.) → emit an override CustomAction
-					// (Location = the button's id). Works for an existing custom
-					// button or an OOB one alike.
-					customActions.push(generateOobOverrideCustomAction(button, locLabels, sink, lang));
-					emittedButtons.push(button);
-				}
-				// else: unchanged vs. baseline → no diff emitted (correct; it's
-				// already live and additive import leaves it untouched).
-			}
+	// 3. Buttons, and the items of flyout / split button menus (#27).
+	for (const { entry, change } of classifyButtons(current, baseline)) {
+		const { button, groupId, menu } = entry;
+		if (inNewContainer.has(button)) continue; // written inside its new tab / group (#58, #59)
+		if (change === "hide") {
+			// Visible button the user wants hidden.
+			hideCustomActions.push(generateHideCustomAction(button, groupId));
+		} else if (change === "new") {
+			// Not in the loaded ribbon → user created it this session → emit as a
+			// new control under its group, or — for a new item of an existing
+			// menu — under its menu section's Controls. A new flyout / split
+			// button carries its whole <Menu> inline.
+			const location = menu ? `${menu.controlsId}._children` : `${groupId}.Controls._children`;
+			customActions.push(generateCustomAction(button, location, locLabels, sink, lang));
+			emittedButtons.push(button, ...menuItemsOf(button));
+		} else {
+			// Present in the loaded ribbon AND modified (icon / label / tooltip /
+			// command etc.) → emit an override CustomAction (Location = the
+			// button's id). Works for an existing custom button or an OOB one
+			// alike. The override carries no <Menu>: menu items are published one
+			// by one, and the merge keeps the menu of a control your layer adds.
+			customActions.push(generateOobOverrideCustomAction(button, locLabels, sink, lang));
+			emittedButtons.push(button);
 		}
+		// Unchanged vs. baseline → no diff emitted (correct; it's already live
+		// and additive import leaves it untouched).
 	}
 
 	// Collect referenced commands / rules from the EMITTED buttons only.
 	const referencedCommandIds = new Set<string>();
 	for (const button of emittedButtons) {
 		if (button.commandId) referencedCommandIds.add(button.commandId);
+	}
+	// A new tab's Command is defined with it (an empty command, as in
+	// Microsoft's custom-tab walkthrough) unless the model already has one.
+	const tabCommands: CommandDefinition[] = [];
+	for (const tab of newTabs) {
+		const id = tab.commandId!;
+		referencedCommandIds.add(id);
+		if (!commands.some((c) => c.id === id)) tabCommands.push({ id, enableRules: [], displayRules: [], actions: [] });
 	}
 
 	// Emit command/rule DEFINITIONS only for custom (non-system) elements.
@@ -208,9 +392,10 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// the command has at least one action defined: a parsed-but-unmodified OOB
 	// command has no actions (the parser only understands JS/URL); a deliberate
 	// override always has actions.
-	const referencedCommands = commands.filter(
-		(c) => referencedCommandIds.has(c.id) && (!isSystemRibbonId(c.id) || c.actions.length > 0),
-	);
+	const referencedCommands = [
+		...commands.filter((c) => referencedCommandIds.has(c.id) && (!isSystemRibbonId(c.id) || c.actions.length > 0)),
+		...tabCommands,
+	];
 
 	const referencedEnableRuleIds = new Set<string>();
 	const referencedDisplayRuleIds = new Set<string>();
@@ -243,10 +428,8 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// Tab display rules only for tabs this session created. Existing tabs' rules
 	// already live in the platform / unmanaged layer; re-emitting them copied
 	// Microsoft's rules into the customization (#40).
-	const isApplication = input.location === "Application";
-	const tabDisplayRulesXml = current.tabs
-		.filter((t) => !baselineTabIds.has(t.id))
-		.filter((t) => t.tabDisplayRules && t.tabDisplayRules.length > 0)
+	const tabDisplayRulesXml = newTabs
+		.filter((t) => t.tabDisplayRules.length > 0)
 		.map((t) => generateTabDisplayRulesForTab(t, isApplication))
 		.filter(Boolean)
 		.join("\n      ");
@@ -314,7 +497,6 @@ export function summarizeRibbonDiff(
 	current: RibbonDefinition,
 	baseline: RibbonDefinition,
 ): RibbonDiffSummary {
-	const baselineButtons = indexButtons(baseline);
 	const baselineTabIds = new Set<string>();
 	const baselineGroupIds = new Set<string>();
 
@@ -322,13 +504,6 @@ export function summarizeRibbonDiff(
 		baselineTabIds.add(baseTab.id);
 		for (const baseGroup of baseTab.groups) baselineGroupIds.add(baseGroup.id);
 	}
-	// Pairs each current button with the same occurrence in the baseline.
-	const seenIds = new Map<string, number>();
-	const baselineFor = (button: RibbonButton): RibbonButton | undefined => {
-		const n = seenIds.get(button.id) ?? 0;
-		seenIds.set(button.id, n + 1);
-		return baselineButtons.get(`${button.id}#${n}`)?.button;
-	};
 
 	let newButtons = 0;
 	let overriddenButtons = 0;
@@ -344,17 +519,12 @@ export function summarizeRibbonDiff(
 		}
 		for (const group of tab.groups) {
 			if (!baselineGroupIds.has(group.id) && baselineTabIds.has(tab.id)) newGroups++;
-			for (const button of group.buttons) {
-				const baseButton = baselineFor(button);
-				if (button.hidden && !baseButton?.hidden) {
-					hiddenButtons++;
-				} else if (!baseButton) {
-					newButtons++;
-				} else if (hasOobOverrideChanges(baseButton, button)) {
-					overriddenButtons++;
-				}
-			}
 		}
+	}
+	for (const { change } of classifyButtons(current, baseline)) {
+		if (change === "hide") hiddenButtons++;
+		else if (change === "new") newButtons++;
+		else overriddenButtons++;
 	}
 
 	// Scaling: count distinct tabs whose scaling differs from baseline.
@@ -448,30 +618,90 @@ const TEMPLATE_MAX_SIZE: Record<string, string> = {
 	"Mscrm.Templates.ThreeLargeThreeMedium": "Large",
 };
 
-/** The MaxSize a new group gets by default, or undefined when its template's layouts aren't known. */
-function defaultMaxSize(group: RibbonGroup): ScaleStep | undefined {
-	const size = TEMPLATE_MAX_SIZE[normalizeGroupTemplate(group.template)];
-	if (!size) return undefined;
-	return { id: `${group.id}.MaxSize`, groupId: group.id, size, sequence: group.sequence };
+/** The MaxSize Size a new group gets by default, or undefined when its template's layouts aren't known. */
+function defaultMaxSizeSize(group: RibbonGroup): string | undefined {
+	return TEMPLATE_MAX_SIZE[normalizeGroupTemplate(group.template)];
+}
+
+export interface NewGroupScaling {
+	/** The MaxSize to write for each new group (by group id). */
+	steps: Map<string, ScaleStep>;
+	/** Why a group can't be given a MaxSize safely — the publish plan blocks on these. */
+	problems: string[];
+}
+
+/**
+ * The MaxSize of every group created this session — on an existing tab, and in
+ * a new tab whose scaling the user didn't set — with a Sequence that no other
+ * step of the tab's scaling (as loaded, plus the session's) uses: after the
+ * tab's last MaxSize and before its first Scale, since scaling is applied in
+ * document order.
+ *
+ * Never the group's own Sequence: a new group at 80 on a home grid whose
+ * scaling had `Scale Sequence="80"` made Unified Interface drop every custom
+ * control of the table from its command bar, while RetrieveEntityRibbon still
+ * returned everything (verified live, #66 review). A unique MaxSize
+ * (65, between the last MaxSize 61 and the first Scale 80) fixed it.
+ */
+export function planNewGroupScaling(current: RibbonDefinition, baseline: RibbonDefinition): NewGroupScaling {
+	const steps = new Map<string, ScaleStep>();
+	const problems: string[] = [];
+	const baseTabs = new Set(baseline.tabs.map((t) => t.id));
+	const baseGroups = new Set(baseline.tabs.flatMap((t) => t.groups.map((g) => g.id)));
+	for (const tab of current.tabs) {
+		const isNewTab = !baseTabs.has(tab.id);
+		const scaling = current.scalingByTab?.[tab.id];
+		const maxSeqs = (scaling?.maxSizes ?? []).map((s) => s.sequence);
+		const scaleSeqs = (scaling?.scales ?? []).map((s) => s.sequence);
+		const used = new Set([...maxSeqs, ...scaleSeqs]);
+		if (isNewTab && used.size < maxSeqs.length + scaleSeqs.length) {
+			problems.push(`The scaling of new tab ${tab.id} uses a Sequence more than once — give every MaxSize and Scale its own`);
+		}
+		// A new tab with MaxSizes set by the user keeps exactly those.
+		if (isNewTab && maxSeqs.length > 0) continue;
+		// The band ignores a MaxSize placed after the first Scale (an earlier CBS
+		// version wrote some there; the merge moves them back — #66 review M2).
+		const band = maxSizeBand(maxSeqs, scaleSeqs);
+		for (const group of tab.groups) {
+			if (!isNewTab && baseGroups.has(group.id)) continue;
+			if (scaling?.maxSizes.some((m) => m.groupId === group.id)) continue;
+			const size = defaultMaxSizeSize(group);
+			if (!size) continue;
+			const seq = freeMaxSizeSequence(band, used);
+			if (seq === undefined) {
+				problems.push(
+					`No free scaling position for the new group "${group.label}" (${group.id}) on tab ${tab.id}: its MaxSize must ` +
+						`come after the tab's last MaxSize (${band.after}) and before its first Scale (${band.before}), and no Sequence is free there`,
+				);
+				continue;
+			}
+			used.add(seq);
+			steps.set(group.id, { id: `${group.id}.MaxSize`, groupId: group.id, size, sequence: seq });
+		}
+	}
+	return { steps, problems };
 }
 
 // ---------------------------------------------------------------------------
 // CustomAction generators
 // ---------------------------------------------------------------------------
 
+/**
+ * A new control: `Location` is `{groupId}.Controls._children`, or for a new
+ * item of an existing menu `{menuSectionControlsId}._children` (#27).
+ */
 function generateCustomAction(
 	button: RibbonButton,
-	groupId: string,
+	location: string,
 	storeLocLabels: LocLabel[],
 	sink: (label: LocLabel) => void,
 	lang = 1033,
 ): string {
-	const location = `${groupId}.Controls._children`;
 	return `<CustomAction Id="${escapeXml(button.id)}.CustomAction"
     Location="${escapeXml(location)}"
     Sequence="${button.sequence}">
     <CommandUIDefinition>
-      ${generateButtonElement(button, storeLocLabels, sink, lang)}
+      ${generateButtonElement(button, storeLocLabels, sink, lang, true)}
     </CommandUIDefinition>
   </CustomAction>`;
 }
@@ -500,49 +730,54 @@ function generateHideCustomAction(button: RibbonButton, _groupId: string): strin
 
 /**
  * Emits a CustomAction that creates a NEW group inside an existing tab.
- * Location pattern per Microsoft docs: `{tabId}.Groups._children`. The group's
- * `<Controls>` is left empty here — the buttons inside it are emitted as their
- * own CustomActions targeting `{groupId}.Controls._children`.
+ * Location pattern per Microsoft docs: `{tabId}.Groups._children`. The
+ * controls created with the group are written inside its `<Controls>` (#59).
  */
 function generateGroupCustomAction(
 	group: RibbonGroup,
 	tabId: string,
+	controls: string[],
 	sink: (label: LocLabel) => void,
 	lang = 1033,
+	storeLocLabels: LocLabel[] = [],
 ): string {
-	const titleId = `${group.id}.Title`;
-	sink({ id: titleId, titles: [{ languageCode: lang, description: group.label }] });
 	return `<CustomAction Id="${escapeXml(group.id)}.CustomAction"
     Location="${escapeXml(tabId)}.Groups._children"
     Sequence="${group.sequence}">
     <CommandUIDefinition>
-      ${generateGroupElement(group, sink, false, lang)}
+      ${generateGroupElement(group, sink, controls, lang, storeLocLabels)}
     </CommandUIDefinition>
   </CustomAction>`;
 }
 
 /**
- * Emits a CustomAction that creates a NEW tab. Documented anchor for adding a
- * tab to an entity ribbon: `Location="Mscrm.Tabs._children"`. The tab's groups
- * are emitted inline (so buttons inside them have an anchor); the buttons
- * themselves are still emitted as separate CustomActions targeting
- * `{groupId}.Controls._children`.
+ * Emits a CustomAction that creates a NEW tab (`tab` as returned by
+ * effectiveNewTab, so it has a Command). Grid and form tabs are added at
+ * `Mscrm.Tabs._children`, sub-grid tabs at the entity's contextual group
+ * (newTabLocation). Groups and the controls created with them are written
+ * inline (#58).
  */
 function generateTabCustomAction(
 	tab: RibbonTab,
 	scaling: ScalingDefinition | undefined,
+	location: string,
+	controlsByGroup: Map<string, string[]>,
+	/** MaxSize per group when the user set none (planNewGroupScaling). */
+	defaults: Map<string, ScaleStep>,
 	sink: (label: LocLabel) => void,
 	lang = 1033,
+	storeLocLabels: LocLabel[] = [],
 ): string {
-	const titleId = `${tab.id}.Title`;
-	sink({ id: titleId, titles: [{ languageCode: lang, description: tab.label }] });
+	const title = containerTitle(tab, sink, lang, storeLocLabels);
 	const commandAttr = tab.commandId ? ` Command="${escapeXml(tab.commandId)}"` : "";
-	const groupsXml = tab.groups.map((g) => generateGroupElement(g, sink, true, lang)).join("\n        ");
+	const groupsXml = tab.groups
+		.map((g) => generateGroupElement(g, sink, controlsByGroup.get(g.id) ?? [], lang, storeLocLabels))
+		.join("\n        ");
 	// RibbonCore.xsd TabType: <Scaling Id> comes before <Groups>, with a MaxSize
 	// for each group (MaxSize elements before Scale elements) — #40.
 	const maxSizes = scaling?.maxSizes.length
 		? scaling.maxSizes
-		: tab.groups.map(defaultMaxSize).filter((s): s is ScaleStep => !!s);
+		: tab.groups.map((g) => defaults.get(g.id)).filter((s): s is ScaleStep => !!s);
 	const scalingSteps = [
 		...maxSizes.map((s) => generateScaleStep("MaxSize", s)),
 		...(scaling?.scales ?? []).map((s) => generateScaleStep("Scale", s)),
@@ -554,10 +789,10 @@ function generateTabCustomAction(
           ${scalingSteps.join("\n          ")}
         </Scaling>`;
 	return `<CustomAction Id="${escapeXml(tab.id)}.CustomAction"
-    Location="Mscrm.Tabs._children"
+    Location="${escapeXml(location)}"
     Sequence="${tab.sequence}">
     <CommandUIDefinition>
-      <Tab Id="${escapeXml(tab.id)}"${commandAttr} Title="${escapeXml(locLabelRef(titleId))}" Sequence="${tab.sequence}">
+      <Tab Id="${escapeXml(tab.id)}"${commandAttr} Title="${escapeXml(title)}" Sequence="${tab.sequence}"${containerAttributes(tab)}>
         ${scalingXml}
         <Groups Id="${escapeXml(tab.id)}.Groups">
         ${groupsXml}
@@ -568,26 +803,67 @@ function generateTabCustomAction(
 }
 
 /**
- * A `<Group>` element with an empty `<Controls>` collection. Used both inside a
- * new-tab CustomAction and (standalone) inside a new-group CustomAction.
- * `nested` controls indentation only.
+ * A `<Group>` element with its `<Controls>` (the given control elements, or
+ * empty), and its Title label (containerTitle). Used both inside a new-tab
+ * CustomAction and (standalone) inside a new-group CustomAction.
  */
 function generateGroupElement(
 	group: RibbonGroup,
 	sink: (label: LocLabel) => void,
-	nested: boolean,
+	controls: string[] = [],
 	lang = 1033,
+	storeLocLabels: LocLabel[] = [],
 ): string {
-	const titleId = `${group.id}.Title`;
-	if (nested) {
-		// Group title LocLabel is registered by the caller for standalone groups;
-		// for nested (new-tab) groups, register it here.
-		sink({ id: titleId, titles: [{ languageCode: lang, description: group.label }] });
-	}
+	const title = containerTitle(group, sink, lang, storeLocLabels);
 	const template = normalizeGroupTemplate(group.template);
-	return `<Group Id="${escapeXml(group.id)}" Title="${escapeXml(locLabelRef(titleId))}" Sequence="${group.sequence}" Template="${escapeXml(template)}">
-          <Controls Id="${escapeXml(group.id)}.Controls"/>
+	const controlsXml =
+		controls.length === 0
+			? `<Controls Id="${escapeXml(group.id)}.Controls"/>`
+			: `<Controls Id="${escapeXml(group.id)}.Controls">
+            ${controls.join("\n            ")}
+          </Controls>`;
+	return `<Group Id="${escapeXml(group.id)}" Title="${escapeXml(title)}" Sequence="${group.sequence}" Template="${escapeXml(template)}"${containerAttributes(group)}>
+          ${controlsXml}
         </Group>`;
+}
+
+/**
+ * The Title of a new tab / group, registering its LocLabel. One imported from
+ * a RibbonDiffXml (#30) keeps its Title token — `$Resources:…` as is, a
+ * `$LocLabels:` label with all its languages — while its text is unchanged;
+ * anything else gets the `{id}.Title` label in the base language.
+ */
+function containerTitle(
+	container: RibbonTab | RibbonGroup,
+	sink: (label: LocLabel) => void,
+	lang: number,
+	storeLocLabels: LocLabel[],
+): string {
+	const titleId = `${container.id}.Title`;
+	if (container.source && container.label) {
+		const title = resolveButtonText(
+			container.label,
+			container.source.titleToken,
+			titleId,
+			storeLocLabels,
+			sink,
+			lang,
+		);
+		if (title) return title;
+	}
+	sink({ id: titleId, titles: [{ languageCode: lang, description: container.label }] });
+	return locLabelRef(titleId);
+}
+
+/** Attributes CBS writes itself on a `<Tab>` / `<Group>`. */
+const CONTAINER_MODELLED_ATTRIBUTES = new Set(["Id", "Command", "Title", "Sequence", "Template"]);
+
+/** The other attributes of an imported tab / group (Description, images, …), as imported (#30). */
+function containerAttributes(container: RibbonTab | RibbonGroup): string {
+	return Object.entries(container.source?.attributes ?? {})
+		.filter(([k]) => !CONTAINER_MODELLED_ATTRIBUTES.has(k) && !NON_DIFF_ATTRIBUTES.has(k))
+		.map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
+		.join("");
 }
 
 /**
@@ -724,6 +1000,8 @@ function generateButtonElement(
 	storeLocLabels: LocLabel[],
 	sink: (label: LocLabel) => void,
 	lang = 1033,
+	/** Write the control's `<Menu>` too: true for a new control (#27). */
+	withMenu = false,
 ): string {
 	const tag = buttonKindToTag(button.kind);
 	const src = button.source;
@@ -751,7 +1029,8 @@ function generateButtonElement(
 		resolveButtonText(button.tooltipBody, src?.tooltipBodyToken, buttonTooltipBodyId(button.id), storeLocLabels, sink, lang),
 	);
 	set("TemplateAlias", button.templateAlias);
-	set("Sequence", String(button.sequence));
+	// A loaded control without Sequence (some menu items) keeps none — the parser reads it as 0.
+	set("Sequence", src && !("Sequence" in src.attributes) && button.sequence === 0 ? undefined : String(button.sequence));
 
 	// Icons. Unchanged → keep the loaded value (out-of-the-box names like
 	// "New", /_imgs/ paths). A bare Fluent icon name chosen in CBS is a
@@ -768,7 +1047,56 @@ function generateButtonElement(
 	const attrXml = Array.from(attrs.entries())
 		.map(([k, v]) => `${k}="${escapeXml(v)}"`)
 		.join(" ");
-	return `<${tag} ${attrXml}/>`;
+	const menuXml = withMenu && button.menu && MENU_TAGS.has(tag) ? generateMenu(button.menu, storeLocLabels, sink, lang) : "";
+	return menuXml ? `<${tag} ${attrXml}>${menuXml}</${tag}>` : `<${tag} ${attrXml}/>`;
+}
+
+/** Controls that can hold a `<Menu>` (RibbonCore.xsd). */
+const MENU_TAGS = new Set(["FlyoutAnchor", "SplitButton", "ComboBox"]);
+
+/**
+ * `<Menu Id><MenuSection Id Title Sequence DisplayMode><Controls Id>…` (#27).
+ * Attributes loaded with the menu / section (MaxWidth, Scrollable, …) are
+ * written back verbatim; items are full controls (a nested FlyoutAnchor
+ * carries its own menu); section children CBS doesn't model are re-inserted
+ * at their original position.
+ */
+function generateMenu(
+	menu: RibbonMenu,
+	storeLocLabels: LocLabel[],
+	sink: (label: LocLabel) => void,
+	lang: number,
+): string {
+	const sections = menu.sections.map((section) => {
+		const attrs = new Map<string, string>(Object.entries(section.attributes ?? {}));
+		const set = (k: string, v: string | undefined) => (v === undefined || v === "" ? attrs.delete(k) : attrs.set(k, v));
+		set("Id", section.id);
+		set(
+			"Title",
+			resolveButtonText(section.title, section.attributes?.["Title"], `${section.id}.Title`, storeLocLabels, sink, lang),
+		);
+		// A loaded section without Sequence keeps none (the parser reads it as 0).
+		const loadedWithout = !!section.attributes && !("Sequence" in section.attributes) && section.sequence === 0;
+		set("Sequence", loadedWithout ? undefined : String(section.sequence));
+		set("DisplayMode", section.displayMode);
+		const sectionAttrs = Array.from(attrs.entries())
+			.map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
+			.join("");
+		if (section.rawContent !== undefined) return `<MenuSection${sectionAttrs}>${section.rawContent}</MenuSection>`;
+		// Hidden items are written too: they get a HideCustomAction of their
+		// own (classifyButtons), so a moved flyout keeps them (#62 review M2).
+		const children = section.controls.map((c) => generateButtonElement(c, storeLocLabels, sink, lang, true));
+		for (const raw of [...(section.rawControls ?? [])].sort((a, b) => a.index - b.index)) {
+			children.splice(Math.min(raw.index, children.length), 0, raw.xml);
+		}
+		return `<MenuSection${sectionAttrs}><Controls Id="${escapeXml(section.controlsId)}">${children.join("")}</Controls></MenuSection>`;
+	});
+	const menuAttrs = new Map<string, string>(Object.entries(menu.attributes ?? {}));
+	menuAttrs.set("Id", menu.id);
+	const menuAttrXml = Array.from(menuAttrs.entries())
+		.map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
+		.join("");
+	return `<Menu${menuAttrXml}>${sections.join("")}</Menu>`;
 }
 
 /**

@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🧹 Unsupported command actions ([#28](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/28))
+
+- The command editor no longer offers **Power Fx** or **Custom API** actions:
+  classic ribbon commands can't run them (they exist only in modern commanding).
+  A command that still has one (from an older saved session) shows an error with
+  **Remove**, and publishing it is blocked with a message saying what to do.
+
+### 🧭 Canvas opens on the main tab ([#64](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/64))
+
+- Loading a table or switching location opens the table's **main tab** instead of the
+  first tab listed (on the Home Grid that was the Charts tab).
+- The Charts / `AllEntities` tabs show a warning (in every view):
+  Unified Interface never shows their buttons, and they don't come back on reload.
+
+### 🖼️ Icons on copies and picked web resources ([#60](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/60), [#61](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/61))
+
+- A button **duplicated** or **copied from Solution Elements** keeps its icon (the loaded
+  ModernImage and image16/image32); a copy from Solution Elements also keeps its command
+  and tooltips. Label tokens of the original are still not reused.
+- Picking an **existing web resource** in the icon picker adds it to the active unmanaged
+  solution, so a solution export carries the icon (with a warning when no unmanaged
+  solution is selected; an error when the typed name doesn't exist).
+- Dropping onto a button in the modern command bar no longer applies the drop twice
+  (a Solution Elements copy was created twice and a drag-move ran twice, the second time
+  into the tab's first group).
+
 ### 🛡️ Pre-publish validation ([#35](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/35))
 
 - The publish dialog checks the RibbonDiffXml each scope would import (your

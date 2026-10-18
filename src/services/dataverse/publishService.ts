@@ -7,6 +7,7 @@ import {
 	generateEnableRule,
 	generateDisplayRule,
 	generateTabDisplayRulesForTab,
+	newTabCommandId,
 } from "@/services/xmlGenerator";
 import {
 	emptyRibbonDiffParts,
@@ -17,7 +18,12 @@ import {
 	mergeScopeChanges,
 	ownControlIds,
 	ownContainerIds,
+	layerCommandRefs,
+	canUncustomiseCommand,
 	compareRibbonDiffParts,
+	layerScalingSteps,
+	normalizeLayerScaling,
+	setContainerTitle,
 	changedRibbonDiffKeys,
 	type RibbonDiffComparison,
 	type RibbonDiffParts,
@@ -30,6 +36,8 @@ import {
 	type BusyWaitOptions,
 } from "@/services/dataverse/environmentService";
 import type { ScopePlan } from "@/services/publishPlan";
+import { describeScalingChange, type ScalingChange } from "@/services/scalingSequence";
+import { groupControls } from "@/utils/ribbonMenu";
 import { verifyRibbonImport } from "@/services/importJobVerification";
 import {
 	validatePublishRibbonDiff,
@@ -138,7 +146,17 @@ export interface PublishRibbonInput {
 	baselineDisplayRules?: DisplayRule[];
 	/** What changed in this scope (see publishPlan.planScope). */
 	plan: Pick<ScopePlan, "editedCommandIds" | "editedEnableRuleIds" | "editedDisplayRuleIds" | "deletedButtonIds" | "unhiddenButtonIds"> &
-		Partial<Pick<ScopePlan, "deletedContainerIds" | "movedButtons" | "editedLocLabelIds" | "editedTabIds">>;
+		Partial<
+			Pick<
+				ScopePlan,
+				| "deletedContainerIds"
+				| "movedButtons"
+				| "editedLocLabelIds"
+				| "editedTabIds"
+				| "renamedLabels"
+				| "uncustomisedCommandIds"
+			>
+		>;
 	/** Organisation base language for edited labels (#50). Read from the organisation when omitted. */
 	languageCode?: number;
 	solution: PublishSolutionInfo;
@@ -176,6 +194,12 @@ export interface PublishRibbonResult {
 	importJobId: string;
 	/** Present when the scope was published (the layer tables only show published state). */
 	verification?: PublishVerification;
+	/**
+	 * The layer as imported. The store takes the scaling Sequences and label
+	 * tokens it wrote from it, so a second publish in the same session sees
+	 * them (#66 review B1, m4).
+	 */
+	parts: RibbonDiffParts;
 }
 
 function locLabelXml(label: LocLabel): string {
@@ -203,6 +227,8 @@ export async function buildMergedRibbonDiffXml(
 	changedCount: number;
 	/** `part:id` of the elements this publish adds or changes in the layer (checked by content after publishing). */
 	changedKeys: string[];
+	/** Scaling steps of the layer moved to a free Sequence (#66 review). */
+	scalingChanges: ScalingChange[];
 	/** `part:id` of the elements the layer doesn't have yet. */
 	newKeys: string[];
 	/** Commands and rules the existing unmanaged layer defines (replaced by what is imported). */
@@ -220,6 +246,16 @@ export async function buildMergedRibbonDiffXml(
 	// changed. Labels the generator writes (new / edited buttons) win below —
 	// they carry the edited text.
 	const labels = input.locLabels.filter((l) => plan.editedLocLabelIds.includes(l.id));
+	// Renamed tabs / groups the layer adds (#58): the base-language title of
+	// their Title label changes, other languages are kept.
+	const lang = input.languageCode ?? 1033;
+	for (const r of input.plan.renamedLabels ?? []) {
+		const prev = labels.find((l) => l.id === r.id) ?? input.locLabels.find((l) => l.id === r.id);
+		const titles = [{ languageCode: lang, description: r.text }, ...(prev?.titles ?? []).filter((t) => t.languageCode !== lang)];
+		const i = labels.findIndex((l) => l.id === r.id);
+		if (i >= 0) labels[i] = { id: r.id, titles };
+		else labels.push({ id: r.id, titles });
+	}
 	let delta = labels.length
 		? parseRibbonDiffParts(`<RibbonDiffXml><LocLabels>${labels.map(locLabelXml).join("")}</LocLabels></RibbonDiffXml>`)
 		: emptyRibbonDiffParts();
@@ -289,7 +325,12 @@ export async function buildMergedRibbonDiffXml(
 	const keepOnly = (map: Map<string, string>, ids: string[]) => {
 		for (const id of Array.from(map.keys())) if (!ids.includes(id)) map.delete(id);
 	};
-	keepOnly(delta.commandDefinitions, input.plan.editedCommandIds);
+	// …plus the Command of each tab created this session (#58): the generator
+	// defines it with the tab, and its TabDisplayRule refers to it.
+	const newTabCommands = input.locations.flatMap((loc) =>
+		loc.current.tabs.filter((t) => !loc.baseline.tabs.some((b) => b.id === t.id)).map(newTabCommandId),
+	);
+	keepOnly(delta.commandDefinitions, [...input.plan.editedCommandIds, ...newTabCommands]);
 	keepOnly(delta.enableRules, input.plan.editedEnableRuleIds);
 	keepOnly(delta.displayRules, input.plan.editedDisplayRuleIds);
 
@@ -320,13 +361,41 @@ export async function buildMergedRibbonDiffXml(
 		);
 	}
 
+	// Uncustomise (#31) removes a copy of a command defined elsewhere — never
+	// your own command, which nothing would define once removed.
+	const layerRefs = layerCommandRefs(existing);
+	const ownCommands = (input.plan.uncustomisedCommandIds ?? []).filter(
+		(id) => existing.commandDefinitions.has(id) && !canUncustomiseCommand(id, layerRefs),
+	);
+	if (ownCommands.length > 0) {
+		throw new Error(
+			`Can't uncustomise ${ownCommands.join(", ")}: it is your own command (your customizations' buttons use it ` +
+				`and no other solution defines it), so removing it would leave those buttons without a command. Undo the uncustomise.`,
+		);
+	}
+
 	const retainedCommandIds = new Set<string>();
 	for (const loc of input.locations)
 		for (const tab of loc.current.tabs)
 			for (const group of tab.groups)
-				for (const button of group.buttons) if (button.commandId) retainedCommandIds.add(button.commandId);
+				for (const button of groupControls(group)) if (button.commandId) retainedCommandIds.add(button.commandId);
 
-	const merged = mergeScopeChanges(existing, delta, {
+	// Rules other commands of the scope still use stay in the layer when an
+	// uncustomised command (#31) leaves it.
+	const uncustomisedCommandIds = input.plan.uncustomisedCommandIds ?? [];
+	const retainedEnableRuleIds = new Set<string>();
+	const retainedDisplayRuleIds = new Set<string>();
+	for (const c of input.commands) {
+		if (!retainedCommandIds.has(c.id) || uncustomisedCommandIds.includes(c.id)) continue;
+		c.enableRules.forEach((r) => retainedEnableRuleIds.add(r));
+		c.displayRules.forEach((r) => retainedDisplayRuleIds.add(r));
+		for (const raw of c.rawRuleRefs ?? []) {
+			const m = /^\s*<(EnableRule|DisplayRule)\b[^>]*?\sId="([^"]+)"/.exec(raw.xml);
+			if (m) (m[1] === "EnableRule" ? retainedEnableRuleIds : retainedDisplayRuleIds).add(m[2]);
+		}
+	}
+
+	let merged = mergeScopeChanges(existing, delta, {
 		retainedCommandIds,
 		editedCommandIds: input.plan.editedCommandIds,
 		editedEnableRuleIds: input.plan.editedEnableRuleIds,
@@ -336,8 +405,38 @@ export async function buildMergedRibbonDiffXml(
 		deletedContainerIds: plan.deletedContainerIds,
 		movedControls: plan.movedButtons,
 		removedTabCommands,
+		uncustomisedCommandIds,
+		retainedEnableRuleIds,
+		retainedDisplayRuleIds,
 	});
+
+	// A renamed tab / group whose title label other controls share gets a label
+	// of its own (#66 review t3).
+	for (const r of input.plan.renamedLabels ?? []) {
+		if (r.newLabel) merged = setContainerTitle(merged, r.containerId, `$LocLabels:${r.id}`);
+	}
+
+	// No two scaling steps of a tab may share a Sequence (#66 review): the
+	// layer's steps — including ones earlier CBS versions wrote at their
+	// group's Sequence — are moved to free Sequences; what can't be placed
+	// blocks the import.
+	const layerStepIds = new Set([...layerScalingSteps(existing), ...layerScalingSteps(merged)].map((st) => st.id));
+	const platform: Record<string, { maxSizes: number[]; scales: number[] }> = {};
+	for (const loc of input.locations) {
+		for (const [tabId, scaling] of Object.entries(loc.baseline.scalingByTab ?? {})) {
+			platform[tabId] = {
+				maxSizes: scaling.maxSizes.filter((st) => !layerStepIds.has(st.id)).map((st) => st.sequence),
+				scales: scaling.scales.filter((st) => !layerStepIds.has(st.id)).map((st) => st.sequence),
+			};
+		}
+	}
+	const scaling = normalizeLayerScaling(merged, platform);
+	if (scaling.problems.length > 0) {
+		throw new Error(`Not published: ${scaling.problems.join("; ")}.`);
+	}
+	merged = scaling.parts;
 	return {
+		scalingChanges: scaling.changes,
 		xml: serializeRibbonDiffParts(merged),
 		parts: merged,
 		elementCount: countRibbonDiffParts(merged),
@@ -389,7 +488,8 @@ export function publishValidationContext(
 				baselineGroups.add(group.id);
 				elementIds.push(group.id);
 				if (group.label) loadedAttributes[group.id] = { Title: group.label, Label: group.label };
-				for (const b of group.buttons) {
+				// Menu items too (#27).
+				for (const b of groupControls(group)) {
 					elementIds.push(b.id);
 					if (b.source) loadedAttributes[b.id] = b.source.attributes;
 				}
@@ -579,6 +679,7 @@ export async function publishRibbon(
 		`RibbonDiffXml for ${scopeLabel}: ${merged.preservedCount} existing element(s) preserved, ` +
 			`${merged.changedCount} element(s) from this session, ${merged.elementCount} total.`,
 	);
+	for (const c of merged.scalingChanges) logs.logWarn("publish", describeScalingChange(c));
 
 	// Pre-publish validation (#35): never import what the check rejects.
 	const findings = validatePublishRibbonDiff(
@@ -776,6 +877,7 @@ export async function publishRibbon(
 		preservedCount: merged.preservedCount,
 		importJobId,
 		verification,
+		parts: merged.parts,
 	};
 }
 

@@ -60,6 +60,51 @@ export interface RibbonButton {
 	 * created in this session.
 	 */
 	source?: RibbonButtonSource;
+	/**
+	 * The `<Menu>` of a FlyoutAnchor / SplitButton (or ComboBox) (#27). Menu
+	 * items are RibbonButtons themselves, so a nested FlyoutAnchor carries its
+	 * own menu.
+	 */
+	menu?: RibbonMenu;
+}
+
+/** `<Menu Id>`: one or more MenuSections (RibbonCore.xsd MenuType). */
+export interface RibbonMenu {
+	id: string;
+	sections: RibbonMenuSection[];
+	/** Every attribute of `<Menu>` as loaded (e.g. MaxWidth). Absent for menus created in this session. */
+	attributes?: Record<string, string>;
+}
+
+/**
+ * `<MenuSection Id Title Sequence DisplayMode><Controls Id>…</Controls></MenuSection>`.
+ * New items are added to a section of an existing menu with a CustomAction at
+ * `Location="{controlsId}._children"`.
+ */
+export interface RibbonMenuSection {
+	id: string;
+	title?: string;
+	sequence: number;
+	/** `Menu` (text only), `Menu16` or `Menu32`. */
+	displayMode?: string;
+	/** Id of the section's `<Controls>` element. */
+	controlsId: string;
+	/** The modelled controls (Button, FlyoutAnchor, SplitButton, CheckBox …). */
+	controls: RibbonButton[];
+	/**
+	 * Every attribute of `<MenuSection>` as loaded (Scrollable, MaxHeight, …),
+	 * written back verbatim. Absent for sections created in this session.
+	 */
+	attributes?: Record<string, string>;
+	/**
+	 * Children of the section CBS does not model — a `<Gallery>` instead of
+	 * `<Controls>`, or controls such as ToggleButton / ColorPicker / Label
+	 * (`index` = position among the `<Controls>` children). Kept verbatim so
+	 * re-emitting the section never drops them.
+	 */
+	rawControls?: { index: number; xml: string }[];
+	/** The section has a `<Gallery>` (or nothing) instead of `<Controls>`; its raw XML. */
+	rawContent?: string;
 }
 
 export interface RibbonButtonSource {
@@ -78,6 +123,18 @@ export interface RibbonGroup {
 	sequence: number;
 	template: string;
 	buttons: RibbonButton[];
+	/** The `<Group>` as imported from a RibbonDiffXml (#30); absent otherwise. */
+	source?: RibbonContainerSource;
+}
+
+/**
+ * A tab / group element exactly as imported (#30): its raw `Title` token
+ * (`$LocLabels:…`, `$Resources:…`, literal) and every attribute, so a publish
+ * writes them back instead of re-deriving them from the display text.
+ */
+export interface RibbonContainerSource {
+	titleToken?: string;
+	attributes: Record<string, string>;
 }
 
 export interface RibbonTab {
@@ -88,6 +145,8 @@ export interface RibbonTab {
 	template?: string;
 	tabDisplayRules: TabDisplayRule[];
 	groups: RibbonGroup[];
+	/** The `<Tab>` as imported from a RibbonDiffXml (#30); absent otherwise. */
+	source?: RibbonContainerSource;
 }
 
 export interface RibbonDefinition {
