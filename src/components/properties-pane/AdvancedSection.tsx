@@ -64,7 +64,6 @@ export const AdvancedSection: React.FC = () => {
 	const clearSelection = useSelectionStore((s) => s.clearSelection);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const sessionPrefix = useSessionStore((s) => s.publisherPrefix);
-	const layerControlIds = useRibbonStore((s) => s.layers.entity?.controlIds);
 
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
@@ -77,7 +76,7 @@ export const AdvancedSection: React.FC = () => {
 	// back from the layer on reload (#22).
 	const openRecordCarrierList = openRecordCarriers(ribbon);
 	const hasOpenRecordOverride = openRecordCarrierList.length > 0;
-	const ownership = openRecordCarrierList.map((c) => openRecordCarrierOwnership(c, layerControlIds));
+	const ownership = openRecordCarrierList.map((c) => openRecordCarrierOwnership(c));
 	const openRecordTheirs = ownership.includes("theirs");
 	// Provenance not resolved: wait rather than call it another solution's.
 	const openRecordUnknown = !openRecordTheirs && ownership.includes("unknown");

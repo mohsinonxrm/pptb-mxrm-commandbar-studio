@@ -18,6 +18,8 @@ interface HideOobWarningModalProps {
 	buttonLabel: string;
 	/** The button's command; the display-rule option edits it. */
 	commandId?: string;
+	/** Set when Delete was pressed on a button that isn't yours (#17): why it can't be deleted. */
+	deleteBlockedReason?: string;
 	onConfirmHide: () => void;
 	onConfirmDisplayRule: () => void;
 	onCancel: () => void;
@@ -27,6 +29,7 @@ export const HideOobWarningModal: React.FC<HideOobWarningModalProps> = ({
 	open,
 	buttonLabel,
 	commandId,
+	deleteBlockedReason,
 	onConfirmHide,
 	onConfirmDisplayRule,
 	onCancel,
@@ -38,15 +41,21 @@ export const HideOobWarningModal: React.FC<HideOobWarningModalProps> = ({
 					<WarningRegular
 						style={{ marginRight: "8px", color: "var(--colorStatusWarningForeground1)" }}
 					/>
-					Hide "{buttonLabel}"
+					{deleteBlockedReason ? `Can't delete "${buttonLabel}"` : `Hide "${buttonLabel}"`}
 				</DialogTitle>
 				<DialogBody>
 					<DialogContent>
+						{deleteBlockedReason && (
+							<Text style={{ display: "block", marginBottom: "12px" }}>
+								{deleteBlockedReason} Only buttons your solution adds can be deleted — you can hide this
+								one instead.
+							</Text>
+						)}
 						<MessageBar intent="warning">
 							<MessageBarBody>
 								<Text weight="semibold">A HideCustomAction removes the button from the ribbon.</Text>{" "}
-								Command Bar Studio can&apos;t show a hidden button again yet (#47), and in a managed
-								solution a hide can&apos;t be undone with a patch.
+								To show it again, use Unhide under &ldquo;Hidden by customizations&rdquo; in the
+								Properties pane; in a managed solution a hide can&apos;t be undone with a patch.
 							</MessageBarBody>
 						</MessageBar>
 						<Text style={{ display: "block", marginTop: "12px" }}>

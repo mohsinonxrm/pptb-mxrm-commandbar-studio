@@ -16,8 +16,13 @@ import type {
 	ScalingDefinition,
 	RibbonMenuSection,
 } from "@/types/ribbon";
-import { locLabelsFromParts, type LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
-import { applyPublishedLayer, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
+import { layerSnapshotFromParts, locLabelsFromParts, type LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import {
+	applyPublishedLayer,
+	ownContainerIds as ownContainerIdsOf,
+	ownControlIds,
+	type RibbonDiffParts,
+} from "@/services/ribbonDiffMerge";
 import { defaultTabDisplayRules, newTabCommandId } from "@/services/xmlGenerator";
 import { generateRibbonId, newButtonIds } from "@/utils/idGenerator";
 import {
@@ -33,6 +38,7 @@ import {
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import { isPlatformText } from "@/utils/displayLabel";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { canDeleteControl, canDeleteGroup, canDeleteTab } from "@/utils/ribbonProvenance";
 import { onSolutionSwitch } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import {
@@ -327,6 +333,12 @@ export interface RibbonStore extends RibbonStoreState {
 	// Load initial data
 	loadRibbons(ribbons: Record<RibbonLocation, RibbonDefinition>): void;
 	loadWorkspace(seed: RibbonWorkspaceSeed): void;
+	/**
+	 * Puts a saved workspace (unsaved changes of an earlier session, #16) on
+	 * top of the loaded one as ONE undo step. Baselines and layers stay as
+	 * loaded, so the restored edits are changes to publish.
+	 */
+	restoreWorkspace(workspace: WorkspaceSnapshot, detail: string): void;
 	/** Empties the workspace (no table loaded): a solution switch ends the table being edited (#22). */
 	resetWorkspace(): void;
 }
@@ -360,13 +372,21 @@ export function workspaceIds(
 	return ids;
 }
 
+/** Tabs and groups the location's unmanaged layer adds; undefined when it couldn't be read. */
+export function ownContainerIds(
+	state: Pick<RibbonStoreState, "layers">,
+	location: RibbonLocation,
+): string[] | undefined {
+	return state.layers[location === "Application" ? "application" : "entity"]?.containerIds;
+}
+
 function cloneRibbons(
 	ribbons: Record<RibbonLocation, RibbonDefinition>,
 ): Record<RibbonLocation, RibbonDefinition> {
 	return JSON.parse(JSON.stringify(ribbons));
 }
 
-function workspaceOf(state: RibbonStoreState): WorkspaceSnapshot {
+export function workspaceOf(state: RibbonStoreState): WorkspaceSnapshot {
 	// State is updated immutably, so the snapshot can share it.
 	return {
 		ribbons: state.ribbons,
@@ -459,7 +479,7 @@ function commitMutation(
  * Whether the workspace has anything to publish (#34 review): after an undo
  * the change counter alone can't tell, e.g. when undoing past a publish.
  */
-function hasPendingChanges(state: RibbonStoreState): boolean {
+export function hasPendingChanges(state: RibbonStoreState): boolean {
 	const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 	return (
 		state.pendingUnhides.entity.length + state.pendingUnhides.application.length > 0 ||
@@ -716,6 +736,21 @@ export const useRibbonStore = create<RibbonStore>()(
 			if (openBatch) openBatch = { snapshot: workspaceOf(get()), meta: null };
 		},
 
+		restoreWorkspace(workspace, detail) {
+			const copy: WorkspaceSnapshot = JSON.parse(JSON.stringify(workspace));
+			set((state) => {
+				// An un-hide of a hide the layer no longer has would publish nothing.
+				const stillHidden = (scope: LayerScope) => {
+					const snap = state.layers[scope];
+					return snap ? copy.pendingUnhides[scope].filter((id) => snap.hides.some((h) => h.location === id)) : copy.pendingUnhides[scope];
+				};
+				const change = { ...copy, pendingUnhides: { entity: stillHidden("entity"), application: stillHidden("application") } };
+				// Nothing to restore (the server has it all): not a change.
+				if (JSON.stringify(workspaceOf({ ...state, ...change })) === JSON.stringify(workspaceOf(state))) return state;
+				return record(state, change, historyMeta("restored", "unsaved changes", detail, "history"));
+			});
+		},
+
 		resetWorkspace() {
 			get().loadWorkspace({ ribbons: EMPTY_RIBBONS, commands: [], displayRules: [], enableRules: [], locLabels: [] });
 		},
@@ -884,6 +919,19 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		deleteButton(location, tabId, groupId, buttonId) {
+			// Only your own controls (#17): publish can't remove the others, so the
+			// canvas and Dataverse would disagree. They can be hidden instead.
+			const current = get();
+			const button = controlAt(current.ribbons, location, tabId, groupId, buttonId)?.button;
+			if (button && !canDeleteControl(button, current.baseline[location])) {
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"ribbon",
+						`"${button.label}" (${buttonId}) was not deleted: only your own buttons can be deleted — hide it instead.`,
+					);
+				return;
+			}
 			set((state) =>
 				commitMutation(
 					state,
@@ -1227,6 +1275,18 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		deleteGroup(location, tabId, groupId) {
+			// Only your own group, holding only your own controls (#17 review).
+			const current = get();
+			const group = current.ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId);
+			if (group && !canDeleteGroup(group, current.baseline[location], ownContainerIds(current, location))) {
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"ribbon",
+						`Group "${group.label}" (${groupId}) was not deleted: only your own groups, with only your own buttons in them, can be deleted — hide its buttons instead.`,
+					);
+				return;
+			}
 			set((state) =>
 				commitMutation(
 					state,
@@ -1318,6 +1378,18 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		deleteTab(location, tabId) {
+			// Only your own tab, holding only your own groups and controls (#17 review).
+			const current = get();
+			const tab = current.ribbons[location].tabs.find((t) => t.id === tabId);
+			if (tab && !canDeleteTab(tab, current.baseline[location], ownContainerIds(current, location))) {
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"ribbon",
+						`Tab "${tab.label}" (${tabId}) was not deleted: only your own tabs, with only your own groups and buttons in them, can be deleted.`,
+					);
+				return;
+			}
 			set((state) =>
 				commitMutation(
 					state,
@@ -1647,8 +1719,7 @@ export const useRibbonStore = create<RibbonStore>()(
 			}
 			if (carriers.length === 0) return true;
 			// Provenance not resolved yet ("unknown") or another solution's: not deleted.
-			const layerControls = state.layers.entity?.controlIds;
-			if (carriers.some((c) => openRecordCarrierOwnership(c, layerControls) !== "yours")) return false;
+			if (carriers.some((c) => openRecordCarrierOwnership(c) !== "yours")) return false;
 			get().batch(() => {
 				// Only the carriers the switch created: a button of your own that
 				// uses the command stays (#22 review).
@@ -1894,6 +1965,21 @@ export const useRibbonStore = create<RibbonStore>()(
 					["entity", ENTITY_LOCATIONS.every((l) => published.includes(l))],
 					["application", published.includes("Application")],
 				];
+				// What the published layer adds is yours from now on — before the
+				// layer is re-read, and even when that read fails (#17 review).
+				for (const [scope, done] of scopes) {
+					const parts = publishedLayers?.[scope];
+					if (!done || !parts) continue;
+					const snap = layers[scope];
+					const union = (ids: string[], add: Set<string>) => [...new Set([...ids, ...add])];
+					layers[scope] = snap
+						? {
+								...snap,
+								containerIds: union(snap.containerIds, ownContainerIdsOf(parts)),
+								controlIds: union(snap.controlIds, ownControlIds(parts)),
+							}
+						: layerSnapshotFromParts(parts);
+				}
 				for (const [scope, done] of scopes) {
 					if (!done || pendingUnhides[scope].length === 0) continue;
 					const snap = layers[scope];
@@ -1939,19 +2025,14 @@ export const useRibbonStore = create<RibbonStore>()(
 					const kept = anyPublished ? dropPublished(e) : e;
 					return i === state.past.length - 1 && kept.coalesceKey ? { ...kept, coalesceKey: undefined } : kept;
 				});
-				const pending =
-					all.some((loc) => JSON.stringify(baseline[loc]) !== JSON.stringify(current[loc])) ||
-					pendingUnhides.entity.length + pendingUnhides.application.length > 0 ||
-					uncustomisedCommandIds.entity.length + uncustomisedCommandIds.application.length > 0;
-				return {
+				const next = {
 					ribbons: current,
 					locLabels,
 					baselineLocLabels,
 					baseline,
 					layers,
 					pendingUnhides,
-					past,
-					future: anyPublished ? state.future.map(dropPublished) : state.future,
+					uncustomisedCommandIds,
 					...(everything
 						? {
 								baselineCommands: JSON.parse(JSON.stringify(state.commands)),
@@ -1961,7 +2042,15 @@ export const useRibbonStore = create<RibbonStore>()(
 								customisedCommandIds: [],
 							}
 						: {}),
-					uncustomisedCommandIds,
+				};
+				// Commands, rules, labels and customisations count too: after a
+				// partial publish (e.g. the table import failed) they are still to
+				// publish (#16 review).
+				const pending = hasPendingChanges({ ...state, ...next });
+				return {
+					...next,
+					past,
+					future: anyPublished ? state.future.map(dropPublished) : state.future,
 					reloadRequiredCommandIds,
 					mutationsSincePublish: pending ? Math.max(1, state.mutationsSincePublish) : 0,
 				};

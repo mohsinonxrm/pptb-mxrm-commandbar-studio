@@ -393,19 +393,19 @@ describe("#22 review — Mscrm.OpenRecordItem override", () => {
 		expect(isOpenRecordCarrier({ id: `cbs.${T}.SubGrid.OpenRecordItem2.Button`, commandId: OPEN })).toBe(true);
 	});
 
-	it("a carrier without resolved provenance is yours when the layer lists it, else not removed yet", () => {
+	it("a carrier without resolved provenance isn't removed yet, even when the layer lists it (#17: deletes go by the loaded origin)", () => {
 		loadStore({ carriers: ["HomepageGrid"], openCommand: true });
 		const s = useRibbonStore.getState();
 		const unresolved = JSON.parse(JSON.stringify(s.ribbons));
 		delete openRecordCarriers(unresolved.HomepageGrid)[0].button.origin;
 		s.loadWorkspace({ ...s, ribbons: unresolved, layers: s.layers });
-		expect(set("HomepageGrid", false)).toBe(true);
-		expect(openRecordCarriers(useRibbonStore.getState().ribbons.HomepageGrid)).toEqual([]);
+		expect(set("HomepageGrid", false)).toBe(false);
+		expect(openRecordCarriers(useRibbonStore.getState().ribbons.HomepageGrid)).toHaveLength(1);
 
 		const snap = s.layers.entity!;
 		s.loadWorkspace({ ...s, ribbons: unresolved, layers: { entity: { ...snap, controlIds: [] }, application: null } });
 		const [carrier] = openRecordCarriers(useRibbonStore.getState().ribbons.HomepageGrid);
-		expect(openRecordCarrierOwnership(carrier, [])).toBe("unknown");
+		expect(openRecordCarrierOwnership(carrier)).toBe("unknown");
 		expect(set("HomepageGrid", false)).toBe(false);
 		expect(openRecordCarriers(useRibbonStore.getState().ribbons.HomepageGrid)).toHaveLength(1);
 	});

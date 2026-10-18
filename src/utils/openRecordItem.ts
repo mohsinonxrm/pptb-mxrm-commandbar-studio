@@ -63,16 +63,15 @@ export function openRecordCarriers(ribbon: RibbonDefinition | undefined): OpenRe
 
 /**
  * Whether a carrier can be deleted: yours (unmanaged layer or this session),
- * "unknown" while its provenance isn't resolved and the layer doesn't list it,
- * else another solution's.
+ * "unknown" while its provenance isn't resolved, else another solution's.
+ * Unresolved stays "unknown" even when the layer lists it: deleting and
+ * publishing go by the origin the button was loaded with (#17), and the load
+ * sets it for everything the layer adds (applyLayerOwnership).
  */
-export function openRecordCarrierOwnership(
-	carrier: OpenRecordCarrier,
-	layerControlIds?: Iterable<string>,
-): "yours" | "unknown" | "theirs" {
+export function openRecordCarrierOwnership(carrier: OpenRecordCarrier): "yours" | "unknown" | "theirs" {
 	const origin = carrier.button.origin;
 	if (origin === "unmanaged") return "yours";
-	if (origin === undefined) return [...(layerControlIds ?? [])].includes(carrier.button.id) ? "yours" : "unknown";
+	if (origin === undefined) return "unknown";
 	return "theirs";
 }
 
