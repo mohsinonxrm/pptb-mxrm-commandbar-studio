@@ -648,11 +648,12 @@ describe("#68 review 1 — tab and group titles and attributes publish as import
 describe("#68 review 2 — undo takes back the definitions an import changed", () => {
 	const REFRESH = `<RibbonDiffXml><CommandDefinitions><CommandDefinition Id="Mscrm.RefreshGrid"><EnableRules/><DisplayRules/><Actions><JavaScriptFunction Library="$webresource:cbs_/x.js" FunctionName="refresh"/></Actions></CommandDefinition></CommandDefinitions></RibbonDiffXml>`;
 
-	it("undo / redo of an import restore commands, keeping later edits of other definitions", () => {
+	it("undo / redo of an import restore commands; a later edit is an undo step of its own (#69)", () => {
 		const before = useRibbonStore.getState().commands.find((c) => c.id === "Mscrm.RefreshGrid");
 		importIntoStore(REFRESH);
 		expect(entityPlan().editedCommandIds).toEqual(["Mscrm.RefreshGrid"]);
-		// A later edit of another command (no history entry of its own).
+		// A later edit of another command: with #69's workspace history it has
+		// its own entry, undone first.
 		const other = useRibbonStore
 			.getState()
 			.commands.find((c) => c.id === "Mscrm.NewRecordFromGrid")!;
@@ -660,13 +661,23 @@ describe("#68 review 2 — undo takes back the definitions an import changed", (
 
 		useRibbonStore.getState().undo();
 		let s = useRibbonStore.getState();
+		expect(s.commands.find((c) => c.id === "Mscrm.NewRecordFromGrid")).toEqual(other);
+		expect(s.commands.find((c) => c.id === "Mscrm.RefreshGrid")?.actions).toHaveLength(1);
+		expect(entityPlan().editedCommandIds).toEqual(["Mscrm.RefreshGrid"]);
+
+		useRibbonStore.getState().undo();
+		s = useRibbonStore.getState();
 		expect(s.commands.find((c) => c.id === "Mscrm.RefreshGrid")).toEqual(before);
-		expect(s.commands.find((c) => c.id === "Mscrm.NewRecordFromGrid")?.actions).toEqual([]);
-		expect(entityPlan().editedCommandIds).toEqual(["Mscrm.NewRecordFromGrid"]);
+		expect(entityPlan().editedCommandIds).toEqual([]);
 
 		useRibbonStore.getState().redo();
 		s = useRibbonStore.getState();
 		expect(s.commands.find((c) => c.id === "Mscrm.RefreshGrid")?.actions).toHaveLength(1);
+		expect(entityPlan().editedCommandIds).toEqual(["Mscrm.RefreshGrid"]);
+
+		useRibbonStore.getState().redo();
+		s = useRibbonStore.getState();
+		expect(s.commands.find((c) => c.id === "Mscrm.NewRecordFromGrid")?.actions).toEqual([]);
 		expect(entityPlan().editedCommandIds.sort()).toEqual([
 			"Mscrm.NewRecordFromGrid",
 			"Mscrm.RefreshGrid",

@@ -25,6 +25,7 @@ import {
 	SearchRegular,
 } from "@fluentui/react-icons";
 import { useMemo, useState } from "react";
+import { groupControls } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	root: {
@@ -225,7 +226,7 @@ export function BottomPanel() {
 		for (const ribbon of Object.values(ribbons)) {
 			for (const tab of ribbon.tabs) {
 				for (const group of tab.groups) {
-					for (const btn of group.buttons) {
+					for (const btn of groupControls(group)) {
 						if (btn.commandId) {
 							map[btn.commandId] = (map[btn.commandId] ?? 0) + 1;
 						}
@@ -554,16 +555,17 @@ export function BottomPanel() {
 														>
 															View diff
 														</Button>
-														{i < history.length - 1 && (
-															<Button
-																appearance="subtle"
-																size="small"
-																icon={<ArrowCounterclockwiseRegular />}
-																onClick={() => restore(pastIndex)}
-															>
-																Revert to here
-															</Button>
-														)}
+														{/* restore(i) undoes entry i and every later one, so
+														    the oldest entry goes back to the loaded state (#34). */}
+														<Button
+															appearance="subtle"
+															size="small"
+															icon={<ArrowCounterclockwiseRegular />}
+															title="Undo this change and every later one (redo brings them back)"
+															onClick={() => restore(pastIndex)}
+														>
+															Undo from here
+														</Button>
 													</div>
 												</div>
 											</div>

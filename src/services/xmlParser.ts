@@ -1,6 +1,8 @@
 import type {
 	RibbonButton,
 	RibbonGroup,
+	RibbonMenu,
+	RibbonMenuSection,
 	RibbonTab,
 	RibbonDefinition,
 	RibbonLocation,
@@ -19,11 +21,14 @@ import type {
 	StandardRuleAttributes,
 	CrmParameterValue,
 	EntityProperty,
+	ScalingDefinition,
+	ScaleStep,
 } from "@/types/ribbon";
 import { generateAction, generateRuleStep } from "@/services/xmlGenerator";
 import { canonicalXml, parseXmlElement, sameXml } from "@/services/ribbonXmlCanonical";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { applyButtonOrigin, heuristicOrigin } from "@/utils/ribbonProvenance";
+import { groupControls } from "@/utils/ribbonMenu";
 
 /**
  * Parses a fully-merged ribbon XML (from RetrieveEntityRibbon / RetrieveApplicationRibbon)
@@ -53,6 +58,7 @@ export function parseRibbonXml(
 	}
 
 	const tabs = parseTabs(doc);
+	const scalingByTab = parseScaling(doc);
 	// TabDisplayRules live at document root under RuleDefinitions > TabDisplayRules,
 	// not inside <Tab> elements. Apply them after all tabs are built.
 	applyTabDisplayRules(doc, tabs);
@@ -95,7 +101,7 @@ export function parseRibbonXml(
 	// after load (see applyProvenanceToRibbons).
 	for (const tab of tabs) {
 		for (const group of tab.groups) {
-			for (const button of group.buttons) {
+			for (const button of groupControls(group)) {
 				const inCustomAction = customActionIds.has(button.id);
 				applyButtonOrigin(button, {
 					origin: heuristicOrigin(button.id, inCustomAction),
@@ -113,12 +119,21 @@ export function parseRibbonXml(
 				if (button.tooltipBody) {
 					button.tooltipBody = resolveDisplayLabel(button.tooltipBody, locLabels);
 				}
+				// Menu section titles, like labels: the raw token stays in `attributes`.
+				for (const section of button.menu?.sections ?? []) {
+					if (section.title) section.title = resolveDisplayLabel(section.title, locLabels);
+				}
 			}
 		}
 	}
 
 	return {
-		ribbon: { location, entityLogicalName, tabs },
+		ribbon: {
+			location,
+			entityLogicalName,
+			tabs,
+			...(Object.keys(scalingByTab).length > 0 ? { scalingByTab } : {}),
+		},
 		commands,
 		displayRules,
 		enableRules,
@@ -142,14 +157,20 @@ function parseTabs(doc: Document): RibbonTab[] {
 		tabEl.querySelectorAll(":scope > Groups > Group").forEach((groupEl) => {
 			const groupId = groupEl.getAttribute("Id") ?? "";
 			if (!groupId) return;
-			const groupLabel = groupEl.getAttribute("Label") ?? groupId;
+			// Raw token like the tab's Title (`$LocLabels:…` is resolved for display).
+			const groupLabel = groupEl.getAttribute("Title") ?? groupEl.getAttribute("Label") ?? groupId;
 			const groupSeq = parseInt(groupEl.getAttribute("Sequence") ?? "0", 10);
 			const template = groupEl.getAttribute("Template") ?? "";
 
+			// Only the group's own controls: the items of a FlyoutAnchor /
+			// SplitButton `<Menu>` belong to that control's menu (#27), not to the
+			// group (a descendant selector flattened them into it).
 			const buttons: RibbonButton[] = [];
 			groupEl
-				.querySelectorAll("Button, FlyoutAnchor, SplitButton, TextBox, ComboBox, CheckBox")
-				.forEach((btnEl) => parseButtonElement(btnEl, buttons));
+				.querySelectorAll(":scope > Controls > *")
+				.forEach((btnEl) => {
+					if (CONTROL_TAGS.has(btnEl.tagName)) parseButtonElement(btnEl, buttons);
+				});
 
 			groups.push({
 				id: groupId,
@@ -172,6 +193,33 @@ function parseTabs(doc: Document): RibbonTab[] {
 	});
 
 	return tabs.sort((a, b) => a.sequence - b.sequence);
+}
+
+/**
+ * Each tab's `<Scaling>` (MaxSize / Scale steps in document order). A new
+ * group's MaxSize needs a Sequence no other step of the tab uses: a collision
+ * made Unified Interface drop every custom control of the table (#66 review).
+ */
+function parseScaling(doc: Document): Record<string, ScalingDefinition> {
+	const out: Record<string, ScalingDefinition> = {};
+	doc.querySelectorAll("Tab").forEach((tabEl) => {
+		const tabId = tabEl.getAttribute("Id");
+		const scalingEl = Array.from(tabEl.children).find((c) => c.tagName === "Scaling");
+		if (!tabId || !scalingEl || out[tabId]) return;
+		const step = (el: Element): ScaleStep => ({
+			id: el.getAttribute("Id") ?? "",
+			groupId: el.getAttribute("GroupId") ?? "",
+			size: el.getAttribute("Size") ?? "",
+			sequence: parseInt(el.getAttribute("Sequence") ?? "0", 10),
+		});
+		const kids = Array.from(scalingEl.children);
+		out[tabId] = {
+			tabId,
+			maxSizes: kids.filter((k) => k.tagName === "MaxSize").map(step),
+			scales: kids.filter((k) => k.tagName === "Scale").map(step),
+		};
+	});
+	return out;
 }
 
 /**
@@ -255,9 +303,59 @@ function parseButtonElement(el: Element, out: RibbonButton[]) {
 		image32: el.getAttribute("Image32by32") ?? undefined,
 		source: {
 			modernImage: el.getAttribute("ModernImage") ?? undefined,
-			attributes: Object.fromEntries(Array.from(el.attributes).map((a) => [a.name, a.value])),
+			attributes: attributesOf(el),
 		},
+		menu: parseMenu(el),
 	});
+}
+
+/** Control elements CBS models (anything else in a Controls collection is left alone). */
+const CONTROL_TAGS = new Set(["Button", "FlyoutAnchor", "SplitButton", "TextBox", "ComboBox", "CheckBox"]);
+
+function attributesOf(el: Element): Record<string, string> {
+	return Object.fromEntries(Array.from(el.attributes).map((a) => [a.name, a.value]));
+}
+
+/**
+ * The `<Menu>` of a FlyoutAnchor / SplitButton / ComboBox (#27):
+ * `<Menu Id><MenuSection Id Title Sequence DisplayMode><Controls Id>…`. Items
+ * are parsed like group controls (so a nested FlyoutAnchor gets its own menu);
+ * section children CBS doesn't model are kept as raw XML. A control populated
+ * dynamically (`PopulateDynamically` / `PopulateQueryCommand`, kept in its
+ * source attributes) usually has no static `<Menu>` at all.
+ */
+function parseMenu(el: Element): RibbonMenu | undefined {
+	const menuEl = elementChildren(el).find((c) => c.tagName === "Menu");
+	if (!menuEl) return undefined;
+	const attributes = attributesOf(menuEl);
+	const sections: RibbonMenuSection[] = [];
+	for (const sectionEl of elementChildren(menuEl)) {
+		if (sectionEl.tagName !== "MenuSection") continue;
+		const sectionId = sectionEl.getAttribute("Id") ?? "";
+		const controlsEl = elementChildren(sectionEl).find((c) => c.tagName === "Controls");
+		const controls: RibbonButton[] = [];
+		const rawControls: NonNullable<RibbonMenuSection["rawControls"]> = [];
+		elementChildren(controlsEl).forEach((c, index) => {
+			if (CONTROL_TAGS.has(c.tagName) && c.getAttribute("Id")) parseButtonElement(c, controls);
+			else rawControls.push({ index, xml: xmlSerializer().serializeToString(c) });
+		});
+		const sectionAttributes = attributesOf(sectionEl);
+		sections.push({
+			id: sectionId,
+			title: sectionEl.getAttribute("Title") ?? undefined,
+			sequence: parseInt(sectionEl.getAttribute("Sequence") ?? "0", 10),
+			displayMode: sectionEl.getAttribute("DisplayMode") ?? undefined,
+			controlsId: controlsEl?.getAttribute("Id") ?? `${sectionId}.Controls`,
+			controls,
+			attributes: sectionAttributes,
+			...(rawControls.length ? { rawControls } : {}),
+			// A Gallery (or an empty section) instead of <Controls>.
+			...(controlsEl
+				? {}
+				: { rawContent: elementChildren(sectionEl).map((c) => xmlSerializer().serializeToString(c)).join("") }),
+		});
+	}
+	return { id: menuEl.getAttribute("Id") ?? `${el.getAttribute("Id")}.Menu`, sections, attributes };
 }
 
 function normalizeFluentIconName(iconName?: string): string | undefined {

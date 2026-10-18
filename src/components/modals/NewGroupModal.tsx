@@ -14,17 +14,14 @@ import {
 } from "@fluentui/react-components";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
-import { useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
 
 export const NewGroupModal: React.FC = () => {
 	const newGroupOpen = useUIStore((s) => s.newGroupOpen);
 	const closeNewGroup = useUIStore((s) => s.closeNewGroup);
 	const createGroup = useRibbonStore((s) => s.createGroup);
-	const publisherPrefix = useSessionStore((s) => s.publisherPrefix);
 	const activeLocation = useSelectionStore((s) => s.location);
 	const activeTabId = useSelectionStore((s) => s.tabId);
-	const activeEntity = useSessionStore((s) => s.activeEntity);
 
 	const [label, setLabel] = useState("New Group");
 	const [template, setTemplate] = useState("Flexible2");
@@ -32,18 +29,13 @@ export const NewGroupModal: React.FC = () => {
 	const handleCreate = () => {
 		if (!activeLocation || !activeTabId) return;
 
-		const prefix = publisherPrefix || "new";
-		const entityName = activeEntity?.logicalName ?? "global";
-		const safeName = label.replace(/\s+/g, "");
-		const id = `${prefix}.${entityName}.${safeName}.Group`;
-
+		// The store gives the group a unique {prefix}.{table}.{Location}.{Label}.Group
+		// id and a sequence after the tab's last group.
 		createGroup({
 			location: activeLocation,
 			tabId: activeTabId,
 			group: {
-				id,
 				label,
-				sequence: 50,
 				template,
 				buttons: [],
 			},
