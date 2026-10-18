@@ -139,12 +139,20 @@ const savedWorkspace = () => draftWorkspace(readDraft(KEY)!, store());
  * A fresh load of the table, as App does it: the load starts, the workspace
  * is seeded from the server, then the draft (if any) is offered.
  */
-function freshLoad(key: DraftKey = KEY, extraServerButton = "") {
+function freshLoad(
+	key: DraftKey = KEY,
+	extraServerButton = "",
+	server: { without?: string; mutate?: (ribbon: RibbonDefinition) => void } = {},
+) {
 	drafts().beginLoad();
 	const parts = layerParts();
 	const labels = locLabelsFromParts(parts);
-	const parsed = parseRibbonXml(merged(extraServerButton), "HomepageGrid", T, labels);
+	let xml = merged(extraServerButton);
+	// A button removed on the server since.
+	if (server.without) xml = xml.replace(new RegExp(`<Button Id="${server.without}"[^>]*/>`), "");
+	const parsed = parseRibbonXml(xml, "HomepageGrid", T, labels);
 	applyLayerOwnership(parsed.ribbon, ownControlIds(parts));
+	server.mutate?.(parsed.ribbon);
 	store().loadWorkspace({
 		ribbons: { HomepageGrid: parsed.ribbon, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
 		commands: parsed.commands,
@@ -231,7 +239,7 @@ let unsubscribe: () => void;
 
 beforeEach(() => {
 	localStorage.clear();
-	useDraftStore.setState({ target: null, pending: null, pendingBaselineChanged: false, pendingSwitch: null });
+	useDraftStore.setState({ target: null, pending: null, pendingBaselineChanged: false, pendingSwitch: null, saveFailed: false, lastSavedAt: null });
 	useSessionStore.setState({
 		connectionUrl: ORG,
 		activeSolution: solution(SOLUTION_A, "SolutionA"),
@@ -485,6 +493,99 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 		expect(plans().entity.unsupported).toEqual([]);
 	});
 
+	it("a failed table publish keeps the draft of command and translation edits", () => {
+		freshLoad();
+		const cmd = store().commands.find((c) => c.id === "cbs.Mine.Command")!;
+		store().upsertCommand({ ...cmd, actions: [...cmd.actions, { kind: "javascript", library: "$webresource:cbs_/b.js", functionName: "Cbs.b", params: [] }] });
+		store().upsertLocLabel({
+			id: "cbs.Mine.LabelText",
+			titles: [
+				{ languageCode: 1033, description: "Mine" },
+				{ languageCode: 1036, description: "À moi" },
+			],
+		});
+		// The table import failed; the application ribbon had nothing to publish.
+		store().markPublished(["Application"]);
+		expect(plans().entity.hasChanges).toBe(true);
+		expect(store().mutationsSincePublish).toBeGreaterThan(0);
+		expect(readDraft(KEY)).not.toBeNull();
+		drafts().requestEntitySwitch(entity("account"));
+		expect(drafts().pendingSwitch).not.toBeNull();
+	});
+
+	it("a button added by the draft that the server has since is restored once, not twice", () => {
+		freshLoad();
+		store().createButton({
+			location: "HomepageGrid",
+			tabId: MAIN,
+			groupId: MGMT,
+			button: { id: "cbs.New", label: "New one", kind: "button", templateAlias: "o1", commandId: "cbs.Mine.Command", hidden: false, oob: false, custom: true, managed: false },
+		});
+		freshLoad(KEY, `<Button Id="cbs.New" Command="cbs.Mine.Command" Sequence="990" LabelText="New one" TemplateAlias="o1" />`);
+		drafts().restoreDraft();
+		const ids = store().ribbons.HomepageGrid.tabs[0].groups[0].buttons.map((b) => b.id);
+		expect(ids.filter((id) => id === "cbs.New")).toHaveLength(1);
+	});
+
+	it("a changed item the server removed since is kept, as the user left it", () => {
+		freshLoad();
+		store().setButtonProp("HomepageGrid", MAIN, MGMT, "cbs.Mine2", { label: "Mine two" });
+		freshLoad(KEY, "", { without: "cbs.Mine2" });
+		drafts().restoreDraft();
+		const mine2 = store().ribbons.HomepageGrid.tabs[0].groups[0].buttons.find((b) => b.id === "cbs.Mine2");
+		expect(mine2?.label).toBe("Mine two");
+	});
+
+	it("restoring a draft the server already has changes nothing", () => {
+		freshLoad();
+		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
+		freshLoad(KEY, "", { without: "cbs.Mine2" });
+		const past = store().past.length;
+		drafts().restoreDraft();
+		expect(store().mutationsSincePublish).toBe(0);
+		expect(store().past.length).toBe(past);
+		expect(readDraft(KEY)).toBeNull();
+	});
+
+	it("location settings the draft didn't change come from the fresh load", () => {
+		freshLoad();
+		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
+		const scaling = { [MAIN]: { tabId: MAIN, maxSizes: [{ id: `${MAIN}.MaxSize`, groupId: MGMT, sequence: 10, size: "LargeLarge" }], scales: [] } };
+		freshLoad(KEY, "", { mutate: (r) => (r.scalingByTab = scaling as never) });
+		drafts().restoreDraft();
+		expect(store().ribbons.HomepageGrid.scalingByTab).toEqual(scaling);
+		expect(plans().entity.deletedButtonIds).toEqual(["cbs.Mine2"]);
+	});
+
+	it("undoing a restore keeps the draft", () => {
+		freshLoad();
+		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
+		freshLoad();
+		drafts().restoreDraft();
+		store().undo();
+		expect(store().mutationsSincePublish).toBe(0);
+		expect(readDraft(KEY)).not.toBeNull();
+		store().redo();
+		expect(readDraft(KEY)).not.toBeNull();
+		// A new edit after the undo is what the draft holds then.
+		store().undo();
+		store().hideOobButton("HomepageGrid", MAIN, COLLAB, `Mscrm.HomepageGrid.${T}.Share`);
+		expect(savedWorkspace()).toEqual(JSON.parse(JSON.stringify(workspaceOf(store()))));
+	});
+
+	it("drafts older than 30 days are discarded", () => {
+		freshLoad();
+		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
+		const k = draftStorageKey(KEY);
+		const stored = JSON.parse(localStorage.getItem(k)!);
+		localStorage.setItem(k, JSON.stringify({ ...stored, savedAt: new Date(Date.now() - 31 * 86_400_000).toISOString() }));
+		const recent = draftStorageKey({ ...KEY, entityLogicalName: "account" });
+		localStorage.setItem(recent, JSON.stringify({ ...stored, savedAt: new Date(Date.now() - 2 * 86_400_000).toISOString() }));
+		expect(discardOutdatedDrafts()).toBe(1);
+		expect(localStorage.getItem(k)).toBeNull();
+		expect(localStorage.getItem(recent)).not.toBeNull();
+	});
+
 	it("nothing is saved while no table is loaded", () => {
 		freshLoad();
 		drafts().beginLoad();
@@ -631,7 +732,7 @@ describe("#16 — draft size and a full browser storage", () => {
 		// Only the changed location is in it, and only the changed command in full.
 		const { delta } = readDraft(CONTACT_KEY)!;
 		expect(Object.keys(delta.ribbons)).toEqual(["HomepageGrid"]);
-		expect(delta.commands).toEqual({ set: [expect.objectContaining({ id: store().commands[0].id })], drop: [], add: [] });
+		expect(delta.lists.commands).toEqual({ set: [expect.objectContaining({ id: store().commands[0].id })], drop: [], add: [] });
 	});
 
 	it("the compact draft restores the same plan over a fresh load", () => {

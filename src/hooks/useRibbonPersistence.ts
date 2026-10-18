@@ -6,7 +6,7 @@
  */
 import { useEffect } from "react";
 import { installDraftAutosave } from "@/store/draftStore";
-import { discardOutdatedDrafts } from "@/services/ribbonDraft";
+import { DRAFT_MAX_AGE_DAYS, discardOutdatedDrafts } from "@/services/ribbonDraft";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 
 /** Call once in the app root — does not render anything. */
@@ -18,7 +18,7 @@ export function useRibbonPersistence() {
 				.getState()
 				.logInfo(
 					"ribbon",
-					`Discarded ${outdated} unsaved-changes draft(s) saved by an earlier version of Command Bar Studio (they can't be restored correctly).`,
+					`Discarded ${outdated} unsaved-changes draft(s) older than ${DRAFT_MAX_AGE_DAYS} days, or saved by an earlier version of Command Bar Studio (they can't be restored correctly).`,
 				);
 		}
 		return installDraftAutosave();

@@ -15,23 +15,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   commands, rules, labels and translations, un-hides, and customised / uncustomised
   commands. It goes on top of the ribbon as loaded now, so the restored changes publish
   (before, they were taken as the loaded state and nothing could be published). Undo
-  takes the restore back as one step.
-- The banner appears only once the table has finished loading, so a restore is no longer
-  overwritten by the load. When the table's ribbon changed on the server since the draft
-  was saved, the banner says so: review the publish plan before publishing.
+  takes the restore back as one step (the draft is kept).
+- The offer is a dialog shown only once the table has finished loading, so a restore is no
+  longer overwritten by the load, and nothing can be edited until you choose **Restore**
+  or **Discard**. When the table's ribbon changed on the server since the draft was saved,
+  the dialog says so: review the publish plan before publishing.
 - Drafts are kept per org, solution and table. Loading a table no longer deletes its
   draft; a draft is removed after publishing everything, when undoing back to the loaded
-  ribbon, or with **Discard**. Editing before choosing Restore / Discard doesn't overwrite
-  the earlier draft. Drafts saved by earlier versions are discarded (they can't be
-  restored correctly).
+  ribbon, or with **Discard**. A publish that fails for the table keeps it (and the table
+  still counts as changed). Drafts saved by earlier versions, and drafts older than 30
+  days, are discarded at startup.
 - Switching table or solution with unpublished changes asks first: **Keep as draft**
   (offered again when you reopen the table in that solution), **Discard** or **Cancel**.
 - A draft stores only what differs from the loaded ribbon (changed, added and removed tabs,
   groups, buttons, commands, rules and labels), deflated: a few KB instead of over a million
   characters per table, so drafts of several tables fit in `localStorage`. What the server
   added since the draft was saved is kept on restore.
-- When a draft can't be saved (browser storage full), a banner says so, and **Keep as draft**
-  is disabled (and never switches) so the changes aren't lost.
+- When a draft can't be saved (browser storage full), a banner says so (and when the last
+  saved draft is from), and **Keep as draft** is disabled (and never switches) so the
+  changes aren't lost.
 
 ### 🧹 Unsupported command actions ([#28](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/28))
 

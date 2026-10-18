@@ -23,7 +23,10 @@ import { workspaceOf, type RibbonStoreState, type WorkspaceSnapshot } from "@/st
 import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
 /** Bumped when the draft's shape changes: drafts of another format are discarded. */
-export const DRAFT_FORMAT = 3;
+export const DRAFT_FORMAT = 4;
+
+/** Drafts older than this are discarded at startup. */
+export const DRAFT_MAX_AGE_DAYS = 30;
 
 const PREFIX = `cbs:draft:v${DRAFT_FORMAT}:`;
 /** Drafts saved before #16 (ribbons, commands, rules and labels only), and other formats. */
@@ -46,20 +49,37 @@ export interface DraftKey {
  */
 export type ListDelta = { set: unknown[]; drop: string[]; add: unknown[] } | unknown[];
 
-/** A location that differs from the loaded one: its tabs as a delta. */
-type LocationDelta = Omit<RibbonDefinition, "tabs"> & { tabs: ListDelta };
+/**
+ * A location that differs from the loaded one: the settings that differ
+ * (e.g. scalingByTab; the others come from the fresh load) and its tabs.
+ */
+interface LocationDelta {
+	props: Record<string, unknown>;
+	/** Settings the loaded location has and this one doesn't. */
+	unset: string[];
+	tabs: ListDelta;
+}
+
+/** Workspace lists diffed against their loaded version (the baseline field). */
+const DIFFED = {
+	commands: "baselineCommands",
+	enableRules: "baselineEnableRules",
+	displayRules: "baselineDisplayRules",
+	locLabels: "baselineLocLabels",
+} as const;
+type DiffedField = keyof typeof DIFFED;
 
 /** What a workspace adds to the loaded ribbon. */
 export interface WorkspaceDelta {
 	/** Only the locations that differ from the loaded ones. */
 	ribbons: Partial<Record<RibbonLocation, LocationDelta>>;
-	commands: ListDelta;
-	enableRules: ListDelta;
-	displayRules: ListDelta;
-	locLabels: ListDelta;
-	pendingUnhides: WorkspaceSnapshot["pendingUnhides"];
-	customisedCommandIds: string[];
-	uncustomisedCommandIds: WorkspaceSnapshot["uncustomisedCommandIds"];
+	lists: Record<DiffedField, ListDelta>;
+	/**
+	 * Every other workspace field (pending un-hides, customised / uncustomised
+	 * commands, …) as it is. A field added to WorkspaceSnapshot later is saved
+	 * here without changes; a draft without it restores it as loaded.
+	 */
+	other: Partial<WorkspaceSnapshot>;
 }
 
 export interface RibbonDraft {
@@ -222,9 +242,20 @@ function patchList(delta: ListDelta, baseline: Item[], level: Level): Item[] {
 	}
 	const drop = new Set(delta.drop);
 	const set = new Map((delta.set as Item[]).map((i) => [i.id, i]));
+	const added: Item[] = [];
+	// An added item the load has already (e.g. published, then the tool closed)
+	// replaces it rather than appearing twice.
+	for (const a of delta.add as Item[]) {
+		if (byId.has(a.id)) set.set(a.id, a);
+		else added.push(a);
+	}
+	const loadedIds = new Set(baseline.map((b) => b.id));
 	return [
 		...baseline.filter((b) => !drop.has(b.id)).map((b) => (set.has(b.id) ? patchItem(set.get(b.id)!, b, level) : clone(b))),
-		...(delta.add as Item[]).map((a) => patchItem(a, undefined, level)),
+		// A changed item the load no longer has is kept as changed (as in the
+		// list form); an unchanged one goes with the load.
+		...[...set.values()].filter((i) => !loadedIds.has(i.id)).map((i) => patchItem(i, undefined, level)),
+		...added.map((a) => patchItem(a, undefined, level)),
 	];
 }
 
@@ -238,48 +269,47 @@ export function workspaceDelta(state: RibbonStoreState): WorkspaceDelta {
 	const w = workspaceOf(state);
 	const ribbons: WorkspaceDelta["ribbons"] = {};
 	for (const loc of LOCATIONS) {
-		const current = w.ribbons[loc];
-		const loaded = state.baseline[loc];
+		const current = w.ribbons[loc] as unknown as Record<string, unknown> | undefined;
+		const loaded = state.baseline[loc] as unknown as Record<string, unknown> | undefined;
 		if (!current) continue;
-		const tabs = diffList(items(current.tabs), items(loaded?.tabs ?? []), TABS);
-		const sameRest = !!loaded && json({ ...current, tabs: [] }) === json({ ...loaded, tabs: [] });
-		// Spread keeps the key order (the publish compares JSON).
-		if (!isEmptyPatch(tabs) || !sameRest) ribbons[loc] = { ...current, tabs };
+		const tabs = diffList(current.tabs as Item[], (loaded?.tabs as Item[] | undefined) ?? [], TABS);
+		const props: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(current)) {
+			if (k !== "tabs" && JSON.stringify(v) !== JSON.stringify(loaded?.[k])) props[k] = v;
+		}
+		const unset = Object.keys(loaded ?? {}).filter((k) => k !== "tabs" && !(k in current));
+		if (!isEmptyPatch(tabs) || Object.keys(props).length + unset.length > 0) ribbons[loc] = { props, unset, tabs };
 	}
-	return {
-		ribbons,
-		commands: diffList(items(w.commands), items(state.baselineCommands), LEAF),
-		enableRules: diffList(items(w.enableRules), items(state.baselineEnableRules), LEAF),
-		displayRules: diffList(items(w.displayRules), items(state.baselineDisplayRules), LEAF),
-		locLabels: diffList(items(w.locLabels), items(state.baselineLocLabels), LEAF),
-		pendingUnhides: w.pendingUnhides,
-		customisedCommandIds: w.customisedCommandIds,
-		uncustomisedCommandIds: w.uncustomisedCommandIds,
-	};
+	const lists = {} as WorkspaceDelta["lists"];
+	for (const f of Object.keys(DIFFED) as DiffedField[]) lists[f] = diffList(items(w[f]), items(state[DIFFED[f]]), LEAF);
+	const other: Partial<WorkspaceSnapshot> = { ...w };
+	delete other.ribbons;
+	for (const f of Object.keys(DIFFED) as DiffedField[]) delete other[f];
+	return { ribbons, lists, other };
 }
 
-/** The workspace `draft` saved, rebuilt over `state`'s loaded ribbon. */
-export function draftWorkspace(draft: RibbonDraft, state: BaselineState): WorkspaceSnapshot {
+/** The workspace `draft` saved, rebuilt over `state`'s loaded ribbon (`state` is as loaded). */
+export function draftWorkspace(draft: RibbonDraft, state: RibbonStoreState): WorkspaceSnapshot {
 	const { delta } = draft;
 	const ribbons = {} as WorkspaceSnapshot["ribbons"];
 	for (const loc of LOCATIONS) {
 		const d = delta.ribbons[loc];
 		const loaded = state.baseline[loc];
-		ribbons[loc] = d
-			? ({ ...clone(d), tabs: patchList(d.tabs, items(loaded?.tabs ?? []), TABS) } as unknown as RibbonDefinition)
-			: clone(loaded);
+		if (!d) {
+			ribbons[loc] = clone(loaded);
+			continue;
+		}
+		// The loaded location's key order, as the session had it (the publish compares JSON).
+		const def: Record<string, unknown> = { ...clone(loaded), ...clone(d.props) };
+		for (const k of d.unset) delete def[k];
+		def.tabs = patchList(d.tabs, items(loaded?.tabs ?? []), TABS);
+		ribbons[loc] = def as unknown as RibbonDefinition;
 	}
-	const list = <T>(d: ListDelta, baseline: { id: string }[]) => patchList(d, items(baseline), LEAF) as unknown as T[];
-	return {
-		ribbons,
-		commands: list(delta.commands, state.baselineCommands),
-		enableRules: list(delta.enableRules, state.baselineEnableRules),
-		displayRules: list(delta.displayRules, state.baselineDisplayRules),
-		locLabels: list(delta.locLabels, state.baselineLocLabels),
-		pendingUnhides: clone(delta.pendingUnhides),
-		customisedCommandIds: [...delta.customisedCommandIds],
-		uncustomisedCommandIds: clone(delta.uncustomisedCommandIds),
-	};
+	const workspace = { ...workspaceOf(state), ...clone(delta.other), ribbons } as WorkspaceSnapshot;
+	for (const f of Object.keys(DIFFED) as DiffedField[]) {
+		(workspace as Record<DiffedField, unknown>)[f] = patchList(delta.lists[f], items(state[DIFFED[f]]), LEAF);
+	}
+	return workspace;
 }
 
 function encode(delta: WorkspaceDelta): string {
@@ -291,6 +321,7 @@ function decode(data: string): unknown {
 }
 
 const isArray = (v: unknown): v is unknown[] => Array.isArray(v);
+const isObject = (v: unknown) => !!v && typeof v === "object" && !Array.isArray(v);
 const isListDelta = (v: unknown) => {
 	if (isArray(v)) return true;
 	const x = v as Record<string, unknown> | null;
@@ -303,23 +334,25 @@ const isScopeLists = (v: unknown) =>
 function isDelta(d: unknown): d is WorkspaceDelta {
 	if (!d || typeof d !== "object") return false;
 	const x = d as Record<string, unknown>;
-	const ribbons = x.ribbons as Record<string, { tabs?: unknown } | undefined> | undefined;
+	const ribbons = x.ribbons as Record<string, { tabs?: unknown; props?: unknown; unset?: unknown } | undefined> | undefined;
+	const other = (x.other ?? {}) as Record<string, unknown>;
 	return (
 		!!ribbons &&
 		typeof ribbons === "object" &&
-		Object.entries(ribbons).every(([loc, def]) => LOCATIONS.includes(loc as RibbonLocation) && isListDelta(def?.tabs)) &&
-		isListDelta(x.commands) &&
-		isListDelta(x.enableRules) &&
-		isListDelta(x.displayRules) &&
-		isListDelta(x.locLabels) &&
-		isScopeLists(x.pendingUnhides) &&
-		isArray(x.customisedCommandIds) &&
-		isScopeLists(x.uncustomisedCommandIds)
+		Object.entries(ribbons).every(
+			([loc, def]) =>
+				LOCATIONS.includes(loc as RibbonLocation) && isListDelta(def?.tabs) && isObject(def?.props) && isArray(def?.unset),
+		) &&
+		isObject(x.lists) &&
+		(Object.keys(DIFFED) as DiffedField[]).every((f) => isListDelta((x.lists as Record<string, unknown>)[f])) &&
+		isObject(x.other) &&
+		["pendingUnhides", "uncustomisedCommandIds"].every((f) => !(f in other) || isScopeLists(other[f])) &&
+		(!("customisedCommandIds" in other) || isArray(other.customisedCommandIds))
 	);
 }
 
-/** Saves the draft of `state`'s workspace. False when it couldn't be stored (storage full or unavailable). */
-export function writeDraft(key: DraftKey, state: RibbonStoreState): boolean {
+/** Saves the draft of `state`'s workspace: when it was saved, or null when it couldn't be stored (storage full or unavailable). */
+export function writeDraft(key: DraftKey, state: RibbonStoreState): string | null {
 	try {
 		const stored: StoredDraft = {
 			format: DRAFT_FORMAT,
@@ -329,10 +362,10 @@ export function writeDraft(key: DraftKey, state: RibbonStoreState): boolean {
 			data: encode(workspaceDelta(state)),
 		};
 		localStorage.setItem(draftStorageKey(key), JSON.stringify(stored));
-		return true;
+		return stored.savedAt;
 	} catch {
 		// QuotaExceededError, or storage unavailable.
-		return false;
+		return null;
 	}
 }
 
@@ -373,13 +406,29 @@ export function deleteDraft(key: DraftKey): void {
 	}
 }
 
-/** Removes drafts of another format (they can't be restored correctly). Returns how many. */
-export function discardOutdatedDrafts(): number {
+/** Whether the draft stored as `raw` was saved more than DRAFT_MAX_AGE_DAYS before `now` (or is unreadable). */
+function expired(raw: string | null, now: number): boolean {
+	try {
+		const savedAt = Date.parse((JSON.parse(raw ?? "") as Partial<StoredDraft>).savedAt ?? "");
+		return !(now - savedAt <= DRAFT_MAX_AGE_DAYS * 86_400_000);
+	} catch {
+		return true;
+	}
+}
+
+/**
+ * Removes drafts of another format (they can't be restored correctly) and
+ * drafts older than DRAFT_MAX_AGE_DAYS. Returns how many.
+ */
+export function discardOutdatedDrafts(now = Date.now()): number {
 	const outdated: string[] = [];
 	try {
 		for (let i = 0; i < localStorage.length; i++) {
 			const k = localStorage.key(i);
-			if (k && !k.startsWith(PREFIX) && LEGACY_PREFIXES.some((p) => k.startsWith(p))) outdated.push(k);
+			if (!k) continue;
+			if (k.startsWith(PREFIX) ? expired(localStorage.getItem(k), now) : LEGACY_PREFIXES.some((p) => k.startsWith(p))) {
+				outdated.push(k);
+			}
 		}
 		for (const k of outdated) localStorage.removeItem(k);
 	} catch {

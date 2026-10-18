@@ -437,7 +437,7 @@ function commitMutation(
  * Whether the workspace has anything to publish (#34 review): after an undo
  * the change counter alone can't tell, e.g. when undoing past a publish.
  */
-function hasPendingChanges(state: RibbonStoreState): boolean {
+export function hasPendingChanges(state: RibbonStoreState): boolean {
 	const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 	return (
 		state.pendingUnhides.entity.length + state.pendingUnhides.application.length > 0 ||
@@ -702,11 +702,10 @@ export const useRibbonStore = create<RibbonStore>()(
 					const snap = state.layers[scope];
 					return snap ? copy.pendingUnhides[scope].filter((id) => snap.hides.some((h) => h.location === id)) : copy.pendingUnhides[scope];
 				};
-				return record(
-					state,
-					{ ...copy, pendingUnhides: { entity: stillHidden("entity"), application: stillHidden("application") } },
-					historyMeta("restored", "unsaved changes", detail, "history"),
-				);
+				const change = { ...copy, pendingUnhides: { entity: stillHidden("entity"), application: stillHidden("application") } };
+				// Nothing to restore (the server has it all): not a change.
+				if (JSON.stringify(workspaceOf({ ...state, ...change })) === JSON.stringify(workspaceOf(state))) return state;
+				return record(state, change, historyMeta("restored", "unsaved changes", detail, "history"));
 			});
 		},
 
@@ -1864,19 +1863,14 @@ export const useRibbonStore = create<RibbonStore>()(
 					const kept = anyPublished ? dropPublished(e) : e;
 					return i === state.past.length - 1 && kept.coalesceKey ? { ...kept, coalesceKey: undefined } : kept;
 				});
-				const pending =
-					all.some((loc) => JSON.stringify(baseline[loc]) !== JSON.stringify(current[loc])) ||
-					pendingUnhides.entity.length + pendingUnhides.application.length > 0 ||
-					uncustomisedCommandIds.entity.length + uncustomisedCommandIds.application.length > 0;
-				return {
+				const next = {
 					ribbons: current,
 					locLabels,
 					baselineLocLabels,
 					baseline,
 					layers,
 					pendingUnhides,
-					past,
-					future: anyPublished ? state.future.map(dropPublished) : state.future,
+					uncustomisedCommandIds,
 					...(everything
 						? {
 								baselineCommands: JSON.parse(JSON.stringify(state.commands)),
@@ -1886,7 +1880,15 @@ export const useRibbonStore = create<RibbonStore>()(
 								customisedCommandIds: [],
 							}
 						: {}),
-					uncustomisedCommandIds,
+				};
+				// Commands, rules, labels and customisations count too: after a
+				// partial publish (e.g. the table import failed) they are still to
+				// publish (#16 review).
+				const pending = hasPendingChanges({ ...state, ...next });
+				return {
+					...next,
+					past,
+					future: anyPublished ? state.future.map(dropPublished) : state.future,
 					reloadRequiredCommandIds,
 					mutationsSincePublish: pending ? Math.max(1, state.mutationsSincePublish) : 0,
 				};

@@ -5,7 +5,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
-import { DraftRestoreBanner } from "@/components/shell/DraftRestoreBanner";
+import { DraftSaveWarning } from "@/components/shell/DraftSaveWarning";
+import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
 import { UnsavedChangesDialog } from "@/components/modals/UnsavedChangesDialog";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useDraftStore, installDraftAutosave } from "@/store/draftStore";
@@ -86,7 +87,7 @@ let unsubscribe: () => void;
 
 beforeEach(() => {
 	localStorage.clear();
-	useDraftStore.setState({ target: null, pending: null, pendingBaselineChanged: false, pendingSwitch: null });
+	useDraftStore.setState({ target: null, pending: null, pendingBaselineChanged: false, pendingSwitch: null, saveFailed: false, lastSavedAt: null });
 	useSessionStore.setState({
 		connectionUrl: ORG,
 		activeSolution: { id: "sol-a", uniqueName: "SolutionA", friendlyName: "Solution A" } as Solution,
@@ -99,7 +100,8 @@ beforeEach(() => {
 	act(() =>
 		root.render(
 			<FluentProvider theme={webLightTheme}>
-				<DraftRestoreBanner />
+				<DraftSaveWarning />
+				<DraftRestoreDialog />
 				<UnsavedChangesDialog />
 			</FluentProvider>,
 		),
@@ -112,7 +114,7 @@ afterEach(() => {
 	unsubscribe();
 });
 
-describe("#16 — restore banner", () => {
+describe("#16 — restore dialog", () => {
 	it("is offered only once the table has loaded, and Restore brings the changes back", () => {
 		act(() => load());
 		act(() => useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"));
@@ -174,7 +176,34 @@ describe("#16 — switching with unpublished changes", () => {
 	});
 });
 
+describe("#16 — restore blocks editing until answered", () => {
+	it("is a modal dialog", () => {
+		act(() => load());
+		act(() => useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"));
+		act(() => load());
+		const dialog = document.body.querySelector('[aria-modal="true"]');
+		expect(dialog?.textContent).toContain("from a previous session");
+		click("Restore");
+		expect(document.body.querySelector('[aria-modal="true"]')).toBeNull();
+		expect(buttonsNow()).toEqual([]);
+	});
+});
+
 describe("#16 — a full browser storage", () => {
+	it("says which draft is still saved", () => {
+		act(() => load());
+		act(() => useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"));
+		const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+		});
+		try {
+			act(() => useRibbonStore.getState().hideOobButton("HomepageGrid", "Tab", "G", "cbs.Mine"));
+			expect(document.body.textContent).toContain("The last saved draft is from");
+		} finally {
+			setItem.mockRestore();
+		}
+	});
+
 	it("warns, and Keep as draft is disabled", () => {
 		act(() => load());
 		const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {

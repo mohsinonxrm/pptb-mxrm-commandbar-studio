@@ -33,7 +33,8 @@ import type { ConflictEntry } from "@/types/ribbon";
 import { fetchCurrentUser } from "@/services/dataverse/userService";
 import { useRibbonPersistence } from "@/hooks/useRibbonPersistence";
 import { useDraftStore, draftKeyFor } from "@/store/draftStore";
-import { DraftRestoreBanner } from "@/components/shell/DraftRestoreBanner";
+import { DraftSaveWarning } from "@/components/shell/DraftSaveWarning";
+import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
 import { UnsavedChangesDialog } from "@/components/modals/UnsavedChangesDialog";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { groupControls } from "@/utils/ribbonMenu";
@@ -310,13 +311,14 @@ export function App() {
 	return (
 		<FluentProvider theme={themeMode === "dark" ? webDarkTheme : webLightTheme}>
 			<Layout leftPane={<LeftPane />} rightPane={<PropertiesPane />} bottomPanel={<BottomPanel />}>
-				<DraftRestoreBanner />
+				<DraftSaveWarning />
 				<RibbonCanvas
 					isLoadingRibbon={ribbonLoadState === "loading"}
 					ribbonLoadError={ribbonLoadError}
 					onRetryRibbonLoad={handleRetryRibbonLoad}
 				/>
 			</Layout>
+			<DraftRestoreDialog />
 			<UnsavedChangesDialog />
 		</FluentProvider>
 	);
