@@ -207,6 +207,9 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 
 	function onDropOn(e: React.DragEvent, groupId: string, beforeButtonId: string | null) {
 		e.preventDefault();
+		// A drop on a button must not bubble to the row's fallback drop zone,
+		// which would apply it a second time (into the tab's first group).
+		e.stopPropagation();
 		// Case 1 — re-ordering an existing button within the modern bar.
 		const internalPayload = e.dataTransfer.getData(DRAG_MIME);
 		if (internalPayload) {

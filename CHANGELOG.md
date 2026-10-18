@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Picking an **existing web resource** in the icon picker adds it to the active unmanaged
   solution, so a solution export carries the icon (with a warning when no unmanaged
   solution is selected; an error when the typed name doesn't exist).
+- Dropping onto a button in the modern command bar no longer applies the drop twice
+  (a Solution Elements copy was created twice and a drag-move ran twice, the second time
+  into the tab's first group).
 
 ### 🚀 Publish gaps ([#46](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/46), [#47](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/47), [#48](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/48), [#49](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/49), [#50](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/50), [#52](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/52), [#26](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/26))
 
