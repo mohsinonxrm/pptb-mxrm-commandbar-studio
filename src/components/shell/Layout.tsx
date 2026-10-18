@@ -25,6 +25,7 @@ const ConflictDrawer = lazy(() => import("@/components/panels/ConflictDrawer"));
 const WebResourceBrowser = lazy(() => import("@/components/panels/WebResourceBrowser"));
 const UrlComposerModal = lazy(() => import("@/components/panels/UrlComposerModal"));
 const DiffViewer = lazy(() => import("@/components/panels/DiffViewer"));
+const HideInsteadOfDeleteModal = lazy(() => import("@/components/modals/HideInsteadOfDeleteModal"));
 
 const useStyles = makeStyles({
 	root: {
@@ -93,7 +94,8 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			s.conflictDrawerOpen ||
 			s.webResourceBrowserOpen ||
 			s.urlComposerOpen ||
-			s.diffViewerOpen,
+			s.diffViewerOpen ||
+			s.hideInsteadOfDelete !== null,
 	);
 	const focusReturnRef = useRef<HTMLElement | null>(null);
 	const wasOverlayOpenRef = useRef(false);
@@ -212,6 +214,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 				<WebResourceBrowser />
 				<UrlComposerModal />
 				<DiffViewer />
+				<HideInsteadOfDeleteModal />
 			</Suspense>
 
 			{/* ARIA live region — announces keyboard shortcut actions to screen readers */}

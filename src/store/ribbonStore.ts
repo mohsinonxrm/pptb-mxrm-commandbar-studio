@@ -16,8 +16,13 @@ import type {
 	ScalingDefinition,
 	RibbonMenuSection,
 } from "@/types/ribbon";
-import { locLabelsFromParts, type LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
-import { applyPublishedLayer, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
+import { layerSnapshotFromParts, locLabelsFromParts, type LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import {
+	applyPublishedLayer,
+	ownContainerIds as ownContainerIdsOf,
+	ownControlIds,
+	type RibbonDiffParts,
+} from "@/services/ribbonDiffMerge";
 import { defaultTabDisplayRules, newTabCommandId } from "@/services/xmlGenerator";
 import { generateRibbonId } from "@/utils/idGenerator";
 import {
@@ -33,6 +38,7 @@ import {
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import { isPlatformText } from "@/utils/displayLabel";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { canDeleteControl, canDeleteGroup, canDeleteTab } from "@/utils/ribbonProvenance";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -331,6 +337,14 @@ export function workspaceIds(
 		for (const id of snap?.controlIds ?? []) ids.add(id);
 	}
 	return ids;
+}
+
+/** Tabs and groups the location's unmanaged layer adds; undefined when it couldn't be read. */
+export function ownContainerIds(
+	state: Pick<RibbonStoreState, "layers">,
+	location: RibbonLocation,
+): string[] | undefined {
+	return state.layers[location === "Application" ? "application" : "entity"]?.containerIds;
 }
 
 function cloneRibbons(
@@ -853,6 +867,19 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		deleteButton(location, tabId, groupId, buttonId) {
+			// Only your own controls (#17): publish can't remove the others, so the
+			// canvas and Dataverse would disagree. They can be hidden instead.
+			const current = get();
+			const button = controlAt(current.ribbons, location, tabId, groupId, buttonId)?.button;
+			if (button && !canDeleteControl(button, current.baseline[location])) {
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"ribbon",
+						`"${button.label}" (${buttonId}) was not deleted: only your own buttons can be deleted — hide it instead.`,
+					);
+				return;
+			}
 			set((state) =>
 				commitMutation(
 					state,
@@ -1196,6 +1223,18 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		deleteGroup(location, tabId, groupId) {
+			// Only your own group, holding only your own controls (#17 review).
+			const current = get();
+			const group = current.ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId);
+			if (group && !canDeleteGroup(group, current.baseline[location], ownContainerIds(current, location))) {
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"ribbon",
+						`Group "${group.label}" (${groupId}) was not deleted: only your own groups, with only your own buttons in them, can be deleted — hide its buttons instead.`,
+					);
+				return;
+			}
 			set((state) =>
 				commitMutation(
 					state,
@@ -1287,6 +1326,18 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		deleteTab(location, tabId) {
+			// Only your own tab, holding only your own groups and controls (#17 review).
+			const current = get();
+			const tab = current.ribbons[location].tabs.find((t) => t.id === tabId);
+			if (tab && !canDeleteTab(tab, current.baseline[location], ownContainerIds(current, location))) {
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"ribbon",
+						`Tab "${tab.label}" (${tabId}) was not deleted: only your own tabs, with only your own groups and buttons in them, can be deleted.`,
+					);
+				return;
+			}
 			set((state) =>
 				commitMutation(
 					state,
@@ -1801,6 +1852,21 @@ export const useRibbonStore = create<RibbonStore>()(
 					["entity", ENTITY_LOCATIONS.every((l) => published.includes(l))],
 					["application", published.includes("Application")],
 				];
+				// What the published layer adds is yours from now on — before the
+				// layer is re-read, and even when that read fails (#17 review).
+				for (const [scope, done] of scopes) {
+					const parts = publishedLayers?.[scope];
+					if (!done || !parts) continue;
+					const snap = layers[scope];
+					const union = (ids: string[], add: Set<string>) => [...new Set([...ids, ...add])];
+					layers[scope] = snap
+						? {
+								...snap,
+								containerIds: union(snap.containerIds, ownContainerIdsOf(parts)),
+								controlIds: union(snap.controlIds, ownControlIds(parts)),
+							}
+						: layerSnapshotFromParts(parts);
+				}
 				for (const [scope, done] of scopes) {
 					if (!done || pendingUnhides[scope].length === 0) continue;
 					const snap = layers[scope];
