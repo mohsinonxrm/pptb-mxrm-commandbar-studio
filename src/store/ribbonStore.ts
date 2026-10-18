@@ -164,6 +164,14 @@ export interface RibbonStore extends RibbonStoreState {
 	 */
 	markPublished(locations?: RibbonLocation[]): void;
 	setConflicts(entries: ConflictEntry[]): void;
+	/**
+	 * Applies an imported RibbonDiffXml (ribbonDiffImport.ts) as ONE session
+	 * change. The baseline is left alone, so what was imported publishes (#30).
+	 */
+	applyImport(
+		next: Pick<RibbonStoreState, "ribbons" | "commands" | "enableRules" | "displayRules" | "locLabels">,
+		summary: string,
+	): void;
 
 	// Load initial data
 	loadRibbons(ribbons: Record<RibbonLocation, RibbonDefinition>): void;
@@ -312,6 +320,29 @@ export const useRibbonStore = create<RibbonStore>()(
 
 		setConflicts(entries) {
 			set({ conflicts: entries });
+		},
+
+		applyImport(next, summary) {
+			set((state) => ({
+				...commitMutation(
+					state,
+					(ribbons) => Object.assign(ribbons, cloneRibbons(next.ribbons)),
+					{
+						ts: new Date().toISOString(),
+						userId: "",
+						userName: "You",
+						op: "imported",
+						target: "RibbonDiffXml",
+						detail: summary,
+						icon: "arrow_upload",
+						color: "success",
+					},
+				),
+				commands: [...next.commands],
+				enableRules: [...next.enableRules],
+				displayRules: [...next.displayRules],
+				locLabels: [...next.locLabels],
+			}));
 		},
 
 		loadWorkspace(seed) {

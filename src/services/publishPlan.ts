@@ -1,4 +1,4 @@
-import { hasOobOverrideChanges, indexButtons, summarizeRibbonDiff } from "@/services/xmlGenerator";
+import { effectiveModernImage, hasOobOverrideChanges, indexButtons, summarizeRibbonDiff } from "@/services/xmlGenerator";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import type {
 	CommandDefinition,
@@ -89,6 +89,12 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const isMenuKind = (kind?: string) => kind === "flyout" || kind === "splitButton";
 const isResourceIcon = (b: { icon?: string; image16?: string; image32?: string }) =>
 	[b.icon, b.image16, b.image32].some((v) => !!v && v.startsWith("$webresource:"));
+/**
+ * The icon is the control definition's own ModernImage (or its absence), written
+ * as is — e.g. an imported override (#30) — not a bare Fluent name picked in CBS.
+ */
+const isSourceIcon = (b: RibbonButton) =>
+	!!b.source && effectiveModernImage(b) === b.source.modernImage && (b.source.modernImage !== undefined || !b.icon);
 const LOC_REF = /^\$LocLabels:(.+)$/;
 const locRef = (v: string | undefined) => (v ? (LOC_REF.exec(v)?.[1] ?? null) : null);
 /** A rule reference the parser keeps verbatim (CommandDefinition.rawRuleRefs). */
@@ -174,7 +180,7 @@ export function planScope(input: PlanInput): ScopePlan {
 					`Editing the menu button "${c.button.label}" (${id}) — flyout / split buttons from other solutions can't be edited yet (#27)`,
 				);
 			}
-			if ((c.button.icon ?? "") !== (b.button.icon ?? "") && !isResourceIcon(c.button)) {
+			if ((c.button.icon ?? "") !== (b.button.icon ?? "") && !isResourceIcon(c.button) && !isSourceIcon(c.button)) {
 				unsupported.push(
 					`Changing the icon of "${c.button.label}" (${id}) to a built-in icon — not supported yet; choose an SVG web resource`,
 				);

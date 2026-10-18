@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
 	Dialog,
 	DialogSurface,
@@ -9,125 +9,79 @@ import {
 	Button,
 	MessageBar,
 	MessageBarBody,
-	Tab,
-	TabList,
-	Divider,
+	MessageBarTitle,
+	Text,
 } from "@fluentui/react-components";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { useSessionStore } from "@/store/sessionStore";
 import { validateRibbonDiffXml, type ValidationError } from "@/services/xmlValidator";
+import { importRibbonDiffXml, type RibbonDiffImportResult } from "@/services/ribbonDiffImport";
 import MonacoEditor from "@/components/shared/MonacoEditor";
 
-/** Apply a RibbonDiffXml document to the store (append or replace commands/rules/labels). */
-function applyRibbonDiffXml(xmlText: string, mode: "replace" | "append"): void {
+/**
+ * Runs the import against the current session (#30). Pure: the store only
+ * changes when `commit` is set, as one undoable change that leaves the
+ * baseline alone — so everything imported shows up as a change to publish.
+ */
+function runRibbonDiffImport(xmlText: string, commit: boolean): RibbonDiffImportResult {
 	const store = useRibbonStore.getState();
-	const location = useSelectionStore.getState().location;
-
-	const parser = new DOMParser();
-	const doc = parser.parseFromString(xmlText, "application/xml");
-
-	if (doc.querySelector("parsererror")) return;
-
-	// Extract CommandDefinitions
-	doc.querySelectorAll("CommandDefinition").forEach((el) => {
-		const id = el.getAttribute("Id");
-		if (!id) return;
-		const enableRules: string[] = [];
-		const displayRules: string[] = [];
-		el.querySelectorAll("EnableRules > EnableRule").forEach((r) => {
-			const rid = r.getAttribute("Id");
-			if (rid) enableRules.push(rid);
-		});
-		el.querySelectorAll("DisplayRules > DisplayRule").forEach((r) => {
-			const rid = r.getAttribute("Id");
-			if (rid) displayRules.push(rid);
-		});
-		store.upsertCommand({ id, enableRules, displayRules, actions: [] });
+	const result = importRibbonDiffXml({
+		xml: xmlText,
+		ribbons: store.ribbons,
+		commands: store.commands,
+		enableRules: store.enableRules,
+		displayRules: store.displayRules,
+		locLabels: store.locLabels,
+		entityLogicalName:
+			useSessionStore.getState().activeEntity?.logicalName ??
+			store.ribbons.HomepageGrid.entityLogicalName,
+		activeLocation: useSelectionStore.getState().location,
+		languageCode: store.baseLanguageCode,
 	});
-
-	// Extract LocLabels
-	doc.querySelectorAll("LocLabel").forEach((el) => {
-		const id = el.getAttribute("Id");
-		if (!id) return;
-		const titles: { languageCode: number; description: string }[] = [];
-		el.querySelectorAll("Title").forEach((t) => {
-			const lc = Number(t.getAttribute("languagecode") ?? 0);
-			const desc = t.getAttribute("description") ?? "";
-			if (lc) titles.push({ languageCode: lc, description: desc });
-		});
-		store.upsertLocLabel({ id, titles });
-	});
-
-	// Extract EnableRules
-	doc.querySelectorAll("EnableRules > EnableRule").forEach((el) => {
-		const id = el.getAttribute("Id");
-		if (!id) return;
-		store.upsertEnableRule({ id, steps: [] });
-	});
-
-	// Extract DisplayRules
-	doc.querySelectorAll("DisplayRules > DisplayRule").forEach((el) => {
-		const id = el.getAttribute("Id");
-		if (!id) return;
-		store.upsertDisplayRule({ id, steps: [] });
-	});
-
-	// For "replace" mode, also load any CustomAction buttons into the active ribbon
-	if (mode === "replace") {
-		const nextRibbons = structuredClone(store.ribbons);
-		const ribbon = nextRibbons[location];
-
-		doc.querySelectorAll("CustomAction").forEach((ca) => {
-			const locAttr = ca.getAttribute("Location") ?? "";
-			const seq = Number(ca.getAttribute("Sequence") ?? 0);
-			const def = ca.querySelector("CommandUIDefinition > Button");
-			if (!def) return;
-			const id = def.getAttribute("Id") ?? "";
-			const label = def.getAttribute("LabelText") ?? id;
-			const command = def.getAttribute("Command") ?? "";
-			const alias = def.getAttribute("TemplateAlias") ?? "o1";
-			if (!id) return;
-
-			// Find or create a group to host this button
-			let placed = false;
-			for (const tab of ribbon.tabs) {
-				for (const group of tab.groups) {
-					if (locAttr.startsWith(group.id)) {
-						const exists = group.buttons.find((b) => b.id === id);
-						if (!exists) {
-							group.buttons.push({
-								id,
-								label,
-								commandId: command,
-								templateAlias: alias,
-								sequence: seq,
-								kind: "button",
-								hidden: false,
-								oob: false,
-								custom: true,
-								managed: false,
-							});
-						}
-						placed = true;
-						break;
-					}
-				}
-				if (placed) break;
-			}
-		});
-
-		store.loadRibbons(nextRibbons);
+	if (commit && result.changed) {
+		store.applyImport(result, `${result.applied.length} change(s)`);
 	}
+	return result;
 }
+
+const ReportList: React.FC<{ items: string[] }> = ({ items }) => (
+	<ul style={{ margin: "4px 0 0", paddingLeft: "20px", maxHeight: "160px", overflowY: "auto" }}>
+		{items.map((item, i) => (
+			<li key={i}>
+				<Text size={200}>{item}</Text>
+			</li>
+		))}
+	</ul>
+);
 
 export const ImportXmlModal: React.FC = () => {
 	const importXmlOpen = useUIStore((s) => s.importXmlOpen);
+	const importXmlSeed = useUIStore((s) => s.importXmlSeed);
 	const closeImportXml = useUIStore((s) => s.closeImportXml);
 
 	const [xmlText, setXmlText] = useState("");
 	const [errors, setErrors] = useState<ValidationError[]>([]);
-	const [mode, setMode] = useState<"replace" | "append">("replace");
+	const [report, setReport] = useState<{
+		result: RibbonDiffImportResult;
+		imported: boolean;
+	} | null>(null);
+	const [failure, setFailure] = useState("");
+
+	useEffect(() => {
+		if (!importXmlOpen) return;
+		setXmlText(importXmlSeed);
+		setErrors([]);
+		setReport(null);
+		setFailure("");
+	}, [importXmlOpen, importXmlSeed]);
+
+	const handleChange = (value: string) => {
+		setXmlText(value);
+		// A preview no longer matches edited XML.
+		if (!report?.imported) setReport(null);
+	};
 
 	const handleValidate = () => {
 		const errs = validateRibbonDiffXml(xmlText);
@@ -136,11 +90,19 @@ export const ImportXmlModal: React.FC = () => {
 		return errs.every((e) => e.severity === "warning");
 	};
 
-	const handleImport = () => {
+	const run = (commit: boolean) => {
 		if (!handleValidate()) return;
-		applyRibbonDiffXml(xmlText, mode);
-		closeImportXml();
+		setFailure("");
+		try {
+			setReport({ result: runRibbonDiffImport(xmlText, commit), imported: commit });
+		} catch (e) {
+			setReport(null);
+			setFailure(e instanceof Error ? e.message : String(e));
+		}
 	};
+
+	const imported = report?.imported === true;
+	const result = report?.result;
 
 	return (
 		<Dialog open={importXmlOpen} onOpenChange={() => closeImportXml()}>
@@ -150,23 +112,28 @@ export const ImportXmlModal: React.FC = () => {
 				<DialogTitle>Import RibbonDiffXml</DialogTitle>
 				<DialogBody style={{ height: "100%", display: "flex", flexDirection: "column" }}>
 					<DialogContent
-						style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
+						style={{
+							flex: 1,
+							minHeight: 0,
+							display: "flex",
+							flexDirection: "column",
+							gap: "8px",
+						}}
 					>
-						<TabList
-							selectedValue={mode}
-							onTabSelect={(_, d) => setMode(d.value as "replace" | "append")}
-						>
-							<Tab value="replace">Replace current</Tab>
-							<Tab value="append">Merge / append</Tab>
-						</TabList>
-						<Divider style={{ margin: "8px 0" }} />
+						<Text size={200}>
+							Paste a RibbonDiffXml (for example from Ribbon Workbench or a
+							solution&apos;s customizations.xml). Commands, rules and labels are
+							added or replaced by id; new buttons, groups and tabs are added to the
+							loaded ribbon; overrides and hides edit the existing controls.
+							Everything imported becomes an unpublished change.
+						</Text>
 
 						<div style={{ flex: 1, minHeight: 0 }}>
 							<MonacoEditor
 								language="xml"
 								value={xmlText}
-								onChange={setXmlText}
-								readOnly={false}
+								onChange={handleChange}
+								readOnly={imported}
 								height="100%"
 								options={{
 									wordWrap: "on",
@@ -177,11 +144,12 @@ export const ImportXmlModal: React.FC = () => {
 						</div>
 
 						{errors.length > 0 && (
-							<div
-								style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "4px" }}
-							>
+							<div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
 								{errors.map((err, i) => (
-									<MessageBar key={i} intent={err.severity === "warning" ? "warning" : "error"}>
+									<MessageBar
+										key={i}
+										intent={err.severity === "warning" ? "warning" : "error"}
+									>
 										<MessageBarBody>
 											{err.message}
 											{err.lineHint ? ` (${err.lineHint})` : ""}
@@ -191,22 +159,71 @@ export const ImportXmlModal: React.FC = () => {
 							</div>
 						)}
 
-						{errors.every((e) => e.severity === "warning") && xmlText && (
-							<MessageBar intent="success">
-								<MessageBarBody>XML is valid.</MessageBarBody>
+						{failure && (
+							<MessageBar intent="error">
+								<MessageBarBody>{failure}</MessageBarBody>
+							</MessageBar>
+						)}
+
+						{result && (
+							<MessageBar
+								intent={result.changed ? "success" : "info"}
+								layout="multiline"
+							>
+								<MessageBarBody>
+									<MessageBarTitle>
+										{imported
+											? result.changed
+												? "Imported — review the changes, then publish"
+												: "Nothing to import — the session already has all of it"
+											: "Preview — nothing has changed yet"}
+									</MessageBarTitle>
+									{result.applied.length > 0 && (
+										<ReportList items={result.applied} />
+									)}
+								</MessageBarBody>
+							</MessageBar>
+						)}
+
+						{result && result.notApplied.length > 0 && (
+							<MessageBar intent="warning" layout="multiline">
+								<MessageBarBody>
+									<MessageBarTitle>
+										{imported
+											? "Not imported / won't be published"
+											: "Can't be imported / won't be published"}
+									</MessageBarTitle>
+									<ReportList items={result.notApplied} />
+								</MessageBarBody>
 							</MessageBar>
 						)}
 					</DialogContent>
 					<DialogActions>
-						<Button appearance="secondary" onClick={closeImportXml}>
-							Cancel
-						</Button>
-						<Button appearance="secondary" onClick={handleValidate} disabled={!xmlText.trim()}>
-							Validate
-						</Button>
-						<Button appearance="primary" onClick={handleImport} disabled={!xmlText.trim()}>
-							Import
-						</Button>
+						{imported ? (
+							<Button appearance="primary" onClick={closeImportXml}>
+								Close
+							</Button>
+						) : (
+							<>
+								<Button appearance="secondary" onClick={closeImportXml}>
+									Cancel
+								</Button>
+								<Button
+									appearance="secondary"
+									onClick={() => run(false)}
+									disabled={!xmlText.trim()}
+								>
+									Preview
+								</Button>
+								<Button
+									appearance="primary"
+									onClick={() => run(true)}
+									disabled={!xmlText.trim()}
+								>
+									Import
+								</Button>
+							</>
+						)}
 					</DialogActions>
 				</DialogBody>
 			</DialogSurface>

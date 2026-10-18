@@ -238,7 +238,7 @@ export const XmlDrawer: React.FC = () => {
 					<ToolbarButton icon={<TextEditStyleRegular />} onClick={handleFormatXml}>
 						Format XML
 					</ToolbarButton>
-					<ToolbarButton icon={<ArrowUploadRegular />} onClick={openImportXml}>
+					<ToolbarButton icon={<ArrowUploadRegular />} onClick={() => openImportXml(xml)}>
 						Import this XML
 					</ToolbarButton>
 				</div>
