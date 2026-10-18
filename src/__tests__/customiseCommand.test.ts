@@ -949,6 +949,16 @@ describe("#26 / #31 — Customise Button", () => {
 			expect(useRibbonStore.getState().ribbons.Application.tabs[0].groups[0].buttons).toEqual([]);
 		});
 
+		it("is judged by the loaded origin: an overridden OOB button isn't moved in place (review)", () => {
+			loadStore();
+			const s = useRibbonStore.getState();
+			s.customizeOobButton("HomepageGrid", MAIN, MGMT, EDIT);
+			const before = useRibbonStore.getState().past.length;
+			expect(s.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" })).toBeNull();
+			expect(useRibbonStore.getState().past.length).toBe(before);
+			expect(collab().buttons.some((b) => b.id === EDIT)).toBe(false);
+		});
+
 		it("your own buttons still move in place, and flyouts are not copied", () => {
 			loadStore();
 			const s = useRibbonStore.getState();

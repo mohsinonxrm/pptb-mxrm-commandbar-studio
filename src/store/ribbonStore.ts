@@ -571,9 +571,14 @@ export function canCustomiseButton(location: RibbonLocation, tabId: string, butt
 	);
 }
 
-/** Whether a button with this id is in the loaded (baseline) ribbon of the location. */
-function isLoadedButton(state: RibbonStoreState, location: RibbonLocation, id: string): boolean {
-	return state.baseline[location].tabs.some((t) => t.groups.some((g) => g.buttons.some((b) => b.id === id)));
+/** The button with this id as loaded (baseline) at the location, if it was. */
+function loadedButton(state: RibbonStoreState, location: RibbonLocation, id: string): RibbonButton | undefined {
+	for (const t of state.baseline[location].tabs)
+		for (const g of t.groups) {
+			const b = g.buttons.find((x) => x.id === id);
+			if (b) return b;
+		}
+	return undefined;
 }
 
 /** A drop that leaves the button where it is (on itself, or just before its next neighbour). */
@@ -784,11 +789,12 @@ export const useRibbonStore = create<RibbonStore>()(
 				.find((t) => t.id === dst.tabId)
 				?.groups.find((g) => g.id === dst.groupId);
 			if (!original || !srcGroup || !dstGroup) return null;
-			const notYours =
-				// Only when its origin is known: provenance sets it on load.
-				original.origin !== undefined &&
-				original.origin !== "unmanaged" &&
-				isLoadedButton(state, src.location, original.id);
+			// Judged by the origin it was loaded with, as publish does: "Create
+			// override…" makes the current origin unmanaged, but the button is
+			// still not in your layer. Only when the origin is known (provenance
+			// sets it on load).
+			const loadedOrigin = loadedButton(state, src.location, original.id)?.origin;
+			const notYours = loadedOrigin !== undefined && loadedOrigin !== "unmanaged";
 			if (notYours && !original.menu && !isMenuKind(original.kind) && !isReadOnlyGlobalOobButton(src.location, src.tabId, original)) {
 				if (isMoveInPlace(srcGroup, src, dst)) return null;
 				const refuse = (why: string) => {
@@ -804,9 +810,11 @@ export const useRibbonStore = create<RibbonStore>()(
 				const { activeSolution, publisherPrefix } = useSessionStore.getState();
 				const prefix = activeSolution?.publisherPrefix?.trim() || publisherPrefix?.trim() || "new";
 				let moved: string | null = null;
+				let copied = false;
 				get().batch(() => {
 					const copyId = get().customiseButton(src.location, src.tabId, src.groupId, src.buttonId, prefix);
 					if (!copyId) return;
+					copied = true;
 					moved = get().moveButton({ ...src, buttonId: copyId }, dst);
 					useRuntimeLogStore
 						.getState()
@@ -815,6 +823,10 @@ export const useRibbonStore = create<RibbonStore>()(
 							`${original.id} isn't yours, so it can't be moved: moved your copy ${copyId} instead and hid the original.`,
 						);
 				});
+				// Copied but not moved (can't happen with the destination checked
+				// above): don't leave the copy and the hide behind.
+				if (copied && !moved) get().undo();
+				if (!copied) return refuse("it isn't yours and can't be copied (e.g. it has an override of its command); undo the override, then move it.");
 				return moved;
 			}
 			// Read-only global buttons don't move (and don't make an empty history entry).
