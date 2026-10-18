@@ -18,6 +18,8 @@ import {
 	ownControlIds,
 	ownContainerIds,
 	compareRibbonDiffParts,
+	changedRibbonDiffKeys,
+	type RibbonDiffComparison,
 	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
 import { fetchUnmanagedRibbonParts } from "@/services/dataverse/ribbonLayerService";
@@ -145,6 +147,8 @@ export interface PublishVerification {
 	missing: string[];
 	/** Elements in the published layer that CBS didn't import. */
 	unexpected: string[];
+	/** Elements this publish changed whose published content differs from what was imported. */
+	differing: string[];
 	message: string;
 }
 
@@ -181,6 +185,8 @@ export async function buildMergedRibbonDiffXml(
 	elementCount: number;
 	preservedCount: number;
 	changedCount: number;
+	/** `part:id` of the elements this publish adds or changes in the layer (checked by content after publishing). */
+	changedKeys: string[];
 }> {
 	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
 	const plan = {
@@ -317,6 +323,7 @@ export async function buildMergedRibbonDiffXml(
 		elementCount: countRibbonDiffParts(merged),
 		preservedCount: countRibbonDiffParts(existing),
 		changedCount: countRibbonDiffParts(delta),
+		changedKeys: changedRibbonDiffKeys(existing, merged),
 	};
 }
 
@@ -324,28 +331,44 @@ export async function buildMergedRibbonDiffXml(
  * Compares the layer as published with what CBS imported (#46). The ribbon
  * tables only show published state, so this runs after PublishXml; a short
  * lag is tolerated by re-reading a few times.
+ *
+ * Every element is checked for presence; the elements this publish changed
+ * (`contentKeys`) are also checked by content, in the form that survives an
+ * import (ribbonDiffMerge.stableElementXml: Dataverse rewrites actions that
+ * call platform libraries, so those are only checked for presence).
  */
 export async function verifyPublishedLayer(
 	entityLogicalName: string | null,
 	expected: RibbonDiffParts,
-	options: { attempts?: number; delayMs?: number } = {},
+	options: { attempts?: number; delayMs?: number; contentKeys?: string[] } = {},
 ): Promise<PublishVerification> {
 	const attempts = options.attempts ?? 3;
-	let last: { missing: string[]; unexpected: string[] } = { missing: [], unexpected: [] };
+	const contentKeys = options.contentKeys ?? [];
+	let last: RibbonDiffComparison = { missing: [], unexpected: [], differing: [] };
 	for (let i = 0; i < attempts; i++) {
 		if (i > 0) await new Promise((r) => setTimeout(r, options.delayMs ?? 5000));
 		try {
-			last = compareRibbonDiffParts(expected, await fetchUnmanagedRibbonParts(entityLogicalName));
+			last = compareRibbonDiffParts(expected, await fetchUnmanagedRibbonParts(entityLogicalName), { contentKeys });
 		} catch (err) {
 			return {
 				ok: false,
 				missing: [],
 				unexpected: [],
+				differing: [],
 				message: `Couldn't read the published ribbon layer to verify it (${err instanceof Error ? err.message : String(err)}).`,
 			};
 		}
-		if (last.missing.length === 0 && last.unexpected.length === 0) {
-			return { ok: true, ...last, message: "Verified: the published ribbon layer matches what was imported." };
+		if (last.missing.length === 0 && last.unexpected.length === 0 && last.differing.length === 0) {
+			const changed = contentKeys.length;
+			return {
+				ok: true,
+				...last,
+				message:
+					"Verified: the published ribbon layer has every element that was imported" +
+					(changed > 0
+						? `, and the ${changed} element(s) this publish changed have the imported content.`
+						: "."),
+			};
 		}
 	}
 	const sample = (ids: string[]) => ids.slice(0, 5).join(", ") + (ids.length > 5 ? ", …" : "");
@@ -356,6 +379,7 @@ export async function verifyPublishedLayer(
 			"The published ribbon layer doesn't match what was imported" +
 			(last.missing.length ? `; missing: ${sample(last.missing)}` : "") +
 			(last.unexpected.length ? `; unexpected: ${sample(last.unexpected)}` : "") +
+			(last.differing.length ? `; different content: ${sample(last.differing)}` : "") +
 			". Reload the table and check before publishing again.",
 	};
 }
@@ -543,6 +567,7 @@ export async function publishRibbon(
 		onProgress?.("Verifying the published ribbon…");
 		verification = await verifyPublishedLayer(input.entity?.logicalName ?? null, merged.parts, {
 			delayMs: input.verifyDelayMs,
+			contentKeys: merged.changedKeys,
 		});
 		if (verification.ok) logs.logInfo("publish", verification.message);
 		else logs.logWarn("publish", verification.message);

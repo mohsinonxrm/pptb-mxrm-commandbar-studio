@@ -11,6 +11,8 @@
  * element Id, then the whole thing is serialized once per table.
  */
 
+import { canonicalXml } from "@/services/ribbonXmlCanonical";
+
 /** One XML element kept as its serialized string, keyed by its identity. */
 type ElementMap = Map<string, string>;
 
@@ -235,21 +237,123 @@ ${join(parts.locLabels, "    ")}
 }
 
 /**
- * Element-level comparison of two layers by identity (`part:id`). Used to
- * verify a publish (#46): Dataverse stores each element's XML as imported, but
- * whitespace may differ, so only presence is compared.
+ * `JavaScriptFunction`s calling a platform library. Dataverse rewrites these on
+ * import (e.g. `/_static/_common/scripts/CommandBarActions.js` +
+ * `Mscrm.CommandBarActions.*` is stored as `$webresource:Main_system_library.js`
+ * + `XrmCore.Commands.*`), so their library, function and parameters can't be
+ * compared — only that an action is there.
+ */
+function isPlatformAction(el: Element): boolean {
+	if (el.tagName !== "JavaScriptFunction") return false;
+	const library = (el.getAttribute("Library") ?? "").trim();
+	const fn = el.getAttribute("FunctionName") ?? "";
+	return (
+		library.startsWith("/_") ||
+		/^\$webresource:Main_system_library\.js$/i.test(library) ||
+		/^(XrmCore|Mscrm)\./.test(fn)
+	);
+}
+
+/**
+ * The part of an element's XML that survives an import unchanged: canonical
+ * form (attribute order, whitespace, boolean spelling, command containers),
+ * LocLabel titles in language order, and platform-library actions reduced to
+ * their presence.
+ */
+export function stableElementXml(part: keyof RibbonDiffParts, xml: string): string {
+	const el = elementOf(xml);
+	if (part === "commandDefinitions") {
+		for (const fn of Array.from(el.getElementsByTagName("JavaScriptFunction"))) {
+			if (!isPlatformAction(fn)) continue;
+			fn.parentNode?.replaceChild(el.ownerDocument.createElement("PlatformJavaScriptFunction"), fn);
+		}
+	}
+	if (part === "locLabels") {
+		for (const titles of Array.from(el.getElementsByTagName("Titles"))) {
+			const sorted = Array.from(titles.children).sort(
+				(a, b) => Number(a.getAttribute("languagecode")) - Number(b.getAttribute("languagecode")),
+			);
+			for (const t of sorted) titles.appendChild(t);
+		}
+	}
+	return canonicalXml(el, { normalizeCommands: part === "commandDefinitions" });
+}
+
+const sameStable = (part: keyof RibbonDiffParts, a: string, b: string) => {
+	try {
+		return stableElementXml(part, a) === stableElementXml(part, b);
+	} catch {
+		return a === b;
+	}
+};
+
+const titlesOf = (xml: string) =>
+	Array.from(elementOf(xml).getElementsByTagName("Title")).map(
+		(t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description") ?? ""}`,
+	);
+
+/**
+ * True when `actual` holds what was imported as `expected`. A LocLabel only
+ * needs a subset of its titles: an organisation without a language pack may
+ * not keep that language's title.
+ */
+function landed(part: keyof RibbonDiffParts, expected: string, actual: string): boolean {
+	if (part !== "locLabels") return sameStable(part, expected, actual);
+	try {
+		const want = new Set(titlesOf(expected));
+		const got = titlesOf(actual);
+		return got.length > 0 && got.every((t) => want.has(t));
+	} catch {
+		return expected === actual;
+	}
+}
+
+/** `part:id` of every element of `after` that is new or whose content differs from `before`. */
+export function changedRibbonDiffKeys(before: RibbonDiffParts, after: RibbonDiffParts): string[] {
+	const out: string[] = [];
+	for (const part of Object.keys(after) as (keyof RibbonDiffParts)[]) {
+		for (const [id, xml] of after[part]) {
+			const prev = before[part].get(id);
+			if (prev === undefined || !sameStable(part, prev, xml)) out.push(`${part}:${id}`);
+		}
+	}
+	return out;
+}
+
+export interface RibbonDiffComparison {
+	/** Expected elements the actual layer doesn't have (`part:id`). */
+	missing: string[];
+	/** Elements of the actual layer that weren't expected. */
+	unexpected: string[];
+	/** Elements listed in `contentKeys` present on both sides whose content differs. */
+	differing: string[];
+}
+
+/**
+ * Element-level comparison of two layers, used to verify a publish (#46).
+ * Every element is compared by identity (`part:id`); the elements in
+ * `contentKeys` (what the publish changed) are also compared by content, in
+ * the form that survives an import (stableElementXml) — so a rule, command or
+ * label edit that never landed is reported, not "verified".
  */
 export function compareRibbonDiffParts(
 	expected: RibbonDiffParts,
 	actual: RibbonDiffParts,
-): { missing: string[]; unexpected: string[] } {
+	options: { contentKeys?: Iterable<string> } = {},
+): RibbonDiffComparison {
 	const missing: string[] = [];
 	const unexpected: string[] = [];
+	const differing: string[] = [];
+	const content = new Set(options.contentKeys ?? []);
 	for (const part of Object.keys(expected) as (keyof RibbonDiffParts)[]) {
-		for (const id of expected[part].keys()) if (!actual[part].has(id)) missing.push(`${part}:${id}`);
+		for (const [id, xml] of expected[part]) {
+			const got = actual[part].get(id);
+			if (got === undefined) missing.push(`${part}:${id}`);
+			else if (content.has(`${part}:${id}`) && !landed(part, xml, got)) differing.push(`${part}:${id}`);
+		}
 		for (const id of actual[part].keys()) if (!expected[part].has(id)) unexpected.push(`${part}:${id}`);
 	}
-	return { missing, unexpected };
+	return { missing, unexpected, differing };
 }
 
 export function countRibbonDiffParts(parts: RibbonDiffParts): number {
@@ -443,18 +547,30 @@ export function mergeScopeChanges(
 		else if (location) overrideAt.set(location, key);
 	}
 
+	// Controls the delta adds (`…._children`): never removed below, whatever
+	// the deletes say — a control cut from one location and pasted into another
+	// is deleted there and re-added here (#57 review).
+	const readded = new Set<string>();
+
 	for (const [key, xml] of delta.customActions) {
 		const ca = elementOf(xml);
 		const ctrl = controlOf(xml);
 		const ctrlId = ctrl?.getAttribute("Id") ?? null;
 		const targetKey = ctrlId ? ownControl.get(ctrlId) : undefined;
-		if (ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !isChildrenLocation(ca.getAttribute("Location"))) {
-			// Edit of a control the layer owns → replace it inside its own CustomAction.
-			const target = elementOf(existing.customActions.get(targetKey)!);
+		const adds = ca.tagName === "CustomAction" && isChildrenLocation(ca.getAttribute("Location"));
+		if (adds && ctrlId) readded.add(ctrlId);
+		const container = ctrl?.tagName === "Tab" || ctrl?.tagName === "Group";
+		if (ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !(adds && container)) {
+			// Edit of a control the layer owns → replace it inside its own
+			// CustomAction. A control the delta adds again (moved to another
+			// location) also takes the new Location: one CustomAction per control,
+			// keeping the layer's CustomAction id.
+			const target = elementOf(merged.customActions.get(targetKey) ?? existing.customActions.get(targetKey)!);
 			const def = firstChild(target, "CommandUIDefinition")!;
 			const imported = withChildrenOf(target.ownerDocument.importNode(ctrl, true) as Element, def.firstElementChild);
 			def.replaceChild(imported, def.firstElementChild!);
-			const seq = ctrl.getAttribute("Sequence");
+			if (adds) target.setAttribute("Location", ca.getAttribute("Location")!);
+			const seq = ctrl.getAttribute("Sequence") ?? (adds ? ca.getAttribute("Sequence") : null);
 			if (seq) target.setAttribute("Sequence", seq);
 			merged.customActions.set(targetKey, s.serializeToString(target));
 			continue;
@@ -489,8 +605,10 @@ export function mergeScopeChanges(
 		merged.customActions.set(key, s.serializeToString(ca));
 	}
 
-	// Removals.
+	// Removals. Labels of removed controls are dropped further down, once no
+	// remaining control references them.
 	const removedCommands = new Set<string>();
+	const removedLabels = new Set<string>();
 	for (const [key, xml] of Array.from(merged.customActions)) {
 		const el = elementOf(xml);
 		if (el.tagName === "HideCustomAction") {
@@ -499,18 +617,17 @@ export function mergeScopeChanges(
 		}
 		const ctrl = controlOf(xml);
 		const ctrlId = ctrl?.getAttribute("Id");
-		if (ctrlId && deleted.has(ctrlId) && isChildrenLocation(el.getAttribute("Location"))) {
+		if (ctrlId && deleted.has(ctrlId) && !readded.has(ctrlId) && isChildrenLocation(el.getAttribute("Location"))) {
 			merged.customActions.delete(key);
 			// Only the labels this control references — not every id that merely
 			// starts with its id (#11 review N11).
-			for (const m of xml.matchAll(LOC_LABEL_REF)) merged.locLabels.delete(m[1]);
+			for (const m of xml.matchAll(LOC_LABEL_REF)) removedLabels.add(m[1]);
 			const commandId = ctrl?.getAttribute("Command");
 			if (commandId) removedCommands.add(commandId);
 		}
 	}
 
 	// Deleted tabs / groups (#48), and everything placed inside them.
-	const removedLabels = new Set<string>();
 	const removedTabCommandCandidates = new Set<string>();
 	const gone = new Set(options.deletedContainerIds ?? []);
 	const forget = (el: Element, xml: string) => {
@@ -594,7 +711,8 @@ export function mergeScopeChanges(
 	for (const [id, xml] of delta.tabDisplayRules) merged.tabDisplayRules.set(id, xml);
 	for (const [id, xml] of delta.templates) merged.templates.set(id, xml);
 
-	// Labels and tab display rules of removed tabs / groups, unless still used.
+	// Labels of removed controls / tabs / groups and tab display rules of
+	// removed tabs, unless still used.
 	const stillUsed = (needle: string) =>
 		Array.from(merged.customActions.values()).some((xml) => xml.includes(needle));
 	for (const id of removedLabels) {

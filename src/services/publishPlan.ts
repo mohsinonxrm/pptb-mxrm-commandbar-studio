@@ -91,6 +91,8 @@ const isResourceIcon = (b: { icon?: string; image16?: string; image32?: string }
 	[b.icon, b.image16, b.image32].some((v) => !!v && v.startsWith("$webresource:"));
 const LOC_REF = /^\$LocLabels:(.+)$/;
 const locRef = (v: string | undefined) => (v ? (LOC_REF.exec(v)?.[1] ?? null) : null);
+/** A rule reference the parser keeps verbatim (CommandDefinition.rawRuleRefs). */
+const RAW_RULE_REF = /^\s*<(EnableRule|DisplayRule)\b[^>]*?\sId="([^"]+)"/;
 const asSet = (v: ReadonlySet<string> | readonly string[] | undefined) => new Set<string>(v ?? []);
 
 /** `$LocLabels:` ids a button's attributes reference, as loaded. */
@@ -120,6 +122,11 @@ export function planScope(input: PlanInput): ScopePlan {
 	const generatorLabels = new Set<string>();
 	// Convention label ids of buttons that don't reference them (yet).
 	const unreferencedConventionLabels = new Map<string, RibbonButton>();
+	// Buttons placed where the baseline of their location doesn't have them, by
+	// id: a deleted own button that reappears here was moved to another location
+	// of the scope (e.g. cut on the grid, pasted on the form), not deleted.
+	const placedNew = new Map<string, { groupId: string; sequence: number }>();
+	const newMenus: { id: string; label: string }[] = [];
 
 	for (const { current, baseline } of input.locations) {
 		const summary = summarizeRibbonDiff(current, baseline);
@@ -186,9 +193,9 @@ export function planScope(input: PlanInput): ScopePlan {
 		}
 
 		for (const [key, c] of cur) {
-			if (!base.has(key) && isMenuKind(c.button.kind)) {
-				unsupported.push(`New flyout / split button "${c.button.label}" — menus can't be published yet (#27)`);
-			}
+			if (base.has(key)) continue;
+			if (!placedNew.has(c.button.id)) placedNew.set(c.button.id, { groupId: c.groupId, sequence: c.button.sequence });
+			if (isMenuKind(c.button.kind)) newMenus.push({ id: c.button.id, label: c.button.label });
 		}
 
 		const baseGroups = new Map(baseline.tabs.flatMap((t) => t.groups.map((g) => [g.id, g] as const)));
@@ -242,6 +249,21 @@ export function planScope(input: PlanInput): ScopePlan {
 		}
 	}
 
+	// A deleted own button placed anew in another location of the scope was
+	// moved there: its CustomAction is relocated (and edited in place), never
+	// removed — removing it would delete the button the paste just placed.
+	for (let i = deleted.length - 1; i >= 0; i--) {
+		const to = placedNew.get(deleted[i]);
+		if (!to) continue;
+		moved.push({ id: deleted[i], groupId: to.groupId, sequence: to.sequence });
+		deleted.splice(i, 1);
+	}
+	for (const m of newMenus) {
+		// A moved menu keeps its <Menu>: the merge edits the control in place.
+		if (moved.some((x) => x.id === m.id)) continue;
+		unsupported.push(`New flyout / split button "${m.label}" — menus can't be published yet (#27)`);
+	}
+
 	for (const id of input.excludeCommandIds ?? []) referencedCommandIds.delete(id);
 
 	const baseCmd = new Map(input.baselineCommands.map((c) => [c.id, c]));
@@ -261,6 +283,12 @@ export function planScope(input: PlanInput): ScopePlan {
 		if (!referencedCommandIds.has(c.id)) continue;
 		c.enableRules.forEach((r) => enableInScope.add(r));
 		c.displayRules.forEach((r) => displayInScope.add(r));
+		// References the model keeps verbatim (e.g. an <EnableRule> inside
+		// <DisplayRules>) still use the rule, so an edit of it must publish.
+		for (const raw of c.rawRuleRefs ?? []) {
+			const m = RAW_RULE_REF.exec(raw.xml);
+			if (m) (m[1] === "EnableRule" ? enableInScope : displayInScope).add(m[2]);
+		}
 	}
 	const editedRules = <R extends { id: string }>(rules: R[], baseline: R[], inScope: Set<string>) => {
 		const base = new Map(baseline.map((r) => [r.id, r] as const));

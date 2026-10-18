@@ -15,6 +15,8 @@ import {
 	ownContainerIds,
 	hideActionsOf,
 	compareRibbonDiffParts,
+	changedRibbonDiffKeys,
+	parseRibbonDiffParts,
 	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
 import { planScope, type PlanInput } from "@/services/publishPlan";
@@ -572,7 +574,10 @@ describe("#26 — moving / re-sequencing your own buttons", () => {
 	it("sequenceBetween keeps a fitting value and otherwise picks one between the neighbours", () => {
 		expect(sequenceBetween(15, 10, 20)).toBe(15);
 		expect(sequenceBetween(900, 10, 20)).toBe(15);
-		expect(sequenceBetween(900, 10, 11)).toBe(11);
+		// No room between the neighbours: never a neighbour's value (#57 review).
+		expect(sequenceBetween(900, 10, 11)).toBeUndefined();
+		expect(sequenceBetween(900, 10, 10)).toBeUndefined();
+		expect(sequenceBetween(50, undefined, 1)).toBeUndefined();
 		expect(sequenceBetween(5, 10, undefined)).toBe(20);
 		expect(sequenceBetween(50, undefined, 10)).toBe(1);
 		expect(sequenceBetween(50, undefined, 100)).toBe(50);
@@ -672,7 +677,331 @@ describe("compareRibbonDiffParts (#46 verification)", () => {
 		expect(compareRibbonDiffParts(a, b)).toEqual({
 			missing: ["customActions:ca:cbs.B1.CustomAction"],
 			unexpected: ["locLabels:extra"],
+			differing: [],
 		});
-		expect(compareRibbonDiffParts(a, layerParts())).toEqual({ missing: [], unexpected: [] });
+		expect(compareRibbonDiffParts(a, layerParts())).toEqual({ missing: [], unexpected: [], differing: [] });
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Adversarial review of #57
+// ---------------------------------------------------------------------------
+
+const FORM_TAB = `Mscrm.Form.${T}.MainTab`;
+const FORM_GROUP = `${FORM_TAB}.Save`;
+const formRibbon = (): RibbonDefinition => ({
+	location: "Form",
+	entityLogicalName: T,
+	tabs: [
+		{
+			id: FORM_TAB,
+			label: "Form",
+			sequence: 10,
+			tabDisplayRules: [],
+			groups: [{ id: FORM_GROUP, label: "Save", sequence: 10, template: "Flexible2", buttons: [] }],
+		},
+	],
+});
+
+/** Cuts cbs.B4 from the grid and pastes it into the form (Ctrl+X / Ctrl+V). */
+async function moveB4ToForm() {
+	const { buildMergedRibbonDiffXml } = await import("@/services/dataverse/publishService");
+	const parsed = load();
+	const base = load();
+	const from = group(parsed.ribbon, `${MAIN}.Management`);
+	const b4 = from.buttons.find((b) => b.id === "cbs.B4")!;
+	from.buttons = from.buttons.filter((b) => b !== b4);
+	const form = formRibbon();
+	form.tabs[0].groups[0].buttons.push(b4);
+	const locations = [
+		{ current: parsed.ribbon, baseline: base.ribbon },
+		{ current: form, baseline: formRibbon() },
+	];
+	const p = planScope({
+		locations,
+		commands: parsed.commands,
+		baselineCommands: base.commands,
+		enableRules: parsed.enableRules,
+		baselineEnableRules: base.enableRules,
+		displayRules: parsed.displayRules,
+		baselineDisplayRules: base.displayRules,
+		locLabels: parsed.locLabels,
+		baselineLocLabels: base.locLabels,
+		layer: layerSnapshotFromParts(layerParts()),
+	});
+	const result = await buildMergedRibbonDiffXml({
+		entity: { logicalName: T, schemaName: T },
+		locations,
+		commands: parsed.commands,
+		enableRules: parsed.enableRules,
+		displayRules: parsed.displayRules,
+		locLabels: parsed.locLabels,
+		plan: p,
+		languageCode: 1033,
+	});
+	return { plan: p, doc: new DOMParser().parseFromString(result.xml, "application/xml"), result };
+}
+
+describe("#57 review — moving your own button to another location", () => {
+	it("is planned as a move, not a delete", async () => {
+		const { plan: p } = await moveB4ToForm();
+		expect(p.deletedButtonIds).toEqual([]);
+		expect(p.movedButtons).toEqual([{ id: "cbs.B4", groupId: FORM_GROUP, sequence: 900 }]);
+		expect(p.unsupported).toEqual([]);
+		expect(p.hasChanges).toBe(true);
+	});
+
+	it("publishes the button at its new location with its command and labels", async () => {
+		const { doc } = await moveB4ToForm();
+		const buttons = doc.querySelectorAll('Button[Id="cbs.B4"]');
+		expect(buttons).toHaveLength(1);
+		const caEl = buttons[0].closest("CustomAction")!;
+		expect(caEl.getAttribute("Id")).toBe("cbs.B4.CustomAction");
+		expect(caEl.getAttribute("Location")).toBe(`${FORM_GROUP}.Controls._children`);
+		expect(buttons[0].getAttribute("Command")).toBe("cbs.B4.Command");
+		expect(buttons[0].getAttribute("LabelText")).toBe("$LocLabels:cbs.B4.LabelText");
+		expect(ids(doc, "CommandDefinitions > CommandDefinition")).toContain("cbs.B4.Command");
+		const titles = Array.from(doc.querySelectorAll('LocLabel[Id="cbs.B4.LabelText"] Title')).map(
+			(t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`,
+		);
+		expect(titles.sort()).toEqual(["1031=Vier", "1033=Four"]);
+	});
+
+	it("keeps the layer's own CustomAction id when it differs from CBS's naming", async () => {
+		const xml = layer.customActions.get("ca:cbs.B4.CustomAction")!;
+		layer.customActions.delete("ca:cbs.B4.CustomAction");
+		layer.customActions.set("ca:rw.B4.CustomAction", xml.replace('Id="cbs.B4.CustomAction"', 'Id="rw.B4.CustomAction"'));
+		const { doc } = await moveB4ToForm();
+		const buttons = doc.querySelectorAll('Button[Id="cbs.B4"]');
+		expect(buttons).toHaveLength(1);
+		const caEl = buttons[0].closest("CustomAction")!;
+		expect(caEl.getAttribute("Id")).toBe("rw.B4.CustomAction");
+		expect(caEl.getAttribute("Location")).toBe(`${FORM_GROUP}.Controls._children`);
+		expect(ids(doc, "CustomActions > CustomAction")).not.toContain("cbs.B4.CustomAction");
+	});
+
+	it("mergeScopeChanges never deletes a control the delta adds again", () => {
+		const delta = parseRibbonDiffParts(
+			`<RibbonDiffXml><CustomActions>${ca(
+				"cbs.B4.CustomAction",
+				`${FORM_GROUP}.Controls._children`,
+				5,
+				`<Button Id="cbs.B4" Command="cbs.B4.Command" Sequence="5" LabelText="$LocLabels:cbs.B4.LabelText" TemplateAlias="o1" />`,
+			)}</CustomActions></RibbonDiffXml>`,
+		);
+		const merged = mergeScopeChanges(layerParts(), delta, { deletedControlIds: ["cbs.B4"] });
+		const kept = merged.customActions.get("ca:cbs.B4.CustomAction")!;
+		expect(kept).toContain(`Location="${FORM_GROUP}.Controls._children"`);
+		expect(kept).toContain('Sequence="5"');
+		expect(merged.locLabels.has("cbs.B4.LabelText")).toBe(true);
+		expect(merged.commandDefinitions.has("cbs.B4.Command")).toBe(true);
+	});
+});
+
+describe("#57 review — deleting a button keeps labels other controls still use", () => {
+	it("a LocLabel referenced by a remaining control survives the delete", () => {
+		const existing = layerParts();
+		const b5 = existing.customActions.get("ca:cbs.B5.CustomAction")!;
+		existing.customActions.set("ca:cbs.B5.CustomAction", b5.replace('LabelText="Five"', 'LabelText="$LocLabels:cbs.B4.LabelText"'));
+		const merged = mergeScopeChanges(existing, parseRibbonDiffParts("<RibbonDiffXml/>"), { deletedControlIds: ["cbs.B4"] });
+		expect(merged.customActions.has("ca:cbs.B4.CustomAction")).toBe(false);
+		expect(merged.locLabels.has("cbs.B4.LabelText")).toBe(true);
+	});
+
+	it("…and is removed when nothing else uses it", () => {
+		const merged = mergeScopeChanges(layerParts(), parseRibbonDiffParts("<RibbonDiffXml/>"), { deletedControlIds: ["cbs.B4"] });
+		expect(merged.locLabels.has("cbs.B4.LabelText")).toBe(false);
+	});
+});
+
+describe("#57 review — rule references kept verbatim (rawRuleRefs)", () => {
+	const WITH_RAW = MERGED.replace(
+		'<CommandDefinition Id="cbs.B4.Command"><EnableRules/><DisplayRules/>',
+		'<CommandDefinition Id="cbs.B4.Command"><EnableRules/><DisplayRules><EnableRule Id="cbs.R2"/></DisplayRules>',
+	).replace(
+		'<EnableRules><EnableRule Id="cbs.B1.Rule">',
+		'<EnableRules><EnableRule Id="cbs.R2"><SelectionCountRule Minimum="1"/></EnableRule><EnableRule Id="cbs.B1.Rule">',
+	);
+	const parse = () => parseRibbonXml(WITH_RAW, "HomepageGrid", T, locLabelsOf(layerParts()));
+
+	it("an edit of a rule referenced only from the wrong container is published", () => {
+		const base = parse();
+		const parsed = parse();
+		expect(parsed.commands.find((c) => c.id === "cbs.B4.Command")?.rawRuleRefs?.length).toBe(1);
+		const r2 = parsed.enableRules.find((r) => r.id === "cbs.R2")!;
+		r2.steps.push(clone(r2.steps[0]));
+		const p = planScope({
+			locations: [{ current: parsed.ribbon, baseline: base.ribbon }],
+			commands: parsed.commands,
+			baselineCommands: base.commands,
+			enableRules: parsed.enableRules,
+			baselineEnableRules: base.enableRules,
+			displayRules: parsed.displayRules,
+			baselineDisplayRules: base.displayRules,
+			layer: layerSnapshotFromParts(layerParts()),
+		});
+		expect(p.editedEnableRuleIds).toEqual(["cbs.R2"]);
+		expect(p.editedDisplayRuleIds).toEqual([]);
+		expect(p.hasChanges).toBe(true);
+	});
+});
+
+describe("#57 review — sequences never collide", () => {
+	function loadStore(sequences: Record<string, number>) {
+		const parsed = load();
+		for (const b of group(parsed.ribbon, `${MAIN}.Management`).buttons) if (b.id in sequences) b.sequence = sequences[b.id];
+		useRibbonStore.getState().loadWorkspace({
+			ribbons: {
+				HomepageGrid: parsed.ribbon,
+				SubGrid: { location: "SubGrid", entityLogicalName: T, tabs: [] },
+				Form: { location: "Form", entityLogicalName: T, tabs: [] },
+				Application: { location: "Application", entityLogicalName: "", tabs: [] },
+			},
+			commands: [],
+			displayRules: [],
+			enableRules: [],
+			locLabels: [],
+			layers: { entity: layerSnapshotFromParts(layerParts()) },
+		});
+	}
+	const NEW = `Mscrm.HomepageGrid.${T}.NewRecord`;
+	const EDIT = `Mscrm.HomepageGrid.${T}.Edit`;
+	const move = (buttonId: string, beforeButtonId: string) =>
+		useRibbonStore.getState().moveButton(
+			{ groupId: `${MAIN}.Management`, buttonId, tabId: MAIN, location: "HomepageGrid" },
+			{ groupId: `${MAIN}.Management`, beforeButtonId, tabId: MAIN, location: "HomepageGrid" },
+		);
+	const management = () => group(useRibbonStore.getState().ribbons.HomepageGrid, `${MAIN}.Management`).buttons;
+	const seqOf = (id: string) => management().find((b) => b.id === id)!.sequence;
+
+	it("re-numbers your own buttons when there is no gap, keeping the order", () => {
+		loadStore({ [NEW]: 10, [EDIT]: 20, "cbs.B4": 21, "cbs.B5": 910 });
+		move("cbs.B5", "cbs.B4");
+		const buttons = management();
+		expect(buttons.map((b) => b.id)).toEqual([NEW, EDIT, "cbs.B5", "cbs.B4"]);
+		const seqs = buttons.map((b) => b.sequence);
+		expect(seqs).toEqual([...seqs].sort((a, b) => a - b));
+		expect(new Set(seqs).size).toBe(seqs.length);
+		// Out-of-the-box buttons are never re-numbered.
+		expect(seqOf(NEW)).toBe(10);
+		expect(seqOf(EDIT)).toBe(20);
+	});
+
+	it("never takes a neighbour's value between two adjacent out-of-the-box sequences", () => {
+		loadStore({ [NEW]: 10, [EDIT]: 11 });
+		move("cbs.B4", EDIT);
+		expect([10, 11]).not.toContain(seqOf("cbs.B4"));
+		const seqs = management().map((b) => b.sequence);
+		expect(new Set(seqs).size).toBe(seqs.length);
+		expect(seqOf(NEW)).toBe(10);
+		expect(seqOf(EDIT)).toBe(11);
+	});
+
+	it("never takes sequence 1 when moved before a button at 1", () => {
+		loadStore({ [NEW]: 1, [EDIT]: 20 });
+		move("cbs.B4", NEW);
+		expect(seqOf("cbs.B4")).not.toBe(1);
+		const seqs = management().map((b) => b.sequence);
+		expect(new Set(seqs).size).toBe(seqs.length);
+	});
+
+	it("moveButton keeps the button when the destination doesn't exist", () => {
+		loadStore({});
+		useRibbonStore.getState().moveButton(
+			{ groupId: `${MAIN}.Management`, buttonId: "cbs.B4", tabId: MAIN, location: "HomepageGrid" },
+			{ groupId: "no.such.group", tabId: MAIN, location: "HomepageGrid" },
+		);
+		expect(management().map((b) => b.id)).toContain("cbs.B4");
+	});
+});
+
+describe("#57 review — post-publish verification compares content", () => {
+	const RULE_KEY = "enableRules:cbs.B1.Rule";
+	const withRule = (parts: RibbonDiffParts, minimum: number) => {
+		parts.enableRules.set("cbs.B1.Rule", `<EnableRule Id="cbs.B1.Rule"><SelectionCountRule Minimum="${minimum}" /></EnableRule>`);
+		return parts;
+	};
+
+	it("the publish lists the elements it changes", async () => {
+		const parsed = load();
+		const rule = parsed.enableRules.find((r) => r.id === "cbs.B1.Rule")!;
+		rule.steps.push(clone(rule.steps[0]));
+		const { changedKeys } = await build(parsed.ribbon, parsed);
+		expect(changedKeys).toEqual([RULE_KEY]);
+	});
+
+	it("reports a changed rule whose content didn't land", async () => {
+		const { verifyPublishedLayer } = await import("@/services/dataverse/publishService");
+		const expected = withRule(layerParts(), 2);
+		layer = layerParts(); // the server still has Minimum="1"
+		const v = await verifyPublishedLayer(T, expected, { attempts: 1, contentKeys: [RULE_KEY] });
+		expect(v.ok).toBe(false);
+		expect(v.differing).toEqual([RULE_KEY]);
+		expect(v.message).toMatch(/different content: enableRules:cbs\.B1\.Rule/);
+		// Comparing ids alone would have called this verified.
+		expect((await verifyPublishedLayer(T, expected, { attempts: 1 })).ok).toBe(true);
+	});
+
+	it("accepts formatting differences and Dataverse's rewrite of platform-library actions", async () => {
+		const { verifyPublishedLayer } = await import("@/services/dataverse/publishService");
+		const cmd = (action: string) =>
+			`<CommandDefinition Id="cbs.B4.Command"><EnableRules /><DisplayRules /><Actions>${action}</Actions></CommandDefinition>`;
+		const expected = withRule(layerParts(), 2);
+		expected.commandDefinitions.set(
+			"cbs.B4.Command",
+			cmd(
+				`<JavaScriptFunction FunctionName="Mscrm.CommandBarActions.changeState" Library="/_static/_common/scripts/CommandBarActions.js"><StringParameter Value="deactivate" /></JavaScriptFunction>`,
+			),
+		);
+		layer = layerParts();
+		layer.enableRules.set("cbs.B1.Rule", `<EnableRule Id="cbs.B1.Rule">\n  <SelectionCountRule Minimum="2"/>\n</EnableRule>`);
+		layer.commandDefinitions.set(
+			"cbs.B4.Command",
+			cmd(
+				`<JavaScriptFunction FunctionName="XrmCore.Commands.Deactivate.deactivatePrimaryRecord" Library="$webresource:Main_system_library.js"><CrmParameter Value="FirstPrimaryItemId" /></JavaScriptFunction>`,
+			),
+		);
+		// An organisation without German keeps only the base-language title.
+		layer.locLabels.set("cbs.B4.LabelText", label("cbs.B4.LabelText", [1033, "Four"]));
+		const v = await verifyPublishedLayer(T, expected, {
+			attempts: 1,
+			contentKeys: [RULE_KEY, "commandDefinitions:cbs.B4.Command", "locLabels:cbs.B4.LabelText"],
+		});
+		expect(v).toMatchObject({ ok: true, missing: [], unexpected: [], differing: [] });
+		expect(v.message).toMatch(/3 element\(s\) this publish changed have the imported content/);
+	});
+
+	it("reports a changed command whose action didn't land", () => {
+		const expected = layerParts();
+		const actual = layerParts();
+		expected.commandDefinitions.set(
+			"cbs.B4.Command",
+			'<CommandDefinition Id="cbs.B4.Command"><EnableRules /><DisplayRules /><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="B4v2" /></Actions></CommandDefinition>',
+		);
+		expect(
+			compareRibbonDiffParts(expected, actual, { contentKeys: ["commandDefinitions:cbs.B4.Command"] }).differing,
+		).toEqual(["commandDefinitions:cbs.B4.Command"]);
+		expect(changedRibbonDiffKeys(actual, expected)).toEqual(["commandDefinitions:cbs.B4.Command"]);
+	});
+});
+
+describe("#57 review — a stuck solution-history row doesn't block publishing for hours", () => {
+	it("ignores Started / Queued rows older than the stale window", async () => {
+		const { findRunningSolutionOperations, STALE_OPERATION_MINUTES } = await import(
+			"@/services/dataverse/environmentService"
+		);
+		const now = Date.parse("2026-10-17T12:00:00Z");
+		const ago = (min: number) => new Date(now - min * 60_000).toISOString();
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = {
+			queryData: vi.fn(async () => ({
+				value: [
+					{ msdyn_name: "Stuck", msdyn_operation: 0, msdyn_status: 0, msdyn_starttime: ago(STALE_OPERATION_MINUTES + 15) },
+					{ msdyn_name: "Fresh", msdyn_operation: 7, msdyn_status: 2, msdyn_starttime: ago(2) },
+				],
+			})),
+		};
+		expect(STALE_OPERATION_MINUTES).toBeLessThan(120);
+		const running = await findRunningSolutionOperations(undefined, now);
+		expect(running.map((r) => r.name)).toEqual(["Fresh"]);
 	});
 });

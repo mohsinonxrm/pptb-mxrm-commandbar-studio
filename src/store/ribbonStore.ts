@@ -202,17 +202,61 @@ const ENTITY_LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form"];
 /**
  * A sequence for a button just placed between `prev` and `next` (#26): the
  * canvas orders by position, publish by Sequence, so a move must change it.
- * Keeps the current value when it already fits.
+ * Keeps the current value when it already fits. Never returns a neighbour's
+ * value: `undefined` when no sequence (≥ 1) lies strictly between them — the
+ * caller then re-numbers (resequenceAround).
  */
-export function sequenceBetween(current: number, prev?: number, next?: number): number {
+export function sequenceBetween(current: number, prev?: number, next?: number): number | undefined {
 	const fits = (prev === undefined || current > prev) && (next === undefined || current < next);
 	if (fits) return current;
 	if (prev !== undefined && next !== undefined) {
-		return next - prev > 1 ? Math.floor((prev + next) / 2) : prev + 1;
+		return next - prev > 1 ? Math.floor((prev + next) / 2) : undefined;
 	}
 	if (prev !== undefined) return prev + 10;
-	if (next !== undefined) return Math.max(1, next - 10);
+	if (next !== undefined) return next > 1 ? Math.max(1, next - 10) : undefined;
 	return current;
+}
+
+/**
+ * Gives the button at `at` a sequence that keeps `buttons` in display order
+ * when there is no free value between its neighbours (#57 review). Only the
+ * buttons `canRenumber` allows (the moved one, your own, new ones) change; the
+ * others keep their sequence, since CBS can't re-sequence them. When even that
+ * leaves no room (e.g. two adjacent out-of-the-box sequences 10 and 11), the
+ * button gets the lowest unused sequence after its previous neighbour, so it
+ * never shares a value with another button (it then sorts a little later).
+ */
+export function resequenceAround(
+	buttons: RibbonButton[],
+	at: number,
+	canRenumber: (b: RibbonButton) => boolean,
+): void {
+	let s = at;
+	while (s > 0 && canRenumber(buttons[s - 1])) s--;
+	let e = at;
+	while (e < buttons.length - 1 && canRenumber(buttons[e + 1])) e++;
+	const lo = s > 0 ? buttons[s - 1].sequence : 0;
+	const hi = e < buttons.length - 1 ? buttons[e + 1].sequence : Infinity;
+	if (hi - lo - 1 >= e - s + 1) {
+		let prev = lo;
+		for (let i = s; i <= e; i++) {
+			const remaining = e - i;
+			const b = buttons[i];
+			// Keep a value that still fits and leaves room for the rest.
+			if (!(b.sequence > prev && b.sequence <= hi - 1 - remaining)) {
+				b.sequence =
+					hi === Infinity
+						? prev + 10
+						: prev + Math.max(1, Math.min(10, Math.floor((hi - prev) / (remaining + 2))));
+			}
+			prev = b.sequence;
+		}
+		return;
+	}
+	const used = new Set(buttons.filter((_, i) => i !== at).map((b) => b.sequence));
+	let seq = (at > 0 ? buttons[at - 1].sequence : 0) + 1;
+	while (used.has(seq)) seq++;
+	buttons[at].sequence = seq;
 }
 
 const EMPTY_RIBBONS: Record<RibbonLocation, RibbonDefinition> = {
@@ -384,24 +428,45 @@ export const useRibbonStore = create<RibbonStore>()(
 						if (btnIdx === -1) return;
 						if (isReadOnlyGlobalOobButton(src.location, src.tabId, srcGroup.buttons[btnIdx]))
 							return;
-						const [button] = srcGroup.buttons.splice(btnIdx, 1);
+						// Resolve the destination before taking the button out of its
+						// group: a missing destination must not lose the button.
 						const dstTab =
 							src.tabId === dst.tabId && src.location === dst.location
 								? tab
 								: ribbons[dst.location].tabs.find((t) => t.id === dst.tabId);
-						if (!dstTab) return;
-						const dstGroup = dstTab.groups.find((g) => g.id === dst.groupId);
+						const dstGroup = dstTab?.groups.find((g) => g.id === dst.groupId);
 						if (!dstGroup) return;
+						const [button] = srcGroup.buttons.splice(btnIdx, 1);
 						const insertIdx = dst.beforeButtonId
 							? dstGroup.buttons.findIndex((b) => b.id === dst.beforeButtonId)
 							: dstGroup.buttons.length;
 						const at = insertIdx < 0 ? dstGroup.buttons.length : insertIdx;
 						dstGroup.buttons.splice(at, 0, button);
-						button.sequence = sequenceBetween(
+						const seq = sequenceBetween(
 							button.sequence,
 							dstGroup.buttons[at - 1]?.sequence,
 							dstGroup.buttons[at + 1]?.sequence,
 						);
+						if (seq !== undefined) {
+							button.sequence = seq;
+						} else {
+							// No free sequence between the neighbours: re-number the
+							// buttons CBS can re-sequence — your own (the layer adds
+							// them) and ones created this session.
+							const own = new Set(
+								state.layers[dst.location === "Application" ? "application" : "entity"]?.controlIds ?? [],
+							);
+							const loaded = new Set(
+								state.baseline[dst.location].tabs.flatMap((t) =>
+									t.groups.flatMap((g) => g.buttons.map((b) => b.id)),
+								),
+							);
+							resequenceAround(
+								dstGroup.buttons,
+								at,
+								(b) => b === button || own.has(b.id) || !loaded.has(b.id),
+							);
+						}
 					},
 					{
 						ts: new Date().toISOString(),
