@@ -584,7 +584,7 @@ describe("review 4 — just published", () => {
 	it("an orphan the table's last publish wrote is marked as just published; others as published recently; nothing after the window", async () => {
 		const { annotateRecentPublish } = await import("@/services/layerOrphans");
 		const now = Date.parse("2026-10-18T12:00:00Z");
-		const recent = { at: now - 5 * 60_000, customActionIds: ["cbs.Just"] };
+		const recent = { at: now - 5 * 60_000, publishedAt: { "cbs.Just": now - 5 * 60_000 } };
 		const [just, other] = annotateRecentPublish([orphanAt("cbs.Just"), orphanAt("cbs.Old")], recent, now);
 		expect(just.recentPublish).toEqual({ minutesAgo: 5, published: true });
 		expect(just.why).toMatch(/may not have caught up/);
@@ -595,8 +595,56 @@ describe("review 4 — just published", () => {
 
 	it("the CustomActions a publish changed are remembered per table", async () => {
 		const { rememberPublish, recentPublishOf } = await import("@/utils/recentPublish");
+		sessionStorage.clear();
 		rememberPublish("https://org.example", E, ["customActions:ca:cbs.Just", "commandDefinitions:cbs.X", "customActions:hide:cbs.H"], 1000);
-		expect(recentPublishOf("https://org.example", E)).toEqual({ at: 1000, customActionIds: ["cbs.Just"] });
-		expect(recentPublishOf("https://org.example", "other")).toBeNull();
+		expect(recentPublishOf("https://org.example", E, 1000)).toEqual({ at: 1000, publishedAt: { "cbs.Just": 1000 } });
+		expect(recentPublishOf("https://org.example", "other", 1000)).toBeNull();
+	});
+
+	it("final review 1 — a later publish within the window keeps what an earlier one wrote; older entries expire", async () => {
+		const { rememberPublish, recentPublishOf } = await import("@/utils/recentPublish");
+		const { annotateRecentPublish } = await import("@/services/layerOrphans");
+		sessionStorage.clear();
+		const t0 = Date.parse("2026-10-18T12:00:00Z");
+		const min = 60_000;
+		rememberPublish("https://org.example", E, ["customActions:ca:cbs.A"], t0);
+		// An unrelated edit published 10 minutes later.
+		rememberPublish("https://org.example", E, ["customActions:ca:cbs.Visible.CustomAction"], t0 + 10 * min);
+		const [a] = annotateRecentPublish([orphanAt("cbs.A")], recentPublishOf("https://org.example", E, t0 + 12 * min), t0 + 12 * min);
+		expect(a.recentPublish).toEqual({ minutesAgo: 12, published: true });
+		// 35 minutes after A, another publish: A's entry has expired, the second publish's hasn't.
+		rememberPublish("https://org.example", E, ["customActions:ca:cbs.B"], t0 + 35 * min);
+		expect(recentPublishOf("https://org.example", E, t0 + 35 * min)).toEqual({
+			at: t0 + 35 * min,
+			publishedAt: { "cbs.Visible.CustomAction": t0 + 10 * min, "cbs.B": t0 + 35 * min },
+		});
+	});
+
+	it("final review 3 — the reason doesn't promise a time: it says when, relative to the load", async () => {
+		const { annotateRecentPublish } = await import("@/services/layerOrphans");
+		const now = Date.parse("2026-10-18T12:00:00Z");
+		const [just, other] = annotateRecentPublish(
+			[orphanAt("cbs.Just"), orphanAt("cbs.Old")],
+			{ at: now - 3 * 60_000, publishedAt: { "cbs.Just": now - 3 * 60_000 } },
+			now,
+		);
+		for (const o of [just, other]) {
+			expect(o.why).toMatch(/3 min before this table was loaded/);
+			expect(o.why).not.toMatch(/ago/);
+		}
+		expect(just.why).toMatch(/Reload the table later/);
+	});
+});
+
+describe("final review 2 — publishRibbon always reports what it changed", () => {
+	it("PublishRibbonResult requires changedKeys", () => {
+		// @ts-expect-error changedKeys is required: without it the recent-publish guard would silently get [].
+		const result: import("@/services/dataverse/publishService").PublishRibbonResult = {
+			elementCount: 0,
+			preservedCount: 0,
+			importJobId: "",
+			parts: emptyRibbonDiffParts(),
+		};
+		expect(result.changedKeys).toBeUndefined();
 	});
 });

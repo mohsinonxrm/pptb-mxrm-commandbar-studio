@@ -369,7 +369,7 @@ export const BulkPublishModal: React.FC = () => {
 				importedLayers.entity = result.parts;
 				// A reload soon after may still get the ribbon from before this
 				// publish: what it wrote isn't offered for deletion as an orphan (#64).
-				rememberPublish(connectionUrl, activeEntity.logicalName, result.changedKeys ?? []);
+				rememberPublish(connectionUrl, activeEntity.logicalName, result.changedKeys);
 				if (result.verification) verified.push({ scope, result: result.verification });
 				setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
 			} catch (err) {

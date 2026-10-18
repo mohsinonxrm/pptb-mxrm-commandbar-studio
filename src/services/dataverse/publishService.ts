@@ -205,9 +205,10 @@ export interface PublishRibbonResult {
 	 * `part:id` of the elements this publish added or changed. The table's are
 	 * remembered for a while (utils/recentPublish): RetrieveEntityRibbon can
 	 * return the ribbon from before the publish, and those CustomActions must
-	 * not be offered for deletion as orphans then (#84 review).
+	 * not be offered for deletion as orphans then (#84 review). Required, so a
+	 * caller that drops it doesn't compile.
 	 */
-	changedKeys?: string[];
+	changedKeys: string[];
 }
 
 function locLabelXml(label: LocLabel): string {

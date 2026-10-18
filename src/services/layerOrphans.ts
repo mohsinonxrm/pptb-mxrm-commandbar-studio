@@ -16,6 +16,7 @@ import { hideActionsOf, type RibbonDiffParts } from "@/services/ribbonDiffMerge"
 import { isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { groupControls } from "@/utils/ribbonMenu";
+import { RECENT_PUBLISH_MINUTES, type RecentPublish } from "@/utils/recentPublish";
 
 /** Why something the layer adds isn't on the canvas. */
 export type LayerOrphanReason =
@@ -271,34 +272,38 @@ export function findLayerOrphans(
 }
 
 /**
- * How long after a publish the ribbon may still be the one from before it.
- * RetrieveEntityRibbon is served from per-server caches; stale responses were
- * measured 10+ minutes after a publish (#84 review).
- */
-export const RECENT_PUBLISH_MINUTES = 30;
-
-/**
  * Marks the orphans of a table published from this window less than
- * RECENT_PUBLISH_MINUTES ago (utils/recentPublish): what that publish wrote
- * (`published`) is most likely just not loaded yet, so it isn't offered for
- * deletion; anything else gets a confirmation first.
+ * RECENT_PUBLISH_MINUTES before it was loaded (utils/recentPublish — the
+ * ribbon can be the one from before a publish for 10+ minutes, #84 review):
+ * what a recent publish wrote (`published`) is most likely just not loaded
+ * yet, so it isn't offered for deletion; anything else gets a confirmation
+ * first. Evaluated at load: the reason says when, relative to the load, and a
+ * reload evaluates it again.
  */
 export function annotateRecentPublish(
 	orphans: LayerOrphan[],
-	recent: { at: number; customActionIds: string[] } | null,
+	recent: RecentPublish | null,
 	now = Date.now(),
 ): LayerOrphan[] {
-	const minutesAgo = recent ? Math.max(0, Math.floor((now - recent.at) / 60_000)) : Infinity;
-	if (!recent || minutesAgo >= RECENT_PUBLISH_MINUTES) return orphans;
-	const written = new Set(recent.customActionIds);
+	if (!recent) return orphans;
+	const window = RECENT_PUBLISH_MINUTES * 60_000;
+	const minutes = (at: number) => Math.max(0, Math.floor((now - at) / 60_000));
 	return orphans.map((o) => {
-		const published = written.has(o.customActionId);
+		const at = recent.publishedAt[o.customActionId];
+		if (at !== undefined && now - at < window) {
+			const minutesAgo = minutes(at);
+			return {
+				...o,
+				recentPublish: { minutesAgo, published: true },
+				why: `Published from here ${minutesAgo} min before this table was loaded: the ribbon may not have caught up yet (it can lag 10 minutes or more). Reload the table later before deleting it. ${o.why}`,
+			};
+		}
+		if (now - recent.at >= window) return o;
+		const minutesAgo = minutes(recent.at);
 		return {
 			...o,
-			recentPublish: { minutesAgo, published },
-			why: published
-				? `Published from here ${minutesAgo} min ago: the ribbon may not have caught up yet (it can lag 10 minutes or more). Reload later before deleting it. ${o.why}`
-				: `This table was published ${minutesAgo} min ago, and the ribbon may not have caught up yet. ${o.why}`,
+			recentPublish: { minutesAgo, published: false },
+			why: `The table was published from here ${minutesAgo} min before this table was loaded, and the ribbon may not have caught up yet. ${o.why}`,
 		};
 	});
 }
