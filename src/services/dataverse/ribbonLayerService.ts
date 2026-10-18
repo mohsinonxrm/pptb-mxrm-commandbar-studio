@@ -1,5 +1,6 @@
 import {
 	hideActionsOf,
+	layerCommandRefs,
 	ownContainerIds,
 	ownControlIds,
 	partsFromRibbonTables,
@@ -29,6 +30,8 @@ export interface LayerSnapshot {
 	 * Optional: snapshots taken before #31 don't have it.
 	 */
 	commandIds?: string[];
+	/** Commands the layer's own CustomActions use (#31): your own commands can't be uncustomised. */
+	commandRefIds?: string[];
 }
 
 export function layerSnapshotFromParts(parts: RibbonDiffParts): LayerSnapshot {
@@ -38,6 +41,7 @@ export function layerSnapshotFromParts(parts: RibbonDiffParts): LayerSnapshot {
 		locLabelIds: [...parts.locLabels.keys()],
 		hides: hideActionsOf(parts),
 		commandIds: [...parts.commandDefinitions.keys()],
+		commandRefIds: [...layerCommandRefs(parts)],
 	};
 }
 

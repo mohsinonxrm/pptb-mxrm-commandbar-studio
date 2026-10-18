@@ -8,8 +8,11 @@ import {
 	partsFromRibbonTables,
 	ownControlIds,
 	stableElementXml,
+	mergeScopeChanges,
+	emptyRibbonDiffParts,
 	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { planScope, type PlanInput } from "@/services/publishPlan";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { layerSnapshotFromParts } from "@/services/dataverse/ribbonLayerService";
@@ -243,7 +246,7 @@ function storePlan(
 		baselineDisplayRules: s.baselineDisplayRules,
 		layer: s.layers[scope] ?? undefined,
 		customisedCommandIds: s.customisedCommandIds,
-		uncustomisedCommandIds: s.uncustomisedCommandIds,
+		uncustomisedCommandIds: s.uncustomisedCommandIds[scope],
 		excludeCommandIds,
 	});
 }
@@ -415,7 +418,7 @@ describe("#31 — store and provenance", () => {
 		loadStore();
 		const cmd = useRibbonStore.getState().commands.find((c) => c.id === ASSIGN)!;
 		useRibbonStore.getState().upsertCommand({ ...cmd, actions: [] });
-		useRibbonStore.getState().uncustomiseCommand(ASSIGN);
+		useRibbonStore.getState().uncustomiseCommand(ASSIGN, "entity");
 		expect(provenanceOf(ASSIGN).provenance).toBe("uncustomising");
 		expect(
 			useRibbonStore.getState().commands.find((c) => c.id === ASSIGN)!.actions,
@@ -430,12 +433,260 @@ describe("#31 — store and provenance", () => {
 	it("publishing everything clears the pending customisations", () => {
 		loadStore();
 		useRibbonStore.getState().customiseCommand(DELETE);
-		useRibbonStore.getState().uncustomiseCommand(ASSIGN);
+		useRibbonStore.getState().uncustomiseCommand(ASSIGN, "entity");
 		useRibbonStore.getState().markPublished(["HomepageGrid"]);
 		expect(useRibbonStore.getState().customisedCommandIds).toEqual([DELETE]);
+		expect(useRibbonStore.getState().uncustomisedCommandIds.entity).toEqual([ASSIGN]);
 		useRibbonStore.getState().markPublished();
 		expect(useRibbonStore.getState().customisedCommandIds).toEqual([]);
-		expect(useRibbonStore.getState().uncustomisedCommandIds).toEqual([]);
+		expect(useRibbonStore.getState().uncustomisedCommandIds).toEqual({
+			entity: [],
+			application: [],
+		});
+	});
+
+	it("an uncustomise that was published needs a reload before the command can be customised again", () => {
+		loadStore();
+		useRibbonStore.getState().uncustomiseCommand(ASSIGN, "entity");
+		useRibbonStore.getState().markPublished();
+		// The session still holds the removed copy: read-only, no Customise.
+		expect(provenanceOf(ASSIGN).provenance).toBe("reloadRequired");
+		expect(useRibbonStore.getState().customiseCommand(ASSIGN)).toBe(false);
+		expect(storePlan().hasChanges).toBe(false);
+		// Reloading the table clears it.
+		loadStore();
+		expect(useRibbonStore.getState().reloadRequiredCommandIds).toEqual([]);
+	});
+
+	it("customise / uncustomise / discard are in the history: undo and redo restore commands and lists", () => {
+		loadStore();
+		const s = () => useRibbonStore.getState();
+		const cmd = s().commands.find((c) => c.id === ASSIGN)!;
+		s().upsertCommand({ ...cmd, actions: [] });
+		s().uncustomiseCommand(ASSIGN, "entity");
+		expect(s().past.at(-1)).toMatchObject({ op: "uncustomised", target: ASSIGN });
+		s().undo();
+		// The edit discarded by Uncustomise is back, and so is the copy.
+		expect(s().uncustomisedCommandIds.entity).toEqual([]);
+		expect(s().commands.find((c) => c.id === ASSIGN)!.actions).toEqual([]);
+		s().redo();
+		expect(s().uncustomisedCommandIds.entity).toEqual([ASSIGN]);
+		expect(s().commands.find((c) => c.id === ASSIGN)!.actions).toHaveLength(1);
+
+		s().customiseCommand(DELETE);
+		s().undo();
+		expect(s().customisedCommandIds).toEqual([]);
+		s().redo();
+		expect(s().customisedCommandIds).toEqual([DELETE]);
+		s().discardCommandChanges(DELETE);
+		expect(s().past.at(-1)).toMatchObject({ op: "discarded", target: DELETE });
+		s().undo();
+		expect(s().customisedCommandIds).toEqual([DELETE]);
+	});
+});
+
+describe("#31 review — your own command is never uncustomised", () => {
+	// An out-of-the-box button overridden ("Create override") to use your own
+	// command, which your own button uses too: nothing defines it below the layer.
+	const OVER_XML = `<CommandDefinition Id="cbs.Over.Command"><EnableRules><EnableRule Id="cbs.Over.Rule"/></EnableRules><DisplayRules/><Actions><JavaScriptFunction FunctionName="Cbs.over" Library="$webresource:cbs_/over.js"/></Actions></CommandDefinition>`;
+	const SHARE = `Mscrm.HomepageGrid.${T}.Share`;
+	const overRows = () => ({
+		diffs: [
+			...LAYER_ROWS.diffs,
+			{
+				difftype: 0,
+				rdx: ca(
+					"cbs.Share.Override",
+					SHARE,
+					10,
+					`<Button Id="${SHARE}" Command="cbs.Over.Command" Sequence="10" LabelText="$Resources:Ribbon.HomepageGrid.Share" TemplateAlias="o1" />`,
+				),
+			},
+			{
+				difftype: 0,
+				rdx: ca(
+					"cbs.Mine2.CustomAction",
+					`${MGMT}.Controls._children`,
+					910,
+					`<Button Id="cbs.Mine2" Command="cbs.Over.Command" Sequence="910" LabelText="Mine2" TemplateAlias="o1" />`,
+				),
+			},
+		],
+		commands: [
+			...LAYER_ROWS.commands,
+			{ command: "cbs.Over.Command", commanddefinition: OVER_XML },
+		],
+		rules: [
+			...LAYER_ROWS.rules,
+			{
+				ruleid: "cbs.Over.Rule",
+				ruletype: 1,
+				ruledefinition:
+					'<EnableRule Id="cbs.Over.Rule"><CustomRule FunctionName="Cbs.overOk" Library="$webresource:cbs_/over.js" /></EnableRule>',
+			},
+		],
+	});
+	const overMerged = () =>
+		MERGED.replace(
+			`Command="Mscrm.ShareSelectedRecord" Sequence="10"`,
+			`Command="cbs.Over.Command" Sequence="10"`,
+		)
+			.replace(
+				`<Button Id="cbs.Mine" `,
+				`<Button Id="cbs.Mine2" Command="cbs.Over.Command" Sequence="910" LabelText="Mine2" TemplateAlias="o1" /><Button Id="cbs.Mine" `,
+			)
+			.replace(`${MINE_XML}`, `${MINE_XML}${OVER_XML}`)
+			.replace(
+				'<EnableRules>\n    <EnableRule Id="Mscrm.SelectionCountAtLeastOne">',
+				`<EnableRules><EnableRule Id="cbs.Over.Rule"><CustomRule FunctionName="Cbs.overOk" Library="$webresource:cbs_/over.js"/></EnableRule>\n    <EnableRule Id="Mscrm.SelectionCountAtLeastOne">`,
+			);
+	const loadOver = () => {
+		const parts = partsFromRibbonTables(overRows());
+		const parsed = parseRibbonXml(overMerged(), "HomepageGrid", T);
+		applyLayerOwnership(parsed.ribbon, ownControlIds(parts));
+		return { parts, parsed };
+	};
+
+	it("is shown as custom, not customised, so Uncustomise isn't offered", () => {
+		const { parts, parsed } = loadOver();
+		expect(layerSnapshotFromParts(parts).commandRefIds).toContain("cbs.Over.Command");
+		useRibbonStore.getState().loadWorkspace({
+			ribbons: {
+				HomepageGrid: parsed.ribbon,
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
+			commands: parsed.commands,
+			displayRules: parsed.displayRules,
+			enableRules: parsed.enableRules,
+			locLabels: parsed.locLabels,
+			layers: { entity: layerSnapshotFromParts(parts), application: null },
+		});
+		expect(provenanceOf("cbs.Over.Command").provenance).toBe("custom");
+		// A platform command your buttons use is still a customisation.
+		expect(provenanceOf(ASSIGN).provenance).toBe("customised");
+	});
+
+	it("an uncustomise of it is reported, refused on publish and never merged", async () => {
+		const { parts, parsed } = loadOver();
+		layer = parts;
+		const p = planScope({
+			locations: [{ current: parsed.ribbon, baseline: loadOver().parsed.ribbon }],
+			commands: parsed.commands,
+			baselineCommands: loadOver().parsed.commands,
+			enableRules: parsed.enableRules,
+			baselineEnableRules: parsed.enableRules,
+			displayRules: parsed.displayRules,
+			baselineDisplayRules: parsed.displayRules,
+			layer: layerSnapshotFromParts(parts),
+			uncustomisedCommandIds: ["cbs.Over.Command"],
+		});
+		expect(p.unsupported.join("\n")).toContain("Uncustomising cbs.Over.Command");
+
+		const { buildMergedRibbonDiffXml } = await import("@/services/dataverse/publishService");
+		await expect(
+			buildMergedRibbonDiffXml({
+				entity: { logicalName: T, schemaName: T },
+				locations: [{ current: parsed.ribbon, baseline: parsed.ribbon }],
+				commands: parsed.commands,
+				enableRules: parsed.enableRules,
+				displayRules: parsed.displayRules,
+				locLabels: parsed.locLabels,
+				// Even if the plan's report were ignored, the publish refuses it.
+				plan: p,
+				languageCode: 1033,
+			}),
+		).rejects.toThrow(/Can't uncustomise cbs\.Over\.Command/);
+
+		const merged = mergeScopeChanges(parts, emptyRibbonDiffParts(), {
+			uncustomisedCommandIds: ["cbs.Over.Command"],
+		});
+		expect(merged.commandDefinitions.has("cbs.Over.Command")).toBe(true);
+		expect(merged.enableRules.has("cbs.Over.Rule")).toBe(true);
+	});
+});
+
+describe("#31 review — uncustomise is per layer", () => {
+	it("uncustomising for the table leaves the application ribbon's copy", () => {
+		const app: RibbonDefinition = {
+			location: "Application",
+			entityLogicalName: "",
+			tabs: [
+				{
+					id: "Mscrm.BasicHomeTab",
+					label: "Home",
+					sequence: 10,
+					tabDisplayRules: [],
+					groups: [
+						{
+							id: "Mscrm.BasicHomeTab.Records",
+							label: "Records",
+							sequence: 10,
+							template: "Mscrm.Templates.Flexible2",
+							buttons: [
+								{
+									id: "Mscrm.Home.Delete",
+									label: "Delete",
+									kind: "button",
+									sequence: 10,
+									templateAlias: "o1",
+									commandId: DELETE,
+									hidden: false,
+									oob: true,
+									custom: false,
+									managed: false,
+									origin: "oob",
+								},
+							],
+						},
+					],
+				},
+			],
+		};
+		loadStore(app);
+		// Both layers have a copy of Delete.
+		useRibbonStore.setState((s) => ({
+			layers: {
+				entity: {
+					...s.layers.entity!,
+					commandIds: [...(s.layers.entity!.commandIds ?? []), DELETE],
+				},
+				application: {
+					controlIds: [],
+					containerIds: [],
+					locLabelIds: [],
+					hides: [],
+					commandIds: [DELETE],
+					commandRefIds: [],
+				},
+			},
+		}));
+		const info = provenanceOf(DELETE);
+		expect(info).toMatchObject({
+			provenance: "customised",
+			scope: "entity",
+			sharedWithApplication: true,
+		});
+		useRibbonStore.getState().uncustomiseCommand(DELETE, info.scope);
+		expect(provenanceOf(DELETE)).toMatchObject({
+			provenance: "uncustomising",
+			scope: "entity",
+		});
+
+		const tableCommands = new Set(
+			useRibbonStore
+				.getState()
+				.ribbons.HomepageGrid.tabs.flatMap((t) =>
+					t.groups.flatMap((g) => g.buttons.map((b) => b.commandId)),
+				),
+		);
+		expect(storePlan(["HomepageGrid", "SubGrid", "Form"]).uncustomisedCommandIds).toEqual([
+			DELETE,
+		]);
+		const appPlan = storePlan(["Application"], "application", tableCommands);
+		expect(appPlan.uncustomisedCommandIds).toEqual([]);
+		expect(appPlan.hasChanges).toBe(false);
 	});
 });
 
@@ -622,5 +873,97 @@ describe("#26 / #31 — Customise Button", () => {
 			.getState()
 			.customiseButton("HomepageGrid", MAIN, MGMT, EDIT, "cbs");
 		expect(second).toBe(`${first}.2`);
+	});
+
+	it("the copy of a button with its own LocLabels keeps every language (#31 review)", async () => {
+		loadStore();
+		const THING = "msdyn.HomepageGrid.Thing";
+		// A managed button whose texts are LocLabels of its solution.
+		const thing: RibbonButton = {
+			id: THING,
+			label: "Thing",
+			tooltipTitle: "Thing tip",
+			kind: "button",
+			sequence: 30,
+			templateAlias: "o1",
+			commandId: "Mscrm.ShareSelectedRecord",
+			hidden: false,
+			oob: false,
+			custom: false,
+			managed: true,
+			origin: "managed",
+			source: {
+				labelToken: "$LocLabels:msdyn.Thing.LabelText",
+				tooltipTitleToken: "$LocLabels:msdyn.Thing.Tip",
+				attributes: {
+					Id: THING,
+					Command: "Mscrm.ShareSelectedRecord",
+					LabelText: "$LocLabels:msdyn.Thing.LabelText",
+					ToolTipTitle: "$LocLabels:msdyn.Thing.Tip",
+					Sequence: "30",
+					TemplateAlias: "o1",
+				},
+			},
+		};
+		useRibbonStore.setState((s) => {
+			const ribbons = JSON.parse(JSON.stringify(s.ribbons)) as typeof s.ribbons;
+			ribbons.HomepageGrid.tabs[0].groups.find((g) => g.id === MGMT)!.buttons.push(thing);
+			const baseline = JSON.parse(JSON.stringify(ribbons)) as typeof s.ribbons;
+			const label = {
+				id: "msdyn.Thing.LabelText",
+				titles: [
+					{ languageCode: 1033, description: "Thing" },
+					{ languageCode: 1031, description: "Ding" },
+				],
+			};
+			return {
+				ribbons,
+				baseline,
+				locLabels: [...s.locLabels, label],
+				baselineLocLabels: [...s.baselineLocLabels, label],
+			};
+		});
+		useRuntimeLogStore.getState().clear();
+
+		const id = useRibbonStore
+			.getState()
+			.customiseButton("HomepageGrid", MAIN, MGMT, THING, "cbs")!;
+		const s = useRibbonStore.getState();
+		expect(s.locLabels.find((l) => l.id === `${id}.LabelText`)?.titles).toEqual([
+			{ languageCode: 1033, description: "Thing" },
+			{ languageCode: 1031, description: "Ding" },
+		]);
+		// The tooltip's label isn't loaded: the copy gets the base language, with a warning.
+		expect(useRuntimeLogStore.getState().entries.at(-1)?.message).toContain(
+			"$LocLabels:msdyn.Thing.Tip",
+		);
+		expect(s.past.at(-1)?.detail).toContain("translations not loaded");
+
+		const p = storePlan();
+		expect(p.unsupported).toEqual([]);
+		const { buildMergedRibbonDiffXml } = await import("@/services/dataverse/publishService");
+		const result = await buildMergedRibbonDiffXml({
+			entity: { logicalName: T, schemaName: T },
+			locations: [{ current: s.ribbons.HomepageGrid, baseline: s.baseline.HomepageGrid }],
+			commands: s.commands,
+			enableRules: s.enableRules,
+			displayRules: s.displayRules,
+			locLabels: s.locLabels,
+			plan: p,
+			languageCode: 1033,
+		});
+		const doc = new DOMParser().parseFromString(result.xml, "application/xml");
+		const btn = Array.from(doc.querySelectorAll("CustomAction Button")).find(
+			(b) => b.getAttribute("Id") === id,
+		)!;
+		expect(btn.getAttribute("LabelText")).toBe(`$LocLabels:${id}.LabelText`);
+		const titles = Array.from(
+			Array.from(doc.querySelectorAll("LocLabels > LocLabel"))
+				.find((l) => l.getAttribute("Id") === `${id}.LabelText`)!
+				.querySelectorAll("Title"),
+		).map((t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`);
+		expect(titles.sort()).toEqual(["1031=Ding", "1033=Thing"]);
+		// The original's label isn't touched.
+		expect(ids(doc, "LocLabels > LocLabel")).not.toContain("msdyn.Thing.LabelText");
 	});
 });

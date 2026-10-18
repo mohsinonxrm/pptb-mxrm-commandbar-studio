@@ -33,6 +33,7 @@ const BADGE_COLOR: Record<
 	customised: "brand",
 	uncustomising: "danger",
 	custom: "success",
+	reloadRequired: "danger",
 };
 
 function whereText(info: CommandProvenanceInfo): string {
@@ -58,7 +59,17 @@ export function CommandProvenanceBar({
 	const customiseCommand = useRibbonStore((s) => s.customiseCommand);
 	const uncustomiseCommand = useRibbonStore((s) => s.uncustomiseCommand);
 	const discardCommandChanges = useRibbonStore((s) => s.discardCommandChanges);
+	const edited = useRibbonStore((s) => {
+		const current = s.commands.find((c) => c.id === commandId);
+		const loaded = s.baselineCommands.find((c) => c.id === commandId);
+		return !!current && !!loaded && JSON.stringify(current) !== JSON.stringify(loaded);
+	});
 	if (!info) return null;
+
+	// Uncustomise and Discard drop this session's edits of the command: confirm first.
+	const confirmDropEdits = (what: string) =>
+		!edited ||
+		window.confirm(`${what} discards your unpublished changes to ${commandId}. Continue?`);
 
 	const { provenance } = info;
 	const action =
@@ -70,12 +81,22 @@ export function CommandProvenanceBar({
 			<Button
 				size="small"
 				appearance="subtle"
-				onClick={() => discardCommandChanges(commandId)}
+				onClick={() => {
+					if (confirmDropEdits("Discarding the customisation"))
+						discardCommandChanges(commandId);
+				}}
 			>
 				Discard customisation
 			</Button>
 		) : provenance === "customised" ? (
-			<Button size="small" appearance="subtle" onClick={() => uncustomiseCommand(commandId)}>
+			<Button
+				size="small"
+				appearance="subtle"
+				onClick={() => {
+					if (confirmDropEdits("Uncustomising"))
+						uncustomiseCommand(commandId, info.scope);
+				}}
+			>
 				Uncustomise
 			</Button>
 		) : provenance === "uncustomising" ? (
@@ -118,12 +139,21 @@ export function CommandProvenanceBar({
 			`${whereText(info).replace(/^./, (c) => c.toUpperCase())} has a copy of this command that replaces the ` +
 			"original. Uncustomise to remove the copy so the original applies again.",
 		uncustomising:
-			"On publish, your layer's copy of this command is removed (with rules only it used) and the original " +
-			"applies again. Reload the table after publishing to see the original definition.",
+			`On publish, the copy of this command in ${whereText(info)} is removed (with rules only it used) and ` +
+			"the original applies again. Reload the table after publishing to see the original definition.",
 		custom: "Your own command.",
+		reloadRequired:
+			"Your layer's copy of this command was removed, so the original applies. What is shown here is the " +
+			"removed copy: reload the table to load the original before changing or customising it again.",
 	};
 	return (
-		<MessageBar intent={provenance === "uncustomising" ? "warning" : "info"}>
+		<MessageBar
+			intent={
+				provenance === "uncustomising" || provenance === "reloadRequired"
+					? "warning"
+					: "info"
+			}
+		>
 			<MessageBarBody>
 				<div className={styles.row}>
 					{badge}

@@ -2,16 +2,19 @@ import type { CommandDefinition, RibbonDefinition, RibbonLocation } from "@/type
 import type { LayerScope } from "@/store/ribbonStore";
 import type { LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
 import { isSystemRibbonId } from "@/utils/ribbonProvenance";
+import { canUncustomiseCommand } from "@/services/ribbonDiffMerge";
 
 /**
  * Where a command's definition comes from (#31):
- *  - "oob"           — out of the box or another solution; your layer doesn't define it
- *  - "customising"   — will be copied into your layer on publish (customised or edited this session)
- *  - "customised"    — your layer has a copy of an out-of-the-box / other solution's command
- *  - "uncustomising" — your layer's copy is removed on publish
- *  - "custom"        — your own command (your layer, or created this session)
+ *  - "oob"            — out of the box or another solution; your layer doesn't define it
+ *  - "customising"    — will be copied into your layer on publish (customised or edited this session)
+ *  - "customised"     — your layer has a copy of an out-of-the-box / other solution's command
+ *  - "uncustomising"  — your layer's copy is removed on publish
+ *  - "custom"         — your own command (your layer, or created this session)
+ *  - "reloadRequired" — uncustomised and published: reload the table to load the original
  */
-export type CommandProvenance = "oob" | "customising" | "customised" | "uncustomising" | "custom";
+export type CommandProvenance =
+	"oob" | "customising" | "customised" | "uncustomising" | "custom" | "reloadRequired";
 
 export interface CommandProvenanceInput {
 	commands: CommandDefinition[];
@@ -20,7 +23,8 @@ export interface CommandProvenanceInput {
 	baseline: Record<RibbonLocation, RibbonDefinition>;
 	layers: Record<LayerScope, LayerSnapshot | null>;
 	customisedCommandIds: string[];
-	uncustomisedCommandIds: string[];
+	uncustomisedCommandIds: Record<LayerScope, string[]>;
+	reloadRequiredCommandIds: string[];
 }
 
 export interface CommandProvenanceInfo {
@@ -28,7 +32,8 @@ export interface CommandProvenanceInfo {
 	/**
 	 * The layer a customisation is written to: the table's when a table button
 	 * uses the command (shared out-of-the-box commands are customised for this
-	 * table only), else the application ribbon's (every table).
+	 * table only), else the application ribbon's (every table). For
+	 * "uncustomising", the layer whose copy is removed.
 	 */
 	scope: LayerScope;
 	/** Used by a button of the table and by one of the application ribbon. */
@@ -69,16 +74,31 @@ export function commandProvenance(
 	const layer = input.layers[scope];
 	const inLayer = layer?.commandIds ? layer.commandIds.includes(commandId) : undefined;
 	const loaded = input.baselineCommands.find((c) => c.id === commandId);
-	const result = (provenance: CommandProvenance): CommandProvenanceInfo => ({
+	const result = (
+		provenance: CommandProvenance,
+		at: LayerScope = scope,
+	): CommandProvenanceInfo => ({
 		provenance,
-		scope,
+		scope: at,
 		sharedWithApplication,
 	});
 
-	if (input.uncustomisedCommandIds.includes(commandId)) return result("uncustomising");
+	if (input.reloadRequiredCommandIds.includes(commandId)) return result("reloadRequired");
+	for (const at of ["entity", "application"] as const) {
+		if (input.uncustomisedCommandIds[at].includes(commandId))
+			return result("uncustomising", at);
+	}
 	if (!loaded) return result("custom");
 	if (!usedByTheirs && inLayer !== false) return result("custom");
-	if (inLayer) return result("customised");
+	if (inLayer) {
+		// Only a copy of a command defined elsewhere is "customised": a command
+		// your layer's own buttons or overrides use that isn't a platform command
+		// may have no other definition — removing it would break those buttons.
+		const hasOriginal = layer?.commandRefIds
+			? canUncustomiseCommand(commandId, layer.commandRefIds)
+			: isSystemRibbonId(commandId);
+		return result(hasOriginal ? "customised" : "custom");
+	}
 	const current = input.commands.find((c) => c.id === commandId);
 	const edited = !!current && JSON.stringify(current) !== JSON.stringify(loaded);
 	if (input.customisedCommandIds.includes(commandId) || edited) return result("customising");
@@ -91,4 +111,5 @@ export const COMMAND_PROVENANCE_LABEL: Record<CommandProvenance, string> = {
 	customised: "Customised in your layer",
 	uncustomising: "Uncustomised (unpublished)",
 	custom: "Custom",
+	reloadRequired: "Uncustomised — reload the table",
 };

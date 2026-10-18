@@ -17,6 +17,8 @@ import {
 	mergeScopeChanges,
 	ownControlIds,
 	ownContainerIds,
+	layerCommandRefs,
+	canUncustomiseCommand,
 	compareRibbonDiffParts,
 	changedRibbonDiffKeys,
 	type RibbonDiffComparison,
@@ -302,6 +304,19 @@ export async function buildMergedRibbonDiffXml(
 	if (notOwnMoves.length > 0) {
 		throw new Error(
 			`Can't move ${notOwnMoves.join(", ")}: not defined in this table's unmanaged customizations. Undo the move.`,
+		);
+	}
+
+	// Uncustomise (#31) removes a copy of a command defined elsewhere — never
+	// your own command, which nothing would define once removed.
+	const layerRefs = layerCommandRefs(existing);
+	const ownCommands = (input.plan.uncustomisedCommandIds ?? []).filter(
+		(id) => existing.commandDefinitions.has(id) && !canUncustomiseCommand(id, layerRefs),
+	);
+	if (ownCommands.length > 0) {
+		throw new Error(
+			`Can't uncustomise ${ownCommands.join(", ")}: it is your own command (your customizations' buttons use it ` +
+				`and no other solution defines it), so removing it would leave those buttons without a command. Undo the uncustomise.`,
 		);
 	}
 

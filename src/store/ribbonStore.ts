@@ -16,6 +16,8 @@ import type {
 	ScalingDefinition,
 } from "@/types/ribbon";
 import type { LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -33,6 +35,11 @@ export interface HistoryEntry {
 	icon: string;
 	color: "success" | "warn" | "info" | "danger";
 	snapshot: RibbonStoreState;
+	/**
+	 * Undo / redo also restore the commands and the customise / uncustomise
+	 * lists (#31) — set by Customise / Uncustomise / Discard command.
+	 */
+	restoresCommands?: boolean;
 }
 
 export type RibbonStoreState = {
@@ -58,8 +65,18 @@ export type RibbonStoreState = {
 	 * "Customise Command"): copied into the layer on publish, even unchanged.
 	 */
 	customisedCommandIds: string[];
-	/** Commands whose layer copy is removed on publish (#31, "Uncustomise"). */
-	uncustomisedCommandIds: string[];
+	/**
+	 * Commands whose copy in that scope's layer is removed on publish (#31,
+	 * "Uncustomise"). Per scope: uncustomising for the table must not touch the
+	 * application ribbon's copy.
+	 */
+	uncustomisedCommandIds: Record<LayerScope, string[]>;
+	/**
+	 * Commands uncustomised and published: the session still holds the removed
+	 * copy (the original is only known after reloading the table), so they are
+	 * read-only and can't be customised again until then (#31).
+	 */
+	reloadRequiredCommandIds: string[];
 	commands: CommandDefinition[];
 	displayRules: DisplayRule[];
 	enableRules: EnableRule[];
@@ -164,14 +181,15 @@ export interface RibbonStore extends RibbonStoreState {
 	 * "Customise Command" (#31): marks a loaded command to be copied into the
 	 * layer on publish — actions, parameters and rule references as loaded —
 	 * so it can be changed without touching its buttons. Returns false when
-	 * the command isn't loaded.
+	 * the command isn't loaded or must be reloaded first.
 	 */
 	customiseCommand(commandId: string): boolean;
 	/**
-	 * "Uncustomise" (#31): the layer's copy of the command is removed on
-	 * publish, so the original applies again. Session edits are discarded.
+	 * "Uncustomise" (#31): the copy of the command in `scope`'s layer is
+	 * removed on publish, so the original applies again. Session edits are
+	 * discarded (the UI confirms first).
 	 */
-	uncustomiseCommand(commandId: string): void;
+	uncustomiseCommand(commandId: string, scope: LayerScope): void;
 	/** Discards this session's customise / uncustomise / edits of a command (back to as loaded). */
 	discardCommandChanges(commandId: string): void;
 	/**
@@ -353,6 +371,56 @@ function copySource(source: RibbonButton["source"]): RibbonButton["source"] {
 	};
 }
 
+/** The command state Customise / Uncustomise / Discard command change (#31), from a history snapshot. */
+function commandStateOf(
+	snapshot: RibbonStoreState,
+): Pick<RibbonStoreState, "commands" | "customisedCommandIds" | "uncustomisedCommandIds"> {
+	return {
+		commands: [...snapshot.commands],
+		customisedCommandIds: [...(snapshot.customisedCommandIds ?? [])],
+		uncustomisedCommandIds: {
+			entity: [...(snapshot.uncustomisedCommandIds?.entity ?? [])],
+			application: [...(snapshot.uncustomisedCommandIds?.application ?? [])],
+		},
+	};
+}
+
+const withoutCommand = (lists: Record<LayerScope, string[]>, commandId: string): Record<LayerScope, string[]> => ({
+	entity: lists.entity.filter((id) => id !== commandId),
+	application: lists.application.filter((id) => id !== commandId),
+});
+
+/** `commands` with `commandId` back to its loaded definition (the same array when unchanged). */
+function loadedCommands(state: RibbonStoreState, commandId: string): CommandDefinition[] {
+	const loaded = state.baselineCommands.find((c) => c.id === commandId);
+	const current = state.commands.find((c) => c.id === commandId);
+	if (!loaded || !current || JSON.stringify(loaded) === JSON.stringify(current)) return state.commands;
+	return state.commands.map((c) => (c.id === commandId ? JSON.parse(JSON.stringify(loaded)) : c));
+}
+
+/** A history entry for a change of command state (#31): undo / redo restore it. */
+function commitCommandChange(
+	state: RibbonStoreState,
+	next: Partial<RibbonStoreState>,
+	meta: { op: string; target: string; detail: string; icon: string },
+): Partial<RibbonStoreState> {
+	const entry: HistoryEntry = {
+		ts: new Date().toISOString(),
+		userId: "",
+		userName: "You",
+		color: "info",
+		...meta,
+		snapshot: { ...state },
+		restoresCommands: true,
+	};
+	return {
+		...next,
+		past: [...state.past, entry].slice(-MAX_HISTORY),
+		future: [],
+		mutationsSincePublish: state.mutationsSincePublish + 1,
+	};
+}
+
 export const useRibbonStore = create<RibbonStore>()(
 	subscribeWithSelector((set, get) => ({
 		ribbons: cloneRibbons(EMPTY_RIBBONS),
@@ -365,7 +433,8 @@ export const useRibbonStore = create<RibbonStore>()(
 		pendingUnhides: { entity: [], application: [] },
 		baseLanguageCode: 1033,
 		customisedCommandIds: [],
-		uncustomisedCommandIds: [],
+		uncustomisedCommandIds: { entity: [], application: [] },
+		reloadRequiredCommandIds: [],
 		commands: [],
 		displayRules: [],
 		enableRules: [],
@@ -407,7 +476,8 @@ export const useRibbonStore = create<RibbonStore>()(
 				pendingUnhides: { ...NO_UNHIDES },
 				baseLanguageCode: seed.baseLanguageCode ?? 1033,
 				customisedCommandIds: [],
-				uncustomisedCommandIds: [],
+				uncustomisedCommandIds: { entity: [], application: [] },
+				reloadRequiredCommandIds: [],
 				templates: [...(seed.templates ?? [])],
 				conflicts: [...(seed.conflicts ?? [])],
 				mutationsSincePublish: 0,
@@ -422,6 +492,7 @@ export const useRibbonStore = create<RibbonStore>()(
 			const entry = past[past.length - 1];
 			set({
 				ribbons: entry.snapshot.ribbons,
+				...(entry.restoresCommands ? commandStateOf(entry.snapshot) : {}),
 				past: past.slice(0, -1),
 				future: [{ ...entry, snapshot: { ...get(), ribbons } }, ...future],
 				mutationsSincePublish: Math.max(0, get().mutationsSincePublish - 1),
@@ -434,6 +505,7 @@ export const useRibbonStore = create<RibbonStore>()(
 			const [entry, ...rest] = future;
 			set({
 				ribbons: entry.snapshot.ribbons,
+				...(entry.restoresCommands ? commandStateOf(entry.snapshot) : {}),
 				past: [...get().past, { ...entry, snapshot: { ...get(), ribbons } }],
 				future: rest,
 				mutationsSincePublish: get().mutationsSincePublish + 1,
@@ -455,7 +527,8 @@ export const useRibbonStore = create<RibbonStore>()(
 				pendingUnhides: { ...get().pendingUnhides },
 				baseLanguageCode: get().baseLanguageCode,
 				customisedCommandIds: [...get().customisedCommandIds],
-				uncustomisedCommandIds: [...get().uncustomisedCommandIds],
+				uncustomisedCommandIds: { ...get().uncustomisedCommandIds },
+				reloadRequiredCommandIds: [...get().reloadRequiredCommandIds],
 				commands: [...get().commands],
 				displayRules: [...get().displayRules],
 				enableRules: [...get().enableRules],
@@ -470,9 +543,7 @@ export const useRibbonStore = create<RibbonStore>()(
 			set({
 				ribbons: cloneRibbons(target.snapshot.ribbons),
 				baseline: cloneRibbons(target.snapshot.baseline),
-				commands: [...target.snapshot.commands],
-				customisedCommandIds: [...(target.snapshot.customisedCommandIds ?? [])],
-				uncustomisedCommandIds: [...(target.snapshot.uncustomisedCommandIds ?? [])],
+				...commandStateOf(target.snapshot),
 				displayRules: [...target.snapshot.displayRules],
 				enableRules: [...target.snapshot.enableRules],
 				locLabels: [...target.snapshot.locLabels],
@@ -1055,8 +1126,34 @@ export const useRibbonStore = create<RibbonStore>()(
 			const base = `${(idPrefix || "new").trim()}.${btn.id}`;
 			let id = base;
 			for (let n = 2; taken.has(id); n++) id = `${base}.${n}`;
-			set((s) =>
-				commitMutation(
+			// Texts from the original's own LocLabels: the copy gets its own
+			// labels with every language of the original's (the generator writes
+			// the base language from the text and keeps the others).
+			const labels: LocLabel[] = [];
+			const notLoaded: string[] = [];
+			const texts: [string | undefined, string][] = [
+				[btn.source?.labelToken, buttonLabelId(id)],
+				[btn.source?.tooltipTitleToken, buttonTooltipTitleId(id)],
+				[btn.source?.tooltipBodyToken, buttonTooltipBodyId(id)],
+			];
+			for (const [token, labelId] of texts) {
+				if (!token || !LOC_LABEL_TOKEN.test(token)) continue;
+				const original = state.locLabels.find((l) => l.id === token.replace(LOC_LABEL_TOKEN, ""));
+				if (original) labels.push({ id: labelId, titles: original.titles.map((t) => ({ ...t })) });
+				else notLoaded.push(token);
+			}
+			if (notLoaded.length > 0) {
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"ribbon",
+						`Customise button ${btn.id}: the translations of ${notLoaded.join(", ")} aren't loaded, so the copy ${id} ` +
+							"gets its text in the base language only. Add the other languages in the Localization editor.",
+					);
+			}
+			const labelIds = new Set(labels.map((l) => l.id));
+			set((s) => ({
+				...commitMutation(
 					s,
 					(ribbons) => {
 						const group = ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId);
@@ -1089,52 +1186,77 @@ export const useRibbonStore = create<RibbonStore>()(
 						userName: "You",
 						op: "customised",
 						target: buttonId,
-						detail: `copied to ${id}, original hidden`,
+						detail:
+							`copied to ${id}, original hidden` +
+							(notLoaded.length > 0 ? " (translations not loaded: base language only)" : ""),
 						icon: "copy",
 						color: "info",
 					},
 				),
-			);
+				...(labels.length > 0 ? { locLabels: [...s.locLabels.filter((l) => !labelIds.has(l.id)), ...labels] } : {}),
+			}));
 			return id;
 		},
 
 		customiseCommand(commandId) {
-			if (!get().commands.some((c) => c.id === commandId)) return false;
-			set((state) => ({
-				customisedCommandIds: [...state.customisedCommandIds.filter((id) => id !== commandId), commandId],
-				uncustomisedCommandIds: state.uncustomisedCommandIds.filter((id) => id !== commandId),
-				mutationsSincePublish: state.mutationsSincePublish + 1,
-			}));
+			const state = get();
+			if (!state.commands.some((c) => c.id === commandId)) return false;
+			if (state.reloadRequiredCommandIds.includes(commandId)) return false;
+			set((s) =>
+				commitCommandChange(
+					s,
+					{
+						customisedCommandIds: [...s.customisedCommandIds.filter((id) => id !== commandId), commandId],
+						uncustomisedCommandIds: withoutCommand(s.uncustomisedCommandIds, commandId),
+					},
+					{ op: "customised", target: commandId, detail: "command copied to your layer on publish", icon: "code" },
+				),
+			);
 			return true;
 		},
 
-		uncustomiseCommand(commandId) {
-			get().discardCommandChanges(commandId);
-			set((state) => ({
-				uncustomisedCommandIds: [...state.uncustomisedCommandIds, commandId],
-				mutationsSincePublish: state.mutationsSincePublish + 1,
-			}));
+		uncustomiseCommand(commandId, scope) {
+			set((s) =>
+				commitCommandChange(
+					s,
+					{
+						commands: loadedCommands(s, commandId),
+						customisedCommandIds: s.customisedCommandIds.filter((id) => id !== commandId),
+						uncustomisedCommandIds: {
+							...withoutCommand(s.uncustomisedCommandIds, commandId),
+							[scope]: [...s.uncustomisedCommandIds[scope].filter((id) => id !== commandId), commandId],
+						},
+					},
+					{
+						op: "uncustomised",
+						target: commandId,
+						detail: `command removed from the ${scope === "entity" ? "table's" : "application ribbon's"} layer on publish`,
+						icon: "arrow_undo",
+					},
+				),
+			);
 		},
 
 		discardCommandChanges(commandId) {
-			set((state) => {
-				const loaded = state.baselineCommands.find((c) => c.id === commandId);
-				const commands = loaded
-					? state.commands.map((c) => (c.id === commandId ? JSON.parse(JSON.stringify(loaded)) : c))
-					: state.commands;
-				const customisedCommandIds = state.customisedCommandIds.filter((id) => id !== commandId);
-				const uncustomisedCommandIds = state.uncustomisedCommandIds.filter((id) => id !== commandId);
-				const changed =
-					commands !== state.commands ||
-					customisedCommandIds.length !== state.customisedCommandIds.length ||
-					uncustomisedCommandIds.length !== state.uncustomisedCommandIds.length;
-				return {
-					commands,
-					customisedCommandIds,
-					uncustomisedCommandIds,
-					mutationsSincePublish: state.mutationsSincePublish + (changed ? 1 : 0),
-				};
-			});
+			const state = get();
+			const commands = loadedCommands(state, commandId);
+			const changed =
+				commands !== state.commands ||
+				state.customisedCommandIds.includes(commandId) ||
+				state.uncustomisedCommandIds.entity.includes(commandId) ||
+				state.uncustomisedCommandIds.application.includes(commandId);
+			if (!changed) return;
+			set((s) =>
+				commitCommandChange(
+					s,
+					{
+						commands,
+						customisedCommandIds: s.customisedCommandIds.filter((id) => id !== commandId),
+						uncustomisedCommandIds: withoutCommand(s.uncustomisedCommandIds, commandId),
+					},
+					{ op: "discarded", target: commandId, detail: "command changes", icon: "arrow_undo" },
+				),
+			);
 		},
 
 		hideWithDisplayRules(buttonCommandId) {
@@ -1368,9 +1490,21 @@ export const useRibbonStore = create<RibbonStore>()(
 					}
 					pendingUnhides[scope] = [];
 				}
+				// Uncustomised commands of published scopes are gone from the layer;
+				// the session still holds their removed copy until reloaded (#31).
+				const uncustomisedCommandIds = { ...state.uncustomisedCommandIds };
+				const reloadRequiredCommandIds = [...state.reloadRequiredCommandIds];
+				for (const [scope, done] of scopes) {
+					if (!done) continue;
+					for (const id of uncustomisedCommandIds[scope]) {
+						if (!reloadRequiredCommandIds.includes(id)) reloadRequiredCommandIds.push(id);
+					}
+					uncustomisedCommandIds[scope] = [];
+				}
 				const pending =
 					all.some((loc) => JSON.stringify(baseline[loc]) !== JSON.stringify(current[loc])) ||
-					pendingUnhides.entity.length + pendingUnhides.application.length > 0;
+					pendingUnhides.entity.length + pendingUnhides.application.length > 0 ||
+					uncustomisedCommandIds.entity.length + uncustomisedCommandIds.application.length > 0;
 				return {
 					baseline,
 					layers,
@@ -1382,9 +1516,10 @@ export const useRibbonStore = create<RibbonStore>()(
 								baselineDisplayRules: JSON.parse(JSON.stringify(state.displayRules)),
 								baselineLocLabels: JSON.parse(JSON.stringify(state.locLabels)),
 								customisedCommandIds: [],
-								uncustomisedCommandIds: [],
 							}
 						: {}),
+					uncustomisedCommandIds,
+					reloadRequiredCommandIds,
 					mutationsSincePublish: pending ? Math.max(1, state.mutationsSincePublish) : 0,
 				};
 			});

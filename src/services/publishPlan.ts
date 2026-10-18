@@ -8,7 +8,7 @@ import type {
 	RibbonButton,
 	RibbonDefinition,
 } from "@/types/ribbon";
-import type { MovedControl } from "@/services/ribbonDiffMerge";
+import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
 
 /**
  * What the scope's unmanaged ribbon layer owns, as read at load (or refreshed
@@ -22,6 +22,8 @@ export interface PlanLayerOwnership {
 	locLabelIds: ReadonlySet<string> | readonly string[];
 	/** CommandDefinitions the layer defines (#31). Unknown when absent. */
 	commandIds?: ReadonlySet<string> | readonly string[];
+	/** Commands the layer's own CustomActions use (#31). Unknown when absent. */
+	commandRefIds?: ReadonlySet<string> | readonly string[];
 }
 
 export interface PlanInput {
@@ -288,6 +290,14 @@ export function planScope(input: PlanInput): ScopePlan {
 	const uncustomisedCommandIds = [...uncustomised].filter((id) =>
 		layerCommands ? layerCommands.has(id) : referencedCommandIds.has(id) && !input.excludeCommandIds?.has(id),
 	);
+	// Your own command has no other definition: removing it breaks its buttons.
+	for (const id of uncustomisedCommandIds) {
+		if (input.layer?.commandRefIds && !canUncustomiseCommand(id, input.layer.commandRefIds)) {
+			unsupported.push(
+				`Uncustomising ${id} — it is your own command (your customizations' buttons use it and no other solution defines it); undo the uncustomise`,
+			);
+		}
+	}
 
 	for (const id of input.excludeCommandIds ?? []) referencedCommandIds.delete(id);
 

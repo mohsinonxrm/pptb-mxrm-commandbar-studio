@@ -11,6 +11,7 @@ export function useCommandProvenance(commandId: string | undefined): CommandProv
 	const layers = useRibbonStore((s) => s.layers);
 	const customisedCommandIds = useRibbonStore((s) => s.customisedCommandIds);
 	const uncustomisedCommandIds = useRibbonStore((s) => s.uncustomisedCommandIds);
+	const reloadRequiredCommandIds = useRibbonStore((s) => s.reloadRequiredCommandIds);
 	return React.useMemo(
 		() =>
 			commandId && commands.some((c) => c.id === commandId)
@@ -22,6 +23,7 @@ export function useCommandProvenance(commandId: string | undefined): CommandProv
 						layers,
 						customisedCommandIds,
 						uncustomisedCommandIds,
+						reloadRequiredCommandIds,
 					})
 				: null,
 		[
@@ -33,6 +35,12 @@ export function useCommandProvenance(commandId: string | undefined): CommandProv
 			layers,
 			customisedCommandIds,
 			uncustomisedCommandIds,
+			reloadRequiredCommandIds,
 		],
 	);
+}
+
+/** True when the command editor must not change the command (#31). */
+export function isCommandReadOnly(info: CommandProvenanceInfo | null): boolean {
+	return info?.provenance === "uncustomising" || info?.provenance === "reloadRequired";
 }

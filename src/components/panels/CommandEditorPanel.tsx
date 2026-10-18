@@ -32,7 +32,7 @@ import {
 } from "@/services/dataverse/webResourceService";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
 import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
-import { useCommandProvenance } from "@/hooks/useCommandProvenance";
+import { isCommandReadOnly, useCommandProvenance } from "@/hooks/useCommandProvenance";
 
 const useStyles = makeStyles({
 	drawer: {
@@ -156,8 +156,9 @@ export const CommandEditorPanel: React.FC = () => {
 	const [codeWebResourceName, setCodeWebResourceName] = useState<string | null>(null);
 
 	const command = commands.find((c) => c.id === commandEditorId);
-	// A command being uncustomised (#31) is removed from the layer on publish: not editable.
-	const readOnly = useCommandProvenance(command?.id)?.provenance === "uncustomising";
+	// A command being uncustomised (#31) is removed from the layer on publish, and
+	// one uncustomised and published needs a reload: neither is editable.
+	const readOnly = isCommandReadOnly(useCommandProvenance(command?.id));
 
 	const parseWebResourceName = (library: string): string => {
 		const trimmed = library.trim();

@@ -130,7 +130,8 @@ export const BulkPublishModal: React.FC = () => {
 				layer: layers[scope] ?? undefined,
 				unhiddenLayerHideIds: pendingUnhides[scope],
 				customisedCommandIds,
-				uncustomisedCommandIds,
+				// Per scope: uncustomising for the table leaves the application ribbon's copy (#31).
+				uncustomisedCommandIds: uncustomisedCommandIds[scope],
 				commands,
 				baselineCommands,
 				enableRules,
