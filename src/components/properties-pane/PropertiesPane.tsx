@@ -12,6 +12,8 @@ import { ConflictBanner } from "./ConflictBanner";
 import { HiddenByCustomizationsSection } from "./HiddenByCustomizationsSection";
 import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { ModernCommandProperties, ModernOverrideSection } from "./ModernCommandProperties";
+import { useClassicOverrides, useSelectedModernCommand } from "@/hooks/useModernCommands";
 
 const useStyles = makeStyles({
 	root: {
@@ -58,6 +60,9 @@ export function PropertiesPane() {
 	// A menu item (#27): say whose menu it is in.
 	const place = group && button ? menuItemPlace(group, button.id) : undefined;
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	// Modern commands (#32) are shown read-only and live outside the ribbon store.
+	const modern = useSelectedModernCommand();
+	const modernOverrides = useClassicOverrides(location, button?.id);
 
 	return (
 		<aside className={styles.root} aria-label="Properties">
@@ -65,7 +70,9 @@ export function PropertiesPane() {
 				<Subtitle2>Properties</Subtitle2>
 			</div>
 
-			{!button ? (
+			{!button && modern ? (
+				<ModernCommandProperties command={modern.command} items={modern.children} />
+			) : !button ? (
 				<>
 					<div className={styles.empty}>
 						<CursorHoverRegular fontSize={32} style={{ opacity: 0.4 }} />
@@ -76,6 +83,7 @@ export function PropertiesPane() {
 			) : (
 				<>
 					<ConflictBanner />
+					<ModernOverrideSection overrides={modernOverrides} />
 					{place && (
 						<div className={styles.section}>
 							<Caption1>

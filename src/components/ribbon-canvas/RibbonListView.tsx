@@ -24,6 +24,9 @@ import FluentIcon from "@/components/shared/FluentIcon";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
+import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
+import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
+import { ModernCommandsTable } from "./modern/ModernCommandsTable";
 
 const useStyles = makeStyles({
 	root: {
@@ -84,6 +87,9 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 		location === "Application" && tab.id === "Mscrm.GlobalTab" && button.oob && !button.custom;
 
 	const [filter, setFilter] = useState("");
+	// Classic buttons hidden / replaced by a migrated modern command (#32).
+	const { overrides: modernOverrides } = useModernCanvas(location, tab);
+	const modernAppNames = useModernAppNames();
 
 	const allRows: ButtonRow[] = tab.groups.flatMap((g) =>
 		g.buttons.map((b) => ({ button: b, groupId: g.id, groupLabel: g.label })),
@@ -145,9 +151,12 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 				</Text>
 			),
 			renderCell: ({ button }) => (
-				<Text size={200} className={styles.clip} title={button.label}>
-					{resolveDisplayLabel(button.label, locLabels)}
-				</Text>
+				<span style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+					<Text size={200} className={styles.clip} title={button.label}>
+						{resolveDisplayLabel(button.label, locLabels)}
+					</Text>
+					<ClassicModernOverrideBadge overrides={modernOverrides.get(button.id)} appNames={modernAppNames} />
+				</span>
 			),
 		}),
 		createTableColumn<ButtonRow>({
@@ -302,6 +311,7 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 					)}
 				</DataGridBody>
 			</DataGrid>
+			<ModernCommandsTable tab={tab} location={location} />
 		</div>
 	);
 }

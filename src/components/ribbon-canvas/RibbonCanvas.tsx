@@ -32,6 +32,7 @@ import { ClassicRibbon } from "./ClassicRibbon";
 import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
 import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
+import { ModernAppFilter } from "./modern/ModernAppFilter";
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
 	DndContext,
@@ -310,6 +311,7 @@ export function RibbonCanvas({
 				))}
 				<div className={styles.spacer} />
 				<div style={{ display: "flex", alignItems: "center", gap: tokens.spacingHorizontalS }}>
+					<ModernAppFilter />
 					<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
 						View as:
 					</Text>
