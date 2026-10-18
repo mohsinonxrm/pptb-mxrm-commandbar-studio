@@ -21,8 +21,9 @@ import {
 	buttonTooltipTitleId,
 	buttonTooltipBodyId,
 	locLabelRef,
+	sectionTitleLabelId,
 } from "@/utils/locLabelRef";
-import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { isPlatformText, resolveDisplayLabel } from "@/utils/displayLabel";
 import { freeMaxSizeSequence, maxSizeBand } from "@/services/scalingSequence";
 import { menuItemsOf } from "@/utils/ribbonMenu";
 
@@ -904,7 +905,7 @@ function resolveLocalizedAttr(
 		sink(existing ?? { id, titles: [{ languageCode: lang, description: id }] });
 		return value;
 	}
-	if (value.startsWith("$Resources:")) {
+	if (isPlatformText(value)) {
 		return value;
 	}
 	const titles = [{ languageCode: lang, description: value }];
@@ -1073,7 +1074,7 @@ function generateMenu(
 		set("Id", section.id);
 		set(
 			"Title",
-			resolveButtonText(section.title, section.attributes?.["Title"], `${section.id}.Title`, storeLocLabels, sink, lang),
+			resolveButtonText(section.title, section.attributes?.["Title"], sectionTitleLabelId(section.id), storeLocLabels, sink, lang),
 		);
 		// A loaded section without Sequence keeps none (the parser reads it as 0).
 		const loadedWithout = !!section.attributes && !("Sequence" in section.attributes) && section.sequence === 0;
