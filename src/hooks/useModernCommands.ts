@@ -95,6 +95,10 @@ export function useModernLocation(location: RibbonLocation): ModernLocationModel
 	const commands = useModernCommandsFor(location);
 	const logicalName = useSessionStore((s) => s.activeEntity?.logicalName) ?? "";
 	const tabs = useRibbonStore((s) => s.ribbons[location]?.tabs);
+	const ribbonTable = useRibbonStore((s) => s.ribbons[location]?.entityLogicalName ?? "");
+	const modernTable = useModernCommandStore((s) =>
+		s.status === "loaded" ? s.tableLogicalName : null,
+	);
 	const model = useMemo(
 		() =>
 			buildModernLocationModel({
@@ -107,8 +111,15 @@ export function useModernLocation(location: RibbonLocation): ModernLocationModel
 	);
 
 	// Diagnostics: migrated commands with no classic control anywhere in the
-	// location (the unique-name convention is undocumented). Logged once.
-	const unmatched = model.unmatchedMigrated.map((c) => c.uniqueName).join(", ");
+	// location (the unique-name convention is undocumented). Only once both the
+	// table's classic ribbon and its modern commands are loaded — before that
+	// nothing can match — and logged once per list.
+	const ready =
+		!!logicalName &&
+		modernTable === logicalName &&
+		(tabs?.length ?? 0) > 0 &&
+		(location === "Application" || ribbonTable.toLowerCase() === logicalName.toLowerCase());
+	const unmatched = ready ? model.unmatchedMigrated.map((c) => c.uniqueName).join(", ") : "";
 	useEffect(() => {
 		const key = `${logicalName}|${location}|${unmatched}`;
 		if (!unmatched || loggedUnmatched.has(key)) return;

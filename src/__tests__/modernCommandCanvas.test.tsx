@@ -8,6 +8,7 @@ import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { mapAppActionRows } from "@/services/modernCommands";
 import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
@@ -300,5 +301,71 @@ describe("modern commands on the canvas", () => {
 			"Refresh",
 			"Tail command — modern command (read-only)",
 		]);
+	});
+
+	it("logs unmatched migrated commands only once the classic ribbon is loaded, and nothing when all match", () => {
+		const diagnostics = () =>
+			useRuntimeLogStore
+				.getState()
+				.entries.filter((e) => e.message.includes("without a classic control"))
+				.map((e) => e.message);
+		useRuntimeLogStore.getState().clear();
+		const loadedTab = tab();
+		const loadedRibbons = useRibbonStore.getState().ribbons;
+		const s = useModernCommandStore.getState();
+		const designerAndMatched = s.commands;
+		const unmatched = mapAppActionRows([
+			row({
+				appactionid: "aaaaaaaa-0000-0000-0000-000000000007",
+				name: "NotInRibbon",
+				uniquename: "msdyn_Mscrm.HomepageGrid.{!EntityLogicalName}.NotInRibbon!1",
+				context: 0,
+				_contextentity_value: null,
+				contextvalue: null,
+				origin: 1,
+			}),
+		]);
+		s.finishLoad(s.beginLoad("contact"), {
+			apps: [],
+			commands: [...designerAndMatched, ...unmatched],
+		});
+
+		// Classic ribbon not loaded yet (initial empty state): nothing can match, so nothing is logged.
+		const empty = (location: RibbonLocation) => ({ location, entityLogicalName: "", tabs: [] });
+		useRibbonStore.getState().loadWorkspace({
+			ribbons: {
+				HomepageGrid: empty("HomepageGrid"),
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
+			commands: [],
+			displayRules: [],
+			enableRules: [],
+			locLabels: [],
+		});
+		render(<ModernCommandBar tab={loadedTab} location="HomepageGrid" />);
+		expect(diagnostics()).toEqual([]);
+
+		// Ribbon loaded: only the command without a classic control is reported, once.
+		act(() =>
+			useRibbonStore.getState().loadWorkspace({
+				ribbons: loadedRibbons,
+				commands: [],
+				displayRules: [],
+				enableRules: [],
+				locLabels: [],
+			}),
+		);
+		render(<ModernCommandBar tab={tab()} location="HomepageGrid" />);
+		expect(diagnostics()).toEqual([
+			"Migrated modern commands without a classic control in contact HomepageGrid: msdyn_Mscrm.HomepageGrid.{!EntityLogicalName}.NotInRibbon!1",
+		]);
+
+		// Every migrated command matched: nothing more is logged.
+		useRuntimeLogStore.getState().clear();
+		act(() => s.finishLoad(s.beginLoad("contact"), { apps: [], commands: designerAndMatched }));
+		render(<ModernCommandBar tab={tab()} location="HomepageGrid" />);
+		expect(diagnostics()).toEqual([]);
 	});
 });
