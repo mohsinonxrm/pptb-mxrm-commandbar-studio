@@ -1784,7 +1784,10 @@ export const useRibbonStore = create<RibbonStore>()(
 
 		setOrphanDeleted(scope, orphanId, deleted) {
 			set((state) => {
-				if (!state.orphans[scope].some((o) => o.id === orphanId)) return state;
+				const orphan = state.orphans[scope].find((o) => o.id === orphanId);
+				if (!orphan) return state;
+				// Just published from here: most likely not loaded yet, not orphaned (#64 review).
+				if (deleted && orphan.recentPublish?.published) return state;
 				if (state.pendingOrphanDeletes[scope].includes(orphanId) === deleted) return state;
 				const ids = state.pendingOrphanDeletes[scope].filter((id) => id !== orphanId);
 				if (deleted) ids.push(orphanId);

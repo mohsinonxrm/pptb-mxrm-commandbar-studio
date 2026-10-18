@@ -130,7 +130,9 @@ describe("detection", () => {
 			actions: [ca("cbs.Chart.CustomAction", `${CHARTS_GROUP}.Controls._children`, button("cbs.Chart.Button", "cbs.Chart.Command"))],
 			labels: [label("cbs.Chart.Button.LabelText", "Chart it")],
 		});
-		const orphans = findLayerOrphans(layer, ribbonsOf(grid()), E, [{ id: "cbs.Chart.Button.LabelText", titles: [{ languageCode: 1033, description: "Chart it" }] }]);
+		const orphans = findLayerOrphans(layer, ribbonsOf(grid()), E, {
+			locLabels: [{ id: "cbs.Chart.Button.LabelText", titles: [{ languageCode: 1033, description: "Chart it" }] }],
+		});
 		expect(orphans).toHaveLength(1);
 		expect(orphans[0]).toMatchObject({
 			id: "cbs.Chart.Button",
@@ -488,5 +490,113 @@ describe("store", () => {
 		// Back to before the label edit: the orphan was deleted by then, and is gone.
 		store().undo();
 		expect(store().pendingOrphanDeletes.entity).toEqual([]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Adversarial review of PR #84
+// ---------------------------------------------------------------------------
+
+describe("review — no false orphans", () => {
+	const tabXml = (id: string, command: string) =>
+		`<Tab Id="${id}" Command="${command}" Sequence="200" Title="Mine"><Scaling Id="${id}.Scaling" /><Groups Id="${id}.Groups"><Group Id="${id}.Group" Sequence="10" Template="Mscrm.Templates.Flexible2" Title="G"><Controls Id="${id}.Group.Controls">${button(`${id}.Button`, "cbs.Mine.Command", "Mine")}</Controls></Group></Groups></Tab>`;
+	const tabLayer = (location: string, id: string, rule: string) => {
+		const cmd = `${id}.Command`;
+		return parseRibbonDiffParts(
+			`<RibbonDiffXml><CustomActions>${ca("cbs.Mine.Tab.CustomAction", location, tabXml(id, cmd))}</CustomActions>` +
+				`<RuleDefinitions><TabDisplayRules><TabDisplayRule TabCommand="${cmd}">${rule}</TabDisplayRule></TabDisplayRules></RuleDefinitions></RibbonDiffXml>`,
+		);
+	};
+	const ribbonSet = () => ({ HomepageGrid: grid(), SubGrid: empty("SubGrid"), Form: empty("Form") });
+
+	it("1 — a layer tab with a {!EntityLogicalName} id, rebuilt by addLayerTabs, isn't an orphan", () => {
+		layer = tabLayer(
+			"Mscrm.Tabs._children",
+			"cbs.{!EntityLogicalName}.HomepageGrid.Mine.Tab",
+			`<EntityRule EntityName="{!EntityLogicalName}" Context="HomePageGrid" AppliesTo="PrimaryEntity" />`,
+		);
+		const ribbons = ribbonSet();
+		expect(addLayerTabs(ribbons, layer, E, [])).toHaveLength(1);
+		expect(findLayerOrphans(layer, Object.values(ribbons), E)).toEqual([]);
+	});
+
+	it("2 — a sub-grid tab at Mscrm.SubGrid.{!EntityLogicalName}.ContextualTabs._children is loaded, and isn't an orphan", () => {
+		layer = tabLayer(
+			"Mscrm.SubGrid.{!EntityLogicalName}.ContextualTabs._children",
+			`cbs.${E}.SubGrid.Mine.Tab`,
+			`<EntityRule EntityName="${E}" Context="SubGridStandard" AppliesTo="SelectedEntity" />`,
+		);
+		const ribbons = ribbonSet();
+		expect(addLayerTabs(ribbons, layer, E, [])).toEqual([`cbs.${E}.SubGrid.Mine.Tab`]);
+		expect(ribbons.SubGrid.tabs.map((t) => t.id)).toEqual([`cbs.${E}.SubGrid.Mine.Tab`]);
+		expect(findLayerOrphans(layer, Object.values(ribbons), E)).toEqual([]);
+	});
+
+	it("3 — a button in a group the application layer hides isn't an orphan", () => {
+		layer = layerOf({
+			actions: [ca("cbs.InAppHidden.CustomAction", `${MAIN}.Workflow.Controls._children`, button("cbs.InAppHidden.Button", "cbs.X.Command"))],
+		});
+		expect(findLayerOrphans(layer, ribbonsOf(grid()), E).map((o) => o.id)).toEqual(["cbs.InAppHidden.Button"]);
+		expect(
+			findLayerOrphans(layer, ribbonsOf(grid()), E, { otherHides: ["Mscrm.HomepageGrid.{!EntityLogicalName}.MainTab.Workflow"] }),
+		).toEqual([]);
+	});
+
+	it("3 — a missing location says it may be hidden by another solution; a platform one isn't called misspelled", () => {
+		layer = layerOf({
+			actions: [
+				ca("cbs.A.CustomAction", `${MAIN}.Workflow.Controls._children`, button("cbs.A.Button", "cbs.X.Command")),
+				ca("cbs.B.CustomAction", "cbs.Gone.Group.Controls._children", button("cbs.B.Button", "cbs.X.Command")),
+			],
+		});
+		const orphans = byId(findLayerOrphans(layer, ribbonsOf(grid()), E));
+		expect(orphans["cbs.A.Button"].why).toMatch(/possibly hidden by another solution/);
+		expect(orphans["cbs.A.Button"].why).not.toMatch(/misspelled/);
+		expect(orphans["cbs.B.Button"].why).toMatch(/hidden by another solution/);
+	});
+
+	it("5 — a control placed in a group of a tab the layer hides isn't an orphan, whatever the group's id", () => {
+		const tab = `<Tab Id="cbs.Hid.Tab" Command="cbs.Hid.Tab.Command" Sequence="200" Title="H"><Groups Id="cbs.Hid.Tab.Groups"><Group Id="rw.Group1" Sequence="10" Template="Mscrm.Templates.Flexible2" Title="G"><Controls Id="rw.Group1.Controls" /></Group></Groups></Tab>`;
+		layer = layerOf({
+			actions: [
+				ca("cbs.Hid.Tab.CustomAction", "Mscrm.Tabs._children", tab),
+				ca("cbs.Late.CustomAction", "rw.Group1.Controls._children", button("cbs.Late.Button", "cbs.X.Command")),
+				`<HideCustomAction HideActionId="cbs.Hid.Tab.Hide" Location="cbs.Hid.Tab" />`,
+			],
+		});
+		expect(findLayerOrphans(layer, ribbonsOf(grid()), E)).toEqual([]);
+	});
+});
+
+describe("review 4 — just published", () => {
+	const orphanAt = (customActionId: string): LayerOrphan => ({
+		id: `${customActionId}.Button`,
+		element: "Button",
+		label: "x",
+		location: `${MAIN}.Gone.Controls._children`,
+		customActionId,
+		reason: "missing-location",
+		why: "gone",
+		deleteControlIds: [`${customActionId}.Button`],
+		deleteContainerIds: [],
+	});
+
+	it("an orphan the table's last publish wrote is marked as just published; others as published recently; nothing after the window", async () => {
+		const { annotateRecentPublish } = await import("@/services/layerOrphans");
+		const now = Date.parse("2026-10-18T12:00:00Z");
+		const recent = { at: now - 5 * 60_000, customActionIds: ["cbs.Just"] };
+		const [just, other] = annotateRecentPublish([orphanAt("cbs.Just"), orphanAt("cbs.Old")], recent, now);
+		expect(just.recentPublish).toEqual({ minutesAgo: 5, published: true });
+		expect(just.why).toMatch(/may not have caught up/);
+		expect(other.recentPublish).toEqual({ minutesAgo: 5, published: false });
+		const later = annotateRecentPublish([orphanAt("cbs.Just")], recent, now + 60 * 60_000);
+		expect(later[0].recentPublish).toBeUndefined();
+	});
+
+	it("the CustomActions a publish changed are remembered per table", async () => {
+		const { rememberPublish, recentPublishOf } = await import("@/utils/recentPublish");
+		rememberPublish("https://org.example", E, ["customActions:ca:cbs.Just", "commandDefinitions:cbs.X", "customActions:hide:cbs.H"], 1000);
+		expect(recentPublishOf("https://org.example", E)).toEqual({ at: 1000, customActionIds: ["cbs.Just"] });
+		expect(recentPublishOf("https://org.example", "other")).toBeNull();
 	});
 });

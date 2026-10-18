@@ -76,6 +76,36 @@ describe("Orphaned customizations section", () => {
 		expect(useRibbonStore.getState().pendingOrphanDeletes.entity).toEqual([]);
 	});
 
+	it("review 4: just published from here → Delete isn't offered; published recently → Delete asks first", () => {
+		const just: LayerOrphan = { ...ORPHAN, recentPublish: { minutesAgo: 2, published: true } };
+		const recent: LayerOrphan = { ...ORPHAN, id: "cbs.Other.Button", customActionId: "cbs.Other", recentPublish: { minutesAgo: 2, published: false } };
+		useRibbonStore.setState({ orphans: { entity: [just, recent], application: [] } });
+		act(() =>
+			root.render(
+				<FluentProvider theme={webLightTheme}>
+					<PropertiesPane />
+				</FluentProvider>,
+			),
+		);
+		const section = container.querySelector('section[aria-label="Orphaned customizations"]')!;
+		const buttons = () => Array.from(section.querySelectorAll("button"));
+		const [justDelete, recentDelete] = buttons();
+		expect(justDelete.getAttribute("aria-disabled")).toBe("true");
+		act(() => justDelete.click());
+		expect(useRibbonStore.getState().pendingOrphanDeletes.entity).toEqual([]);
+		// The store refuses it too.
+		useRibbonStore.getState().setOrphanDeleted("entity", ORPHAN.id, true);
+		expect(useRibbonStore.getState().pendingOrphanDeletes.entity).toEqual([]);
+
+		expect(recentDelete.textContent).toBe("Delete…");
+		act(() => recentDelete.click());
+		expect(useRibbonStore.getState().pendingOrphanDeletes.entity).toEqual([]);
+		const confirm = buttons()[1];
+		expect(confirm.textContent).toBe("Delete anyway");
+		act(() => confirm.click());
+		expect(useRibbonStore.getState().pendingOrphanDeletes.entity).toEqual(["cbs.Other.Button"]);
+	});
+
 	it("isn't shown when the layer has no orphans", () => {
 		useRibbonStore.setState({ orphans: { entity: [], application: [] } });
 		act(() =>

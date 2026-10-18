@@ -34,6 +34,7 @@ import {
 	type PublishVerification,
 } from "@/services/dataverse/publishService";
 import { fetchLayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import { rememberPublish } from "@/utils/recentPublish";
 import { loadWebResourceStatus } from "@/services/dataverse/webResourceService";
 import { planScope, type ScopePlan } from "@/services/publishPlan";
 import type { RibbonDiffParts } from "@/services/ribbonDiffMerge";
@@ -113,6 +114,7 @@ export const BulkPublishModal: React.FC = () => {
 	const mutationsSincePublish = useRibbonStore((s) => s.mutationsSincePublish);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const activeEntity = useSessionStore((s) => s.activeEntity);
+	const connectionUrl = useSessionStore((s) => s.connectionUrl);
 	const publisherPrefix = useSessionStore((s) => s.publisherPrefix);
 	const solutionRibbonComponentIds = useSessionStore((s) => s.solutionRibbonComponentIds);
 
@@ -365,6 +367,9 @@ export const BulkPublishModal: React.FC = () => {
 				);
 				published.push(...ENTITY_LOCATIONS);
 				importedLayers.entity = result.parts;
+				// A reload soon after may still get the ribbon from before this
+				// publish: what it wrote isn't offered for deletion as an orphan (#64).
+				rememberPublish(connectionUrl, activeEntity.logicalName, result.changedKeys ?? []);
 				if (result.verification) verified.push({ scope, result: result.verification });
 				setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
 			} catch (err) {

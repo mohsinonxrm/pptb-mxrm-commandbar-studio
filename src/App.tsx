@@ -42,6 +42,8 @@ import {
 } from "@/hooks/useRibbonPersistence";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { groupControls } from "@/utils/ribbonMenu";
+import { annotateRecentPublish } from "@/services/layerOrphans";
+import { recentPublishOf } from "@/utils/recentPublish";
 import { useModernCommandsLoader } from "@/hooks/useModernCommands";
 
 const useStyles = makeStyles({
@@ -273,7 +275,14 @@ export function App() {
 					locLabels: workspace.locLabels,
 					layers: workspace.layers,
 					baseLanguageCode: workspace.baseLanguageCode,
-					orphans: { entity: workspace.orphans ?? [] },
+					// Right after a publish the ribbon can be the one from before it:
+					// what that publish wrote isn't offered for deletion (#64 review).
+					orphans: {
+						entity: annotateRecentPublish(
+							workspace.orphans ?? [],
+							recentPublishOf(useSessionStore.getState().connectionUrl, activeEntity.logicalName),
+						),
+					},
 				});
 
 				// Snapshot the current selection at success-time via getState()

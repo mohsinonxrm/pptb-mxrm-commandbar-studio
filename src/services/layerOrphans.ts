@@ -44,6 +44,12 @@ export interface LayerOrphan {
 	deleteControlIds: string[];
 	/** Tabs / groups a delete removes (this one, when it is a tab or group). */
 	deleteContainerIds: string[];
+	/**
+	 * The table was published from this window shortly before it was loaded
+	 * (annotateRecentPublish): the ribbon may not have caught up yet.
+	 * `published`: this very CustomAction was written by that publish.
+	 */
+	recentPublish?: { minutesAgo: number; published: boolean };
 }
 
 /** Control elements the ribbon parser models (xmlParser CONTROL_TAGS): anything else is never on the canvas. */
@@ -56,35 +62,47 @@ function childElements(el: Element | null | undefined): Element[] {
 }
 
 /**
+ * An id or Location with `{!EntityLogicalName}` resolved. RetrieveEntityRibbon
+ * resolves it, but the layer's rows and the tabs rebuilt from them
+ * (ribbonService.addLayerTabs) keep the token (#84 review).
+ */
+export function resolveEntityToken(id: string, entityLogicalName: string | undefined): string {
+	return entityLogicalName ? id.split("{!EntityLogicalName}").join(entityLogicalName) : id;
+}
+
+/**
  * The `<Controls>` / `<Groups>` collections of a ribbon a `._children`
  * Location can name, by id, with the tab they are on: each group's
  * `{group}.Controls`, each tab's `{tab}.Groups` and each menu section's
  * Controls (#27). Groups and tabs follow the platform's naming (the parser
  * doesn't keep their collections' ids; ribbonDiffMerge assumes the same).
+ * With `entityLogicalName`, ids are keyed with the token resolved.
  */
-export function ribbonPlaces(defs: Iterable<RibbonDefinition>): Map<string, string> {
+export function ribbonPlaces(defs: Iterable<RibbonDefinition>, entityLogicalName?: string): Map<string, string> {
 	const places = new Map<string, string>();
+	const put = (id: string, tabId: string) => places.set(resolveEntityToken(id, entityLogicalName), tabId);
 	for (const def of defs)
 		for (const tab of def.tabs) {
-			places.set(`${tab.id}.Groups`, tab.id);
+			put(`${tab.id}.Groups`, tab.id);
 			for (const group of tab.groups) {
-				places.set(`${group.id}.Controls`, tab.id);
+				put(`${group.id}.Controls`, tab.id);
 				for (const control of groupControls(group))
-					for (const section of control.menu?.sections ?? []) places.set(section.controlsId, tab.id);
+					for (const section of control.menu?.sections ?? []) put(section.controlsId, tab.id);
 			}
 		}
 	return places;
 }
 
-/** Every tab, group and control (menu items included) id of the ribbons. */
-function loadedIds(defs: Iterable<RibbonDefinition>): Set<string> {
+/** Every tab, group and control (menu items included) id of the ribbons, the token resolved. */
+function loadedIds(defs: Iterable<RibbonDefinition>, entityLogicalName: string): Set<string> {
 	const ids = new Set<string>();
+	const add = (id: string) => ids.add(resolveEntityToken(id, entityLogicalName));
 	for (const def of defs)
 		for (const tab of def.tabs) {
-			ids.add(tab.id);
+			add(tab.id);
 			for (const group of tab.groups) {
-				ids.add(group.id);
-				for (const control of groupControls(group)) ids.add(control.id);
+				add(group.id);
+				for (const control of groupControls(group)) add(control.id);
 			}
 		}
 	return ids;
@@ -108,9 +126,10 @@ interface Candidate {
  * and the controls written inside the layer's own tabs / groups / flyouts)
  * that none of `ribbons` has (#64). Only elements the canvas can show are
  * considered (tabs, groups and the control kinds the parser models), and
- * nothing the layer hides (listed under "Hidden by customizations" instead)
- * or places inside something it hides. What is placed inside another orphan
- * is listed with it, and deleted with it.
+ * nothing hidden (listed under "Hidden by customizations" instead) or placed
+ * inside something hidden — by this layer, or by `otherHides` (the
+ * application layer's). What is placed inside another orphan is listed with
+ * it, and deleted with it.
  *
  * For a table's layer only: an application-ribbon CustomAction can target
  * any table's locations, and only one table is loaded.
@@ -119,17 +138,35 @@ export function findLayerOrphans(
 	parts: RibbonDiffParts,
 	ribbons: Iterable<RibbonDefinition>,
 	entityLogicalName: string,
-	locLabels: LocLabel[] = [],
-	languageCode = 1033,
+	options: {
+		locLabels?: LocLabel[];
+		languageCode?: number;
+		/** Locations other layers hide (HideCustomAction Location): the application ribbon's. */
+		otherHides?: string[];
+	} = {},
 ): LayerOrphan[] {
+	const { locLabels = [], languageCode = 1033 } = options;
 	const defs = [...ribbons];
-	const loaded = loadedIds(defs);
-	const places = ribbonPlaces(defs);
-	const norm = (id: string) => id.split("{!EntityLogicalName}").join(entityLogicalName);
-	const hidden = hideActionsOf(parts).map((h) => norm(h.location));
-	// Inside something the layer hides (by the platform's naming: what is in
-	// X has an id starting with `X.`).
-	const underHide = (id: string) => hidden.some((h) => id === h || id.startsWith(`${h}.`));
+	const norm = (id: string) => resolveEntityToken(id, entityLogicalName);
+	const loaded = loadedIds(defs, entityLogicalName);
+	const places = ribbonPlaces(defs, entityLogicalName);
+	const hidden = [...hideActionsOf(parts).map((h) => h.location), ...(options.otherHides ?? [])].map(norm);
+	const hiddenSet = new Set(hidden);
+	// What is written inside an element the layer adds that is hidden (a group
+	// of a hidden tab keeps its own id, e.g. Ribbon Workbench's).
+	const insideHidden = new Set<string>();
+	const docs = [...parts.customActions.values()].map(
+		(xml) => new DOMParser().parseFromString(xml, "application/xml").documentElement,
+	);
+	for (const ca of docs) {
+		if (ca.tagName !== "CustomAction") continue;
+		for (const el of Array.from(ca.getElementsByTagName("*"))) {
+			if (hiddenSet.has(norm(el.getAttribute("Id") ?? ""))) idsWithin(el).forEach((id) => insideHidden.add(norm(id)));
+		}
+	}
+	// Hidden, or inside something hidden: by the platform's naming (what is in
+	// X has an id starting with `X.`), or written inside it.
+	const underHide = (id: string) => insideHidden.has(id) || hidden.some((h) => id === h || id.startsWith(`${h}.`));
 	const tabCollections = new Set(["Mscrm.Tabs", `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs`]);
 
 	const reasonFor = (element: string, parent: string): { reason: LayerOrphanReason; why: string } => {
@@ -149,9 +186,14 @@ export function findLayerOrphans(
 						: `${parent} is on the canvas, but the ribbon doesn't return this ${element.toLowerCase()} there (for example a control added to a new group in a separate CustomAction).`,
 			};
 		}
+		// A platform location can't be misspelled by CBS's own writes, but
+		// another solution (managed, or the application ribbon) can hide it,
+		// and that isn't visible from here (#84 review).
 		return {
 			reason: "missing-location",
-			why: `${parent} isn't in this table's ribbon: the group, tab or menu was removed or renamed, or the Location is misspelled.`,
+			why: /^(Mscrm|Microsoft)\./.test(parent)
+				? `${parent} isn't in this table's ribbon as loaded: it is not shown — possibly hidden by another solution — or it was removed.`
+				: `${parent} isn't in this table's ribbon as loaded: the group, tab or menu was removed or renamed, the Location is misspelled, or it is hidden by another solution.`,
 		};
 	};
 
@@ -182,8 +224,7 @@ export function findLayerOrphans(
 		});
 	};
 
-	for (const xml of parts.customActions.values()) {
-		const ca = new DOMParser().parseFromString(xml, "application/xml").documentElement;
+	for (const ca of docs) {
 		if (ca.tagName !== "CustomAction") continue;
 		const location = ca.getAttribute("Location") ?? "";
 		if (!CHILDREN.test(location) || /\.Scaling\._children$/.test(location)) continue;
@@ -227,4 +268,37 @@ export function findLayerOrphans(
 		merge(t.orphan.deleteContainerIds, c.orphan.deleteContainerIds);
 	}
 	return listed.map((c) => c.orphan);
+}
+
+/**
+ * How long after a publish the ribbon may still be the one from before it.
+ * RetrieveEntityRibbon is served from per-server caches; stale responses were
+ * measured 10+ minutes after a publish (#84 review).
+ */
+export const RECENT_PUBLISH_MINUTES = 30;
+
+/**
+ * Marks the orphans of a table published from this window less than
+ * RECENT_PUBLISH_MINUTES ago (utils/recentPublish): what that publish wrote
+ * (`published`) is most likely just not loaded yet, so it isn't offered for
+ * deletion; anything else gets a confirmation first.
+ */
+export function annotateRecentPublish(
+	orphans: LayerOrphan[],
+	recent: { at: number; customActionIds: string[] } | null,
+	now = Date.now(),
+): LayerOrphan[] {
+	const minutesAgo = recent ? Math.max(0, Math.floor((now - recent.at) / 60_000)) : Infinity;
+	if (!recent || minutesAgo >= RECENT_PUBLISH_MINUTES) return orphans;
+	const written = new Set(recent.customActionIds);
+	return orphans.map((o) => {
+		const published = written.has(o.customActionId);
+		return {
+			...o,
+			recentPublish: { minutesAgo, published },
+			why: published
+				? `Published from here ${minutesAgo} min ago: the ribbon may not have caught up yet (it can lag 10 minutes or more). Reload later before deleting it. ${o.why}`
+				: `This table was published ${minutesAgo} min ago, and the ribbon may not have caught up yet. ${o.why}`,
+		};
+	});
 }

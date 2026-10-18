@@ -201,6 +201,13 @@ export interface PublishRibbonResult {
 	 * them (#66 review B1, m4).
 	 */
 	parts: RibbonDiffParts;
+	/**
+	 * `part:id` of the elements this publish added or changed. The table's are
+	 * remembered for a while (utils/recentPublish): RetrieveEntityRibbon can
+	 * return the ribbon from before the publish, and those CustomActions must
+	 * not be offered for deletion as orphans then (#84 review).
+	 */
+	changedKeys?: string[];
 }
 
 function locLabelXml(label: LocLabel): string {
@@ -542,7 +549,12 @@ export function publishValidationContext(
 			? {
 					places: {
 						entityLogicalName: input.entity.logicalName,
-						tabByCollection: Object.fromEntries(ribbonPlaces(input.locations.map((l) => l.baseline))),
+						tabByCollection: Object.fromEntries(
+							ribbonPlaces(
+								input.locations.map((l) => l.baseline),
+								input.entity.logicalName,
+							),
+						),
 					},
 				}
 			: {}),
@@ -889,6 +901,7 @@ export async function publishRibbon(
 		importJobId,
 		verification,
 		parts: merged.parts,
+		changedKeys: merged.changedKeys,
 	};
 }
 

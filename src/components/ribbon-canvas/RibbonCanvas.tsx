@@ -214,9 +214,12 @@ export function RibbonCanvas({
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
 	const baseline = useRibbonStore((s) => s.baseline);
 	const layers = useRibbonStore((s) => s.layers);
-	// Not yet deleted: a pending delete is crossed out in the list, not counted here.
+	// Not yet deleted (a pending delete is crossed out in the list), and not
+	// just published from here (most likely not loaded yet, #64 review).
 	const orphanCount = useRibbonStore(
-		(s) => s.orphans.entity.filter((o) => !s.pendingOrphanDeletes.entity.includes(o.id)).length,
+		(s) =>
+			s.orphans.entity.filter((o) => !s.pendingOrphanDeletes.entity.includes(o.id) && !o.recentPublish?.published)
+				.length,
 	);
 	const clearSelection = useSelectionStore((s) => s.clearSelection);
 	const reorderTabs = useRibbonStore((s) => s.reorderTabs);

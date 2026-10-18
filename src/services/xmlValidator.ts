@@ -852,7 +852,10 @@ export function validatePublishRibbonDiff(
 	// or on a tab Unified Interface doesn't show (the Charts tab). It publishes,
 	// but the ribbon never returns it, so it shows nowhere — CBS then lists it
 	// under "Orphaned customizations". Only what this publish adds or changes:
-	// the layer's existing orphans are listed there already.
+	// the layer's existing orphans are listed there already. Loaded groups and
+	// tabs are matched by the platform's naming (`{group}.Controls`,
+	// `{tab}.Groups`: the parser doesn't keep their collections' ids), so a
+	// group with another Controls id can be reported wrongly — a warning only.
 	if (context.places) {
 		const { entityLogicalName, tabByCollection } = context.places;
 		const tabCollections = new Set(["Mscrm.Tabs", `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs`]);
