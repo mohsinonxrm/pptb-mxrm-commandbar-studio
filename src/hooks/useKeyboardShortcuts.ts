@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { menuItemPlace } from "@/utils/ribbonMenu";
 
 export function useKeyboardShortcuts() {
 	const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
@@ -92,6 +93,14 @@ export function useKeyboardShortcuts() {
 					activeLocation
 				) {
 					e.preventDefault();
+					const group = ribbons[activeLocation].tabs
+						.find((t) => t.id === selectedTabId)
+						?.groups.find((g) => g.id === selectedGroupId);
+					if (group && menuItemPlace(group, selectedButtonId)) {
+						// Cut / paste moves top-level controls only (#62 review m5).
+						announce("Menu items can't be cut. Delete the item and add a new one to the other menu.");
+						return;
+					}
 					cutBufferRef.current = {
 						location: activeLocation,
 						tabId: selectedTabId,
@@ -150,13 +159,21 @@ export function useKeyboardShortcuts() {
 			) {
 				if (!isEditableTarget(target)) {
 					const activeTab = ribbons[activeLocation].tabs.find((t) => t.id === selectedTabId);
-					const orderedButtons =
-						activeTab?.groups.flatMap((group) =>
-							group.buttons.map((button) => ({ groupId: group.id, buttonId: button.id })),
-						) ?? [];
+					// A menu item: select the next item of its section, else its flyout.
+					// A top-level control: the next top-level control — never an item of
+					// the menu being deleted with it (#62 review m5).
+					const selectedGroup = activeTab?.groups.find((g) => g.id === selectedGroupId);
+					const place = selectedGroup ? menuItemPlace(selectedGroup, selectedButtonId) : undefined;
+					const orderedButtons = place
+						? place.section.controls.map((button) => ({ groupId: selectedGroupId, buttonId: button.id }))
+						: (activeTab?.groups.flatMap((group) =>
+								group.buttons.map((button) => ({ groupId: group.id, buttonId: button.id })),
+							) ?? []);
 					const deletedIndex = orderedButtons.findIndex((btn) => btn.buttonId === selectedButtonId);
 					const nextTarget =
-						orderedButtons[deletedIndex + 1] ?? orderedButtons[deletedIndex - 1] ?? null;
+						orderedButtons[deletedIndex + 1] ??
+						orderedButtons[deletedIndex - 1] ??
+						(place ? { groupId: selectedGroupId, buttonId: place.parent.id } : null);
 					const fallbackGroupId = selectedGroupId;
 
 					e.preventDefault();

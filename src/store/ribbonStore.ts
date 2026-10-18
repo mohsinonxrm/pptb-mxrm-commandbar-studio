@@ -14,8 +14,19 @@ import type {
 	ConflictEntry,
 	TabDisplayRule,
 	ScalingDefinition,
+	RibbonMenuSection,
 } from "@/types/ribbon";
 import type { LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import {
+	copyControl,
+	findGroupControl,
+	groupControls,
+	isMenuKind,
+	menuItemPlace,
+	newMenu,
+	newMenuSection,
+	removeMenuItem,
+} from "@/utils/ribbonMenu";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -91,6 +102,16 @@ type NewButtonContext = {
 	button: Omit<RibbonButton, "id"> & { id?: string };
 };
 
+type NewMenuItemContext = {
+	location: RibbonLocation;
+	tabId: string;
+	groupId: string;
+	/** The flyout / split button (or a nested flyout) whose menu gets the item. */
+	parentId: string;
+	sectionId?: string;
+	item: Pick<RibbonButton, "id" | "label" | "commandId"> & Partial<RibbonButton>;
+};
+
 type NewGroupContext = {
 	tabId: string;
 	location: RibbonLocation;
@@ -113,6 +134,23 @@ export interface RibbonStore extends RibbonStoreState {
 		patch: Partial<RibbonButton>,
 	): void;
 	deleteButton(location: RibbonLocation, tabId: string, groupId: string, buttonId: string): void;
+	/**
+	 * Adds an item to the menu of flyout / split button `parentId` (#27) — to
+	 * `sectionId`, or the first section (created when the menu has none).
+	 */
+	addMenuItem(ctx: NewMenuItemContext): void;
+	/** Adds a section to the menu of `parentId` (#27). */
+	addMenuSection(location: RibbonLocation, tabId: string, groupId: string, parentId: string, title?: string): void;
+	setMenuSectionProp(
+		location: RibbonLocation,
+		tabId: string,
+		groupId: string,
+		parentId: string,
+		sectionId: string,
+		patch: Partial<Pick<RibbonMenuSection, "title" | "displayMode" | "sequence">>,
+	): void;
+	/** Removes a menu section together with its items (#27). */
+	deleteMenuSection(location: RibbonLocation, tabId: string, groupId: string, parentId: string, sectionId: string): void;
 	duplicateButton(location: RibbonLocation, tabId: string, groupId: string, buttonId: string): void;
 	createButton(ctx: NewButtonContext): void;
 	createGroup(ctx: NewGroupContext): void;
@@ -265,6 +303,19 @@ const EMPTY_RIBBONS: Record<RibbonLocation, RibbonDefinition> = {
 	Form: { location: "Form", entityLogicalName: "", tabs: [] },
 	Application: { location: "Application", entityLogicalName: "", tabs: [] },
 };
+
+/** A control of a group (top-level button or menu item, #27) in a mutable ribbon copy. */
+function controlAt(
+	ribbons: Record<RibbonLocation, RibbonDefinition>,
+	location: RibbonLocation,
+	tabId: string,
+	groupId: string,
+	id: string,
+): { group: RibbonGroup; button: RibbonButton } | undefined {
+	const group = ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId);
+	const button = findGroupControl(group, id);
+	return group && button ? { group, button } : undefined;
+}
 
 function isReadOnlyGlobalOobButton(
 	location: RibbonLocation,
@@ -487,12 +538,12 @@ export const useRibbonStore = create<RibbonStore>()(
 				commitMutation(
 					state,
 					(ribbons) => {
-						const tab = ribbons[location].tabs.find((t) => t.id === tabId);
-						const group = tab?.groups.find((g) => g.id === groupId);
-						const button = group?.buttons.find((b) => b.id === buttonId);
+						const button = controlAt(ribbons, location, tabId, groupId, buttonId)?.button;
 						if (!button) return;
 						if (isReadOnlyGlobalOobButton(location, tabId, button)) return;
 						Object.assign(button, patch);
+						// A button turned into a flyout / split button gets an (empty) menu.
+						if (isMenuKind(button.kind) && !button.menu) button.menu = newMenu(button.id);
 					},
 					{
 						ts: new Date().toISOString(),
@@ -513,13 +564,12 @@ export const useRibbonStore = create<RibbonStore>()(
 				commitMutation(
 					state,
 					(ribbons) => {
-						const tab = ribbons[location].tabs.find((t) => t.id === tabId);
-						const group = tab?.groups.find((g) => g.id === groupId);
-						if (!group) return;
-						const button = group.buttons.find((b) => b.id === buttonId);
-						if (!button) return;
+						const found = controlAt(ribbons, location, tabId, groupId, buttonId);
+						if (!found) return;
+						const { group, button } = found;
 						if (isReadOnlyGlobalOobButton(location, tabId, button)) return;
-						group.buttons = group.buttons.filter((b) => b.id !== buttonId);
+						// A menu item leaves its menu section (#27).
+						if (!removeMenuItem(group, buttonId)) group.buttons = group.buttons.filter((b) => b.id !== buttonId);
 					},
 					{
 						ts: new Date().toISOString(),
@@ -535,31 +585,136 @@ export const useRibbonStore = create<RibbonStore>()(
 			);
 		},
 
+		addMenuItem({ location, tabId, groupId, parentId, sectionId, item }) {
+			set((state) =>
+				commitMutation(
+					state,
+					(ribbons) => {
+						const parent = controlAt(ribbons, location, tabId, groupId, parentId)?.button;
+						if (!parent || isReadOnlyGlobalOobButton(location, tabId, parent)) return;
+						parent.menu = parent.menu ?? newMenu(parent.id);
+						if (parent.menu.sections.length === 0) parent.menu.sections.push(newMenuSection(parent.id, []));
+						const section = parent.menu.sections.find((s) => s.id === sectionId) ?? parent.menu.sections[0];
+						const last = section.controls[section.controls.length - 1]?.sequence ?? 0;
+						section.controls.push({
+							...item,
+							kind: item.kind ?? "button",
+							sequence: item.sequence ?? last + 10,
+							// Menu items take their size from the section's DisplayMode.
+							templateAlias: item.templateAlias ?? "",
+							hidden: false,
+							oob: false,
+							custom: true,
+							managed: false,
+							origin: "unmanaged",
+						});
+					},
+					{
+						ts: new Date().toISOString(),
+						userId: "",
+						userName: "You",
+						op: "added",
+						target: item.label,
+						detail: `menu of ${parentId}`,
+						icon: "add",
+						color: "success",
+					},
+				),
+			);
+		},
+
+		addMenuSection(location, tabId, groupId, parentId, title) {
+			set((state) =>
+				commitMutation(
+					state,
+					(ribbons) => {
+						const parent = controlAt(ribbons, location, tabId, groupId, parentId)?.button;
+						if (!parent || isReadOnlyGlobalOobButton(location, tabId, parent)) return;
+						parent.menu = parent.menu ?? { id: `${parent.id}.Menu`, sections: [] };
+						parent.menu.sections.push(newMenuSection(parent.id, parent.menu.sections, title));
+					},
+					{
+						ts: new Date().toISOString(),
+						userId: "",
+						userName: "You",
+						op: "added",
+						target: title ?? "Menu section",
+						detail: `menu of ${parentId}`,
+						icon: "add",
+						color: "success",
+					},
+				),
+			);
+		},
+
+		setMenuSectionProp(location, tabId, groupId, parentId, sectionId, patch) {
+			set((state) =>
+				commitMutation(
+					state,
+					(ribbons) => {
+						const parent = controlAt(ribbons, location, tabId, groupId, parentId)?.button;
+						const section = parent?.menu?.sections.find((s) => s.id === sectionId);
+						if (!parent || !section || isReadOnlyGlobalOobButton(location, tabId, parent)) return;
+						Object.assign(section, patch);
+					},
+					{
+						ts: new Date().toISOString(),
+						userId: "",
+						userName: "You",
+						op: "edited",
+						target: sectionId,
+						detail: Object.keys(patch).join(", "),
+						icon: "edit",
+						color: "info",
+					},
+				),
+			);
+		},
+
+		deleteMenuSection(location, tabId, groupId, parentId, sectionId) {
+			set((state) =>
+				commitMutation(
+					state,
+					(ribbons) => {
+						const parent = controlAt(ribbons, location, tabId, groupId, parentId)?.button;
+						if (!parent?.menu || isReadOnlyGlobalOobButton(location, tabId, parent)) return;
+						parent.menu.sections = parent.menu.sections.filter((s) => s.id !== sectionId);
+					},
+					{
+						ts: new Date().toISOString(),
+						userId: "",
+						userName: "You",
+						op: "deleted",
+						target: sectionId,
+						detail: `menu of ${parentId}`,
+						icon: "delete",
+						color: "danger",
+					},
+				),
+			);
+		},
+
 		duplicateButton(location, tabId, groupId, buttonId) {
 			set((state) =>
 				commitMutation(
 					state,
 					(ribbons) => {
-						const tab = ribbons[location].tabs.find((t) => t.id === tabId);
-						const group = tab?.groups.find((g) => g.id === groupId);
-						const btn = group?.buttons.find((b) => b.id === buttonId);
-						if (btn && group) {
+						const found = controlAt(ribbons, location, tabId, groupId, buttonId);
+						if (found) {
+							const { group, button: btn } = found;
 							if (isReadOnlyGlobalOobButton(location, tabId, btn)) return;
+							// The copy is a new control: it must not reuse the original's
+							// LocLabel tokens / attributes (#11 review N5), and its menu
+							// gets ids of its own (#27).
 							const copy: RibbonButton = {
-								...btn,
-								id: `${btn.id}_copy_${Date.now()}`,
+								...copyControl(btn, `${btn.id}_copy_${Date.now()}`),
 								label: `${btn.label} (copy)`,
-								// The copy is a new control: it must not reuse the original's
-								// LocLabel tokens / attributes (#11 review N5).
-								source: undefined,
-								custom: true,
-								oob: false,
-								managed: false,
-								origin: "unmanaged",
 								sequence: btn.sequence + 5,
 							};
-							const idx = group.buttons.findIndex((b) => b.id === buttonId);
-							group.buttons.splice(idx + 1, 0, copy);
+							const place = menuItemPlace(group, buttonId);
+							const list = place ? place.section.controls : group.buttons;
+							const idx = list.findIndex((b) => b.id === buttonId);
+							list.splice(idx + 1, 0, copy);
 						}
 					},
 					{
@@ -598,6 +753,7 @@ export const useRibbonStore = create<RibbonStore>()(
 								managed: false,
 								origin: "unmanaged",
 							};
+							if (isMenuKind(newBtn.kind) && !newBtn.menu) newBtn.menu = newMenu(newBtn.id);
 							group.buttons.push(newBtn);
 						}
 					},
@@ -684,14 +840,7 @@ export const useRibbonStore = create<RibbonStore>()(
 							id: `${grp.id}${stamp}`,
 							label: `${grp.label} (copy)`,
 							sequence: grp.sequence + 5,
-							buttons: grp.buttons.map((b) => ({
-								...b,
-								id: `${b.id}${stamp}`,
-								custom: true,
-								oob: false,
-								managed: false,
-								origin: "unmanaged" as const,
-							})),
+							buttons: grp.buttons.map((b) => copyControl(b, `${b.id}${stamp}`)),
 						};
 						const idx = tab.groups.findIndex((g) => g.id === groupId);
 						tab.groups.splice(idx + 1, 0, copy);
@@ -905,9 +1054,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				commitMutation(
 					state,
 					(ribbons) => {
-						const tab = ribbons[location].tabs.find((t) => t.id === tabId);
-						const group = tab?.groups.find((g) => g.id === groupId);
-						const btn = group?.buttons.find((b) => b.id === buttonId);
+						const btn = controlAt(ribbons, location, tabId, groupId, buttonId)?.button;
 						if (!btn) return;
 						if (isReadOnlyGlobalOobButton(location, tabId, btn)) return;
 						btn.hidden = true;
@@ -931,9 +1078,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				commitMutation(
 					state,
 					(ribbons) => {
-						const tab = ribbons[location].tabs.find((t) => t.id === tabId);
-						const group = tab?.groups.find((g) => g.id === groupId);
-						const btn = group?.buttons.find((b) => b.id === buttonId);
+						const btn = controlAt(ribbons, location, tabId, groupId, buttonId)?.button;
 						if (btn) {
 							if (isReadOnlyGlobalOobButton(location, tabId, btn)) return;
 							// Creating an override makes this an unmanaged customization
@@ -988,7 +1133,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				for (const location of Object.keys(nextRibbons) as RibbonLocation[]) {
 					for (const tab of nextRibbons[location].tabs) {
 						for (const group of tab.groups) {
-							for (const button of group.buttons) {
+							for (const button of groupControls(group)) {
 								if (button.commandId === oldId) {
 									button.commandId = newId;
 								}
