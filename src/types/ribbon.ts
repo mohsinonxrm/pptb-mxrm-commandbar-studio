@@ -15,7 +15,14 @@ export type RibbonButtonKind =
 	| "splitButton"
 	| "textBox"
 	| "comboBox"
-	| "checkBox";
+	| "checkBox"
+	// Shown read-only and written back verbatim (#42, utils/controlKinds.ts).
+	| "toggleButton"
+	| "label"
+	| "dropDown"
+	| "mruSplitButton"
+	| "spinner"
+	| "galleryButton";
 
 /**
  * Where a ribbon element actually comes from, determined from Dataverse solution
@@ -115,6 +122,12 @@ export interface RibbonButtonSource {
 	modernImage?: string;
 	/** Every attribute of the control element, as loaded. */
 	attributes: Record<string, string>;
+	/**
+	 * The whole control element as loaded, for the kinds CBS shows read-only
+	 * (ToggleButton, Label, DropDown, … — #42): written back verbatim, so its
+	 * children (a DropDown's `<Menu>`, a Spinner's `<Unit>`s) are never lost.
+	 */
+	xml?: string;
 }
 
 export interface RibbonGroup {
@@ -122,6 +135,8 @@ export interface RibbonGroup {
 	label: string;
 	sequence: number;
 	template: string;
+	/** `Description` as loaded (absent when the element has none); written back when set (#42). */
+	description?: string;
 	buttons: RibbonButton[];
 	/** The `<Group>` as imported from a RibbonDiffXml (#30); absent otherwise. */
 	source?: RibbonContainerSource;
@@ -142,7 +157,8 @@ export interface RibbonTab {
 	label: string;
 	sequence: number;
 	commandId?: string;
-	template?: string;
+	/** `Description` as loaded (absent when the element has none); written back when set (#42). */
+	description?: string;
 	tabDisplayRules: TabDisplayRule[];
 	groups: RibbonGroup[];
 	/** The `<Tab>` as imported from a RibbonDiffXml (#30); absent otherwise. */

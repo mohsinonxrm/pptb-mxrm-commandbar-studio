@@ -17,6 +17,7 @@ import type {
 } from "@/types/ribbon";
 import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
 import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
+import { CONTROL_TAG_BY_KIND, isReadOnlyControlKind } from "@/utils/controlKinds";
 
 /**
  * What the scope's unmanaged ribbon layer owns, as read at load (or refreshed
@@ -329,6 +330,12 @@ export function planScope(input: PlanInput): ScopePlan {
 				unsupported.push(`Changing the kind of "${c.button.label}" (${id}) — not supported yet`);
 			}
 			const edited = hasOobOverrideChanges(b.button, c.button);
+			// ToggleButton, Label, DropDown, … are written back as loaded (#42).
+			if (edited && isReadOnlyControlKind(c.button.kind)) {
+				unsupported.push(
+					`Editing the <${CONTROL_TAG_BY_KIND[c.button.kind]}> "${c.button.label}" (${id}) — CBS shows it read-only; it can be hidden, or moved and deleted when it's your own`,
+				);
+			}
 			// Any control with a <Menu> (a ComboBox too): an override would drop it.
 			if (edited && (isMenuKind(c.button.kind) || !!c.button.menu) && b.button.origin !== "unmanaged") {
 				// An override replaces the whole control, menu included, and the

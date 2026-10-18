@@ -146,6 +146,17 @@ export function copyMenu(
 	};
 }
 
+/**
+ * Every `Id` in `xml` re-based from `oldId` to `newId`, as copyMenu does for a
+ * menu's raw controls — and an MRUSplitButton's `InitialItem`, which names one
+ * of its menu items.
+ */
+function rebaseIds(xml: string, oldId: string, newId: string): string {
+	return xml.replace(/(\s(?:Id|InitialItem)=")([^"]*)(")/g, (_, a: string, id: string, b: string) =>
+		`${a}${id.startsWith(oldId) ? `${newId}${id.slice(oldId.length)}` : `${newId}.${id}`}${b}`,
+	);
+}
+
 /** Attributes that make a menu populate itself at runtime; a copy keeps them (#62 review m6). */
 const DYNAMIC_MENU_ATTRIBUTES = ["PopulateDynamically", "PopulateOnlyOnce", "PopulateQueryCommand"];
 
@@ -161,12 +172,14 @@ export function copyControl(control: RibbonButton, newId: string): RibbonButton 
 		...(icon?.attributes ?? {}),
 		...Object.fromEntries(dynamic.map((a) => [a, control.source!.attributes[a]])),
 	};
+	// A control kept as loaded (ToggleButton, DropDown, … — #42) is copied whole, with ids of its own.
+	const xml = control.source?.xml ? rebaseIds(control.source.xml, control.id, newId) : undefined;
 	return {
 		...control,
 		id: newId,
 		source:
-			Object.keys(attributes).length > 0
-				? { ...(icon?.modernImage ? { modernImage: icon.modernImage } : {}), attributes }
+			Object.keys(attributes).length > 0 || xml
+				? { ...(icon?.modernImage ? { modernImage: icon.modernImage } : {}), attributes, ...(xml ? { xml } : {}) }
 				: undefined,
 		custom: true,
 		oob: false,

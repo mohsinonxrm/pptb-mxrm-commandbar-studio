@@ -29,6 +29,7 @@ import { canonicalXml, parseXmlElement, sameXml } from "@/services/ribbonXmlCano
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { applyButtonOrigin, heuristicOrigin } from "@/utils/ribbonProvenance";
 import { groupControls } from "@/utils/ribbonMenu";
+import { isReadOnlyControlKind, KIND_BY_CONTROL_TAG } from "@/utils/controlKinds";
 
 /**
  * Parses a fully-merged ribbon XML (from RetrieveEntityRibbon / RetrieveApplicationRibbon)
@@ -148,10 +149,24 @@ export function parseRibbonXml(
 // Tabs / Groups / Buttons
 // ---------------------------------------------------------------------------
 
+/**
+ * The tabs of the ribbon (RibbonWSS.xsd RibbonType): `Ribbon > Tabs` and the
+ * contextual groups of `Ribbon > ContextualTabs`. A `<Tab>` anywhere else — in
+ * a CustomAction of a RibbonDiffXml or of a layer fragment — is a change, not
+ * a tab of the ribbon (#42).
+ */
+const TAB_SELECTOR = "Ribbon > Tabs > Tab, Ribbon > ContextualTabs > ContextualGroup > Tab";
+
+/** `{ description }` when the element has a Description (never invented, #42). */
+function descriptionOf(el: Element): { description?: string } {
+	const description = el.getAttribute("Description");
+	return description === null ? {} : { description };
+}
+
 function parseTabs(doc: Document): RibbonTab[] {
 	const tabs: RibbonTab[] = [];
 
-	doc.querySelectorAll("Tab").forEach((tabEl) => {
+	doc.querySelectorAll(TAB_SELECTOR).forEach((tabEl) => {
 		const id = tabEl.getAttribute("Id") ?? "";
 		if (!id) return;
 		const label = tabEl.getAttribute("Title") ?? id;
@@ -172,7 +187,7 @@ function parseTabs(doc: Document): RibbonTab[] {
 			groupEl
 				.querySelectorAll(":scope > Controls > *")
 				.forEach((btnEl) => {
-					if (CONTROL_TAGS.has(btnEl.tagName)) parseButtonElement(btnEl, buttons);
+					if (KIND_BY_CONTROL_TAG[btnEl.tagName]) parseButtonElement(btnEl, buttons);
 				});
 
 			groups.push({
@@ -180,16 +195,18 @@ function parseTabs(doc: Document): RibbonTab[] {
 				label: groupLabel,
 				sequence: groupSeq,
 				template,
+				...descriptionOf(groupEl),
 				buttons,
 			});
 		});
 
+		// No `Template`: TabType has none (RibbonWSS.xsd), and it was never written back (#42).
 		tabs.push({
 			id,
 			label,
 			sequence: parseInt(tabEl.getAttribute("Sequence") ?? "0", 10),
 			commandId: tabEl.getAttribute("Command") ?? undefined,
-			template: tabEl.getAttribute("Template") ?? undefined,
+			...descriptionOf(tabEl),
 			tabDisplayRules: [], // populated later by applyTabDisplayRules()
 			groups,
 		});
@@ -205,7 +222,7 @@ function parseTabs(doc: Document): RibbonTab[] {
  */
 function parseScaling(doc: Document): Record<string, ScalingDefinition> {
 	const out: Record<string, ScalingDefinition> = {};
-	doc.querySelectorAll("Tab").forEach((tabEl) => {
+	doc.querySelectorAll(TAB_SELECTOR).forEach((tabEl) => {
 		const tabId = tabEl.getAttribute("Id");
 		const scalingEl = Array.from(tabEl.children).find((c) => c.tagName === "Scaling");
 		if (!tabId || !scalingEl || out[tabId]) return;
@@ -286,13 +303,10 @@ function parseButtonElement(el: Element, out: RibbonButton[]) {
 	const id = el.getAttribute("Id") ?? "";
 	if (!id) return;
 
-	const tagName = el.tagName.toLowerCase();
-	let kind: RibbonButton["kind"] = "button";
-	if (tagName === "flyoutanchor") kind = "flyout";
-	else if (tagName === "splitbutton") kind = "splitButton";
-	else if (tagName === "textbox") kind = "textBox";
-	else if (tagName === "combobox") kind = "comboBox";
-	else if (tagName === "checkbox") kind = "checkBox";
+	const kind: RibbonButton["kind"] = KIND_BY_CONTROL_TAG[el.tagName] ?? "button";
+	// ToggleButton, Label, DropDown, … are shown read-only: their element is
+	// kept whole and written back verbatim, `<Menu>` / `<Unit>` children included (#42).
+	const readOnly = isReadOnlyControlKind(kind);
 
 	// Keep the raw LabelText token (`$LocLabels:…` / `$Resources:…` / literal);
 	// it is resolved to display text in parseRibbonXml once LocLabels are known.
@@ -321,12 +335,16 @@ function parseButtonElement(el: Element, out: RibbonButton[]) {
 		source: {
 			modernImage: el.getAttribute("ModernImage") ?? undefined,
 			attributes: attributesOf(el),
+			...(readOnly ? { xml: xmlSerializer().serializeToString(el) } : {}),
 		},
-		menu: parseMenu(el),
+		menu: readOnly ? undefined : parseMenu(el),
 	});
 }
 
-/** Control elements CBS models (anything else in a Controls collection is left alone). */
+/**
+ * Controls CBS models inside a menu section (#27). The other controls a menu
+ * section allows (ToggleButton, ColorPicker, InsertTable) are kept as raw XML.
+ */
 const CONTROL_TAGS = new Set(["Button", "FlyoutAnchor", "SplitButton", "TextBox", "ComboBox", "CheckBox"]);
 
 function attributesOf(el: Element): Record<string, string> {

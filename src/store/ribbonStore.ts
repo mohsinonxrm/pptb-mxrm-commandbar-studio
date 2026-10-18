@@ -31,6 +31,7 @@ import {
 	removeMenuItem,
 } from "@/utils/ribbonMenu";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
+import { isReadOnlyControlKind } from "@/utils/controlKinds";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
@@ -561,6 +562,8 @@ export function canCustomiseButton(location: RibbonLocation, tabId: string, butt
 		!button.hidden &&
 		button.kind !== "flyout" &&
 		button.kind !== "splitButton" &&
+		// Copied from its attributes, which would lose the XML of a read-only kind (#42).
+		!isReadOnlyControlKind(button.kind) &&
 		!isReadOnlyGlobalOobButton(location, tabId, button)
 	);
 }
@@ -1000,7 +1003,8 @@ export const useRibbonStore = create<RibbonStore>()(
 							// (#60, copyControl) — and its menu gets ids of its own (#27).
 							const copy: RibbonButton = {
 								...copyControl(btn, `${btn.id}_copy_${Date.now()}`),
-								label: `${btn.label} (copy)`,
+								// A read-only kind is copied as loaded (#42): its label is the XML's.
+								label: isReadOnlyControlKind(btn.kind) ? btn.label : `${btn.label} (copy)`,
 								sequence: btn.sequence + 5,
 							};
 							const place = menuItemPlace(group, buttonId);
@@ -1146,8 +1150,9 @@ export const useRibbonStore = create<RibbonStore>()(
 							...JSON.parse(JSON.stringify(grp)),
 							id: `${grp.id}${stamp}`,
 							label: `${grp.label} (copy)`,
-							// The copy must not reuse an imported group's Title label (#30).
+							// The copy must not reuse an imported group's Title label (#30), nor its Description (#42).
 							source: undefined,
+							description: undefined,
 							sequence: grp.sequence + 5,
 							buttons: grp.buttons.map((b) => copyControl(b, `${b.id}${stamp}`)),
 						};

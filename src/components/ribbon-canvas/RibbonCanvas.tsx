@@ -439,23 +439,6 @@ export function RibbonCanvas({
 								</Badge>
 							)}
 						</Button>
-						{currentTab?.template && (
-							<div
-								style={{
-									display: "flex",
-									alignItems: "center",
-									gap: 4,
-									paddingRight: tokens.spacingHorizontalS,
-									fontSize: tokens.fontSizeBase100,
-									color: tokens.colorNeutralForeground3,
-								}}
-							>
-								<span>Template:</span>
-								<Badge size="small" appearance="outline">
-									{currentTab.template.split(".").pop() ?? "—"}
-								</Badge>
-							</div>
-						)}
 					</div>
 				</SortableContext>
 			</DndContext>

@@ -727,7 +727,7 @@ describe("generateRibbonDiffXml — parse→generate round-trip", () => {
 	const mergedRibbon = `<?xml version="1.0" encoding="utf-8"?>
 <RibbonDefinitions>
   <RibbonDefinition>
-    <Tabs>
+    <UI><Ribbon><Tabs>
       <Tab Id="Mscrm.Form.account.MainTab" Title="Main" Sequence="10">
         <Groups>
           <Group Id="Mscrm.Form.account.MainTab.Save" Title="Save" Sequence="10" Template="Mscrm.Templates.Flexible2">
@@ -737,7 +737,7 @@ describe("generateRibbonDiffXml — parse→generate round-trip", () => {
           </Group>
         </Groups>
       </Tab>
-    </Tabs>
+    </Tabs></Ribbon></UI>
     <CustomActions>
       <CustomAction Id="mxrm.account.Button.MyButton.CustomAction" Location="Mscrm.Form.account.MainTab.Save.Controls._children" Sequence="10">
         <CommandUIDefinition>

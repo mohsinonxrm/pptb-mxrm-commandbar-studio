@@ -310,10 +310,18 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 	};
 
 	// ── Controls, groups and tabs as the parser models them ──
-	/** Parses a fragment (a Tab, or Groups / Controls content) with the loaded-ribbon parser. */
+	/**
+	 * Parses a fragment (a Tab, or Groups / Controls content) with the
+	 * loaded-ribbon parser: placed where a ribbon's tabs are (the parser reads
+	 * no tab from a CustomAction, #42), with the XML's TabDisplayRules.
+	 */
+	const tabDisplayRulesXml = elementChildren(root.querySelector(":scope > RuleDefinitions > TabDisplayRules"))
+		.map((e) => serializer.serializeToString(e))
+		.join("");
 	const parseFragment = (tabXml: string): RibbonTab | undefined =>
 		parseRibbonXml(
-			`<RibbonDiffXml>${tabXml}</RibbonDiffXml>`,
+			`<RibbonDiffXml><UI><Ribbon><Tabs>${tabXml}</Tabs></Ribbon></UI>` +
+				`<RuleDefinitions><TabDisplayRules>${tabDisplayRulesXml}</TabDisplayRules></RuleDefinitions></RibbonDiffXml>`,
 			input.activeLocation,
 			entity,
 			locLabels,
@@ -542,8 +550,8 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		if (!id)
 			return notApplied.push(`CustomAction ${ca.getAttribute("Id")}: the tab has no Id.`);
 		if (findTab(id)) return notApplied.push(`Tab ${id} already exists — it was left as is.`);
-		// The full-document parse carries the tab's TabDisplayRules.
-		const parsedTab = parsed.ribbon.tabs.find((t) => t.id === id);
+		// Parsed with the XML's TabDisplayRules, which bind to its Command.
+		const parsedTab = parseFragment(xmlOf(el));
 		if (!parsedTab) return notApplied.push(`Tab ${id}: couldn't read the <Tab>.`);
 		const contexts = parsedTab.tabDisplayRules.flatMap((r) =>
 			r.rules.map((s) => (s.kind === "EntityRule" ? contextLocation(s.context) : undefined)),
