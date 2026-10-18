@@ -618,6 +618,9 @@ const TEMPLATE_MAX_SIZE: Record<string, string> = {
 	"Mscrm.Templates.ThreeLargeThreeMedium": "Large",
 };
 
+/** The platform group templates whose layouts CBS knows — the choices for a group's template (#18). */
+export const PLATFORM_GROUP_TEMPLATES: readonly string[] = Object.keys(TEMPLATE_MAX_SIZE);
+
 /** The MaxSize Size a new group gets by default, or undefined when its template's layouts aren't known. */
 function defaultMaxSizeSize(group: RibbonGroup): string | undefined {
 	return TEMPLATE_MAX_SIZE[normalizeGroupTemplate(group.template)];
@@ -871,7 +874,7 @@ function containerAttributes(container: RibbonTab | RibbonGroup): string {
  * `Mscrm.Templates.Flexible2`). The CBS model often stores just the short name
  * (`Flexible2`), so qualify it when no namespace is present.
  */
-function normalizeGroupTemplate(template: string): string {
+export function normalizeGroupTemplate(template: string): string {
 	const t = template?.trim();
 	if (!t) return "Mscrm.Templates.Flexible2";
 	return t.includes(".") ? t : `Mscrm.Templates.${t}`;
