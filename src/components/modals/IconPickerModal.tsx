@@ -300,6 +300,8 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 	const publisherPrefix = useSessionStore((s) => s.publisherPrefix);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const [iconError, setIconError] = useState<string | null>(null);
+	/** Non-blocking note shown after the icon was applied (e.g. not added to a solution). */
+	const [iconNote, setIconNote] = useState<string | null>(null);
 
 	const [activeTab, setActiveTab] = useState<IconPickerTab>("fluent");
 	const [search, setSearch] = useState("");
@@ -313,7 +315,10 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 	const [uploading, setUploading] = useState(false);
 
 	React.useEffect(() => {
-		if (!open) setIconError(null);
+		if (!open) {
+			setIconError(null);
+			setIconNote(null);
+		}
 	}, [open]);
 
 	React.useEffect(() => {
@@ -389,24 +394,32 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 		if (!webResourcePath || !selectedButtonId || !selectedGroupId) return;
 		const logs = useRuntimeLogStore.getState();
 		setIconError(null);
+		setIconNote(null);
 		// An existing web resource must also be in the active solution, or a
 		// solution export misses the icon the ribbon references (#61).
 		const name = webResourcePath.startsWith("$webresource:")
 			? webResourcePath.slice("$webresource:".length).trim()
 			: null;
+		let note: string | null = null;
 		if (name) {
 			setUploading(true);
 			try {
 				const known = webResources.find((wr) => wr.name === name);
-				const added = await addExistingWebResourceToActiveSolution(name, known?.id);
+				const added = await addExistingWebResourceToActiveSolution(name, known);
 				if (added.solutionUniqueName) {
 					logs.logInfo("webresource", `Added web resource ${name} to solution ${added.solutionUniqueName}.`);
 				}
+				note = added.solutionWarning ?? null;
 			} catch (err) {
 				const message = err instanceof Error ? err.message : String(err);
-				setIconError(message);
-				logs.logError("webresource", `Web resource ${name} could not be added to the solution: ${message}`);
-				return;
+				if (/^No web resource named /.test(message)) {
+					// A typo: the ribbon would reference a web resource that doesn't exist.
+					setIconError(message);
+					return;
+				}
+				// The icon is still valid; only the solution membership failed.
+				note = `The icon was set, but ${name} could not be added to the solution: ${message}`;
+				logs.logError("webresource", note);
 			} finally {
 				setUploading(false);
 			}
@@ -415,6 +428,11 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 			image16: webResourcePath,
 			image32: webResourcePath,
 		});
+		if (note) {
+			// Keep the dialog open so the note is seen; the icon is already applied.
+			setIconNote(note);
+			return;
+		}
 		closeIconPicker();
 	};
 
@@ -641,6 +659,11 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 						{iconError && (
 							<Text role="alert" size={200} style={{ color: tokens.colorPaletteRedForeground1, flexShrink: 0 }}>
 								{iconError}
+							</Text>
+						)}
+						{iconNote && (
+							<Text role="status" size={200} style={{ color: tokens.colorPaletteMarigoldForeground1, flexShrink: 0 }}>
+								Icon applied. {iconNote}
 							</Text>
 						)}
 					</DialogContent>

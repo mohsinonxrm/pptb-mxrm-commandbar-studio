@@ -44,6 +44,29 @@ describe("copied buttons keep their icon (#60)", () => {
 		expect(effectiveModernImage(copy)).toBe("$webresource:cbstest_/icons/cbs/star.svg");
 	});
 
+	it("keeps the loaded image references so the copy publishes the same icon", () => {
+		const withImages: RibbonButton = {
+			...loaded,
+			// what the parser sets for this ModernImage (normalizeModernImage)
+			icon: "$webresource:new_/svg/do.svg",
+			image16: "$webresource:new_/png/do16.png",
+			image32: "$webresource:new_/png/do32.png",
+			source: {
+				modernImage: "$webresource:new_/svg/Do.svg",
+				attributes: {
+					ModernImage: "$webresource:new_/svg/Do.svg",
+					Image16by16: "$webresource:new_/png/do16.png",
+					Image32by32: "$webresource:new_/png/do32.png",
+					LabelText: "$LocLabels:x",
+				},
+			},
+		};
+		expect(effectiveModernImage(withImages)).toBe("$webresource:new_/svg/Do.svg");
+		const copy: RibbonButton = { ...withImages, id: "copy", source: sourceForCopy(withImages.source) };
+		expect(copy.source?.attributes.LabelText).toBeUndefined();
+		expect(effectiveModernImage(copy)).toBe("$webresource:new_/svg/Do.svg");
+	});
+
 	it("a button with no loaded ModernImage gets no source", () => {
 		expect(sourceForCopy(undefined)).toBeUndefined();
 		expect(sourceForCopy({ attributes: { LabelText: "x" } })).toBeUndefined();

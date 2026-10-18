@@ -260,10 +260,20 @@ export async function saveWebResource(
  */
 export async function addExistingWebResourceToActiveSolution(
 	name: string,
-	knownId?: string,
+	known?: { id: string; isCustom?: boolean },
 ): Promise<{ solutionUniqueName?: string; solutionWarning?: string }> {
-	const id = knownId ?? (await loadWebResourceByName(name))?.id;
-	if (!id) throw new Error(`No web resource named ${name} exists in this environment.`);
+	const found = known ?? (await loadWebResourceByName(name));
+	if (!found?.id) throw new Error(`No web resource named ${name} exists in this environment.`);
+	const id = found.id;
+	if (found.isCustom === false) {
+		// A managed web resource belongs to the solution that installed it;
+		// adding it to the user's solution would export a component they don't own.
+		const solutionWarning =
+			`Web resource ${name} is managed, so it isn't added to your solution. ` +
+			`The solution that provides it must be installed wherever you import your customizations.`;
+		useRuntimeLogStore.getState().logWarn("webresource", solutionWarning);
+		return { solutionWarning };
+	}
 	const active = useSessionStore.getState().activeSolution;
 	if (!active || active.isManaged) {
 		const why = active ? `the active solution ${active.uniqueName} is managed` : "no solution is selected";
