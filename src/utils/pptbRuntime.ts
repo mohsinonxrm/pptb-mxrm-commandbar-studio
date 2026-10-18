@@ -22,10 +22,16 @@ export async function withCloseGuard<T>(fn: () => Promise<T>): Promise<T> {
 	}
 }
 
+/** Longest wait for the host to acknowledge; the work never waits longer. */
+const HOST_TIMEOUT_MS = 2000;
+
 async function callHost(call: () => Promise<boolean> | undefined): Promise<void> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
 	try {
-		await call();
+		await Promise.race([call(), new Promise((resolve) => (timer = setTimeout(resolve, HOST_TIMEOUT_MS)))]);
 	} catch {
 		// Older host or a failed call: the work goes ahead unguarded.
+	} finally {
+		clearTimeout(timer);
 	}
 }

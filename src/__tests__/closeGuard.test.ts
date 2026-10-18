@@ -40,6 +40,21 @@ describe("withCloseGuard (#10)", () => {
 		expect(release).toHaveBeenCalledTimes(1);
 	});
 
+	it("doesn't wait more than a moment for a host that never answers", async () => {
+		vi.useFakeTimers();
+		try {
+			setApi({ preventClose: () => new Promise<boolean>(() => {}), releasePreventClose: () => new Promise<boolean>(() => {}) });
+			const work = vi.fn(async () => "done");
+			const run = withCloseGuard(work);
+			await vi.advanceTimersByTimeAsync(2000);
+			expect(work).toHaveBeenCalled();
+			await vi.advanceTimersByTimeAsync(2000);
+			await expect(run).resolves.toBe("done");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("never blocks the work on a host without the API or a failing call", async () => {
 		setApi(undefined);
 		await expect(withCloseGuard(async () => "ok")).resolves.toBe("ok");
