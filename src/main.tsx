@@ -9,26 +9,17 @@ import { useSessionStore } from "@/store/sessionStore";
 import { useUIStore } from "@/store/uiStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { App } from "./App";
+import { connectToHost, renderStartupError } from "./startup";
 import "./index.css";
 
 async function bootstrap() {
 	const logInfo = useRuntimeLogStore.getState().logInfo;
-	const toolboxAPI = (window as Window & typeof globalThis).toolboxAPI;
-	const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI;
-	if (!toolboxAPI || !dataverseAPI) {
-		throw new Error("PPTB host APIs are required. toolboxAPI/dataverseAPI were not found.");
-	}
-
+	const win = window as Window & typeof globalThis;
+	const toolboxAPI = win.toolboxAPI;
+	const { connection, theme, warnings } = await connectToHost({ toolboxAPI, dataverseAPI: win.dataverseAPI });
 	logInfo("startup", "Connected to PPTB host runtime.");
-
-	const theme = await toolboxAPI.utils.getCurrentTheme();
-	const isDark = theme === "dark";
+	for (const w of warnings) useRuntimeLogStore.getState().logWarn("startup", w);
 	logInfo("startup", `Host theme loaded: ${theme}.`);
-
-	const connection = await toolboxAPI.connections.getActiveConnection();
-	if (!connection) {
-		throw new Error("No active connection available from toolboxAPI");
-	}
 
 	const { setConnection } = useSessionStore.getState();
 	const { setThemeMode } = useUIStore.getState();
@@ -37,7 +28,7 @@ async function bootstrap() {
 		connection.name,
 		connection.environment as "Dev" | "Test" | "UAT" | "Production",
 	);
-	setThemeMode(isDark ? "dark" : "light");
+	setThemeMode(theme);
 	logInfo("startup", `Connected to ${connection.name} (${connection.environment}).`);
 
 	const refreshTheme = () => {
@@ -80,4 +71,7 @@ bootstrap().catch((error) => {
 		.getState()
 		.logError("startup", error instanceof Error ? error.message : String(error));
 	console.error(error);
+	// Never a blank tab (#89): show what failed and what to try.
+	const container = document.getElementById("root") ?? document.body;
+	renderStartupError(container, error);
 });
