@@ -322,6 +322,54 @@ describe("loading the workspace (#52, #50, #47)", () => {
 		expect(JSON.stringify(data.enableRules[0])).toContain('"minimum":1');
 	});
 
+	it("doesn't count formatting or attribute order of raw (unmodelled) rules and actions as a difference", async () => {
+		const { reconcileWithLayer } = await import("@/services/dataverse/ribbonService");
+		const rule = (xml: string) => `<RibbonDiffXml><RuleDefinitions><TabDisplayRules/><DisplayRules/><EnableRules>${xml}</EnableRules></RuleDefinitions></RibbonDiffXml>`;
+		const merged = parseRibbonXml(
+			`<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs/></Ribbon></UI><CommandDefinitions>
+			<CommandDefinition Id="cbs.Raw.Command">
+				<EnableRules>
+					<EnableRule Id="cbs.Raw.Rule" />
+				</EnableRules>
+				<DisplayRules />
+				<Actions>
+					<OpenUrl   Address="https://example.com"    WinMode="1" />
+				</Actions>
+			</CommandDefinition></CommandDefinitions><RuleDefinitions><TabDisplayRules/><DisplayRules/><EnableRules>
+			<EnableRule Id="cbs.Raw.Rule">
+				<ContextTypeRule  Context="Form"   Default="true" />
+			</EnableRule></EnableRules></RuleDefinitions></RibbonDefinition></RibbonDefinitions>`,
+			"HomepageGrid",
+			T,
+		);
+		const layer = parseRibbonDiffParts(
+			`<RibbonDiffXml><CommandDefinitions><CommandDefinition Id="cbs.Raw.Command"><EnableRules><EnableRule Id="cbs.Raw.Rule"/></EnableRules><DisplayRules/><Actions><OpenUrl WinMode="1" Address="https://example.com"/></Actions></CommandDefinition></CommandDefinitions>` +
+				rule(`<EnableRule Id="cbs.Raw.Rule"><ContextTypeRule Default="true" Context="Form"/></EnableRule>`).replace("<RibbonDiffXml>", "").replace("</RibbonDiffXml>", "") +
+				`</RibbonDiffXml>`,
+		);
+		expect(reconcileWithLayer([merged.ribbon], merged, layer)).toEqual({ added: [], replaced: [] });
+	});
+
+	it("makes the application layer's copy win in the table's data for ids the table's layer doesn't define", async () => {
+		const { reconcileWithLayer, applicationOnlyParts } = await import("@/services/dataverse/ribbonService");
+		const parsed = parseRibbonXml(MERGED, "HomepageGrid", T);
+		const appLayer = parseRibbonDiffParts(LAYER_XML.replace(/<CustomActions>[\s\S]*<\/CustomActions>/, "<CustomActions/>"));
+		// The table's merged ribbon returned an older copy of the application-ribbon command.
+		const data = {
+			commands: [{ id: "cbs.Go.Command", enableRules: [], displayRules: [], actions: [] }],
+			enableRules: [],
+			displayRules: [],
+		} as unknown as Parameters<typeof reconcileWithLayer>[1];
+		const r = reconcileWithLayer([parsed.ribbon], data, applicationOnlyParts(appLayer, null));
+		expect(r.replaced).toEqual(["cbs.Go.Command"]);
+		expect(data.commands[0].actions[0]).toMatchObject({ functionName: "go" });
+		// A command the table's layer defines itself is left to the table's layer.
+		const own = parseRibbonDiffParts(LAYER_XML);
+		const filtered = applicationOnlyParts(appLayer, own);
+		expect(filtered.commandDefinitions.size).toBe(0);
+		expect(filtered.enableRules.size).toBe(0);
+	});
+
 	it("leaves definitions that match the layer, and the ones the layer doesn't define, untouched", async () => {
 		const { reconcileWithLayer } = await import("@/services/dataverse/ribbonService");
 		const parsed = parseRibbonXml(MERGED, "HomepageGrid", T);

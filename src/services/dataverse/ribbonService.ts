@@ -1,5 +1,6 @@
 import { decompressRibbonZip } from "@/utils/decompressRibbonZip";
 import { parseRibbonXml } from "@/services/xmlParser";
+import { canonicalXml } from "@/services/ribbonXmlCanonical";
 import type { LocLabel, RibbonDefinition, RibbonLocation, RibbonTab, ScalingDefinition } from "@/types/ribbon";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import {
@@ -232,7 +233,9 @@ export function reconcileWithLayer(
 	const out = { added: [] as string[], replaced: [] as string[] };
 	if (layer.commandDefinitions.size + layer.enableRules.size + layer.displayRules.size === 0) return out;
 	const fromLayer = definitionsFromParts(layer);
-	const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+	// Raw XML kept for unmodelled actions / rules is compared canonically: the
+	// merged ribbon and the layer rows can format the same element differently.
+	const same = (a: unknown, b: unknown) => JSON.stringify(a, canonicalRaw) === JSON.stringify(b, canonicalRaw);
 	const refresh = <T extends { id: string }>(list: T[], layerItems: T[]) => {
 		const byId = new Map(layerItems.map((x) => [x.id, x]));
 		for (let i = 0; i < list.length; i++) {
@@ -280,6 +283,32 @@ export function reconcileWithLayer(
 		}
 	}
 	return out;
+}
+
+/** JSON.stringify replacer: XML strings in canonical form, so formatting and attribute order don't count. */
+function canonicalRaw(_key: string, value: unknown): unknown {
+	if (typeof value !== "string" || !value.trimStart().startsWith("<")) return value;
+	try {
+		return canonicalXml(value);
+	} catch {
+		return value;
+	}
+}
+
+/**
+ * The part of the application ribbon's layer the table's layer doesn't
+ * redefine: the merged table ribbon also carries application-ribbon commands
+ * and rules, and for those the application layer's copy is the current one.
+ */
+export function applicationOnlyParts(app: RibbonDiffParts, entity: RibbonDiffParts | null): RibbonDiffParts {
+	const without = (m: Map<string, string>, own?: Map<string, string>) =>
+		new Map([...m].filter(([id]) => !own?.has(id)));
+	return {
+		...app,
+		commandDefinitions: without(app.commandDefinitions, entity?.commandDefinitions),
+		enableRules: without(app.enableRules, entity?.enableRules),
+		displayRules: without(app.displayRules, entity?.displayRules),
+	};
 }
 
 /**
@@ -436,6 +465,12 @@ export async function fetchRibbonWorkspace(
 		addLayerTabs({ Application: application.ribbon }, appLayer, null, appLabels);
 		applyLayerOwnership(application.ribbon, ownControlIds(appLayer));
 		logReconciled("RetrieveApplicationRibbon", reconcileWithLayer([application.ribbon], application, appLayer));
+		// The table's merged ribbon repeats application-ribbon definitions (they're
+		// merged first below, so they must be current there too).
+		logReconciled(
+			"RetrieveEntityRibbon",
+			reconcileWithLayer(Object.values(entity.ribbons), entity, applicationOnlyParts(appLayer, entityLayer)),
+		);
 	}
 
 	const locLabels = dedupeById([...entity.locLabels, ...application.locLabels]);
