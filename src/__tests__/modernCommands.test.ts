@@ -656,7 +656,7 @@ describe("flyout menu items (#74 follow-up)", () => {
 		expect(model.nodes[0].children.map((n) => n.command.id)).toEqual([child.id]);
 	});
 
-	it("prefers a top-level button over a menu item with the same id pattern", () => {
+	it("prefers a top-level button over a menu item when both match only loosely", () => {
 		const twin = migrated("Twin");
 		const model = buildModernLocationModel({
 			commands: [twin],
@@ -664,17 +664,46 @@ describe("flyout menu items (#74 follow-up)", () => {
 				{
 					id: "Mscrm.HomepageGrid.contact.MainTab",
 					groups: [
-						{ buttons: [flyout("Mscrm.HomepageGrid.contact.Menu", [{ id: "Mscrm.HomepageGrid.contact.Twin" }])] },
-						{ buttons: [{ id: "Mscrm.HomepageGrid.contact.Twin" }] },
+						// The menu comes first in the ribbon; neither id names this table.
+						{ buttons: [flyout("Mscrm.HomepageGrid.contact.Menu", [{ id: "Mscrm.HomepageGrid.lead.Twin" }])] },
+						{ buttons: [{ id: "Mscrm.HomepageGrid.account.Twin" }] },
 					],
 				},
 			],
 			location: "HomepageGrid",
 			entityLogicalName: "contact",
 		});
-		// Both controls share the id here (one top-level, one in a menu): the
-		// override is keyed by id, so the single flag covers both.
-		expect([...model.overrides.keys()]).toEqual(["Mscrm.HomepageGrid.contact.Twin"]);
+		expect([...model.overrides.keys()]).toEqual(["Mscrm.HomepageGrid.account.Twin"]);
+	});
+
+	it("keeps a matching child in its parent's chip when the parent itself has no classic control (review m1)", () => {
+		const parent = migrated("RenamedFlyout", { type: 2 });
+		const child = migrated("ExportToExcel.Static", { _parentappactionid_value: parent.id });
+		const other = migrated("NotAnywhere", { _parentappactionid_value: parent.id });
+		const model = buildModernLocationModel({
+			commands: [parent, child, other],
+			tabs,
+			location: "HomepageGrid",
+			entityLogicalName: "contact",
+		});
+		expect(model.overrides.has("Mscrm.HomepageGrid.contact.ExportToExcel.Static")).toBe(false);
+		expect(model.nodes.map((n) => n.command.id)).toEqual([parent.id]);
+		expect(model.nodes[0].children.map((n) => n.command.id).sort()).toEqual([child.id, other.id].sort());
+	});
+
+	it("lists a disabled child on its parent's flag instead of dropping it (review m2)", () => {
+		const parent = migrated("ExportToExcel", { type: 2 });
+		const disabled = migrated("ExportToExcel.Static", { _parentappactionid_value: parent.id, isdisabled: true });
+		const model = buildModernLocationModel({
+			commands: [parent, disabled],
+			tabs,
+			location: "HomepageGrid",
+			entityLogicalName: "contact",
+		});
+		expect(model.overrides.has("Mscrm.HomepageGrid.contact.ExportToExcel.Static")).toBe(false);
+		const [o] = model.overrides.get("Mscrm.HomepageGrid.contact.ExportToExcel")!;
+		expect(o.items?.map((i) => i.id)).toEqual([disabled.id]);
+		expect(model.nodes).toEqual([]);
 	});
 });
 
