@@ -47,15 +47,22 @@ function dedupeById<T extends { id: string }>(items: T[]): T[] {
 }
 
 /** The location a custom tab's display rules show it in (the first EntityRule with a Context). */
-function locationFromTabDisplayRules(tab: RibbonTab): EntityRibbonLocation | undefined {
+function locationsFromTabDisplayRules(tab: RibbonTab): EntityRibbonLocation[] {
+	const found = new Set<EntityRibbonLocation>();
 	for (const tdr of tab.tabDisplayRules)
 		for (const rule of tdr.rules) {
 			if (rule.kind !== "EntityRule") continue;
-			if (rule.context === "Form") return "Form";
-			if (rule.context === "HomePageGrid") return "HomepageGrid";
-			if (rule.context === "SubGridStandard" || rule.context === "SubGridAssociated") return "SubGrid";
+			if (rule.context === "Form") found.add("Form");
+			if (rule.context === "HomePageGrid") found.add("HomepageGrid");
+			if (rule.context === "SubGridStandard" || rule.context === "SubGridAssociated") found.add("SubGrid");
 		}
-	return undefined;
+	// One location per tab (the model keeps a tab in one place), chosen the same
+	// way whatever the rule order: home grid, then form, then sub-grid.
+	return (["HomepageGrid", "Form", "SubGrid"] as const).filter((l) => found.has(l));
+}
+
+function locationFromTabDisplayRules(tab: RibbonTab): EntityRibbonLocation | undefined {
+	return locationsFromTabDisplayRules(tab)[0];
 }
 
 /**
@@ -307,8 +314,13 @@ export function addLayerTabs(
 		`<RuleDefinitions><TabDisplayRules>${[...layer.tabDisplayRules.values()].join("")}</TabDisplayRules></RuleDefinitions>` +
 		`</RibbonDefinition></RibbonDefinitions>`;
 	const parsed = parseRibbonXml(doc, entityLogicalName ? "HomepageGrid" : "Application", entityLogicalName ?? "{!EntityLogicalName}", locLabels);
-	for (const tab of parsed.ribbon.tabs)
+	// What the layer hides — tabs, groups, controls — isn't shown, as in
+	// RetrieveEntityRibbon (#66 review m2).
+	parsed.ribbon.tabs = parsed.ribbon.tabs.filter((t) => !hidden.has(t.id));
+	for (const tab of parsed.ribbon.tabs) {
+		tab.groups = tab.groups.filter((g) => !hidden.has(g.id));
 		for (const group of tab.groups) group.buttons = group.buttons.filter((b) => !hidden.has(b.id));
+	}
 
 	const subGridIds = new Set(
 		tabsXml.filter((t) => t.subGrid).map((t) => new DOMParser().parseFromString(t.xml, "application/xml").documentElement.getAttribute("Id")),
@@ -319,6 +331,16 @@ export function addLayerTabs(
 		return locationFromTabDisplayRules(tab) ?? "HomepageGrid";
 	};
 	for (const tab of parsed.ribbon.tabs) {
+		const also = entityLogicalName && !subGridIds.has(tab.id) ? locationsFromTabDisplayRules(tab).slice(1) : [];
+		if (also.length > 0) {
+			useRuntimeLogStore
+				.getState()
+				.logWarn(
+					"ribbon",
+					`Tab ${tab.id} shows on the ${place(tab)} and on the ${also.join(" and ")} (its display rules); ` +
+						`Command Bar Studio lists it under ${place(tab)} only.`,
+				);
+		}
 		const def = ribbons[place(tab)];
 		if (!def) continue;
 		def.tabs.push(tab);

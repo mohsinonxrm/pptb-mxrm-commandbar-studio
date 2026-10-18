@@ -206,6 +206,9 @@ export function RibbonCanvas({
 	const renameTab = useRibbonStore((s) => s.renameTab);
 	const deleteTab = useRibbonStore((s) => s.deleteTab);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	// Tab titles in the organisation's base language: a rename replaces that
+	// language's title (#66 review m3).
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
 	const baseline = useRibbonStore((s) => s.baseline);
 	const layers = useRibbonStore((s) => s.layers);
 	const reorderTabs = useRibbonStore((s) => s.reorderTabs);
@@ -229,7 +232,7 @@ export function RibbonCanvas({
 		const tab = ribbons[location].tabs.find((t) => t.id === editingTabId);
 		// The editor starts from the display text, not a `$LocLabels:` token;
 		// committing it unchanged must not turn the token into literal text.
-		if (tab && editValue.trim() && editValue.trim() !== resolveDisplayLabel(tab.label, locLabels)) {
+		if (tab && editValue.trim() && editValue.trim() !== resolveDisplayLabel(tab.label, locLabels, lang)) {
 			renameTab(location, tab.id, editValue.trim());
 		}
 		setEditingTabId(null);
@@ -378,11 +381,11 @@ export function RibbonCanvas({
 								onDoubleClick={() => {
 									setTabId(tab.id);
 									setEditingTabId(tab.id);
-									setEditValue(resolveDisplayLabel(tab.label, locLabels));
+									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
 								}}
 								onF2={() => {
 									setEditingTabId(tab.id);
-									setEditValue(resolveDisplayLabel(tab.label, locLabels));
+									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
 								}}
 								onDelete={
 									currentTab?.id === tab.id && canDeleteTab(tab.id)
@@ -533,7 +536,10 @@ function SortableTab({
 		id: tab.id,
 	});
 	const locLabels = useRibbonStore((s) => s.locLabels);
-	const displayLabel = resolveDisplayLabel(tab.label, locLabels);
+	// Tab titles in the organisation's base language: a rename replaces that
+	// language's title (#66 review m3).
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
+	const displayLabel = resolveDisplayLabel(tab.label, locLabels, lang);
 
 	const style: React.CSSProperties = {
 		transform: CSS.Transform.toString(transform),

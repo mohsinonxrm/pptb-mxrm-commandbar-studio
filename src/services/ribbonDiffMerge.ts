@@ -12,6 +12,13 @@
  */
 
 import { canonicalXml } from "@/services/ribbonXmlCanonical";
+import type { RibbonDefinition, ScaleStep } from "@/types/ribbon";
+import {
+	resequenceLayerScaling,
+	type LayerScaleStep,
+	type ScaleKind,
+	type ScalingChange,
+} from "@/services/scalingSequence";
 
 /** One XML element kept as its serialized string, keyed by its identity. */
 type ElementMap = Map<string, string>;
@@ -467,12 +474,20 @@ export function ownControlIds(parts: RibbonDiffParts): Set<string> {
  * adds, a separate child CustomAction was filed under the concrete entity tab
  * while the container is filed under the `{!EntityLogicalName}` template tab,
  * so Dataverse dropped the child (the "empty new group" of #59). Written
- * inside the container, it is part of the same element. This also repairs
- * layers written by earlier CBS versions.
+ * inside the container, it is part of the same element.
+ *
+ * `touched` (CustomAction keys) limits this to what the session writes: a
+ * child is folded only when it or its container's CustomAction is new or
+ * changed, so another tool's rows are never rewritten by an unrelated publish
+ * (#66 review m5); a container one child is folded into takes the rest of
+ * its separate children too. Without `touched` everything is folded (reading).
  */
-export function foldIntoOwnContainers(customActions: ElementMap): ElementMap {
+export function foldIntoOwnContainers(customActions: ElementMap, touched?: ReadonlySet<string>): ElementMap {
 	const out = new Map(customActions);
 	const s = serializer();
+	// A container something is folded into is touched too, so the rest of its
+	// separate children follow (that repairs layers written before #59).
+	const hot = touched ? new Set(touched) : undefined;
 	for (let folded = true; folded; ) {
 		folded = false;
 		// Containers (tab / group id) → key of the CustomAction that adds them.
@@ -494,6 +509,7 @@ export function foldIntoOwnContainers(customActions: ElementMap): ElementMap {
 			const child = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
 			const hostKey = m ? host.get(m[1]) : undefined;
 			if (!m || !child || !hostKey || hostKey === key) continue;
+			if (hot && !hot.has(key) && !hot.has(hostKey)) continue;
 			const [, parentId, slot] = m;
 			const hostCa = elementOf(out.get(hostKey)!);
 			const container = findById(hostCa, parentId);
@@ -514,6 +530,7 @@ export function foldIntoOwnContainers(customActions: ElementMap): ElementMap {
 			const firstScale = imported.tagName === "MaxSize" ? firstChild(slotEl, "Scale") : undefined;
 			slotEl.insertBefore(imported, firstScale ?? null);
 			out.set(hostKey, s.serializeToString(hostCa));
+			hot?.add(hostKey);
 			out.delete(key);
 			folded = true;
 			break;
@@ -867,8 +884,11 @@ export function mergeScopeChanges(
 		}
 	}
 
-	// Children of the layer's own tabs / groups go inside them (#59).
-	merged.customActions = foldIntoOwnContainers(merged.customActions);
+	// Children of the layer's own tabs / groups go inside them (#59) — only
+	// where this publish writes the child or its container (#66 review m5).
+	const touched = new Set<string>();
+	for (const [key, xml] of merged.customActions) if (existing.customActions.get(key) !== xml) touched.add(key);
+	merged.customActions = foldIntoOwnContainers(merged.customActions, touched);
 
 	const keepUnlessEdited = (key: "commandDefinitions" | "enableRules" | "displayRules", edited: Set<string>) => {
 		for (const [id, xml] of delta[key]) {
@@ -929,4 +949,146 @@ export function mergeScopeChanges(
 export function isOverrideCustomAction(xml: string): boolean {
 	const el = elementOf(xml);
 	return el.tagName === "CustomAction" && !isChildrenLocation(el.getAttribute("Location"));
+}
+
+/** Sets the Title of a tab / group the layer adds (inline in its CustomAction or a tab's). */
+export function setContainerTitle(parts: RibbonDiffParts, containerId: string, title: string): RibbonDiffParts {
+	const out = mergeRibbonDiffParts(parts, emptyRibbonDiffParts());
+	for (const [key, xml] of out.customActions) {
+		const ca = elementOf(xml);
+		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+		const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+		if (!isContainer(root)) continue;
+		const el = findById(root, containerId);
+		if (!el || !isContainer(el)) continue;
+		el.setAttribute("Title", title);
+		out.customActions.set(key, serializer().serializeToString(ca));
+		break;
+	}
+	return out;
+}
+
+// ---------------------------------------------------------------------------
+// Scaling Sequences (#66 review)
+// ---------------------------------------------------------------------------
+
+/** A MaxSize / Scale step the layer writes, with the tab it scales and the CustomAction holding it. */
+export interface LayerScalingStep extends LayerScaleStep {
+	tabId: string;
+	size: string;
+	/** Key of the CustomAction: the tab's own (inline `<Scaling>`) or a `{tab}.Scaling._children` one. */
+	key: string;
+}
+
+/** Every MaxSize / Scale step of the layer: inline in a tab it adds, or a `{tab}.Scaling._children` CustomAction. */
+export function layerScalingSteps(parts: RibbonDiffParts): LayerScalingStep[] {
+	const out: LayerScalingStep[] = [];
+	const step = (el: Element, tabId: string, key: string): LayerScalingStep => ({
+		id: el.getAttribute("Id") ?? "",
+		kind: el.tagName as ScaleKind,
+		groupId: el.getAttribute("GroupId") ?? "",
+		sequence: Number(el.getAttribute("Sequence") ?? "0"),
+		size: el.getAttribute("Size") ?? "",
+		tabId,
+		key,
+	});
+	for (const [key, xml] of parts.customActions) {
+		const ca = elementOf(xml);
+		if (ca.tagName !== "CustomAction") continue;
+		const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+		if (!root) continue;
+		const m = /^(.+)\.Scaling\._children$/.exec(ca.getAttribute("Location") ?? "");
+		if (m && (root.tagName === "MaxSize" || root.tagName === "Scale")) out.push(step(root, m[1], key));
+		if (root.tagName === "Tab" && isChildrenLocation(ca.getAttribute("Location"))) {
+			const tabId = root.getAttribute("Id") ?? "";
+			for (const el of Array.from(firstChild(root, "Scaling")?.children ?? [])) {
+				if (el.tagName === "MaxSize" || el.tagName === "Scale") out.push(step(el, tabId, key));
+			}
+		}
+	}
+	return out;
+}
+
+/**
+ * Re-sequences the layer's scaling steps so that, per tab, no two steps (the
+ * platform's included) share a Sequence and every layer MaxSize comes before
+ * the first Scale (scalingSequence.resequenceLayerScaling). `platform` is each
+ * tab's scaling without the layer's steps. Returns the changes made and what
+ * couldn't be placed; the caller must not import when there are problems.
+ */
+export function normalizeLayerScaling(
+	parts: RibbonDiffParts,
+	platform: Record<string, { maxSizes: number[]; scales: number[] }>,
+): { parts: RibbonDiffParts; changes: ScalingChange[]; problems: string[] } {
+	const steps = layerScalingSteps(parts);
+	const byTab = new Map<string, LayerScalingStep[]>();
+	for (const st of steps) byTab.set(st.tabId, [...(byTab.get(st.tabId) ?? []), st]);
+	const changes: ScalingChange[] = [];
+	const problems: string[] = [];
+	for (const [tabId, list] of byTab) {
+		const r = resequenceLayerScaling(tabId, platform[tabId] ?? { maxSizes: [], scales: [] }, list);
+		changes.push(...r.changes);
+		problems.push(...r.problems);
+	}
+	if (changes.length === 0) return { parts, changes, problems };
+	const out = mergeRibbonDiffParts(parts, emptyRibbonDiffParts());
+	const s = serializer();
+	for (const c of changes) {
+		const st = steps.find((x) => x.id === c.id && x.kind === c.kind && x.tabId === c.tabId)!;
+		const ca = elementOf(out.customActions.get(st.key)!);
+		const root = firstChild(ca, "CommandUIDefinition")!.firstElementChild!;
+		const el =
+			root.tagName === "Tab"
+				? Array.from(firstChild(root, "Scaling")?.children ?? []).find(
+						(e) => e.tagName === c.kind && e.getAttribute("Id") === c.id,
+					)
+				: root;
+		el?.setAttribute("Sequence", String(c.to));
+		if (root.tagName !== "Tab") ca.setAttribute("Sequence", String(c.to));
+		out.customActions.set(st.key, s.serializeToString(ca));
+	}
+	return { parts: out, changes, problems };
+}
+
+/**
+ * Brings a published ribbon location in line with the layer it was published
+ * as (#66 review B1, m4): tabs / groups the layer adds take their `Title`
+ * token (`$LocLabels:…`, so a later rename edits that label), and each tab's
+ * scaling takes the layer's steps with the Sequences they were written with.
+ * Without this, a second publish in the same session reused the MaxSize
+ * Sequence the first one wrote. Mutates `def`.
+ */
+export function applyPublishedLayer(def: RibbonDefinition, parts: RibbonDiffParts): void {
+	const titles = new Map<string, string>();
+	for (const xml of parts.customActions.values()) {
+		const ca = elementOf(xml);
+		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+		const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
+		if (!isContainer(root)) continue;
+		for (const el of [root, ...Array.from(root.getElementsByTagName("Group"))]) {
+			const id = el.getAttribute("Id");
+			const title = el.getAttribute("Title");
+			if (id && title?.startsWith("$LocLabels:")) titles.set(id, title);
+		}
+	}
+	for (const tab of def.tabs) {
+		const t = titles.get(tab.id);
+		if (t) tab.label = t;
+		for (const g of tab.groups) {
+			const gt = titles.get(g.id);
+			if (gt) g.label = gt;
+		}
+	}
+
+	const tabIds = new Set(def.tabs.map((t) => t.id));
+	for (const st of layerScalingSteps(parts)) {
+		if (!tabIds.has(st.tabId)) continue;
+		def.scalingByTab = def.scalingByTab ?? {};
+		const scaling = (def.scalingByTab[st.tabId] = def.scalingByTab[st.tabId] ?? { tabId: st.tabId, maxSizes: [], scales: [] });
+		const list = st.kind === "MaxSize" ? scaling.maxSizes : scaling.scales;
+		const step: ScaleStep = { id: st.id, groupId: st.groupId, size: st.size, sequence: st.sequence };
+		const i = list.findIndex((x) => x.id === st.id);
+		if (i >= 0) list[i] = step;
+		else list.push(step);
+	}
 }

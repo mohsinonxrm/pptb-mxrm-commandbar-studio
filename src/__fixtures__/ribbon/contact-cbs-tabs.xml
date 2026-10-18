@@ -22,7 +22,7 @@
           <Tab Id="Mscrm.HomepageGrid.contact.MainTab" Command="Mscrm.HomepageGrid.contact.MainTab" Title="Contacts" Description="Contacts" Sequence="100">
             <Scaling Id="Mscrm.HomepageGrid.contact.MainTab.Scaling">
               <MaxSize Id="Mscrm.HomepageGrid.contact.MainTab.Management.MaxSize" GroupId="Mscrm.HomepageGrid.contact.MainTab.Management" Sequence="10" Size="LargeMedium" />
-              <MaxSize Id="cbs.contact.Approvals.Group.MaxSize" GroupId="cbs.contact.Approvals.Group" Sequence="60" Size="LargeLarge" />
+              <MaxSize Id="cbs.contact.Approvals.Group.MaxSize" GroupId="cbs.contact.Approvals.Group" Sequence="11" Size="LargeLarge" />
             </Scaling>
             <Groups Id="Mscrm.HomepageGrid.contact.MainTab.Groups">
               <Group Id="Mscrm.HomepageGrid.contact.MainTab.Management" Command="Mscrm.Enabled" Sequence="10" Title="Records" Template="Mscrm.Templates.Flexible2">

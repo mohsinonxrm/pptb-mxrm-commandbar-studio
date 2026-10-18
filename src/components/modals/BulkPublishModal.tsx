@@ -32,6 +32,7 @@ import {
 } from "@/services/dataverse/publishService";
 import { fetchLayerSnapshot } from "@/services/dataverse/ribbonLayerService";
 import { planScope, type ScopePlan } from "@/services/publishPlan";
+import type { RibbonDiffParts } from "@/services/ribbonDiffMerge";
 import type { RibbonLocation } from "@/types/ribbon";
 
 const useStyles = makeStyles({
@@ -185,6 +186,8 @@ export const BulkPublishModal: React.FC = () => {
 
 		let hadError = false;
 		const published: RibbonLocation[] = [];
+		// The layers as imported: the store takes their scaling / labels (#66 review).
+		const importedLayers: { entity?: RibbonDiffParts; application?: RibbonDiffParts } = {};
 		const errors: { scope: string; message: string }[] = [];
 		const verified: { scope: string; result: PublishVerification }[] = [];
 		const logs = useRuntimeLogStore.getState();
@@ -227,6 +230,7 @@ export const BulkPublishModal: React.FC = () => {
 					(msg) => setProgressMessage(msg),
 				);
 				published.push(...ENTITY_LOCATIONS);
+				importedLayers.entity = result.parts;
 				if (result.verification) verified.push({ scope, result: result.verification });
 				setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
 			} catch (err) {
@@ -254,6 +258,7 @@ export const BulkPublishModal: React.FC = () => {
 					(msg) => setProgressMessage(msg),
 				);
 				published.push("Application");
+				importedLayers.application = result.parts;
 				if (result.verification) verified.push({ scope, result: result.verification });
 				setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
 			} catch (err) {
@@ -277,7 +282,7 @@ export const BulkPublishModal: React.FC = () => {
 
 		// Only scopes that were actually imported (or had nothing to import) are
 		// marked as published; anything else keeps its pending changes.
-		markPublished(published);
+		markPublished(published, importedLayers);
 		// Re-read the layers that were published so ownership, labels and the
 		// "Hidden by customizations" list match the server (#47, #48).
 		if (activeEntity && published.includes("HomepageGrid") && entityPlan?.hasChanges) {

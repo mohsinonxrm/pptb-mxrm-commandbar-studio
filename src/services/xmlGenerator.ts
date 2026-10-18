@@ -22,6 +22,7 @@ import {
 	locLabelRef,
 } from "@/utils/locLabelRef";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { freeMaxSizeSequence, maxSizeBand } from "@/services/scalingSequence";
 
 interface GeneratorInput {
 	current: RibbonDefinition;
@@ -146,8 +147,8 @@ export function defaultTabDisplayRules(
 				{
 					tabCommand,
 					rules: [
-						{ kind: "EntityRule", entityName: entityLogicalName, context: "SubGridStandard" },
-						{ kind: "EntityRule", entityName: entityLogicalName, context: "SubGridAssociated" },
+						{ kind: "EntityRule", entityName: entityLogicalName, context: "SubGridStandard", appliesTo: "SelectedEntity" },
+						{ kind: "EntityRule", entityName: entityLogicalName, context: "SubGridAssociated", appliesTo: "SelectedEntity" },
 					],
 				},
 			];
@@ -613,24 +614,23 @@ export function planNewGroupScaling(current: RibbonDefinition, baseline: RibbonD
 		}
 		// A new tab with MaxSizes set by the user keeps exactly those.
 		if (isNewTab && maxSeqs.length > 0) continue;
-		const firstScale = scaleSeqs.length > 0 ? Math.min(...scaleSeqs) : Infinity;
-		let last = maxSeqs.length > 0 ? Math.max(...maxSeqs) : undefined;
+		// The band ignores a MaxSize placed after the first Scale (an earlier CBS
+		// version wrote some there; the merge moves them back — #66 review M2).
+		const band = maxSizeBand(maxSeqs, scaleSeqs);
 		for (const group of tab.groups) {
 			if (!isNewTab && baseGroups.has(group.id)) continue;
 			if (scaling?.maxSizes.some((m) => m.groupId === group.id)) continue;
 			const size = defaultMaxSizeSize(group);
 			if (!size) continue;
-			let seq = last === undefined ? 10 : last + 1;
-			while (used.has(seq)) seq++;
-			if (seq >= firstScale) {
+			const seq = freeMaxSizeSequence(band, used);
+			if (seq === undefined) {
 				problems.push(
 					`No free scaling position for the new group "${group.label}" (${group.id}) on tab ${tab.id}: its MaxSize must ` +
-						`come after the tab's last MaxSize (${last}) and before its first Scale (${firstScale}), and no Sequence is free there`,
+						`come after the tab's last MaxSize (${band.after}) and before its first Scale (${band.before}), and no Sequence is free there`,
 				);
 				continue;
 			}
 			used.add(seq);
-			last = seq;
 			steps.set(group.id, { id: `${group.id}.MaxSize`, groupId: group.id, size, sequence: seq });
 		}
 	}

@@ -19,6 +19,9 @@ import {
 	ownControlIds,
 	ownContainerIds,
 	compareRibbonDiffParts,
+	layerScalingSteps,
+	normalizeLayerScaling,
+	setContainerTitle,
 	changedRibbonDiffKeys,
 	type RibbonDiffComparison,
 	type RibbonDiffParts,
@@ -31,6 +34,7 @@ import {
 	type BusyWaitOptions,
 } from "@/services/dataverse/environmentService";
 import type { ScopePlan } from "@/services/publishPlan";
+import { describeScalingChange, type ScalingChange } from "@/services/scalingSequence";
 import { verifyRibbonImport } from "@/services/importJobVerification";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type {
@@ -161,6 +165,12 @@ export interface PublishRibbonResult {
 	importJobId: string;
 	/** Present when the scope was published (the layer tables only show published state). */
 	verification?: PublishVerification;
+	/**
+	 * The layer as imported. The store takes the scaling Sequences and label
+	 * tokens it wrote from it, so a second publish in the same session sees
+	 * them (#66 review B1, m4).
+	 */
+	parts: RibbonDiffParts;
 }
 
 function locLabelXml(label: LocLabel): string {
@@ -188,6 +198,8 @@ export async function buildMergedRibbonDiffXml(
 	changedCount: number;
 	/** `part:id` of the elements this publish adds or changes in the layer (checked by content after publishing). */
 	changedKeys: string[];
+	/** Scaling steps of the layer moved to a free Sequence (#66 review). */
+	scalingChanges: ScalingChange[];
 }> {
 	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
 	const plan = {
@@ -322,7 +334,7 @@ export async function buildMergedRibbonDiffXml(
 			for (const group of tab.groups)
 				for (const button of group.buttons) if (button.commandId) retainedCommandIds.add(button.commandId);
 
-	const merged = mergeScopeChanges(existing, delta, {
+	let merged = mergeScopeChanges(existing, delta, {
 		retainedCommandIds,
 		editedCommandIds: input.plan.editedCommandIds,
 		editedEnableRuleIds: input.plan.editedEnableRuleIds,
@@ -333,7 +345,34 @@ export async function buildMergedRibbonDiffXml(
 		movedControls: plan.movedButtons,
 		removedTabCommands,
 	});
+
+	// A renamed tab / group whose title label other controls share gets a label
+	// of its own (#66 review t3).
+	for (const r of input.plan.renamedLabels ?? []) {
+		if (r.newLabel) merged = setContainerTitle(merged, r.containerId, `$LocLabels:${r.id}`);
+	}
+
+	// No two scaling steps of a tab may share a Sequence (#66 review): the
+	// layer's steps — including ones earlier CBS versions wrote at their
+	// group's Sequence — are moved to free Sequences; what can't be placed
+	// blocks the import.
+	const layerStepIds = new Set([...layerScalingSteps(existing), ...layerScalingSteps(merged)].map((st) => st.id));
+	const platform: Record<string, { maxSizes: number[]; scales: number[] }> = {};
+	for (const loc of input.locations) {
+		for (const [tabId, scaling] of Object.entries(loc.baseline.scalingByTab ?? {})) {
+			platform[tabId] = {
+				maxSizes: scaling.maxSizes.filter((st) => !layerStepIds.has(st.id)).map((st) => st.sequence),
+				scales: scaling.scales.filter((st) => !layerStepIds.has(st.id)).map((st) => st.sequence),
+			};
+		}
+	}
+	const scaling = normalizeLayerScaling(merged, platform);
+	if (scaling.problems.length > 0) {
+		throw new Error(`Not published: ${scaling.problems.join("; ")}.`);
+	}
+	merged = scaling.parts;
 	return {
+		scalingChanges: scaling.changes,
 		xml: serializeRibbonDiffParts(merged),
 		parts: merged,
 		elementCount: countRibbonDiffParts(merged),
@@ -423,6 +462,7 @@ export async function publishRibbon(
 		`RibbonDiffXml for ${scopeLabel}: ${merged.preservedCount} existing element(s) preserved, ` +
 			`${merged.changedCount} element(s) from this session, ${merged.elementCount} total.`,
 	);
+	for (const c of merged.scalingChanges) logs.logWarn("publish", describeScalingChange(c));
 
 	const isApplication = input.entity === null;
 	if (isApplication && !input.ribbonCustomizationIds?.length) {
@@ -605,6 +645,7 @@ export async function publishRibbon(
 		preservedCount: merged.preservedCount,
 		importJobId,
 		verification,
+		parts: merged.parts,
 	};
 }
 

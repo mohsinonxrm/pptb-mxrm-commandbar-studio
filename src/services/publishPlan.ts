@@ -1,4 +1,5 @@
 import { hasOobOverrideChanges, indexButtons, planNewGroupScaling, summarizeRibbonDiff } from "@/services/xmlGenerator";
+import { describeScalingChange, resequenceLayerScaling, type LayerScaleStep } from "@/services/scalingSequence";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import type {
 	CommandDefinition,
@@ -20,6 +21,8 @@ export interface PlanLayerOwnership {
 	containerIds: ReadonlySet<string> | readonly string[];
 	/** LocLabels the layer defines. */
 	locLabelIds: ReadonlySet<string> | readonly string[];
+	/** MaxSize / Scale steps the layer writes (#66 review). */
+	scalingStepIds?: ReadonlySet<string> | readonly string[];
 }
 
 export interface PlanInput {
@@ -84,7 +87,7 @@ export interface ScopePlan {
 	 * Tabs / groups the layer adds that were renamed: the base-language title of
 	 * the LocLabel their Title refers to is replaced with `text` (#58).
 	 */
-	renamedLabels: { id: string; text: string }[];
+	renamedLabels: RenamedLabel[];
 	/** Human-readable descriptions of changes CBS cannot publish yet. */
 	unsupported: string[];
 	/** Things worth knowing about what publishes (they don't block the publish). */
@@ -102,6 +105,17 @@ export interface ScopePlan {
 export const UCI_TAB_NOTE =
 	"Unified Interface has no visible tabs: this tab's buttons appear in the table's command bar (or its overflow " +
 	"menu) wherever the tab's display rule applies.";
+
+/** A tab / group title the publish renames (#58). */
+export interface RenamedLabel {
+	/** The LocLabel whose base-language title becomes `text`. */
+	id: string;
+	text: string;
+	/** The renamed tab / group. */
+	containerId: string;
+	/** A new label: the old one is shared with other controls, so the Title is pointed here. */
+	newLabel?: boolean;
+}
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -132,7 +146,22 @@ export function planScope(input: PlanInput): ScopePlan {
 	const deletedContainers: string[] = [];
 	const moved: MovedControl[] = [];
 	const editedTabIds: string[] = [];
-	const renamedLabels: { id: string; text: string }[] = [];
+	const renamedLabels: RenamedLabel[] = [];
+	// Who uses each label (tab / group titles, button texts), as loaded.
+	const labelUsers = new Map<string, Set<string>>();
+	const addUser = (token: string | undefined, by: string) => {
+		const id = locRef(token);
+		if (id) labelUsers.set(id, new Set([...(labelUsers.get(id) ?? []), by]));
+	};
+	for (const { baseline } of input.locations)
+		for (const tab of baseline.tabs) {
+			addUser(tab.label, tab.id);
+			for (const g of tab.groups) {
+				addUser(g.label, g.id);
+				for (const b of g.buttons) for (const v of Object.values(b.source?.attributes ?? {})) addUser(v, b.id);
+			}
+		}
+	const knownLabels = new Set([...(input.locLabels ?? []).map((l) => l.id), ...asSet(input.layer?.locLabelIds)]);
 	let generatorChange = false;
 	const referencedCommandIds = new Set<string>();
 	const ownContainers = asSet(input.layer?.containerIds);
@@ -154,7 +183,16 @@ export function planScope(input: PlanInput): ScopePlan {
 	const rename = (kind: "tab" | "group", id: string, before: string, after: string) => {
 		const labelId = locRef(before);
 		if (ownContainers.has(id) && labelId && ownLabels.has(labelId) && !locRef(after) && after.trim()) {
-			renamedLabels.push({ id: labelId, text: after });
+			// A label other controls also use keeps its text for them: the
+			// renamed tab / group gets a label of its own (#66 review t3).
+			if ([...(labelUsers.get(labelId) ?? [])].some((u) => u !== id)) {
+				let own = `${id}.Title`;
+				for (let n = 2; own === labelId || knownLabels.has(own); n++) own = `${id}.Title${n}`;
+				knownLabels.add(own);
+				renamedLabels.push({ id: own, text: after, containerId: id, newLabel: true });
+			} else {
+				renamedLabels.push({ id: labelId, text: after, containerId: id });
+			}
 		} else {
 			unsupported.push(
 				`Renaming ${kind} ${id} — only tabs and groups your unmanaged customizations add (with a translatable title) can be renamed`,
@@ -173,7 +211,34 @@ export function planScope(input: PlanInput): ScopePlan {
 		if (summary.scalingChanges > 0) unsupported.push(`Scaling changes on ${current.location} (not supported yet)`);
 		// A scaling Sequence used twice in a tab makes Unified Interface drop
 		// every custom control of the table (#66 review): never publish one.
-		unsupported.push(...planNewGroupScaling(current, baseline).problems);
+		const newScaling = planNewGroupScaling(current, baseline);
+		unsupported.push(...newScaling.problems);
+		// Scaling the layer wrote with a Sequence another step of the tab uses
+		// (earlier CBS versions used the group's Sequence) is moved by the
+		// publish; say so. What can't be moved blocks the publish.
+		const layerSteps = asSet(input.layer?.scalingStepIds);
+		for (const [tabId, scaling] of Object.entries(baseline.scalingByTab ?? {})) {
+			const tab = current.tabs.find((t) => t.id === tabId);
+			const layer: LayerScaleStep[] = [
+				...scaling.maxSizes.filter((st) => layerSteps.has(st.id)).map((st) => ({ ...st, kind: "MaxSize" as const })),
+				...scaling.scales.filter((st) => layerSteps.has(st.id)).map((st) => ({ ...st, kind: "Scale" as const })),
+				...(tab?.groups ?? [])
+					.map((g) => newScaling.steps.get(g.id))
+					.filter((st): st is NonNullable<typeof st> => !!st)
+					.map((st) => ({ ...st, kind: "MaxSize" as const })),
+			];
+			if (layer.length === 0) continue;
+			const r = resequenceLayerScaling(
+				tabId,
+				{
+					maxSizes: scaling.maxSizes.filter((st) => !layerSteps.has(st.id)).map((st) => st.sequence),
+					scales: scaling.scales.filter((st) => !layerSteps.has(st.id)).map((st) => st.sequence),
+				},
+				layer,
+			);
+			warnings.push(...r.changes.map(describeScalingChange));
+			unsupported.push(...r.problems);
+		}
 
 		// Keyed by occurrence: the application ribbon repeats control ids.
 		const cur = indexButtons(current);

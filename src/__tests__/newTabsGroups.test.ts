@@ -114,7 +114,23 @@ const oobMain = (): RibbonTab => ({
 	],
 });
 
-const def = (location: RibbonLocation, tabs: RibbonTab[]): RibbonDefinition => ({ location, entityLogicalName: E, tabs });
+/** A ribbon location; the main tab comes with its (out-of-the-box) scaling, as the parser loads it. */
+const def = (location: RibbonLocation, tabs: RibbonTab[]): RibbonDefinition => ({
+	location,
+	entityLogicalName: E,
+	tabs,
+	...(tabs.some((t) => t.id === MAIN)
+		? {
+				scalingByTab: {
+					[MAIN]: {
+						tabId: MAIN,
+						maxSizes: [{ id: `${MAIN}.Management.MaxSize`, groupId: `${MAIN}.Management`, size: "LargeMedium", sequence: 10 }],
+						scales: [],
+					},
+				},
+			}
+		: {}),
+});
 
 /** Session 1: a new group with two buttons on the main tab, and a new tab with a group and a button. */
 function session1(): RibbonDefinition {
@@ -648,15 +664,31 @@ describe("layers written by earlier CBS versions are repaired (#59)", () => {
 		);
 	});
 
-	it("…on the next publish, whatever it changes", async () => {
+	it("…when the publish touches the container, and never rewrites rows an unrelated publish doesn't touch (m5)", async () => {
 		layer = legacy();
 		const baseline = def("HomepageGrid", [oobMain()]);
-		const current = clone(baseline);
-		current.tabs[0].groups[0].buttons[0].hidden = true;
-		const { doc } = await publish(current, baseline);
-		expect(doc.querySelector(`Group[Id="${GROUP}"] > Controls > Button[Id="cbs.contact.Approve.Button"]`)).not.toBeNull();
-		const children = attrs(doc.querySelectorAll("CustomActions > CustomAction"), "Location");
-		expect(children.filter((l) => l?.endsWith(".Controls._children"))).toEqual([`${MAIN}.Management.Controls._children`]);
+		const unrelated = clone(baseline);
+		unrelated.tabs[0].groups[0].buttons[0].hidden = true;
+		const { doc } = await publish(unrelated, baseline);
+		// Another tool's (or an older version's) rows stay exactly as they are.
+		expect(doc.querySelector(`CustomAction[Id="cbs.contact.Approve.Button.CustomAction"]`)!.getAttribute("Location")).toBe(
+			`${GROUP}.Controls._children`,
+		);
+		expect(doc.querySelector(`CustomAction[Id="cbs.contact.Sync.Button.CustomAction"]`)).not.toBeNull();
+
+		// A button added to the group: the session writes into it, so it is folded.
+		layer = legacy();
+		const withGroup = def("HomepageGrid", [oobMain()]);
+		withGroup.tabs[0].groups.push({ id: GROUP, label: "Approvals", sequence: 60, template: "Flexible2", buttons: [] });
+		const touched = clone(withGroup);
+		touched.tabs[0].groups[1].buttons.push(btn("cbs.contact.Reject.Button", "Reject", 20, "cbs.contact.Reject.Command"));
+		const second = await publish(touched, withGroup);
+		expect(attrs(second.doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`)).sort()).toEqual([
+			"cbs.contact.Approve.Button",
+			"cbs.contact.Reject.Button",
+		]);
+		// The untouched tab's separate child stays.
+		expect(second.doc.querySelector(`CustomAction[Id="cbs.contact.Sync.Button.CustomAction"]`)).not.toBeNull();
 	});
 });
 
@@ -799,7 +831,7 @@ describe("#66 review — a new group's MaxSize never reuses a scaling Sequence o
 			tabId: MAIN,
 			maxSizes: [
 				{ id: `${MAIN}.Management.MaxSize`, groupId: `${MAIN}.Management`, size: "LargeMedium", sequence: 10 },
-				{ id: `${GROUP}.MaxSize`, groupId: GROUP, size: "LargeLarge", sequence: 60 },
+				{ id: `${GROUP}.MaxSize`, groupId: GROUP, size: "LargeLarge", sequence: 11 },
 			],
 			scales: [],
 		});
@@ -821,7 +853,7 @@ describe("#66 review — a new group's MaxSize never reuses a scaling Sequence o
 		current.tabs[0].groups.push({ id: "cbs.contact.Next.Group", label: "Next", sequence: 60, template: "Flexible2", buttons: [] });
 		const { doc } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
 		const maxSize = doc.querySelector('MaxSize[GroupId="cbs.contact.Next.Group"]')!;
-		expect(maxSize.getAttribute("Sequence")).toBe("61");
+		expect(maxSize.getAttribute("Sequence")).toBe("12");
 	});
 });
 
@@ -897,7 +929,7 @@ describe("#58 — the layer's own tabs are loaded from the layer", () => {
 		current.tabs[1].label = "Utilities";
 		const { doc, plan } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
 		expect(plan.unsupported).toEqual([]);
-		expect(plan.renamedLabels).toEqual([{ id: `${TAB}.Title`, text: "Utilities" }]);
+		expect(plan.renamedLabels).toEqual([{ id: `${TAB}.Title`, text: "Utilities", containerId: TAB }]);
 		expect(doc.querySelector(`LocLabel[Id="${TAB}.Title"] Title`)!.getAttribute("description")).toBe("Utilities");
 		const after = parseRibbonDiffParts(new XMLSerializer().serializeToString(doc));
 		expect(stableElementXml("customActions", after.customActions.get(`ca:${TAB}.CustomAction`)!)).toBe(
