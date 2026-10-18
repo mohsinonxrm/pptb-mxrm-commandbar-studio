@@ -7,6 +7,7 @@ import {
 	generateEnableRule,
 	generateDisplayRule,
 	generateTabDisplayRulesForTab,
+	newTabCommandId,
 } from "@/services/xmlGenerator";
 import {
 	emptyRibbonDiffParts,
@@ -17,7 +18,12 @@ import {
 	mergeScopeChanges,
 	ownControlIds,
 	ownContainerIds,
+	layerCommandRefs,
+	canUncustomiseCommand,
 	compareRibbonDiffParts,
+	layerScalingSteps,
+	normalizeLayerScaling,
+	setContainerTitle,
 	changedRibbonDiffKeys,
 	type RibbonDiffComparison,
 	type RibbonDiffParts,
@@ -30,7 +36,16 @@ import {
 	type BusyWaitOptions,
 } from "@/services/dataverse/environmentService";
 import type { ScopePlan } from "@/services/publishPlan";
+import { describeScalingChange, type ScalingChange } from "@/services/scalingSequence";
+import { groupControls } from "@/utils/ribbonMenu";
 import { verifyRibbonImport } from "@/services/importJobVerification";
+import {
+	validatePublishRibbonDiff,
+	webResourceReferences,
+	type PublishFinding,
+	type PublishValidationContext,
+	type WebResourceStatus,
+} from "@/services/xmlValidator";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type {
 	RibbonDefinition,
@@ -38,6 +53,7 @@ import type {
 	EnableRule,
 	DisplayRule,
 	LocLabel,
+	ScalingDefinition,
 } from "@/types/ribbon";
 
 const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
@@ -120,9 +136,27 @@ export interface PublishRibbonInput {
 	enableRules: EnableRule[];
 	displayRules: DisplayRule[];
 	locLabels: LocLabel[];
+	/**
+	 * Commands and rules as loaded (what exists outside this session's edits).
+	 * With them, the pre-publish check also reports commands and rules that are
+	 * referenced but not defined (#35).
+	 */
+	baselineCommands?: CommandDefinition[];
+	baselineEnableRules?: EnableRule[];
+	baselineDisplayRules?: DisplayRule[];
 	/** What changed in this scope (see publishPlan.planScope). */
 	plan: Pick<ScopePlan, "editedCommandIds" | "editedEnableRuleIds" | "editedDisplayRuleIds" | "deletedButtonIds" | "unhiddenButtonIds"> &
-		Partial<Pick<ScopePlan, "deletedContainerIds" | "movedButtons" | "editedLocLabelIds" | "editedTabIds">>;
+		Partial<
+			Pick<
+				ScopePlan,
+				| "deletedContainerIds"
+				| "movedButtons"
+				| "editedLocLabelIds"
+				| "editedTabIds"
+				| "renamedLabels"
+				| "uncustomisedCommandIds"
+			>
+		>;
 	/** Organisation base language for edited labels (#50). Read from the organisation when omitted. */
 	languageCode?: number;
 	solution: PublishSolutionInfo;
@@ -160,6 +194,12 @@ export interface PublishRibbonResult {
 	importJobId: string;
 	/** Present when the scope was published (the layer tables only show published state). */
 	verification?: PublishVerification;
+	/**
+	 * The layer as imported. The store takes the scaling Sequences and label
+	 * tokens it wrote from it, so a second publish in the same session sees
+	 * them (#66 review B1, m4).
+	 */
+	parts: RibbonDiffParts;
 }
 
 function locLabelXml(label: LocLabel): string {
@@ -187,6 +227,12 @@ export async function buildMergedRibbonDiffXml(
 	changedCount: number;
 	/** `part:id` of the elements this publish adds or changes in the layer (checked by content after publishing). */
 	changedKeys: string[];
+	/** Scaling steps of the layer moved to a free Sequence (#66 review). */
+	scalingChanges: ScalingChange[];
+	/** `part:id` of the elements the layer doesn't have yet. */
+	newKeys: string[];
+	/** Commands and rules the existing unmanaged layer defines (replaced by what is imported). */
+	layerDefinitionIds: { commandIds: string[]; enableRuleIds: string[]; displayRuleIds: string[] };
 }> {
 	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
 	const plan = {
@@ -200,6 +246,16 @@ export async function buildMergedRibbonDiffXml(
 	// changed. Labels the generator writes (new / edited buttons) win below —
 	// they carry the edited text.
 	const labels = input.locLabels.filter((l) => plan.editedLocLabelIds.includes(l.id));
+	// Renamed tabs / groups the layer adds (#58): the base-language title of
+	// their Title label changes, other languages are kept.
+	const lang = input.languageCode ?? 1033;
+	for (const r of input.plan.renamedLabels ?? []) {
+		const prev = labels.find((l) => l.id === r.id) ?? input.locLabels.find((l) => l.id === r.id);
+		const titles = [{ languageCode: lang, description: r.text }, ...(prev?.titles ?? []).filter((t) => t.languageCode !== lang)];
+		const i = labels.findIndex((l) => l.id === r.id);
+		if (i >= 0) labels[i] = { id: r.id, titles };
+		else labels.push({ id: r.id, titles });
+	}
 	let delta = labels.length
 		? parseRibbonDiffParts(`<RibbonDiffXml><LocLabels>${labels.map(locLabelXml).join("")}</LocLabels></RibbonDiffXml>`)
 		: emptyRibbonDiffParts();
@@ -269,7 +325,12 @@ export async function buildMergedRibbonDiffXml(
 	const keepOnly = (map: Map<string, string>, ids: string[]) => {
 		for (const id of Array.from(map.keys())) if (!ids.includes(id)) map.delete(id);
 	};
-	keepOnly(delta.commandDefinitions, input.plan.editedCommandIds);
+	// …plus the Command of each tab created this session (#58): the generator
+	// defines it with the tab, and its TabDisplayRule refers to it.
+	const newTabCommands = input.locations.flatMap((loc) =>
+		loc.current.tabs.filter((t) => !loc.baseline.tabs.some((b) => b.id === t.id)).map(newTabCommandId),
+	);
+	keepOnly(delta.commandDefinitions, [...input.plan.editedCommandIds, ...newTabCommands]);
 	keepOnly(delta.enableRules, input.plan.editedEnableRuleIds);
 	keepOnly(delta.displayRules, input.plan.editedDisplayRuleIds);
 
@@ -300,13 +361,41 @@ export async function buildMergedRibbonDiffXml(
 		);
 	}
 
+	// Uncustomise (#31) removes a copy of a command defined elsewhere — never
+	// your own command, which nothing would define once removed.
+	const layerRefs = layerCommandRefs(existing);
+	const ownCommands = (input.plan.uncustomisedCommandIds ?? []).filter(
+		(id) => existing.commandDefinitions.has(id) && !canUncustomiseCommand(id, layerRefs),
+	);
+	if (ownCommands.length > 0) {
+		throw new Error(
+			`Can't uncustomise ${ownCommands.join(", ")}: it is your own command (your customizations' buttons use it ` +
+				`and no other solution defines it), so removing it would leave those buttons without a command. Undo the uncustomise.`,
+		);
+	}
+
 	const retainedCommandIds = new Set<string>();
 	for (const loc of input.locations)
 		for (const tab of loc.current.tabs)
 			for (const group of tab.groups)
-				for (const button of group.buttons) if (button.commandId) retainedCommandIds.add(button.commandId);
+				for (const button of groupControls(group)) if (button.commandId) retainedCommandIds.add(button.commandId);
 
-	const merged = mergeScopeChanges(existing, delta, {
+	// Rules other commands of the scope still use stay in the layer when an
+	// uncustomised command (#31) leaves it.
+	const uncustomisedCommandIds = input.plan.uncustomisedCommandIds ?? [];
+	const retainedEnableRuleIds = new Set<string>();
+	const retainedDisplayRuleIds = new Set<string>();
+	for (const c of input.commands) {
+		if (!retainedCommandIds.has(c.id) || uncustomisedCommandIds.includes(c.id)) continue;
+		c.enableRules.forEach((r) => retainedEnableRuleIds.add(r));
+		c.displayRules.forEach((r) => retainedDisplayRuleIds.add(r));
+		for (const raw of c.rawRuleRefs ?? []) {
+			const m = /^\s*<(EnableRule|DisplayRule)\b[^>]*?\sId="([^"]+)"/.exec(raw.xml);
+			if (m) (m[1] === "EnableRule" ? retainedEnableRuleIds : retainedDisplayRuleIds).add(m[2]);
+		}
+	}
+
+	let merged = mergeScopeChanges(existing, delta, {
 		retainedCommandIds,
 		editedCommandIds: input.plan.editedCommandIds,
 		editedEnableRuleIds: input.plan.editedEnableRuleIds,
@@ -316,15 +405,198 @@ export async function buildMergedRibbonDiffXml(
 		deletedContainerIds: plan.deletedContainerIds,
 		movedControls: plan.movedButtons,
 		removedTabCommands,
+		uncustomisedCommandIds,
+		retainedEnableRuleIds,
+		retainedDisplayRuleIds,
 	});
+
+	// A renamed tab / group whose title label other controls share gets a label
+	// of its own (#66 review t3).
+	for (const r of input.plan.renamedLabels ?? []) {
+		if (r.newLabel) merged = setContainerTitle(merged, r.containerId, `$LocLabels:${r.id}`);
+	}
+
+	// No two scaling steps of a tab may share a Sequence (#66 review): the
+	// layer's steps — including ones earlier CBS versions wrote at their
+	// group's Sequence — are moved to free Sequences; what can't be placed
+	// blocks the import.
+	const layerStepIds = new Set([...layerScalingSteps(existing), ...layerScalingSteps(merged)].map((st) => st.id));
+	const platform: Record<string, { maxSizes: number[]; scales: number[] }> = {};
+	for (const loc of input.locations) {
+		for (const [tabId, scaling] of Object.entries(loc.baseline.scalingByTab ?? {})) {
+			platform[tabId] = {
+				maxSizes: scaling.maxSizes.filter((st) => !layerStepIds.has(st.id)).map((st) => st.sequence),
+				scales: scaling.scales.filter((st) => !layerStepIds.has(st.id)).map((st) => st.sequence),
+			};
+		}
+	}
+	const scaling = normalizeLayerScaling(merged, platform);
+	if (scaling.problems.length > 0) {
+		throw new Error(`Not published: ${scaling.problems.join("; ")}.`);
+	}
+	merged = scaling.parts;
 	return {
+		scalingChanges: scaling.changes,
 		xml: serializeRibbonDiffParts(merged),
 		parts: merged,
 		elementCount: countRibbonDiffParts(merged),
 		preservedCount: countRibbonDiffParts(existing),
 		changedCount: countRibbonDiffParts(delta),
 		changedKeys: changedRibbonDiffKeys(existing, merged),
+		newKeys: (Object.keys(merged) as (keyof RibbonDiffParts)[]).flatMap((part) =>
+			Array.from(merged[part].keys())
+				.filter((id) => !existing[part].has(id))
+				.map((id) => `${part}:${id}`),
+		),
+		layerDefinitionIds: {
+			commandIds: Array.from(existing.commandDefinitions.keys()),
+			enableRuleIds: Array.from(existing.enableRules.keys()),
+			displayRuleIds: Array.from(existing.displayRules.keys()),
+		},
 	};
+}
+
+/**
+ * What the pre-publish check needs besides the merged RibbonDiffXml (#35):
+ * which elements this publish adds or changes, and the loaded ribbon (ids,
+ * scaling, group templates) the layer is applied to.
+ */
+export function publishValidationContext(
+	input: Pick<
+		PublishRibbonInput,
+		"locations" | "commands" | "baselineCommands" | "baselineEnableRules" | "baselineDisplayRules"
+	> & { publisherPrefix?: string },
+	merged: {
+		changedKeys: string[];
+		newKeys: string[];
+		layerDefinitionIds?: { commandIds: string[]; enableRuleIds: string[]; displayRuleIds: string[] };
+	},
+): PublishValidationContext {
+	const elementIds: string[] = [];
+	const tabScaling: Record<string, ScalingDefinition> = {};
+	const groupTemplates: Record<string, string> = {};
+	const templateLayouts: Record<string, string[]> = {};
+	const loadedAttributes: Record<string, Record<string, string>> = {};
+	const baselineGroups = new Set<string>();
+	const currentGroups = new Set<string>();
+	for (const { current, baseline } of input.locations) {
+		Object.assign(templateLayouts, baseline.templateLayouts);
+		for (const tab of baseline.tabs) {
+			elementIds.push(tab.id);
+			if (tab.label) loadedAttributes[tab.id] = { Title: tab.label };
+			for (const group of tab.groups) {
+				baselineGroups.add(group.id);
+				elementIds.push(group.id);
+				if (group.label) loadedAttributes[group.id] = { Title: group.label, Label: group.label };
+				// Menu items too (#27).
+				for (const b of groupControls(group)) {
+					elementIds.push(b.id);
+					if (b.source) loadedAttributes[b.id] = b.source.attributes;
+				}
+			}
+		}
+		for (const tab of current.tabs) for (const group of tab.groups) currentGroups.add(group.id);
+		for (const def of [baseline, current])
+			for (const tab of def.tabs)
+				for (const group of tab.groups) if (group.template) groupTemplates[group.id] = group.template;
+	}
+	// Loaded scaling, without the steps of groups this session removes (their
+	// steps leave the layer with them and can't collide any more).
+	const removedGroup = (s: { groupId: string }) => baselineGroups.has(s.groupId) && !currentGroups.has(s.groupId);
+	for (const { baseline } of input.locations) {
+		for (const [tabId, scaling] of Object.entries(baseline.scalingByTab ?? {})) {
+			tabScaling[tabId] = {
+				...scaling,
+				maxSizes: scaling.maxSizes.filter((s) => !removedGroup(s)),
+				scales: scaling.scales.filter((s) => !removedGroup(s)),
+			};
+		}
+	}
+	// What stays defined after the import: the merged XML (checked by the
+	// validator) plus everything defined outside the layer. The loaded ribbon
+	// also has the layer's own definitions, which the import replaces.
+	const outsideLayer = <T extends { id: string }>(loaded: T[] | undefined, layer: string[] | undefined) => {
+		if (!loaded) return undefined;
+		const own = new Set(layer ?? []);
+		return loaded.map((d) => d.id).filter((id) => !own.has(id));
+	};
+	return {
+		changedKeys: merged.changedKeys,
+		newKeys: merged.newKeys,
+		commands: input.commands,
+		known: {
+			commandIds: outsideLayer(input.baselineCommands, merged.layerDefinitionIds?.commandIds),
+			enableRuleIds: outsideLayer(input.baselineEnableRules, merged.layerDefinitionIds?.enableRuleIds),
+			displayRuleIds: outsideLayer(input.baselineDisplayRules, merged.layerDefinitionIds?.displayRuleIds),
+			elementIds,
+		},
+		loadedAttributes,
+		publisherPrefix: input.publisherPrefix,
+		tabScaling,
+		groupTemplates,
+		templateLayouts,
+	};
+}
+
+/**
+ * Rejects when `promise` hasn't settled within `ms`, so a slow environment
+ * can't hold the publish dialog's check (and Publish) back indefinitely.
+ */
+export function withCheckTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error(`it didn't finish within ${Math.round(ms / 1000)} s`)), ms);
+		promise.then(
+			(v) => {
+				clearTimeout(timer);
+				resolve(v);
+			},
+			(err: unknown) => {
+				clearTimeout(timer);
+				reject(err);
+			},
+		);
+	});
+}
+
+/**
+ * The pre-publish check the publish dialog shows (#35): builds the RibbonDiffXml
+ * the publish would import (existing layer + this session's changes) and
+ * validates it. `lookupWebResources` resolves the `$webresource:` references
+ * (one batched Dataverse query); without it they aren't checked.
+ */
+export async function checkBeforePublish(
+	input: Pick<
+		PublishRibbonInput,
+		| "entity"
+		| "locations"
+		| "commands"
+		| "enableRules"
+		| "displayRules"
+		| "locLabels"
+		| "plan"
+		| "languageCode"
+		| "baselineCommands"
+		| "baselineEnableRules"
+		| "baselineDisplayRules"
+	> & { publisherPrefix?: string },
+	options: { lookupWebResources?: (names: string[]) => Promise<Record<string, WebResourceStatus>> } = {},
+): Promise<{ findings: PublishFinding[]; xml: string }> {
+	const merged = await buildMergedRibbonDiffXml(input);
+	const context = publishValidationContext(input, merged);
+	const lookupFindings: PublishFinding[] = [];
+	const names = webResourceReferences(merged.parts);
+	if (options.lookupWebResources && names.length > 0) {
+		try {
+			context.webResources = await options.lookupWebResources(names);
+		} catch (err) {
+			lookupFindings.push({
+				severity: "warning",
+				code: "webresource-lookup",
+				message: `Couldn't check the ${names.length} referenced web resource(s): ${err instanceof Error ? err.message : String(err)}`,
+			});
+		}
+	}
+	return { findings: [...validatePublishRibbonDiff(merged.parts, context), ...lookupFindings], xml: merged.xml };
 }
 
 /**
@@ -407,6 +679,22 @@ export async function publishRibbon(
 		`RibbonDiffXml for ${scopeLabel}: ${merged.preservedCount} existing element(s) preserved, ` +
 			`${merged.changedCount} element(s) from this session, ${merged.elementCount} total.`,
 	);
+	for (const c of merged.scalingChanges) logs.logWarn("publish", describeScalingChange(c));
+
+	// Pre-publish validation (#35): never import what the check rejects.
+	const findings = validatePublishRibbonDiff(
+		merged.parts,
+		publishValidationContext({ ...input, publisherPrefix: input.solution.publisherPrefix }, merged),
+	);
+	for (const f of findings) if (f.severity === "warning") logs.logWarn("publish", f.message);
+	const blocking = findings.filter((f) => f.severity === "error");
+	if (blocking.length > 0) {
+		for (const f of blocking) logs.logError("publish", f.message);
+		throw new Error(
+			`The pre-publish check found ${blocking.length} error(s), so nothing was imported: ` +
+				blocking.map((f) => f.message).join("; "),
+		);
+	}
 
 	const isApplication = input.entity === null;
 	if (isApplication && !input.ribbonCustomizationIds?.length) {
@@ -589,6 +877,7 @@ export async function publishRibbon(
 		preservedCount: merged.preservedCount,
 		importJobId,
 		verification,
+		parts: merged.parts,
 	};
 }
 

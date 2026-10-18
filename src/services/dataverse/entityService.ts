@@ -1,4 +1,4 @@
-import type { EntityMetadata, EntityFormMetadata } from "@/types/entity";
+import type { EntityMetadata } from "@/types/entity";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 
 function getDataverseAPI() {
@@ -73,30 +73,3 @@ export async function fetchEntitiesByMetadataIds(
 	return mapped;
 }
 
-type SystemFormRecord = {
-	formid: string;
-	name?: string;
-};
-
-export async function fetchEntityForms(entityLogicalName: string): Promise<EntityFormMetadata[]> {
-	if (!entityLogicalName) return [];
-	const dataverseAPI = getDataverseAPI();
-	useRuntimeLogStore.getState().logInfo("dataverse", `Loading forms for ${entityLogicalName}...`);
-	const query =
-		`systemforms?$select=formid,name` +
-		`&$filter=objecttypecode eq '${entityLogicalName}' and type eq 2` +
-		`&$orderby=name asc`;
-
-	const result = await dataverseAPI.queryData(query);
-	const rows = result.value as unknown as SystemFormRecord[];
-	const mapped = rows
-		.filter((f) => Boolean(f.formid))
-		.map((f) => ({
-			formId: f.formid,
-			name: f.name?.trim() || f.formid,
-		}));
-	useRuntimeLogStore
-		.getState()
-		.logInfo("dataverse", `Loaded ${mapped.length} form(s) for ${entityLogicalName}.`);
-	return mapped;
-}

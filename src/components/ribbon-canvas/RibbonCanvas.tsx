@@ -19,15 +19,19 @@ import {
 	AddRegular,
 	EyeRegular,
 	CodeRegular,
+	DismissRegular,
 } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { useUIStore } from "@/store/uiStore";
 import type { RibbonLocation } from "@/types/ribbon";
+import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ClassicRibbon } from "./ClassicRibbon";
 import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
+import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
 import { ModernAppFilter } from "./modern/ModernAppFilter";
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
@@ -203,6 +207,13 @@ export function RibbonCanvas({
 	const setTabId = useSelectionStore((s) => s.setTabId);
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const renameTab = useRibbonStore((s) => s.renameTab);
+	const deleteTab = useRibbonStore((s) => s.deleteTab);
+	const locLabels = useRibbonStore((s) => s.locLabels);
+	// Tab titles in the organisation's base language: a rename replaces that
+	// language's title (#66 review m3).
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
+	const baseline = useRibbonStore((s) => s.baseline);
+	const layers = useRibbonStore((s) => s.layers);
 	const reorderTabs = useRibbonStore((s) => s.reorderTabs);
 	const ribbonViewStyle = useUIStore((s) => s.ribbonViewStyle);
 	const setRibbonViewStyle = useUIStore((s) => s.setRibbonViewStyle);
@@ -221,10 +232,23 @@ export function RibbonCanvas({
 	}, [editingTabId]);
 
 	function commitTabRename() {
-		if (editingTabId && editValue.trim()) {
-			renameTab(location, editingTabId, editValue.trim());
+		const tab = ribbons[location].tabs.find((t) => t.id === editingTabId);
+		// The editor starts from the display text, not a `$LocLabels:` token;
+		// committing it unchanged must not turn the token into literal text.
+		if (tab && editValue.trim() && editValue.trim() !== resolveDisplayLabel(tab.label, locLabels, lang)) {
+			renameTab(location, tab.id, editValue.trim());
 		}
 		setEditingTabId(null);
+	}
+
+	/**
+	 * A tab can be deleted when publishing can remove it: it was created in
+	 * this session, or the table's (or application's) unmanaged layer adds it.
+	 */
+	function canDeleteTab(id: string): boolean {
+		const loaded = baseline[location].tabs.some((t) => t.id === id);
+		const own = layers[location === "Application" ? "application" : "entity"]?.containerIds ?? [];
+		return !loaded || own.includes(id);
 	}
 
 	// PointerSensor without an activation constraint starts a drag on every
@@ -251,13 +275,15 @@ export function RibbonCanvas({
 	);
 
 	const ribbon = ribbons[location];
-	const currentTab = ribbon.tabs.find((t) => t.id === tabId) ?? ribbon.tabs[0];
+	const currentTab =
+		ribbon.tabs.find((t) => t.id === tabId) ?? ribbon.tabs.find((t) => t.id === defaultTabId(ribbon.tabs));
 
 	useEffect(() => {
 		if (!ribbon.tabs.length) return;
 		const exists = ribbon.tabs.some((t) => t.id === tabId);
 		if (!exists) {
-			setTabId(ribbon.tabs[0].id);
+			const first = defaultTabId(ribbon.tabs);
+			if (first) setTabId(first);
 		}
 	}, [ribbon.tabs, tabId, setTabId]);
 
@@ -273,7 +299,7 @@ export function RibbonCanvas({
 						className={`${styles.locationTab} ${location === loc.value ? styles.locationTabActive : ""}`}
 						onClick={() => {
 							setLocation(loc.value);
-							const firstTabId = ribbons[loc.value].tabs[0]?.id;
+							const firstTabId = defaultTabId(ribbons[loc.value].tabs);
 							if (firstTabId) setTabId(firstTabId);
 						}}
 						title={loc.desc}
@@ -333,6 +359,24 @@ export function RibbonCanvas({
 				</MessageBar>
 			)}
 
+			{/* A custom tab: how Unified Interface shows it (#58). */}
+			{currentTab && !/^(Mscrm|Microsoft)\./.test(currentTab.id) && (
+				<MessageBar intent="info" style={{ flexShrink: 0 }}>
+					<MessageBarBody>{UCI_TAB_NOTE}</MessageBarBody>
+				</MessageBar>
+			)}
+
+			{/* Charts / AllEntities tabs: their buttons never show in Unified Interface (#64). */}
+			{currentTab && isHiddenOnUnifiedInterface(currentTab.id) && (
+				<MessageBar intent="warning" style={{ flexShrink: 0 }}>
+					<MessageBarBody>
+						Unified Interface doesn&apos;t show this tab&apos;s buttons on the command bar, and they
+						don&apos;t come back when the table is reloaded. Add buttons to the table&apos;s main tab
+						instead.
+					</MessageBarBody>
+				</MessageBar>
+			)}
+
 			{/* Tab strip — sortable via drag */}
 			<DndContext sensors={tabSensors} onDragEnd={handleTabDragEnd}>
 				<SortableContext
@@ -354,12 +398,17 @@ export function RibbonCanvas({
 								onDoubleClick={() => {
 									setTabId(tab.id);
 									setEditingTabId(tab.id);
-									setEditValue(tab.label);
+									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
 								}}
 								onF2={() => {
 									setEditingTabId(tab.id);
-									setEditValue(tab.label);
+									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
 								}}
+								onDelete={
+									currentTab?.id === tab.id && canDeleteTab(tab.id)
+										? () => deleteTab(location, tab.id)
+										: undefined
+								}
 								onEditChange={setEditValue}
 								onEditCommit={commitTabRename}
 								onEditCancel={() => setEditingTabId(null)}
@@ -439,12 +488,18 @@ export function RibbonCanvas({
 					</MessageBar>
 				) : !currentTab ? (
 					<EmptyTab onAddGroup={openNewGroup} />
-				) : ribbonViewStyle === "classic" ? (
-					<ClassicRibbon tab={currentTab} location={location} />
-				) : ribbonViewStyle === "modern" ? (
-					<ModernCommandBar tab={currentTab} location={location} />
 				) : (
-					<RibbonListView tab={currentTab} location={location} />
+					<>
+						{ribbonViewStyle === "classic" ? (
+							<ClassicRibbon tab={currentTab} location={location} />
+						) : ribbonViewStyle === "modern" ? (
+							<ModernCommandBar tab={currentTab} location={location} />
+						) : (
+							<RibbonListView tab={currentTab} location={location} />
+						)}
+						{/* The selected flyout / split button's menu (#27). */}
+						<FlyoutMenuPanel tab={currentTab} location={location} />
+					</>
 				)}
 			</div>
 		</main>
@@ -479,6 +534,8 @@ interface SortableTabProps {
 	onEditChange: (v: string) => void;
 	onEditCommit: () => void;
 	onEditCancel: () => void;
+	/** Set when the tab can be deleted (your own or new tab, and selected). */
+	onDelete?: () => void;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	styles: Record<string, any>;
 }
@@ -495,13 +552,17 @@ function SortableTab({
 	onEditChange,
 	onEditCommit,
 	onEditCancel,
+	onDelete,
 	styles,
 }: SortableTabProps) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
 		id: tab.id,
 	});
 	const locLabels = useRibbonStore((s) => s.locLabels);
-	const displayLabel = resolveDisplayLabel(tab.label, locLabels);
+	// Tab titles in the organisation's base language: a rename replaces that
+	// language's title (#66 review m3).
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
+	const displayLabel = resolveDisplayLabel(tab.label, locLabels, lang);
 
 	const style: React.CSSProperties = {
 		transform: CSS.Transform.toString(transform),
@@ -552,6 +613,20 @@ function SortableTab({
 				<>
 					<Text className={styles.ribbonTabLabel}>{displayLabel}</Text>
 					<Text className={styles.ribbonTabMeta}>{tab.id}</Text>
+					{onDelete && (
+						<Button
+							appearance="subtle"
+							size="small"
+							icon={<DismissRegular />}
+							aria-label={`Delete tab ${displayLabel}`}
+							title="Delete this tab and everything in it"
+							onPointerDown={(e) => e.stopPropagation()}
+							onClick={(e) => {
+								e.stopPropagation();
+								if (window.confirm(`Delete the tab "${displayLabel}" and its groups and buttons?`)) onDelete();
+							}}
+						/>
+					)}
 				</>
 			)}
 		</div>

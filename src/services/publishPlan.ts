@@ -1,4 +1,11 @@
-import { hasOobOverrideChanges, indexButtons, summarizeRibbonDiff } from "@/services/xmlGenerator";
+import {
+	effectiveModernImage,
+	hasOobOverrideChanges,
+	indexButtons,
+	planNewGroupScaling,
+	summarizeRibbonDiff,
+} from "@/services/xmlGenerator";
+import { describeScalingChange, resequenceLayerScaling, type LayerScaleStep } from "@/services/scalingSequence";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import type {
 	CommandDefinition,
@@ -8,7 +15,8 @@ import type {
 	RibbonButton,
 	RibbonDefinition,
 } from "@/types/ribbon";
-import type { MovedControl } from "@/services/ribbonDiffMerge";
+import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
+import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 
 /**
  * What the scope's unmanaged ribbon layer owns, as read at load (or refreshed
@@ -20,6 +28,12 @@ export interface PlanLayerOwnership {
 	containerIds: ReadonlySet<string> | readonly string[];
 	/** LocLabels the layer defines. */
 	locLabelIds: ReadonlySet<string> | readonly string[];
+	/** MaxSize / Scale steps the layer writes (#66 review). */
+	scalingStepIds?: ReadonlySet<string> | readonly string[];
+	/** CommandDefinitions the layer defines (#31). Unknown when absent. */
+	commandIds?: ReadonlySet<string> | readonly string[];
+	/** Commands the layer's own CustomActions use (#31). Unknown when absent. */
+	commandRefIds?: ReadonlySet<string> | readonly string[];
 }
 
 export interface PlanInput {
@@ -48,6 +62,16 @@ export interface PlanInput {
 	 * must not reach the application ribbon (and with it every table).
 	 */
 	excludeCommandIds?: Set<string>;
+	/**
+	 * Out-of-the-box / other solutions' commands the user chose to customise
+	 * (#31, "Customise Command"): copied into the layer even when unchanged.
+	 */
+	customisedCommandIds?: readonly string[];
+	/**
+	 * Commands the layer defines that the user chose to uncustomise (#31): the
+	 * layer's CommandDefinition is removed, so the original applies again.
+	 */
+	uncustomisedCommandIds?: readonly string[];
 }
 
 /**
@@ -59,8 +83,13 @@ export interface PlanInput {
 export interface ScopePlan {
 	/** True when there is something CBS will actually write. */
 	hasChanges: boolean;
-	/** Commands that differ from their loaded version and are used by a button in this scope. */
+	/**
+	 * Commands that differ from their loaded version, or were customised (#31),
+	 * and are used by a button in this scope.
+	 */
 	editedCommandIds: string[];
+	/** Commands whose layer CommandDefinition is removed (#31, "Uncustomise"). */
+	uncustomisedCommandIds: string[];
 	/**
 	 * Enable / display rules that differ from their loaded version and are used
 	 * by those commands. Kept apart because Dataverse allows an EnableRule and a
@@ -80,15 +109,50 @@ export interface ScopePlan {
 	editedLocLabelIds: string[];
 	/** Tabs the layer adds whose TabDisplayRules changed (#49). */
 	editedTabIds: string[];
+	/**
+	 * Tabs / groups the layer adds that were renamed: the base-language title of
+	 * the LocLabel their Title refers to is replaced with `text` (#58).
+	 */
+	renamedLabels: RenamedLabel[];
 	/** Human-readable descriptions of changes CBS cannot publish yet. */
 	unsupported: string[];
+	/** Things worth knowing about what publishes (they don't block the publish). */
+	warnings: string[];
+}
+
+/**
+ * What Unified Interface does with a custom tab (#58). Microsoft: in Unified
+ * Interface "tabs and groups still act as containers for controls, but there is
+ * no visual indication of these containers"
+ * (https://learn.microsoft.com/power-apps/developer/model-driven-apps/command-bar-ribbon-presentation).
+ * Verified live: a custom home-grid tab's buttons appear in the table's
+ * command bar (or its overflow menu) where the tab's display rule applies.
+ */
+export const UCI_TAB_NOTE =
+	"Unified Interface has no visible tabs: this tab's buttons appear in the table's command bar (or its overflow " +
+	"menu) wherever the tab's display rule applies.";
+
+/** A tab / group title the publish renames (#58). */
+export interface RenamedLabel {
+	/** The LocLabel whose base-language title becomes `text`. */
+	id: string;
+	text: string;
+	/** The renamed tab / group. */
+	containerId: string;
+	/** A new label: the old one is shared with other controls, so the Title is pointed here. */
+	newLabel?: boolean;
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-const isMenuKind = (kind?: string) => kind === "flyout" || kind === "splitButton";
 const isResourceIcon = (b: { icon?: string; image16?: string; image32?: string }) =>
 	[b.icon, b.image16, b.image32].some((v) => !!v && v.startsWith("$webresource:"));
+/**
+ * The icon is the control definition's own ModernImage (or its absence), written
+ * as is — e.g. an imported override (#30) — not a bare Fluent name picked in CBS.
+ */
+const isSourceIcon = (b: RibbonButton) =>
+	!!b.source && effectiveModernImage(b) === b.source.modernImage && (b.source.modernImage !== undefined || !b.icon);
 const LOC_REF = /^\$LocLabels:(.+)$/;
 const locRef = (v: string | undefined) => (v ? (LOC_REF.exec(v)?.[1] ?? null) : null);
 /** A rule reference the parser keeps verbatim (CommandDefinition.rawRuleRefs). */
@@ -105,13 +169,41 @@ function buttonLabelRefs(button: RibbonButton): string[] {
 	return out;
 }
 
+/** The sections of a button's menu, as compared for "did the menu's structure change" (#27). */
+function sectionShape(button: RibbonButton) {
+	return (button.menu?.sections ?? []).map((s) => ({
+		id: s.id,
+		title: s.title ?? "",
+		sequence: s.sequence,
+		displayMode: s.displayMode ?? "",
+		controlsId: s.controlsId,
+	}));
+}
+
 export function planScope(input: PlanInput): ScopePlan {
 	const unsupported: string[] = [];
+	const warnings: string[] = [];
 	const deleted: string[] = [];
 	const unhidden: string[] = [];
 	const deletedContainers: string[] = [];
 	const moved: MovedControl[] = [];
 	const editedTabIds: string[] = [];
+	const renamedLabels: RenamedLabel[] = [];
+	// Who uses each label (tab / group titles, button texts), as loaded.
+	const labelUsers = new Map<string, Set<string>>();
+	const addUser = (token: string | undefined, by: string) => {
+		const id = locRef(token);
+		if (id) labelUsers.set(id, new Set([...(labelUsers.get(id) ?? []), by]));
+	};
+	for (const { baseline } of input.locations)
+		for (const tab of baseline.tabs) {
+			addUser(tab.label, tab.id);
+			for (const g of tab.groups) {
+				addUser(g.label, g.id);
+				for (const b of groupControls(g)) for (const v of Object.values(b.source?.attributes ?? {})) addUser(v, b.id);
+			}
+		}
+	const knownLabels = new Set([...(input.locLabels ?? []).map((l) => l.id), ...asSet(input.layer?.locLabelIds)]);
 	let generatorChange = false;
 	const referencedCommandIds = new Set<string>();
 	const ownContainers = asSet(input.layer?.containerIds);
@@ -125,8 +217,37 @@ export function planScope(input: PlanInput): ScopePlan {
 	// Buttons placed where the baseline of their location doesn't have them, by
 	// id: a deleted own button that reappears here was moved to another location
 	// of the scope (e.g. cut on the grid, pasted on the form), not deleted.
-	const placedNew = new Map<string, { groupId: string; sequence: number }>();
+	// Menu items (#27) keep the `<Controls>` of the menu section they are in.
+	const placedNew = new Map<string, { groupId: string; sequence: number; controlsId?: string }>();
+	// New flyouts / split buttons without (visible) menu items (#27).
 	const newMenus: { id: string; label: string }[] = [];
+
+	// Every control placed anywhere in the scope now: the menu items of a flyout
+	// moved to another location reappear there with it (#62 review m1).
+	const placedAnywhere = new Set(
+		input.locations.flatMap(({ current }) => Array.from(indexButtons(current).values(), (e) => e.button.id)),
+	);
+	// Renaming a tab / group the layer adds whose Title is a label the layer
+	// defines: the label's text changes. Anything else isn't something CBS writes.
+	const rename = (kind: "tab" | "group", id: string, before: string, after: string) => {
+		const labelId = locRef(before);
+		if (ownContainers.has(id) && labelId && ownLabels.has(labelId) && !locRef(after) && after.trim()) {
+			// A label other controls also use keeps its text for them: the
+			// renamed tab / group gets a label of its own (#66 review t3).
+			if ([...(labelUsers.get(labelId) ?? [])].some((u) => u !== id)) {
+				let own = `${id}.Title`;
+				for (let n = 2; own === labelId || knownLabels.has(own); n++) own = `${id}.Title${n}`;
+				knownLabels.add(own);
+				renamedLabels.push({ id: own, text: after, containerId: id, newLabel: true });
+			} else {
+				renamedLabels.push({ id: labelId, text: after, containerId: id });
+			}
+		} else {
+			unsupported.push(
+				`Renaming ${kind} ${id} — only tabs and groups your unmanaged customizations add (with a translatable title) can be renamed`,
+			);
+		}
+	};
 
 	for (const { current, baseline } of input.locations) {
 		const summary = summarizeRibbonDiff(current, baseline);
@@ -137,6 +258,36 @@ export function planScope(input: PlanInput): ScopePlan {
 			generatorChange = true;
 		}
 		if (summary.scalingChanges > 0) unsupported.push(`Scaling changes on ${current.location} (not supported yet)`);
+		// A scaling Sequence used twice in a tab makes Unified Interface drop
+		// every custom control of the table (#66 review): never publish one.
+		const newScaling = planNewGroupScaling(current, baseline);
+		unsupported.push(...newScaling.problems);
+		// Scaling the layer wrote with a Sequence another step of the tab uses
+		// (earlier CBS versions used the group's Sequence) is moved by the
+		// publish; say so. What can't be moved blocks the publish.
+		const layerSteps = asSet(input.layer?.scalingStepIds);
+		for (const [tabId, scaling] of Object.entries(baseline.scalingByTab ?? {})) {
+			const tab = current.tabs.find((t) => t.id === tabId);
+			const layer: LayerScaleStep[] = [
+				...scaling.maxSizes.filter((st) => layerSteps.has(st.id)).map((st) => ({ ...st, kind: "MaxSize" as const })),
+				...scaling.scales.filter((st) => layerSteps.has(st.id)).map((st) => ({ ...st, kind: "Scale" as const })),
+				...(tab?.groups ?? [])
+					.map((g) => newScaling.steps.get(g.id))
+					.filter((st): st is NonNullable<typeof st> => !!st)
+					.map((st) => ({ ...st, kind: "MaxSize" as const })),
+			];
+			if (layer.length === 0) continue;
+			const r = resequenceLayerScaling(
+				tabId,
+				{
+					maxSizes: scaling.maxSizes.filter((st) => !layerSteps.has(st.id)).map((st) => st.sequence),
+					scales: scaling.scales.filter((st) => !layerSteps.has(st.id)).map((st) => st.sequence),
+				},
+				layer,
+			);
+			warnings.push(...r.changes.map(describeScalingChange));
+			unsupported.push(...r.problems);
+		}
 
 		// Keyed by occurrence: the application ribbon repeats control ids.
 		const cur = indexButtons(current);
@@ -159,6 +310,15 @@ export function planScope(input: PlanInput): ScopePlan {
 			const id = b.button.id;
 			const c = cur.get(key);
 			if (!c) {
+				const movedWith = b.menu && placedAnywhere.has(id) && placedAnywhere.has(b.menu.parentId);
+				if (movedWith && b.button.origin !== "unmanaged") {
+					// Moving the flyout would copy another solution's item into your
+					// customizations (the moved flyout is written with its menu).
+					unsupported.push(
+						`Moving the menu of ${b.menu!.parentId} to another location — its item "${b.button.label}" (${id}) comes from another solution and can't be moved with it; move the flyout back`,
+					);
+					continue;
+				}
 				// "unmanaged" is set from the table's unmanaged layer at load.
 				if (b.button.origin === "unmanaged") deleted.push(id);
 				else unsupported.push(`Removing "${b.button.label}" (${id}) — only your own unmanaged buttons can be deleted; hide it instead`);
@@ -169,21 +329,39 @@ export function planScope(input: PlanInput): ScopePlan {
 				unsupported.push(`Changing the kind of "${c.button.label}" (${id}) — not supported yet`);
 			}
 			const edited = hasOobOverrideChanges(b.button, c.button);
-			if (edited && isMenuKind(c.button.kind) && b.button.origin !== "unmanaged") {
+			// Any control with a <Menu> (a ComboBox too): an override would drop it.
+			if (edited && (isMenuKind(c.button.kind) || !!c.button.menu) && b.button.origin !== "unmanaged") {
+				// An override replaces the whole control, menu included, and the
+				// loaded menu also holds what other solutions add to it (#27).
 				unsupported.push(
-					`Editing the menu button "${c.button.label}" (${id}) — flyout / split buttons from other solutions can't be edited yet (#27)`,
+					`Editing the flyout / split button "${c.button.label}" (${id}) itself — only your own can be edited; its menu items can be edited, hidden or added to`,
 				);
 			}
-			if ((c.button.icon ?? "") !== (b.button.icon ?? "") && !isResourceIcon(c.button)) {
+			if (!same(sectionShape(b.button), sectionShape(c.button))) {
+				unsupported.push(
+					`Adding, removing or changing menu sections of "${c.button.label}" (${id}) — not supported yet for an existing menu; add, edit or remove its items instead`,
+				);
+			}
+			if ((c.button.icon ?? "") !== (b.button.icon ?? "") && !isResourceIcon(c.button) && !isSourceIcon(c.button)) {
 				unsupported.push(
 					`Changing the icon of "${c.button.label}" (${id}) to a built-in icon — not supported yet; choose an SVG web resource`,
 				);
 			}
-			if (c.groupId !== b.groupId || c.button.sequence !== b.button.sequence) {
+			// A menu item is placed by its section's Controls, not by the group its
+			// flyout happens to be in (it moves with the flyout, #62 review m1).
+			const placeChanged =
+				c.menu || b.menu ? c.menu?.controlsId !== b.menu?.controlsId : c.groupId !== b.groupId;
+			if (placeChanged || c.button.sequence !== b.button.sequence) {
 				// Your own button: its CustomAction is moved in place. Anything else
-				// would need a hide plus a copy, which CBS doesn't write (yet).
+				// would need a hide plus a copy, which CBS doesn't write (yet). A menu
+				// item moves within its menu section's Controls (#27).
 				if (b.button.origin === "unmanaged") {
-					moved.push({ id, groupId: c.groupId, sequence: c.button.sequence });
+					moved.push({
+						id,
+						groupId: c.groupId,
+						sequence: c.button.sequence,
+						...(c.menu ? { controlsId: c.menu.controlsId } : {}),
+					});
 				} else {
 					unsupported.push(
 						`Moving or re-ordering "${c.button.label}" (${id}) — only your own unmanaged buttons can be moved; hide it and add a new button instead`,
@@ -192,10 +370,21 @@ export function planScope(input: PlanInput): ScopePlan {
 			}
 		}
 
+		// Controls placed anew in this location (a move target, see below), and
+		// new flyouts / split buttons with nothing in their menu (#27).
 		for (const [key, c] of cur) {
 			if (base.has(key)) continue;
-			if (!placedNew.has(c.button.id)) placedNew.set(c.button.id, { groupId: c.groupId, sequence: c.button.sequence });
-			if (isMenuKind(c.button.kind)) newMenus.push({ id: c.button.id, label: c.button.label });
+			if (!placedNew.has(c.button.id)) {
+				placedNew.set(c.button.id, {
+					groupId: c.groupId,
+					sequence: c.button.sequence,
+					...(c.menu ? { controlsId: c.menu.controlsId } : {}),
+				});
+			}
+			const dynamic = c.button.source?.attributes["PopulateDynamically"]?.toLowerCase() === "true";
+			if (isMenuKind(c.button.kind) && !dynamic && !menuItemsOf(c.button).some((b) => !b.hidden)) {
+				newMenus.push({ id: c.button.id, label: c.button.label });
+			}
 		}
 
 		const baseGroups = new Map(baseline.tabs.flatMap((t) => t.groups.map((g) => [g.id, g] as const)));
@@ -206,8 +395,23 @@ export function planScope(input: PlanInput): ScopePlan {
 			const tabRef = locRef(tab.label);
 			if (tabRef) referencedLabels.add(tabRef);
 			const bt = baseTabs.get(tab.id);
-			if (!bt) generatorLabels.add(`${tab.id}.Title`);
-			if (bt && bt.label !== tab.label) unsupported.push(`Renaming tab ${tab.id} — not supported yet`);
+			if (!bt) {
+				generatorLabels.add(`${tab.id}.Title`);
+				// An imported tab keeps its own Title label (#30), and the
+				// CommandDefinition of its Command is written with it.
+				const titleRef = locRef(tab.source?.titleToken);
+				if (titleRef) generatorLabels.add(titleRef);
+				if (tab.commandId) referencedCommandIds.add(tab.commandId);
+				// A new table tab gets a default display rule; on the application
+				// ribbon there's no default, and without a rule the tab never shows.
+				if (current.location === "Application" && (tab.tabDisplayRules ?? []).length === 0) {
+					unsupported.push(
+						`New tab ${tab.id} has no tab display rule, so it would never be shown — add one in Tab rules`,
+					);
+				}
+				warnings.push(`New tab "${tab.label}" (${tab.id}): ${UCI_TAB_NOTE}`);
+			}
+			if (bt && bt.label !== tab.label) rename("tab", tab.id, bt.label, tab.label);
 			if (bt && !same(bt.tabDisplayRules ?? [], tab.tabDisplayRules ?? [])) {
 				if (!ownContainers.has(tab.id)) {
 					unsupported.push(
@@ -223,10 +427,14 @@ export function planScope(input: PlanInput): ScopePlan {
 				const groupRef = locRef(g.label);
 				if (groupRef) referencedLabels.add(groupRef);
 				const bg = baseGroups.get(g.id);
-				if (!bg) generatorLabels.add(`${g.id}.Title`);
-				if (bg && (bg.label !== g.label || bg.template !== g.template)) {
-					unsupported.push(`Renaming or re-templating group ${g.id} — not supported yet`);
+				if (!bg) {
+					generatorLabels.add(`${g.id}.Title`);
+					// An imported group keeps its own Title label (#30).
+					const titleRef = locRef(g.source?.titleToken);
+					if (titleRef) generatorLabels.add(titleRef);
 				}
+				if (bg && bg.template !== g.template) unsupported.push(`Re-templating group ${g.id} — not supported yet`);
+				if (bg && bg.label !== g.label) rename("group", g.id, bg.label, g.label);
 			}
 		}
 
@@ -255,32 +463,62 @@ export function planScope(input: PlanInput): ScopePlan {
 	for (let i = deleted.length - 1; i >= 0; i--) {
 		const to = placedNew.get(deleted[i]);
 		if (!to) continue;
-		moved.push({ id: deleted[i], groupId: to.groupId, sequence: to.sequence });
+		moved.push({ id: deleted[i], ...to });
 		deleted.splice(i, 1);
 	}
 	for (const m of newMenus) {
 		// A moved menu keeps its <Menu>: the merge edits the control in place.
+		// A really new one is published with its whole menu (#27), which would
+		// be empty.
 		if (moved.some((x) => x.id === m.id)) continue;
-		unsupported.push(`New flyout / split button "${m.label}" — menus can't be published yet (#27)`);
+		unsupported.push(`New flyout / split button "${m.label}" has no menu items — add at least one item to its menu`);
+	}
+
+	// Uncustomise (#31): only a command this scope's layer defines can be
+	// removed from it. Without layer data, a command used in this scope.
+	const layerCommands = input.layer?.commandIds ? asSet(input.layer.commandIds) : null;
+	const uncustomised = new Set(input.uncustomisedCommandIds ?? []);
+	const uncustomisedCommandIds = [...uncustomised].filter((id) =>
+		layerCommands ? layerCommands.has(id) : referencedCommandIds.has(id) && !input.excludeCommandIds?.has(id),
+	);
+	// Your own command has no other definition: removing it breaks its buttons.
+	for (const id of uncustomisedCommandIds) {
+		if (input.layer?.commandRefIds && !canUncustomiseCommand(id, input.layer.commandRefIds)) {
+			unsupported.push(
+				`Uncustomising ${id} — it is your own command (your customizations' buttons use it and no other solution defines it); undo the uncustomise`,
+			);
+		}
 	}
 
 	for (const id of input.excludeCommandIds ?? []) referencedCommandIds.delete(id);
 
+	// A customised command is written even unchanged — unless the layer already
+	// has it (then only an edit replaces the layer's verbatim copy).
+	const customised = new Set(input.customisedCommandIds ?? []);
 	const baseCmd = new Map(input.baselineCommands.map((c) => [c.id, c]));
 	const editedCommandIds = input.commands
-		.filter((c) => referencedCommandIds.has(c.id) && (!baseCmd.has(c.id) || !same(baseCmd.get(c.id), c)))
+		.filter(
+			(c) =>
+				referencedCommandIds.has(c.id) &&
+				!uncustomised.has(c.id) &&
+				(!baseCmd.has(c.id) ||
+					!same(baseCmd.get(c.id), c) ||
+					(customised.has(c.id) && !layerCommands?.has(c.id))),
+		)
 		.map((c) => c.id);
 	for (const c of input.commands) {
 		if (!editedCommandIds.includes(c.id)) continue;
 		if (c.actions.some((a) => a.kind === "powerFx" || a.kind === "customApi")) {
-			unsupported.push(`Power Fx / Custom API action in command ${c.id} — can't be published yet (#28)`);
+			unsupported.push(
+				`Power Fx / Custom API action in command ${c.id} — classic ribbon commands can't run these; remove the action (#28)`,
+			);
 		}
 	}
 
 	const enableInScope = new Set<string>();
 	const displayInScope = new Set<string>();
 	for (const c of input.commands) {
-		if (!referencedCommandIds.has(c.id)) continue;
+		if (!referencedCommandIds.has(c.id) || uncustomised.has(c.id)) continue;
 		c.enableRules.forEach((r) => enableInScope.add(r));
 		c.displayRules.forEach((r) => displayInScope.add(r));
 		// References the model keeps verbatim (e.g. an <EnableRule> inside
@@ -334,6 +572,7 @@ export function planScope(input: PlanInput): ScopePlan {
 		hasChanges:
 			generatorChange ||
 			editedCommandIds.length > 0 ||
+			uncustomisedCommandIds.length > 0 ||
 			editedEnableRuleIds.length > 0 ||
 			editedDisplayRuleIds.length > 0 ||
 			deleted.length > 0 ||
@@ -342,8 +581,10 @@ export function planScope(input: PlanInput): ScopePlan {
 			deletedContainers.length > 0 ||
 			moved.length > 0 ||
 			editedLocLabelIds.length > 0 ||
-			editedTabIds.length > 0,
+			editedTabIds.length > 0 ||
+			renamedLabels.length > 0,
 		editedCommandIds,
+		uncustomisedCommandIds,
 		editedEnableRuleIds,
 		editedDisplayRuleIds,
 		deletedButtonIds: deleted,
@@ -352,6 +593,8 @@ export function planScope(input: PlanInput): ScopePlan {
 		movedButtons: moved,
 		editedLocLabelIds,
 		editedTabIds,
+		renamedLabels,
 		unsupported: [...new Set(unsupported)],
+		warnings: [...new Set(warnings)],
 	};
 }

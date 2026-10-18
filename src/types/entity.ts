@@ -12,8 +12,3 @@ export interface EntityMetadata {
 	iconSmallName?: string;
 	objectTypeCode?: number;
 }
-
-export interface EntityFormMetadata {
-	formId: string;
-	name: string;
-}

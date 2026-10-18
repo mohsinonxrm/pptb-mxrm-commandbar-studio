@@ -1,4 +1,4 @@
-import { makeStyles, tokens, Text, Subtitle2, Divider } from "@fluentui/react-components";
+import { makeStyles, tokens, Text, Subtitle2, Divider, Caption1 } from "@fluentui/react-components";
 import { CursorHoverRegular } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -10,6 +10,8 @@ import { ScalingSectionSummary } from "./ScalingSectionSummary";
 import { AdvancedSection } from "./AdvancedSection";
 import { ConflictBanner } from "./ConflictBanner";
 import { HiddenByCustomizationsSection } from "./HiddenByCustomizationsSection";
+import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
+import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { ModernCommandProperties, ModernOverrideSection } from "./ModernCommandProperties";
 import { useClassicOverrides, useSelectedModernCommand } from "@/hooks/useModernCommands";
 
@@ -54,7 +56,10 @@ export function PropertiesPane() {
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
 	const group = tab?.groups.find((g) => g.id === selectedGroupId);
-	const button = group?.buttons.find((b) => b.id === selectedButtonId);
+	const button = findGroupControl(group, selectedButtonId);
+	// A menu item (#27): say whose menu it is in.
+	const place = group && button ? menuItemPlace(group, button.id) : undefined;
+	const locLabels = useRibbonStore((s) => s.locLabels);
 	// Modern commands (#32) are shown read-only and live outside the ribbon store.
 	const modern = useSelectedModernCommand();
 	const modernOverrides = useClassicOverrides(location, button?.id);
@@ -79,6 +84,14 @@ export function PropertiesPane() {
 				<>
 					<ConflictBanner />
 					<ModernOverrideSection overrides={modernOverrides} />
+					{place && (
+						<div className={styles.section}>
+							<Caption1>
+								Menu item of “{resolveDisplayLabel(place.parent.label, locLabels)}”
+								{place.section.title ? ` — section “${place.section.title}”` : ""}
+							</Caption1>
+						</div>
+					)}
 					<IdentitySection
 						button={button}
 						location={location}

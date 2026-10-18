@@ -32,6 +32,7 @@ import { fetchEntitiesByMetadataIds } from "@/services/dataverse/entityService";
 import { fetchRibbonWorkspace } from "@/services/dataverse/ribbonService";
 import { fetchRibbonProvenance } from "@/services/dataverse/ribbonProvenanceService";
 import { applyProvenanceToRibbons, type ButtonProvenance } from "@/utils/ribbonProvenance";
+import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import type { ConflictEntry } from "@/types/ribbon";
 import { fetchCurrentUser } from "@/services/dataverse/userService";
 import {
@@ -40,6 +41,7 @@ import {
 	clearPersistedRibbonData,
 } from "@/hooks/useRibbonPersistence";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { groupControls } from "@/utils/ribbonMenu";
 import { useModernCommandsLoader } from "@/hooks/useModernCommands";
 
 const useStyles = makeStyles({
@@ -238,7 +240,7 @@ export function App() {
 				for (const ribbon of Object.values(workspace.ribbons)) {
 					for (const tab of ribbon.tabs) {
 						for (const group of tab.groups) {
-							for (const btn of group.buttons) {
+							for (const btn of groupControls(group)) {
 								if (btn.origin === "managed" && !seenButtonIds.has(btn.id)) {
 									seenButtonIds.add(btn.id);
 									conflictEntries.push({
@@ -280,9 +282,12 @@ export function App() {
 				// clicks a tab or switches between Home/Sub/Form/Application.
 				const { location: currentLocation, tabId: currentTabId } = useSelectionStore.getState();
 				const tabsForLocation = workspace.ribbons[currentLocation]?.tabs ?? [];
-				const tabStillExists = tabsForLocation.some((t) => t.id === currentTabId);
+				// A tab shared by every table (the Charts / AllEntities tabs) "still
+				// exists" after switching tables; land on the new table's main tab.
+				const tabStillExists =
+					tabsForLocation.some((t) => t.id === currentTabId) && !isHiddenOnUnifiedInterface(currentTabId);
 				if (!tabStillExists) {
-					const firstTabId = tabsForLocation[0]?.id;
+					const firstTabId = defaultTabId(tabsForLocation);
 					if (firstTabId) setTabId(firstTabId);
 				}
 

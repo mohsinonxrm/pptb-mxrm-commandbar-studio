@@ -2,13 +2,6 @@ import { create } from "zustand";
 import type { Solution } from "@/types/solution";
 import type { EntityMetadata } from "@/types/entity";
 
-export type FormRibbonScope = "entity" | "form";
-
-export interface EntityFormInfo {
-	formId: string;
-	name: string;
-}
-
 export interface SessionStore {
 	connectionUrl: string;
 	connectionName: string;
@@ -41,9 +34,6 @@ export interface SessionStore {
 
 	currentUserId: string;
 	currentUserName: string;
-	formRibbonScope: FormRibbonScope;
-	entityForms: EntityFormInfo[];
-	selectedFormId: string;
 
 	setConnection(url: string, name: string, environment: SessionStore["environment"]): void;
 	setSolutions(solutions: Solution[]): void;
@@ -54,9 +44,6 @@ export interface SessionStore {
 	setSolutionRibbonComponentIds(ids: string[] | null): void;
 	setCurrentUser(id: string, name: string): void;
 	setPublisherPrefix(prefix: string): void;
-	setFormRibbonScope(scope: FormRibbonScope): void;
-	setEntityForms(forms: EntityFormInfo[]): void;
-	setSelectedFormId(formId: string): void;
 }
 
 export const useSessionStore = create<SessionStore>()((set) => ({
@@ -74,9 +61,6 @@ export const useSessionStore = create<SessionStore>()((set) => ({
 
 	currentUserId: "",
 	currentUserName: "",
-	formRibbonScope: "entity",
-	entityForms: [],
-	selectedFormId: "",
 
 	setConnection: (url, name, environment) =>
 		set({ connectionUrl: url, connectionName: name, environment }),
@@ -130,13 +114,4 @@ export const useSessionStore = create<SessionStore>()((set) => ({
 	setSolutionRibbonComponentIds: (ids) => set({ solutionRibbonComponentIds: ids }),
 	setCurrentUser: (id, name) => set({ currentUserId: id, currentUserName: name }),
 	setPublisherPrefix: (prefix) => set({ publisherPrefix: prefix }),
-	setFormRibbonScope: (scope) => set({ formRibbonScope: scope }),
-	setEntityForms: (forms) =>
-		set((state) => {
-			const nextSelected = forms.some((form) => form.formId === state.selectedFormId)
-				? state.selectedFormId
-				: (forms[0]?.formId ?? "");
-			return { entityForms: forms, selectedFormId: nextSelected };
-		}),
-	setSelectedFormId: (formId) => set({ selectedFormId: formId }),
 }));
