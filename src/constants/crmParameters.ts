@@ -152,3 +152,21 @@ export const CRM_PARAMETER_VALUES: CrmParameterInfo[] = [
 		description: "Current user's language LCID",
 	},
 ];
+
+/**
+ * `CrmParameter` values allowed in a `<Url>` action. RibbonTypes.xsd's
+ * `CrmNamedParameterValue` is `CrmParameterValue` without the three
+ * `…ItemReferences` values, which only a JavaScriptFunction / CustomRule can take (#41).
+ */
+export const URL_INVALID_CRM_PARAMETER_VALUES = new Set<string>([
+	"SelectedControlSelectedItemReferences",
+	"SelectedControlAllItemReferences",
+	"SelectedControlUnselectedItemReferences",
+]);
+
+/** The values RibbonTypes.xsd allows for an unnamed (JavaScriptFunction / CustomRule) CrmParameter. */
+export const CRM_PARAMETER_VALUE_SET = new Set<string>(CRM_PARAMETER_VALUES.map((p) => p.value));
+
+export function isNamedCrmParameterValue(value: string): boolean {
+	return CRM_PARAMETER_VALUE_SET.has(value) && !URL_INVALID_CRM_PARAMETER_VALUES.has(value);
+}

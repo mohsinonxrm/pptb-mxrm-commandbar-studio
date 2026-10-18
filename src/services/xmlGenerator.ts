@@ -8,7 +8,9 @@ import type {
 	RibbonButton,
 	RuleStep,
 	ActionParameter,
+	RibbonAction,
 	ScalingDefinition,
+	ScaleStep,
 	RibbonGroup,
 	RibbonTab,
 } from "@/types/ribbon";
@@ -132,20 +134,30 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	//    Location="Mscrm.Tabs._children".
 	for (const tab of current.tabs) {
 		if (!baselineTabIds.has(tab.id)) {
-			tabCustomActions.push(generateTabCustomAction(tab, sink));
+			tabCustomActions.push(generateTabCustomAction(tab, current.scalingByTab?.[tab.id], sink));
 		}
 	}
 
-	// 2. New groups inside an EXISTING tab → Location="{tabId}.Groups._children".
-	//    (Groups inside a brand-new tab are emitted by the new-tab branch above.)
+	// 2. New groups inside an EXISTING tab → Location="{tabId}.Groups._children",
+	//    plus a MaxSize for the group in the tab's scaling (classic ribbons
+	//    need one per group; #40). Groups inside a brand-new tab are emitted by
+	//    the new-tab branch above.
+	const newGroupMaxSizes: string[] = [];
 	for (const tab of current.tabs) {
 		if (!baselineTabIds.has(tab.id)) continue;
+		const scaling = current.scalingByTab?.[tab.id];
 		for (const group of tab.groups) {
 			if (!baselineGroupIds.has(group.id)) {
 				groupCustomActions.push(generateGroupCustomAction(group, tab.id, sink));
+				// A MaxSize the user configured is emitted by the scaling diff below.
+				const maxSize = defaultMaxSize(group);
+				if (maxSize && !scaling?.maxSizes.some((m) => m.groupId === group.id)) {
+					newGroupMaxSizes.push(generateScalingCustomAction(tab.id, "MaxSize", maxSize));
+				}
 			}
 		}
 	}
+	groupCustomActions.push(...newGroupMaxSizes);
 
 	// 3. Buttons.
 	for (const tab of current.tabs) {
@@ -217,6 +229,7 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	const allCustomActions = [
 		...tabCustomActions,
 		...groupCustomActions,
+		...generateScalingCustomActions(current, baseline, baselineTabIds),
 		...customActions,
 		...hideCustomActions,
 	];
@@ -224,13 +237,13 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// Tab display rules only for tabs this session created. Existing tabs' rules
 	// already live in the platform / unmanaged layer; re-emitting them copied
 	// Microsoft's rules into the customization (#40).
+	const isApplication = input.location === "Application";
 	const tabDisplayRulesXml = current.tabs
 		.filter((t) => !baselineTabIds.has(t.id))
 		.filter((t) => t.tabDisplayRules && t.tabDisplayRules.length > 0)
-		.map(generateTabDisplayRulesForTab)
+		.map((t) => generateTabDisplayRulesForTab(t, isApplication))
+		.filter(Boolean)
 		.join("\n      ");
-
-	const scalingXml = generateScalingsXml(current, baseline);
 
 	// IMPORTANT — no `<?xml ?>` declaration here.
 	//
@@ -264,7 +277,6 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
       ${enableRulesXml}
     </EnableRules>
   </RuleDefinitions>
-  ${scalingXml}
   <LocLabels>
     ${locLabelsXml}
   </LocLabels>
@@ -362,43 +374,79 @@ export function summarizeRibbonDiff(
 	};
 }
 
-function generateScalingsXml(current: RibbonDefinition, baseline: RibbonDefinition): string {
-	const currentScaling = current.scalingByTab ?? {};
-	const baselineScaling = baseline.scalingByTab ?? {};
-	const changed = Object.entries(currentScaling)
-		.filter(
-			([tabId, scaling]) => JSON.stringify(scaling) !== JSON.stringify(baselineScaling[tabId]),
-		)
-		.map(([_, scaling]) => scaling);
-
-	if (changed.length === 0) {
-		return "";
+/**
+ * Scaling changes for EXISTING tabs. `<Scalings>` is not a RibbonDiffXml
+ * element: each new or changed `MaxSize` / `Scale` is its own CustomAction at
+ * `Location="{tabId}.Scaling._children"`, and every MaxSize must come before
+ * any Scale, because scaling is applied in document order (#40;
+ * https://learn.microsoft.com/power-apps/developer/model-driven-apps/define-scaling-ribbon-elements).
+ * New tabs carry their whole `<Scaling>` inline (generateTabCustomAction).
+ */
+function generateScalingCustomActions(
+	current: RibbonDefinition,
+	baseline: RibbonDefinition,
+	baselineTabIds: Set<string>,
+): string[] {
+	const maxSizes: string[] = [];
+	const scales: string[] = [];
+	for (const [tabId, scaling] of Object.entries(current.scalingByTab ?? {})) {
+		if (!baselineTabIds.has(tabId)) continue;
+		const base = baseline.scalingByTab?.[tabId];
+		const unchanged = (step: ScaleStep, list: ScaleStep[] | undefined) =>
+			list?.some((b) => JSON.stringify(b) === JSON.stringify(step)) ?? false;
+		for (const step of scaling.maxSizes) {
+			if (!unchanged(step, base?.maxSizes)) maxSizes.push(generateScalingCustomAction(tabId, "MaxSize", step));
+		}
+		for (const step of scaling.scales) {
+			if (!unchanged(step, base?.scales)) scales.push(generateScalingCustomAction(tabId, "Scale", step));
+		}
 	}
-
-	const body = changed.map(generateScalingDefinition).join("\n    ");
-	return `<Scalings>
-    ${body}
-  </Scalings>`;
+	return [...maxSizes, ...scales];
 }
 
-function generateScalingDefinition(scaling: ScalingDefinition): string {
-	const maxSizeXml = scaling.maxSizes
-		.map(
-			(step) =>
-				`<MaxSize Id="${escapeXml(step.id)}" GroupId="${escapeXml(step.groupId)}" Size="${escapeXml(step.size)}" Sequence="${step.sequence}"/>`,
-		)
-		.join("\n      ");
-	const scaleXml = scaling.scales
-		.map(
-			(step) =>
-				`<Scale Id="${escapeXml(step.id)}" GroupId="${escapeXml(step.groupId)}" Size="${escapeXml(step.size)}" Sequence="${step.sequence}"/>`,
-		)
-		.join("\n      ");
+function generateScaleStep(tag: "MaxSize" | "Scale", step: ScaleStep): string {
+	return `<${tag} Id="${escapeXml(step.id)}" GroupId="${escapeXml(step.groupId)}" Sequence="${step.sequence}" Size="${escapeXml(step.size)}"/>`;
+}
 
-	return `<Scaling TabId="${escapeXml(scaling.tabId)}">
-      ${maxSizeXml}
-      ${scaleXml}
-    </Scaling>`;
+function generateScalingCustomAction(tabId: string, tag: "MaxSize" | "Scale", step: ScaleStep): string {
+	return `<CustomAction Id="${escapeXml(step.id)}.CustomAction"
+    Location="${escapeXml(tabId)}.Scaling._children"
+    Sequence="${step.sequence}">
+    <CommandUIDefinition>
+      ${generateScaleStep(tag, step)}
+    </CommandUIDefinition>
+  </CustomAction>`;
+}
+
+/**
+ * The largest layout of each platform group template — the first `<Layout
+ * Title>` of the template in Microsoft's ribbon (RetrieveApplicationRibbon).
+ * A MaxSize `Size` must equal one of the template's layout titles
+ * (case-sensitive), so groups using any other template get no default MaxSize.
+ */
+const TEMPLATE_MAX_SIZE: Record<string, string> = {
+	"Mscrm.Templates.Flexible": "Large",
+	"Mscrm.Templates.Flexible2": "LargeLarge",
+	"Mscrm.Templates.Flexible3": "LargeLargeMedium",
+	"Mscrm.Templates.Flexible4": "LargeMediumLargeLarge",
+	"Mscrm.Templates.3": "Large",
+	"Mscrm.Templates.3.3": "LargeLarge",
+	"Mscrm.Templates.3.3.3": "LargeLargeMedium",
+	"Mscrm.Templates.4.3.3": "LargeMediumLarge",
+	"Mscrm.Templates.FourOverflow": "LargeMediumLargeLarge",
+	"Mscrm.Templates.FourLargeButtons": "Large",
+	"Mscrm.Templates.OneLargeTwoMedium": "Large",
+	"Mscrm.Templates.OneLargeThreeMedium": "Large",
+	"Mscrm.Templates.TwoLargeTwoMedium": "Large",
+	"Mscrm.Templates.TwoLargeThreeMedium": "Large",
+	"Mscrm.Templates.ThreeLargeThreeMedium": "Large",
+};
+
+/** The MaxSize a new group gets by default, or undefined when its template's layouts aren't known. */
+function defaultMaxSize(group: RibbonGroup): ScaleStep | undefined {
+	const size = TEMPLATE_MAX_SIZE[normalizeGroupTemplate(group.template)];
+	if (!size) return undefined;
+	return { id: `${group.id}.MaxSize`, groupId: group.id, size, sequence: group.sequence };
 }
 
 // ---------------------------------------------------------------------------
@@ -471,16 +519,36 @@ function generateGroupCustomAction(
  * themselves are still emitted as separate CustomActions targeting
  * `{groupId}.Controls._children`.
  */
-function generateTabCustomAction(tab: RibbonTab, sink: (label: LocLabel) => void): string {
+function generateTabCustomAction(
+	tab: RibbonTab,
+	scaling: ScalingDefinition | undefined,
+	sink: (label: LocLabel) => void,
+): string {
 	const titleId = `${tab.id}.Title`;
 	sink({ id: titleId, titles: [{ languageCode: 1033, description: tab.label }] });
 	const commandAttr = tab.commandId ? ` Command="${escapeXml(tab.commandId)}"` : "";
 	const groupsXml = tab.groups.map((g) => generateGroupElement(g, sink, true)).join("\n        ");
+	// RibbonCore.xsd TabType: <Scaling Id> comes before <Groups>, with a MaxSize
+	// for each group (MaxSize elements before Scale elements) — #40.
+	const maxSizes = scaling?.maxSizes.length
+		? scaling.maxSizes
+		: tab.groups.map(defaultMaxSize).filter((s): s is ScaleStep => !!s);
+	const scalingSteps = [
+		...maxSizes.map((s) => generateScaleStep("MaxSize", s)),
+		...(scaling?.scales ?? []).map((s) => generateScaleStep("Scale", s)),
+	];
+	const scalingXml =
+		scalingSteps.length === 0
+			? `<Scaling Id="${escapeXml(tab.id)}.Scaling"/>`
+			: `<Scaling Id="${escapeXml(tab.id)}.Scaling">
+          ${scalingSteps.join("\n          ")}
+        </Scaling>`;
 	return `<CustomAction Id="${escapeXml(tab.id)}.CustomAction"
     Location="Mscrm.Tabs._children"
     Sequence="${tab.sequence}">
     <CommandUIDefinition>
       <Tab Id="${escapeXml(tab.id)}"${commandAttr} Title="${escapeXml(locLabelRef(titleId))}" Sequence="${tab.sequence}">
+        ${scalingXml}
         <Groups Id="${escapeXml(tab.id)}.Groups">
         ${groupsXml}
         </Groups>
@@ -561,6 +629,13 @@ function resolveLocalizedAttr(
 	sink({ id: conventionId, titles });
 	return locLabelRef(conventionId);
 }
+
+const IMAGE_ATTRIBUTES = ["ModernImage", "Image16by16", "Image32by32"];
+const DISALLOWED_CONTROL_ATTRIBUTES: Partial<Record<RibbonButton["kind"], string[]>> = {
+	textBox: ["LabelText", ...IMAGE_ATTRIBUTES],
+	comboBox: ["LabelText", ...IMAGE_ATTRIBUTES],
+	checkBox: IMAGE_ATTRIBUTES,
+};
 
 /** Attributes RetrieveEntityRibbon adds to controls that are not valid in RibbonDiffXml. */
 const NON_DIFF_ATTRIBUTES = new Set(["SolutionUniqueName"]);
@@ -647,6 +722,10 @@ function generateButtonElement(
 	set("Image16by16", isResourceRef(button.image16) ? button.image16 : undefined);
 	set("Image32by32", isResourceRef(button.image32) ? button.image32 : undefined);
 
+	// RibbonCore.xsd: TextBox / ComboBox have no LabelText or images, CheckBox
+	// has no images — emit only what the control type allows (#41).
+	for (const name of DISALLOWED_CONTROL_ATTRIBUTES[button.kind] ?? []) attrs.delete(name);
+
 	const attrXml = Array.from(attrs.entries())
 		.map(([k, v]) => `${k}="${escapeXml(v)}"`)
 		.join(" ");
@@ -694,69 +773,108 @@ function buttonKindToTag(kind: RibbonButton["kind"]): string {
 // Command definition generators
 // ---------------------------------------------------------------------------
 
-/** A bare web resource name (`new_/scripts/x.js`) needs the `$webresource:` directive. */
-function normalizeLibrary(library: string): string {
+/**
+ * A bare web resource name (`new_/scripts/x.js`) needs the `$webresource:`
+ * directive. The directive is matched case-insensitively: out-of-the-box
+ * commands use `$Webresource:Main_system_library.js`, which must be kept as is
+ * (prefixing it again produced `$webresource:$Webresource:…`).
+ */
+export function normalizeLibrary(library: string): string {
 	const v = (library ?? "").trim();
-	if (!v || v.startsWith("$webresource:") || /^https?:\/\//i.test(v) || v.startsWith("/")) return v;
+	if (!v || /^\$webresource:/i.test(v) || /^https?:\/\//i.test(v) || v.startsWith("/")) return v;
 	return `$webresource:${v}`;
 }
 
-export function generateCommandDefinition(cmd: CommandDefinition): string {
-	const enableRulesXml = cmd.enableRules
-		.map((r) => `<EnableRule Id="${escapeXml(r)}"/>`)
-		.join("\n        ");
-	const displayRulesXml = cmd.displayRules
-		.map((r) => `<DisplayRule Id="${escapeXml(r)}"/>`)
-		.join("\n        ");
-	const actionsXml = cmd.actions
-		.map((a) => {
-			if (a.kind === "javascript") {
-				const paramsXml = a.params.map(generateActionParam).join("\n          ");
-				return `<JavaScriptFunction FunctionName="${escapeXml(a.functionName)}"
-          Library="${escapeXml(normalizeLibrary(a.library))}">
-          ${paramsXml}
-        </JavaScriptFunction>`;
-			}
-			if (a.kind === "url") {
-				const paramsXml = a.params.map(generateActionParam).join("\n          ");
-				const passParams = a.passParams ? ' PassParams="1"' : "";
-				const winMode = a.winMode !== undefined ? ` WinMode="${a.winMode}"` : "";
-				return `<Url Address="${escapeXml(a.address)}"${passParams}${winMode}>
-          ${paramsXml}
-        </Url>`;
-			}
-			// Classic ribbon serialization currently supports JavaScriptFunction and Url only.
-			return "";
-		})
-		.filter(Boolean)
-		.join("\n        ");
-
-	return `<CommandDefinition Id="${escapeXml(cmd.id)}">
-      <EnableRules>
-        ${enableRulesXml}
-      </EnableRules>
-      <DisplayRules>
-        ${displayRulesXml}
-      </DisplayRules>
-      <Actions>
-        ${actionsXml}
-      </Actions>
-    </CommandDefinition>`;
+/** ` Name="value"`, or nothing when the value is undefined. */
+function attr(name: string, value: string | number | boolean | undefined): string {
+	return value === undefined ? "" : ` ${name}="${escapeXml(String(value))}"`;
 }
 
-function generateActionParam(param: ActionParameter): string {
-	const nameAttr = param.name ? ` Name="${escapeXml(param.name)}"` : "";
+/** Opening tag + children + closing tag, or a self-closing tag without children. */
+function element(tag: string, attrs: string, children: string[], indent: string): string {
+	if (children.length === 0) return `<${tag}${attrs}/>`;
+	return `<${tag}${attrs}>\n${children.map((c) => `${indent}  ${c}`).join("\n")}\n${indent}</${tag}>`;
+}
+
+/**
+ * One `<Actions>` child. JavaScriptFunction parameters are unnamed
+ * (RibbonTypes.xsd `ParameterType` has no Name); Url parameters are named
+ * (`NamedParameterType`, Name required) — #41.
+ */
+export function generateAction(a: RibbonAction, indent = "        "): string {
+	switch (a.kind) {
+		case "javascript":
+			return element(
+				"JavaScriptFunction",
+				`${attr("FunctionName", a.functionName)}${attr("Library", normalizeLibrary(a.library))}`,
+				a.params.map((p) => generateActionParam(p, false)),
+				indent,
+			);
+		case "url":
+			return element(
+				"Url",
+				`${attr("Address", a.address)}${attr("PassParams", a.passParams)}${attr("WinMode", a.winMode)}${attr("WinParams", a.winParams)}`,
+				a.params.map((p) => generateActionParam(p, true)),
+				indent,
+			);
+		case "outlookCommand":
+			return `<OutlookCommand${attr("ActionType", a.actionType)}${attr("Data", a.data)}/>`;
+		case "raw":
+			return a.xml;
+		default:
+			// Power Fx / Custom API actions have no classic ribbon serialization
+			// (#28); the publish plan reports them as unsupported.
+			return "";
+	}
+}
+
+export function generateCommandDefinition(cmd: CommandDefinition): string {
+	const i = "      ";
+	// Unmodelled children of the reference containers go back where they were.
+	const withRaw = (container: "EnableRules" | "DisplayRules", refs: string[]) => {
+		const out = [...refs];
+		for (const raw of cmd.rawRuleRefs ?? []) {
+			if (raw.container === container) out.splice(Math.min(raw.index, out.length), 0, raw.xml);
+		}
+		return out;
+	};
+	const enableRulesXml = withRaw(
+		"EnableRules",
+		cmd.enableRules.map((r) => `<EnableRule Id="${escapeXml(r)}"/>`),
+	);
+	const displayRulesXml = withRaw(
+		"DisplayRules",
+		cmd.displayRules.map((r) => `<DisplayRule Id="${escapeXml(r)}"/>`),
+	);
+	const actionsXml = cmd.actions.map((a) => generateAction(a, `${i}    `)).filter(Boolean);
+	// RibbonTypes.xsd CommandDefinitionType: EnableRules, DisplayRules and
+	// Actions are all required (minOccurs=1), in this order.
+	return `<CommandDefinition Id="${escapeXml(cmd.id)}">
+${i}  ${element("EnableRules", "", enableRulesXml, `${i}  `)}
+${i}  ${element("DisplayRules", "", displayRulesXml, `${i}  `)}
+${i}  ${element("Actions", "", actionsXml, `${i}  `)}
+${i}</CommandDefinition>`;
+}
+
+/**
+ * A parameter of a JavaScriptFunction / CustomRule (`named` = false: the schema
+ * has no Name attribute there, so none is written) or of a Url (`named` = true:
+ * Name is required and always written — empty when missing, which the validator
+ * reports).
+ */
+export function generateActionParam(param: ActionParameter, named: boolean): string {
+	const nameAttr = named ? attr("Name", param.name ?? "") : "";
 	switch (param.kind) {
 		case "CrmParameter":
-			return `<CrmParameter${nameAttr} Value="${escapeXml(String(param.value))}"/>`;
+			return `<CrmParameter${nameAttr}${attr("Value", param.value)}/>`;
 		case "BoolParameter":
-			return `<BoolParameter${nameAttr} Value="${param.value}"/>`;
+			return `<BoolParameter${nameAttr}${attr("Value", param.value)}/>`;
 		case "IntParameter":
-			return `<IntParameter${nameAttr} Value="${param.value}"/>`;
+			return `<IntParameter${nameAttr}${attr("Value", param.value)}/>`;
 		case "DecimalParameter":
-			return `<DecimalParameter${nameAttr} Value="${param.value}"/>`;
+			return `<DecimalParameter${nameAttr}${attr("Value", param.value)}/>`;
 		case "StringParameter":
-			return `<StringParameter${nameAttr} Value="${escapeXml(String(param.value))}"/>`;
+			return `<StringParameter${nameAttr}${attr("Value", param.value)}/>`;
 	}
 }
 
@@ -765,127 +883,147 @@ function generateActionParam(param: ActionParameter): string {
 // ---------------------------------------------------------------------------
 
 export function generateEnableRule(rule: EnableRule): string {
-	const steps = rule.steps.map(generateRuleStep).join("\n        ");
-	return `<EnableRule Id="${escapeXml(rule.id)}">
-        ${steps}
-      </EnableRule>`;
+	return element(
+		"EnableRule",
+		attr("Id", rule.id),
+		rule.steps.map((s) => generateRuleStep(s, "        ")),
+		"      ",
+	);
 }
 
 export function generateDisplayRule(rule: DisplayRule): string {
-	const steps = rule.steps.map(generateRuleStep).join("\n        ");
-	return `<DisplayRule Id="${escapeXml(rule.id)}">
-        ${steps}
-      </DisplayRule>`;
+	return element(
+		"DisplayRule",
+		attr("Id", rule.id),
+		rule.steps.map((s) => generateRuleStep(s, "        ")),
+		"      ",
+	);
 }
 
-function generateRuleStep(step: RuleStep): string {
-	const invert = "invertResult" in step && step.invertResult ? ' InvertResult="1"' : "";
+/**
+ * One rule element. `Default` and `InvertResult` (RibbonTypes.xsd
+ * StandardRuleAttributes) are written only when set, so a rule loaded without
+ * them is re-emitted without them. A RawRule is written back verbatim.
+ */
+export function generateRuleStep(step: RuleStep, indent = ""): string {
+	if (step.kind === "RawRule") return step.xml;
+	if (step.kind === "OrRule") {
+		// Each <Or> is one AND-group (RibbonTypes.xsd OrEnableRuleType /
+		// OrDisplayRuleType: two or more <Or>, each holding one or more rules).
+		const ors = step.groups.map((group) =>
+			element(
+				"Or",
+				"",
+				group.map((s) => generateRuleStep(s, `${indent}    `)),
+				`${indent}  `,
+			),
+		);
+		return element("OrRule", "", ors, indent);
+	}
+
+	const std = `${attr("Default", step.default)}${attr("InvertResult", step.invertResult)}`;
+	const tag = (name: string, attrs: string) => `<${name}${attrs}${std}/>`;
 
 	switch (step.kind) {
-		case "SelectionCountRule": {
-			const min = step.minimum !== undefined ? ` Minimum="${step.minimum}"` : "";
-			const max = step.maximum !== undefined ? ` Maximum="${step.maximum}"` : "";
-			const applies = step.appliesTo ? ` AppliesTo="${step.appliesTo}"` : "";
-			return `<SelectionCountRule${min}${max}${applies}${invert}/>`;
-		}
-		case "EntityRule": {
-			const entity = step.entityName ? ` EntityName="${escapeXml(step.entityName)}"` : "";
-			const ctx = step.context ? ` Context="${step.context}"` : "";
-			const applies = step.appliesTo ? ` AppliesTo="${step.appliesTo}"` : "";
-			return `<EntityRule${entity}${ctx}${applies}${invert}/>`;
-		}
+		case "SelectionCountRule":
+			return tag(
+				"SelectionCountRule",
+				`${attr("AppliesTo", step.appliesTo)}${attr("Minimum", step.minimum)}${attr("Maximum", step.maximum)}`,
+			);
+		case "EntityRule":
+			return tag(
+				"EntityRule",
+				`${attr("EntityName", step.entityName)}${attr("AppliesTo", step.appliesTo)}${attr("Context", step.context)}`,
+			);
 		case "FormStateRule":
-			return `<FormStateRule State="${step.state}"${invert}/>`;
-		case "CommandClientTypeRule": {
-			const def = step.default !== undefined ? ` Default="${step.default}"` : "";
-			return `<CommandClientTypeRule Type="${step.type}"${def}${invert}/>`;
-		}
+			return tag("FormStateRule", attr("State", step.state));
+		case "CommandClientTypeRule":
+			return tag("CommandClientTypeRule", attr("Type", step.type));
 		case "CrmClientTypeRule":
-			return `<CrmClientTypeRule Type="${step.type}"${invert}/>`;
-		case "CustomRule": {
-			const def = step.default !== undefined ? ` Default="${step.default}"` : "";
-			return `<CustomRule Library="${escapeXml(step.library)}" FunctionName="${escapeXml(step.functionName)}"${def}${invert}/>`;
-		}
-		case "OrRule": {
-			const nested = step.rules.map((r) => `<Or>${generateRuleStep(r)}</Or>`).join("\n          ");
-			return `<OrRule>\n          ${nested}\n        </OrRule>`;
-		}
-		case "MiscellaneousPrivilegeRule": {
-			const depth = step.privilegeDepth ? ` PrivilegeDepth="${step.privilegeDepth}"` : "";
-			return `<MiscellaneousPrivilegeRule PrivilegeName="${escapeXml(step.privilegeName)}"${depth}${invert}/>`;
-		}
+			return tag("CrmClientTypeRule", attr("Type", step.type));
+		case "CustomRule":
+			// Parameters are unnamed, like JavaScriptFunction's (CustomRuleType → ParameterType).
+			return element(
+				"CustomRule",
+				`${attr("FunctionName", step.functionName)}${attr("Library", step.library)}${std}`,
+				(step.params ?? []).map((p) => generateActionParam(p, false)),
+				indent,
+			);
+		case "FeatureControlRule":
+			return tag(
+				"FeatureControlRule",
+				`${attr("FeatureControlBit", step.featureControlBit)}${attr("ExpectedValue", step.expectedValue)}`,
+			);
+		case "MiscellaneousPrivilegeRule":
+			return tag(
+				"MiscellaneousPrivilegeRule",
+				`${attr("PrivilegeName", step.privilegeName)}${attr("PrivilegeDepth", step.privilegeDepth)}`,
+			);
 		case "FormTypeRule":
-			return `<FormTypeRule Type="${step.type}"${invert}/>`;
+			return tag("FormTypeRule", attr("Type", step.type));
 		case "ValueRule":
-			return `<ValueRule Field="${escapeXml(step.field)}" Value="${escapeXml(step.value)}"${invert}/>`;
+			return tag("ValueRule", `${attr("Field", step.field)}${attr("Value", step.value)}`);
 		case "SkuRule":
-			return `<SkuRule Sku="${step.sku}"${invert}/>`;
+			return tag("SkuRule", attr("Sku", step.sku));
 		case "HideForTabletExperienceRule":
-			return `<HideForTabletExperienceRule${invert}/>`;
+			return tag("HideForTabletExperienceRule", "");
 		case "OrganizationSettingRule":
-			return `<OrganizationSettingRule Setting="${step.setting}"${invert}/>`;
-		case "EntityPrivilegeRule": {
-			const entity = step.entityName ? ` EntityName="${escapeXml(step.entityName)}"` : "";
-			const applies = step.appliesTo ? ` AppliesTo="${step.appliesTo}"` : "";
-			return `<EntityPrivilegeRule${entity}${applies} PrivilegeType="${step.privilegeType}" PrivilegeDepth="${step.privilegeDepth}"${invert}/>`;
-		}
-		case "EntityPropertyRule": {
-			const entity = step.entityName ? ` EntityName="${escapeXml(step.entityName)}"` : "";
-			const applies = step.appliesTo ? ` AppliesTo="${step.appliesTo}"` : "";
-			return `<EntityPropertyRule${entity}${applies} PropertyName="${step.propertyName}" PropertyValue="${step.propertyValue}"${invert}/>`;
-		}
+			return tag("OrganizationSettingRule", attr("Setting", step.setting));
+		case "EntityPrivilegeRule":
+			return tag(
+				"EntityPrivilegeRule",
+				`${attr("PrivilegeType", step.privilegeType)}${attr("PrivilegeDepth", step.privilegeDepth)}${attr("AppliesTo", step.appliesTo)}${attr("EntityName", step.entityName)}`,
+			);
+		case "EntityPropertyRule":
+			return tag(
+				"EntityPropertyRule",
+				`${attr("EntityName", step.entityName)}${attr("AppliesTo", step.appliesTo)}${attr("PropertyName", step.propertyName)}${attr("PropertyValue", step.propertyValue)}`,
+			);
 		case "DeviceTypeRule":
-			return `<DeviceTypeRule Type="${step.type}"${invert}/>`;
-		case "RelationshipTypeRule": {
-			const relType = step.relationshipType ? ` RelationshipType="${step.relationshipType}"` : "";
-			const custom =
-				step.allowCustomRelationship !== undefined
-					? ` AllowCustomRelationship="${step.allowCustomRelationship}"`
-					: "";
-			const system =
-				step.allowSystemRelationship !== undefined
-					? ` AllowSystemRelationship="${step.allowSystemRelationship}"`
-					: "";
-			return `<RelationshipTypeRule AppliesTo="${step.appliesTo}"${relType}${custom}${system}${invert}/>`;
-		}
-		case "RecordPrivilegeRule": {
-			const applies = step.appliesTo ? ` AppliesTo="${step.appliesTo}"` : "";
-			return `<RecordPrivilegeRule PrivilegeType="${step.privilegeType}"${applies}${invert}/>`;
-		}
+			return tag("DeviceTypeRule", attr("Type", step.type));
+		case "RelationshipTypeRule":
+			return tag(
+				"RelationshipTypeRule",
+				`${attr("AppliesTo", step.appliesTo)}${attr("RelationshipType", step.relationshipType)}${attr("AllowCustomRelationship", step.allowCustomRelationship)}${attr("AllowSystemRelationship", step.allowSystemRelationship)}`,
+			);
+		case "RecordPrivilegeRule":
+			return tag(
+				"RecordPrivilegeRule",
+				`${attr("PrivilegeType", step.privilegeType)}${attr("AppliesTo", step.appliesTo)}`,
+			);
 		case "FormEntityContextRule":
-			return `<FormEntityContextRule EntityName="${escapeXml(step.entityName)}"${invert}/>`;
+			return tag("FormEntityContextRule", attr("EntityName", step.entityName));
 		case "PageRule":
-			return `<PageRule Address="${escapeXml(step.address)}"${invert}/>`;
-		case "ShowOnQuickActionRule":
-			return `<ShowOnQuickActionRule/>`;
-		case "ShowOnGridAndQuickActionRule":
-			return `<ShowOnGridAndQuickActionRule/>`;
-		case "ShowOnGridRule":
-			return `<ShowOnGridRule/>`;
+			return tag("PageRule", attr("Address", step.address));
 		case "ReferencingAttributeRequiredRule":
-			return `<ReferencingAttributeRequiredRule${invert}/>`;
-		case "OutlookItemTrackingRule": {
-			const applies = step.appliesTo ? ` AppliesTo="${step.appliesTo}"` : "";
-			return `<OutlookItemTrackingRule TrackedInCrm="${step.trackedInCrm}"${applies}${invert}/>`;
-		}
+			return tag("ReferencingAttributeRequiredRule", "");
+		case "OutlookItemTrackingRule":
+			return tag(
+				"OutlookItemTrackingRule",
+				`${attr("TrackedInCrm", step.trackedInCrm)}${attr("AppliesTo", step.appliesTo)}`,
+			);
 		case "OutlookRenderTypeRule":
-			return `<OutlookRenderTypeRule Type="${step.type}"${invert}/>`;
+			return tag("OutlookRenderTypeRule", attr("Type", step.type));
 		case "OutlookVersionRule":
-			return `<OutlookVersionRule Version="${step.version}"${invert}/>`;
+			return tag("OutlookVersionRule", attr("Version", step.version));
 		case "CrmOfflineAccessStateRule":
-			return `<CrmOfflineAccessStateRule State="${step.state}"${invert}/>`;
+			return tag("CrmOfflineAccessStateRule", attr("State", step.state));
 		case "CrmOutlookClientTypeRule":
-			return `<CrmOutlookClientTypeRule Type="${step.type}"${invert}/>`;
-		case "CrmOutlookClientVersionRule": {
-			const minor = step.minor !== undefined ? ` Minor="${step.minor}"` : "";
-			const build = step.build !== undefined ? ` Build="${step.build}"` : "";
-			const revision = step.revision !== undefined ? ` Revision="${step.revision}"` : "";
-			return `<CrmOutlookClientVersionRule Major="${step.major}"${minor}${build}${revision}${invert}/>`;
-		}
+			return tag("CrmOutlookClientTypeRule", attr("Type", step.type));
+		case "CrmOutlookClientVersionRule":
+			return tag(
+				"CrmOutlookClientVersionRule",
+				`${attr("Major", step.major)}${attr("Minor", step.minor)}${attr("Build", step.build)}${attr("Revision", step.revision)}`,
+			);
 		case "OptionSetRule":
-			return `<OptionSetRule OptionSet="${escapeXml(step.optionSet)}" StateCode="${escapeXml(step.stateCode)}" ObjectTypeCode="${escapeXml(step.objectTypeCode)}"${invert}/>`;
-		default:
-			return `<!-- Unknown rule kind -->`;
+			return tag(
+				"OptionSetRule",
+				`${attr("OptionSet", step.optionSet)}${attr("StateCode", step.stateCode)}${attr("ObjectTypeCode", step.objectTypeCode)}`,
+			);
+		default: {
+			const unknown: never = step;
+			throw new Error(`Unknown rule kind: ${(unknown as { kind: string }).kind}`);
+		}
 	}
 }
 
@@ -906,32 +1044,34 @@ function generateLocLabel(label: LocLabel): string {
     </LocLabel>`;
 }
 
-function generateTabDisplayRulesForTab(tab: import("@/types/ribbon").RibbonTab): string {
+/**
+ * TabDisplayRules for one new tab. The rules are direct children of
+ * TabDisplayRule (no <DisplayRules> wrapper). An entity ribbon only allows
+ * EntityRule there; PageRule is valid only in the application ribbon
+ * (RibbonTypes.xsd TabDisplayRulesEntityType vs TabDisplayRulesGlobalType — #40),
+ * so it is left out of entity scopes, and a TabDisplayRule left with no rules
+ * (choice minOccurs=1) is not emitted.
+ */
+function generateTabDisplayRulesForTab(tab: RibbonTab, isApplication: boolean): string {
 	return tab.tabDisplayRules
 		.map((tdr) => {
-			const stepsXml = tdr.rules
+			const steps = tdr.rules
 				.map((step) => {
 					if (step.kind === "EntityRule") {
-						const attrs = [
-							step.appliesTo ? ` AppliesTo="${step.appliesTo}"` : "",
-							step.entityName ? ` EntityName="${escapeXml(step.entityName)}"` : "",
-							step.context ? ` Context="${step.context}"` : "",
-						].join("");
-						return `<EntityRule${attrs}/>`;
+						return `<EntityRule${attr("EntityName", step.entityName)}${attr("AppliesTo", step.appliesTo)}${attr("Context", step.context)}/>`;
 					}
-					if (step.kind === "PageRule") {
-						return `<PageRule Address="${escapeXml(step.address)}"/>`;
+					if (step.kind === "PageRule" && isApplication) {
+						return `<PageRule${attr("Address", step.address)}/>`;
 					}
 					return "";
 				})
-				.filter(Boolean)
-				.join("\n          ");
-			// Rules are direct children of TabDisplayRule (RibbonCore.xsd) — no
-			// <DisplayRules> wrapper.
+				.filter(Boolean);
+			if (steps.length === 0) return "";
 			return `<TabDisplayRule TabCommand="${escapeXml(tdr.tabCommand)}">
-          ${stepsXml}
+        ${steps.join("\n        ")}
       </TabDisplayRule>`;
 		})
+		.filter(Boolean)
 		.join("\n      ");
 }
 

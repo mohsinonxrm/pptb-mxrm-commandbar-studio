@@ -1,9 +1,18 @@
 import type { RibbonDefinition, LocLabel } from "@/types/ribbon";
+import {
+	DISPLAY_ONLY_RULE_TAGS,
+	ENABLE_ONLY_RULE_KINDS,
+	type RuleContainer,
+	type RuleKind,
+} from "@/constants/ruleKinds";
+import { CRM_PARAMETER_VALUE_SET, isNamedCrmParameterValue } from "@/constants/crmParameters";
 
 export interface ValidationError {
 	message: string;
 	elementId?: string;
 	lineHint?: string;
+	/** "warning" does not block an import; undefined means "error". */
+	severity?: "error" | "warning";
 }
 
 function lineHintFor(xml: string, token: string): string | undefined {
@@ -131,37 +140,145 @@ export function validateRibbonDiffXml(
 		});
 	}
 
-	// 7. Validate EnableRule does not contain display-only rule kinds
-	const DISPLAY_ONLY_TAGS = new Set([
-		"EntityPrivilegeRule",
-		"EntityPropertyRule",
-		"DeviceTypeRule",
-		"OptionSetRule",
-		"CrmOutlookClientVersionRule",
-	]);
+	// 7+. Ribbon schema rules (RibbonTypes.xsd / RibbonCore.xsd) for commands,
+	// rules, tabs and scaling — #40, #41.
+	errors.push(...validateSchemaRules(doc, xml));
 
-	doc.querySelectorAll("EnableRules > EnableRule").forEach((ruleEl) => {
-		const ruleId = ruleEl.getAttribute("Id") ?? "";
-		DISPLAY_ONLY_TAGS.forEach((tagName) => {
-			if (ruleEl.querySelector(tagName)) {
-				errors.push({
-					message: `Enable rule "${ruleId}" contains "${tagName}" which is only valid in DisplayRules per the schema`,
-					elementId: ruleId,
-					lineHint: lineHintFor(xml, `<${tagName}`),
-				});
+	return errors;
+}
+
+const PARAMETER_TAGS = new Set([
+	"BoolParameter",
+	"CrmParameter",
+	"DecimalParameter",
+	"IntParameter",
+	"StringParameter",
+]);
+
+function childElements(el: Element): Element[] {
+	return Array.from(el.children);
+}
+
+function validateSchemaRules(doc: Document, xml: string): ValidationError[] {
+	const errors: ValidationError[] = [];
+	const error = (message: string, token: string, elementId?: string) =>
+		errors.push({ message, elementId, lineHint: lineHintFor(xml, token) });
+	const warning = (message: string, token: string, elementId?: string) =>
+		errors.push({ message, elementId, lineHint: lineHintFor(xml, token), severity: "warning" });
+
+	const ruleDefs = doc.querySelector("RibbonDiffXml > RuleDefinitions");
+	const containers: { tag: "EnableRule" | "DisplayRule"; label: string; container: RuleContainer }[] = [
+		{ tag: "EnableRule", label: "Enable", container: "enable" },
+		{ tag: "DisplayRule", label: "Display", container: "display" },
+	];
+	for (const { tag, label, container } of containers) {
+		ruleDefs?.querySelectorAll(`:scope > ${tag}s > ${tag}`).forEach((ruleEl) => {
+			const ruleId = ruleEl.getAttribute("Id") ?? "";
+			const steps = childElements(ruleEl);
+			// EnableRule / DisplayRule: choice minOccurs="1".
+			if (steps.length === 0) {
+				error(`${label} rule "${ruleId}" has no steps — the schema requires at least one`, `Id="${ruleId}"`, ruleId);
+			}
+			const checkPlacement = (step: Element) => {
+				const wrongPlace =
+					container === "enable"
+						? DISPLAY_ONLY_RULE_TAGS.has(step.tagName)
+						: ENABLE_ONLY_RULE_KINDS.has(step.tagName as RuleKind);
+				if (wrongPlace) {
+					warning(
+						`${label} rule "${ruleId}" contains ${step.tagName}, which RibbonTypes.xsd only allows in ${container === "enable" ? "display" : "enable"} rules`,
+						`<${step.tagName}`,
+						ruleId,
+					);
+				}
+			};
+			for (const step of steps) {
+				if (step.tagName !== "OrRule") {
+					checkPlacement(step);
+					continue;
+				}
+				const ors = childElements(step);
+				if (ors.filter((o) => o.tagName === "Or").length < 2) {
+					error(
+						`OrRule in ${label.toLowerCase()} rule "${ruleId}" needs at least 2 <Or> children (found ${ors.filter((o) => o.tagName === "Or").length})`,
+						"<OrRule",
+						ruleId,
+					);
+				}
+				for (const or of ors) {
+					const inner = childElements(or);
+					if (inner.length === 0) error(`Empty <Or> in rule "${ruleId}"`, "<Or", ruleId);
+					for (const s of inner) {
+						if (s.tagName === "OrRule") {
+							error(`Rule "${ruleId}": an <Or> cannot contain another OrRule`, "<OrRule", ruleId);
+						} else {
+							checkPlacement(s);
+						}
+					}
+				}
 			}
 		});
+	}
+
+	// Rule placement outside RuleDefinitions (e.g. a lone OrRule fragment) is
+	// still checked for the 2-<Or> minimum.
+	if (!ruleDefs) {
+		doc.querySelectorAll("OrRule").forEach((orEl) => {
+			const count = orEl.querySelectorAll(":scope > Or").length;
+			if (count < 2) error(`OrRule requires at least 2 <Or> children (found ${count})`, "<OrRule");
+		});
+	}
+
+	// Action / CustomRule parameters.
+	doc.querySelectorAll("JavaScriptFunction, CustomRule").forEach((owner) => {
+		for (const p of childElements(owner)) {
+			if (!PARAMETER_TAGS.has(p.tagName)) continue;
+			if (p.hasAttribute("Name")) {
+				error(
+					`${p.tagName} inside <${owner.tagName}> must not have a Name attribute (only <Url> parameters are named)`,
+					`<${p.tagName} Name=`,
+				);
+			}
+			const value = p.getAttribute("Value") ?? "";
+			if (p.tagName === "CrmParameter" && !CRM_PARAMETER_VALUE_SET.has(value)) {
+				error(`CrmParameter Value "${value}" is not a valid CrmParameterValue`, `Value="${value}"`);
+			}
+		}
+	});
+	doc.querySelectorAll("Url").forEach((url) => {
+		for (const p of childElements(url)) {
+			if (!PARAMETER_TAGS.has(p.tagName)) continue;
+			if (!p.getAttribute("Name")) {
+				error(`${p.tagName} inside <Url> requires a Name (the query-string key)`, `<${p.tagName}`);
+			}
+			const value = p.getAttribute("Value") ?? "";
+			if (p.tagName === "CrmParameter" && !isNamedCrmParameterValue(value)) {
+				error(
+					`CrmParameter Value "${value}" is not allowed in a <Url> action (CrmNamedParameterValue)`,
+					`Value="${value}"`,
+				);
+			}
+		}
 	});
 
-	// 8. OrRule must have at least 2 Or children
-	doc.querySelectorAll("OrRule").forEach((orEl) => {
-		const count = orEl.querySelectorAll(":scope > Or").length;
-		if (count < 2) {
-			errors.push({
-				message: `OrRule requires at least 2 <Or> children (found ${count})`,
-				lineHint: lineHintFor(xml, "<OrRule"),
-			});
+	// Tabs and scaling (#40).
+	if (doc.querySelector("RibbonDiffXml > Scalings")) {
+		error(
+			"<Scalings> is not allowed in RibbonDiffXml — scaling changes are CustomActions with Location=\"{tabId}.Scaling._children\"",
+			"<Scalings",
+		);
+	}
+	doc.querySelectorAll("CustomAction > CommandUIDefinition > Tab").forEach((tab) => {
+		const tabId = tab.getAttribute("Id") ?? "";
+		const kids = childElements(tab).map((c) => c.tagName);
+		const scalingAt = kids.indexOf("Scaling");
+		const groupsAt = kids.indexOf("Groups");
+		if (scalingAt < 0 || (groupsAt >= 0 && scalingAt > groupsAt)) {
+			error(`Tab "${tabId}" needs a <Scaling Id> element before <Groups>`, `Id="${tabId}"`, tabId);
 		}
+	});
+	doc.querySelectorAll("TabDisplayRule > DisplayRules").forEach(() => {
+		error("TabDisplayRule rules must be direct children — remove the <DisplayRules> wrapper", "<TabDisplayRule");
 	});
 
 	return errors;
