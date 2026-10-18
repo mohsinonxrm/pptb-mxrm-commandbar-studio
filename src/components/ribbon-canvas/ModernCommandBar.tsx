@@ -35,6 +35,7 @@ import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
 import { copyControl } from "@/utils/ribbonMenu";
+import { canDeleteControl } from "@/utils/ribbonProvenance";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
 import { overrideNote } from "@/services/modernCommands";
@@ -167,6 +168,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 	const moveButton = useRibbonStore((s) => s.moveButton);
 	const deleteButton = useRibbonStore((s) => s.deleteButton);
+	const baseline = useRibbonStore((s) => s.baseline);
 	const duplicateButton = useRibbonStore((s) => s.duplicateButton);
 	const hideOobButton = useRibbonStore((s) => s.hideOobButton);
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
@@ -537,7 +539,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							>
 								Duplicate
 							</MenuItem>
-							{btnMenu.button.origin === "unmanaged" && (
+							{canDeleteControl(btnMenu.button, baseline[location]) && (
 								<MenuItem
 									icon={<DeleteRegular />}
 									disabled={isGlobalOobReadOnly(btnMenu.button)}

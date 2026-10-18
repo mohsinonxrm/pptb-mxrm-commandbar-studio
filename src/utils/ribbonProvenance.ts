@@ -1,5 +1,5 @@
 import type { RibbonButton, RibbonDefinition, RibbonLocation, RibbonOrigin } from "@/types/ribbon";
-import { groupControls } from "@/utils/ribbonMenu";
+import { groupControls, withMenuItems } from "@/utils/ribbonMenu";
 
 /**
  * Platform-owned base ribbon ids. Microsoft's out-of-the-box ribbon uses the
@@ -56,6 +56,33 @@ export function applyLayerOwnership(def: RibbonDefinition, ownIds: Set<string>):
 				if (ownIds.has(button.id)) applyButtonOrigin(button, { origin: "unmanaged" });
 				else if (button.origin === "unmanaged") applyButtonOrigin(button, { origin: "managed" });
 			}
+}
+
+/**
+ * Whether a control is yours: the table's unmanaged layer adds it (set at
+ * load, applyLayerOwnership), or it was created this session. Publish removes
+ * only these (publishPlan); anything else can only be hidden.
+ */
+export function isOwnControl(button: Pick<RibbonButton, "origin">): boolean {
+	return button.origin === "unmanaged";
+}
+
+/**
+ * Whether a control can be deleted (#17) — the same rule publish applies, so
+ * the canvas never removes what publish refuses: a control loaded with the
+ * workspace counts as it was loaded (an override made this session doesn't
+ * make the original yours), a new one by its own origin. A flyout / split
+ * button is deleted with its menu, so every item must be deletable too.
+ */
+export function canDeleteControl(button: RibbonButton, baseline: RibbonDefinition): boolean {
+	const loaded = new Map<string, boolean>();
+	for (const tab of baseline.tabs)
+		for (const group of tab.groups)
+			for (const control of groupControls(group)) {
+				// The application ribbon repeats ids: yours only if every occurrence is.
+				loaded.set(control.id, (loaded.get(control.id) ?? true) && isOwnControl(control));
+			}
+	return withMenuItems([button]).every((control) => loaded.get(control.id) ?? isOwnControl(control));
 }
 
 /**

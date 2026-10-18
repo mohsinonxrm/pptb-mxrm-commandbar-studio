@@ -47,6 +47,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { CustomiseMenuItems } from "@/components/ribbon-canvas/CustomiseMenuItems";
 import { useSelectionStore } from "@/store/selectionStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { canDeleteControl } from "@/utils/ribbonProvenance";
 import { useUIStore } from "@/store/uiStore";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import FluentIcon from "@/components/shared/FluentIcon";
@@ -314,6 +315,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 	const moveButton = useRibbonStore((s) => s.moveButton);
 	const createGroup = useRibbonStore((s) => s.createGroup);
 	const deleteButton = useRibbonStore((s) => s.deleteButton);
+	const baseline = useRibbonStore((s) => s.baseline);
 	const duplicateButton = useRibbonStore((s) => s.duplicateButton);
 	const duplicateGroup = useRibbonStore((s) => s.duplicateGroup);
 	const setGroupTemplate = useRibbonStore((s) => s.setGroupTemplate);
@@ -721,7 +723,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 										Move to: {g.label}
 									</MenuItem>
 								))}
-							{btnMenu.button.origin === "unmanaged" && (
+							{canDeleteControl(btnMenu.button, baseline[location]) && (
 								<>
 									<MenuDivider />
 									<MenuItem

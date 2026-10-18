@@ -2,12 +2,38 @@ import { useEffect, useRef } from "react";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
-import { menuItemPlace } from "@/utils/ribbonMenu";
+import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
+import { canDeleteControl } from "@/utils/ribbonProvenance";
+
+/**
+ * Focus in a text field, a select or the code editor: keys edit the field
+ * there (text undo, Ctrl+D, Delete), not the workspace (#17, #34 review).
+ */
+export function isTextEntryTarget(target: EventTarget | null): boolean {
+	if (!(target instanceof Element)) return false;
+	if (target instanceof HTMLElement && target.isContentEditable) return true;
+	return !!target.closest(
+		'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="spinbutton"], .monaco-editor',
+	);
+}
+
+const OVERLAY_SELECTOR =
+	'[role="dialog"], [role="alertdialog"], [role="menu"], [role="menubar"], [role="listbox"], .fui-PopoverSurface, .fui-MenuPopover';
+
+/**
+ * Focus in a dialog, popover or menu — or a modal dialog is open: the canvas
+ * shortcuts must not act behind it (#17).
+ */
+export function isInOverlay(target: EventTarget | null): boolean {
+	if (target instanceof Element && target.closest(OVERLAY_SELECTOR)) return true;
+	return !!document.querySelector('[aria-modal="true"], [role="alertdialog"]');
+}
 
 export function useKeyboardShortcuts() {
 	const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
 	const openBulkPublish = useUIStore((s) => s.openBulkPublish);
 	const announce = useUIStore((s) => s.announce);
+	const openHideInsteadOfDelete = useUIStore((s) => s.openHideInsteadOfDelete);
 	const undo = useRibbonStore((s) => s.undo);
 	const redo = useRibbonStore((s) => s.redo);
 	const past = useRibbonStore((s) => s.past);
@@ -20,6 +46,7 @@ export function useKeyboardShortcuts() {
 	const deleteButton = useRibbonStore((s) => s.deleteButton);
 	const moveButton = useRibbonStore((s) => s.moveButton);
 	const ribbons = useRibbonStore((s) => s.ribbons);
+	const baseline = useRibbonStore((s) => s.baseline);
 	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 	const selectGroup = useSelectionStore((s) => s.selectGroup);
 
@@ -31,13 +58,20 @@ export function useKeyboardShortcuts() {
 	} | null>(null);
 
 	useEffect(() => {
-		const isEditableTarget = (target: HTMLElement) =>
-			target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
-
 		const handler = (e: KeyboardEvent) => {
 			const isMac = navigator.platform.toUpperCase().includes("MAC");
 			const ctrl = isMac ? e.metaKey : e.ctrlKey;
-			const target = e.target as HTMLElement;
+			const target = e.target;
+
+			// Escape: close command palette
+			if (e.key === "Escape") {
+				setCommandPaletteOpen(false);
+				return;
+			}
+
+			// Nothing acts behind a dialog, popover or menu (#17): its own keys
+			// belong to it.
+			if (isInOverlay(target)) return;
 
 			// Command palette: Ctrl+K / Cmd+K
 			if (ctrl && e.key === "k") {
@@ -56,8 +90,9 @@ export function useKeyboardShortcuts() {
 			}
 
 			// In a text field (or the code editor) Ctrl+Z / Ctrl+Y undo the text,
-			// not the workspace (#34 review).
-			const inTextField = isEditableTarget(target) || !!target.closest?.(".monaco-editor");
+			// not the workspace (#34 review); Ctrl+D, cut / paste and Delete are
+			// the field's too (#17).
+			const inTextField = isTextEntryTarget(target);
 
 			// Undo: Ctrl+Z / Cmd+Z
 			if (ctrl && e.key === "z" && !e.shiftKey && past.length > 0 && !inTextField) {
@@ -79,7 +114,7 @@ export function useKeyboardShortcuts() {
 
 			// Duplicate: Ctrl+D / Cmd+D
 			if (ctrl && e.key === "d") {
-				if (selectedButtonId && selectedGroupId && selectedTabId && activeLocation) {
+				if (!inTextField && selectedButtonId && selectedGroupId && selectedTabId && activeLocation) {
 					e.preventDefault();
 					duplicateButton(activeLocation, selectedTabId, selectedGroupId, selectedButtonId);
 					announce("Button duplicated");
@@ -90,7 +125,7 @@ export function useKeyboardShortcuts() {
 			// Cut button: Ctrl+X / Cmd+X
 			if (ctrl && e.key.toLowerCase() === "x") {
 				if (
-					!isEditableTarget(target) &&
+					!inTextField &&
 					selectedButtonId &&
 					selectedGroupId &&
 					selectedTabId &&
@@ -120,7 +155,7 @@ export function useKeyboardShortcuts() {
 			if (ctrl && e.key.toLowerCase() === "v") {
 				const cut = cutBufferRef.current;
 				if (
-					!isEditableTarget(target) &&
+					!inTextField &&
 					cut &&
 					selectedGroupId &&
 					selectedTabId &&
@@ -161,12 +196,35 @@ export function useKeyboardShortcuts() {
 				selectedTabId &&
 				activeLocation
 			) {
-				if (!isEditableTarget(target)) {
+				if (!inTextField) {
 					const activeTab = ribbons[activeLocation].tabs.find((t) => t.id === selectedTabId);
+					const selectedGroup = activeTab?.groups.find((g) => g.id === selectedGroupId);
+					const selected = findGroupControl(selectedGroup, selectedButtonId);
+					if (!selected) return;
+					e.preventDefault();
+					// Only your own buttons are deleted — the same rule as publish (#17).
+					// Anything else is offered a hide instead.
+					if (!canDeleteControl(selected, baseline[activeLocation])) {
+						const readOnly =
+							activeLocation === "Application" &&
+							selectedTabId === "Mscrm.GlobalTab" &&
+							selected.oob &&
+							!selected.custom;
+						if (readOnly) announce(`"${selected.label}" is read-only and can't be deleted.`);
+						else if (selected.hidden)
+							announce(`"${selected.label}" can't be deleted — only your own buttons can. It is already hidden.`);
+						else
+							openHideInsteadOfDelete({
+								location: activeLocation,
+								tabId: selectedTabId,
+								groupId: selectedGroupId,
+								buttonId: selectedButtonId,
+							});
+						return;
+					}
 					// A menu item: select the next item of its section, else its flyout.
 					// A top-level control: the next top-level control — never an item of
 					// the menu being deleted with it (#62 review m5).
-					const selectedGroup = activeTab?.groups.find((g) => g.id === selectedGroupId);
 					const place = selectedGroup ? menuItemPlace(selectedGroup, selectedButtonId) : undefined;
 					const orderedButtons = place
 						? place.section.controls.map((button) => ({ groupId: selectedGroupId, buttonId: button.id }))
@@ -180,7 +238,6 @@ export function useKeyboardShortcuts() {
 						(place ? { groupId: selectedGroupId, buttonId: place.parent.id } : null);
 					const fallbackGroupId = selectedGroupId;
 
-					e.preventDefault();
 					deleteButton(activeLocation, selectedTabId, selectedGroupId, selectedButtonId);
 					requestAnimationFrame(() => {
 						if (nextTarget) {
@@ -208,11 +265,6 @@ export function useKeyboardShortcuts() {
 					announce("Button deleted");
 				}
 			}
-
-			// Escape: close command palette
-			if (e.key === "Escape") {
-				setCommandPaletteOpen(false);
-			}
 		};
 
 		window.addEventListener("keydown", handler);
@@ -221,6 +273,7 @@ export function useKeyboardShortcuts() {
 		setCommandPaletteOpen,
 		openBulkPublish,
 		announce,
+		openHideInsteadOfDelete,
 		undo,
 		redo,
 		past.length,
@@ -233,6 +286,7 @@ export function useKeyboardShortcuts() {
 		deleteButton,
 		moveButton,
 		ribbons,
+		baseline,
 		selectButtonInContext,
 		selectGroup,
 	]);

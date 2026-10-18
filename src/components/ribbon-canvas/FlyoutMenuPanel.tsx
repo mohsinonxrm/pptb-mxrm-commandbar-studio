@@ -23,6 +23,7 @@ import { useSessionStore } from "@/store/sessionStore";
 import FluentIcon from "@/components/shared/FluentIcon";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { groupControls, isMenuKind, menuItemsOf, rootControlOf } from "@/utils/ribbonMenu";
+import { canDeleteControl } from "@/utils/ribbonProvenance";
 import { newButtonIds } from "@/utils/idGenerator";
 import type { RibbonButton, RibbonLocation, RibbonMenuSection, RibbonTab } from "@/types/ribbon";
 
@@ -383,6 +384,7 @@ function ItemActions({
 }) {
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
 	const deleteButton = useRibbonStore((s) => s.deleteButton);
+	const baseline = useRibbonStore((s) => s.baseline[location]);
 	return (
 		<>
 			<Tooltip content={item.hidden ? "Show item" : "Hide item"} relationship="label">
@@ -395,7 +397,7 @@ function ItemActions({
 					}
 				/>
 			</Tooltip>
-			{item.origin === "unmanaged" && (
+			{canDeleteControl(item, baseline) && (
 				<Tooltip content="Delete item" relationship="label">
 					<Button
 						size="small"

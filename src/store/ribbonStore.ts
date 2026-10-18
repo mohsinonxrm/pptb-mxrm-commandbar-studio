@@ -32,6 +32,7 @@ import {
 } from "@/utils/ribbonMenu";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { canDeleteControl } from "@/utils/ribbonProvenance";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
 export type LayerScope = "entity" | "application";
@@ -852,6 +853,19 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		deleteButton(location, tabId, groupId, buttonId) {
+			// Only your own controls (#17): publish can't remove the others, so the
+			// canvas and Dataverse would disagree. They can be hidden instead.
+			const current = get();
+			const button = controlAt(current.ribbons, location, tabId, groupId, buttonId)?.button;
+			if (button && !canDeleteControl(button, current.baseline[location])) {
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"ribbon",
+						`"${button.label}" (${buttonId}) was not deleted: only your own buttons can be deleted — hide it instead.`,
+					);
+				return;
+			}
 			set((state) =>
 				commitMutation(
 					state,
