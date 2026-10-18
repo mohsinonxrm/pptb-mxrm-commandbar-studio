@@ -273,7 +273,9 @@ export function planScope(input: PlanInput): ScopePlan {
 	for (const c of input.commands) {
 		if (!editedCommandIds.includes(c.id)) continue;
 		if (c.actions.some((a) => a.kind === "powerFx" || a.kind === "customApi")) {
-			unsupported.push(`Power Fx / Custom API action in command ${c.id} — can't be published yet (#28)`);
+			unsupported.push(
+				`Power Fx / Custom API action in command ${c.id} — classic ribbon commands can't run these; remove the action (#28)`,
+			);
 		}
 	}
 
