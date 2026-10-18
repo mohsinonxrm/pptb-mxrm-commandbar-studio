@@ -471,7 +471,13 @@ export function buildModernLocationModel(input: {
 	const isMatched = (c: ModernCommand, seen = new Set<string>()): boolean => {
 		const known = effective.get(c.id);
 		if (known !== undefined) return known;
-		const parent = c.parentId ? byId.get(c.parentId) : undefined;
+		// A section ("group" command) inside a migrated menu has no classic
+		// control of its own: look through it to the menu's command.
+		let parent = c.parentId ? byId.get(c.parentId) : undefined;
+		for (const hops = new Set<string>(); parent?.type === "group" && !rawMatched.has(parent.id) && !hops.has(parent.id); ) {
+			hops.add(parent.id);
+			parent = parent.parentId ? byId.get(parent.parentId) : undefined;
+		}
 		const result =
 			rawMatched.has(c.id) && (!parent || (!seen.has(parent.id) && isMatched(parent, seen.add(c.id))));
 		effective.set(c.id, result);

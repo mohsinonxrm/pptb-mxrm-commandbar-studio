@@ -691,6 +691,22 @@ describe("flyout menu items (#74 follow-up)", () => {
 		expect(model.nodes[0].children.map((n) => n.command.id).sort()).toEqual([child.id, other.id].sort());
 	});
 
+	it("looks through a menu section (group command) to the matched flyout (review)", () => {
+		const parent = migrated("ExportToExcel", { type: 2 });
+		const section = cmd({ name: "Section", type: 3, origin: 1, _parentappactionid_value: parent.id });
+		const item = migrated("ExportToExcel.Static", { _parentappactionid_value: section.id, hidden: true });
+		const model = buildModernLocationModel({
+			commands: [parent, section, item],
+			tabs,
+			location: "HomepageGrid",
+			entityLogicalName: "contact",
+		});
+		expect(model.overrides.get("Mscrm.HomepageGrid.contact.ExportToExcel.Static")).toEqual([
+			expect.objectContaining({ effect: "hidden", command: item }),
+		]);
+		expect(model.nodes).toEqual([]);
+	});
+
 	it("lists a disabled child on its parent's flag instead of dropping it (review m2)", () => {
 		const parent = migrated("ExportToExcel", { type: 2 });
 		const disabled = migrated("ExportToExcel.Static", { _parentappactionid_value: parent.id, isdisabled: true });
