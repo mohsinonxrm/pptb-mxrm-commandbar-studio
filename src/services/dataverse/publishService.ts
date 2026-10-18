@@ -37,6 +37,7 @@ import {
 } from "@/services/dataverse/environmentService";
 import type { ScopePlan } from "@/services/publishPlan";
 import { describeScalingChange, type ScalingChange } from "@/services/scalingSequence";
+import { ribbonPlaces } from "@/services/layerOrphans";
 import { groupControls } from "@/utils/ribbonMenu";
 import { verifyRibbonImport } from "@/services/importJobVerification";
 import {
@@ -465,7 +466,8 @@ export function publishValidationContext(
 	input: Pick<
 		PublishRibbonInput,
 		"locations" | "commands" | "baselineCommands" | "baselineEnableRules" | "baselineDisplayRules"
-	> & { publisherPrefix?: string },
+	> &
+		Partial<Pick<PublishRibbonInput, "entity">> & { publisherPrefix?: string },
 	merged: {
 		changedKeys: string[];
 		newKeys: string[];
@@ -535,6 +537,15 @@ export function publishValidationContext(
 		tabScaling,
 		groupTemplates,
 		templateLayouts,
+		// Where the table's CustomActions can place what they add (#64).
+		...(input.entity
+			? {
+					places: {
+						entityLogicalName: input.entity.logicalName,
+						tabByCollection: Object.fromEntries(ribbonPlaces(input.locations.map((l) => l.baseline))),
+					},
+				}
+			: {}),
 	};
 }
 

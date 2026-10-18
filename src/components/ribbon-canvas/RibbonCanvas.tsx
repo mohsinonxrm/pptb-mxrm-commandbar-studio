@@ -214,6 +214,11 @@ export function RibbonCanvas({
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
 	const baseline = useRibbonStore((s) => s.baseline);
 	const layers = useRibbonStore((s) => s.layers);
+	// Not yet deleted: a pending delete is crossed out in the list, not counted here.
+	const orphanCount = useRibbonStore(
+		(s) => s.orphans.entity.filter((o) => !s.pendingOrphanDeletes.entity.includes(o.id)).length,
+	);
+	const clearSelection = useSelectionStore((s) => s.clearSelection);
 	const reorderTabs = useRibbonStore((s) => s.reorderTabs);
 	const ribbonViewStyle = useUIStore((s) => s.ribbonViewStyle);
 	const setRibbonViewStyle = useUIStore((s) => s.setRibbonViewStyle);
@@ -374,6 +379,23 @@ export function RibbonCanvas({
 						don&apos;t come back when the table is reloaded. Add buttons to the table&apos;s main tab
 						instead.
 					</MessageBarBody>
+				</MessageBar>
+			)}
+
+			{/* The table's customizations the ribbon doesn't return anywhere (#64). */}
+			{location !== "Application" && orphanCount > 0 && (
+				<MessageBar intent="warning" style={{ flexShrink: 0 }}>
+					<MessageBarBody>
+						{orphanCount} element{orphanCount !== 1 ? "s" : ""} of your customizations for this table
+						{orphanCount !== 1 ? " aren't" : " isn't"} on the canvas: the ribbon doesn&apos;t return{" "}
+						{orphanCount !== 1 ? "them" : "it"}. See <strong>Orphaned customizations</strong> in the
+						Properties pane to delete {orphanCount !== 1 ? "them" : "it"}.
+					</MessageBarBody>
+					<MessageBarActions>
+						<Button size="small" onClick={clearSelection}>
+							Show
+						</Button>
+					</MessageBarActions>
 				</MessageBar>
 			)}
 

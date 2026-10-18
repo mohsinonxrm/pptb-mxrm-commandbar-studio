@@ -22,6 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   first tab listed (on the Home Grid that was the Charts tab).
 - The Charts / `AllEntities` tabs show a warning (in every view):
   Unified Interface never shows their buttons, and they don't come back on reload.
+- **Orphaned customizations:** buttons, menu items, groups and tabs your unmanaged
+  customizations add that the ribbon doesn't return anywhere (added to the Charts tab, to a
+  group or menu that no longer exists, at a misspelled Location, …) are listed in the
+  Properties pane with where they are and why they aren't shown; a canvas banner points
+  there. **Delete** removes one on the next publish, together with the command, rules and
+  labels nothing else uses (undoable until then). Other publishes keep them untouched.
+- The pre-publish check warns when a publish adds something at such a Location.
 
 ### 🖼️ Icons on copies and picked web resources ([#60](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/60), [#61](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/61))
 

@@ -16,6 +16,7 @@ import type {
 	RibbonDefinition,
 } from "@/types/ribbon";
 import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
+import type { LayerOrphan } from "@/services/layerOrphans";
 import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 
 /**
@@ -55,6 +56,12 @@ export interface PlanInput {
 	 * not on the canvas at all.
 	 */
 	unhiddenLayerHideIds?: string[];
+	/**
+	 * What the layer adds that isn't on the canvas (#64, layerOrphans) and the
+	 * user chose to delete: removed from the layer like your own deleted
+	 * buttons, tabs and groups, with the commands and labels nothing else uses.
+	 */
+	deletedOrphans?: Pick<LayerOrphan, "id" | "deleteControlIds" | "deleteContainerIds">[];
 	/**
 	 * Commands that belong to another scope and must not be published from this
 	 * one. The application ribbon passes the commands its table's buttons use:
@@ -465,6 +472,12 @@ export function planScope(input: PlanInput): ScopePlan {
 		if (!to) continue;
 		moved.push({ id: deleted[i], ...to });
 		deleted.splice(i, 1);
+	}
+	// Orphans the user deletes (#64): not on the canvas, so not in the
+	// baseline / current comparison above.
+	for (const o of input.deletedOrphans ?? []) {
+		for (const id of o.deleteControlIds) if (!deleted.includes(id)) deleted.push(id);
+		for (const id of o.deleteContainerIds) if (!deletedContainers.includes(id)) deletedContainers.push(id);
 	}
 	for (const m of newMenus) {
 		// A moved menu keeps its <Menu>: the merge edits the control in place.

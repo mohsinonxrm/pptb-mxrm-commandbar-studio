@@ -103,6 +103,8 @@ export const BulkPublishModal: React.FC = () => {
 	const baselineLocLabels = useRibbonStore((s) => s.baselineLocLabels);
 	const layers = useRibbonStore((s) => s.layers);
 	const pendingUnhides = useRibbonStore((s) => s.pendingUnhides);
+	const orphans = useRibbonStore((s) => s.orphans);
+	const pendingOrphanDeletes = useRibbonStore((s) => s.pendingOrphanDeletes);
 	const customisedCommandIds = useRibbonStore((s) => s.customisedCommandIds);
 	const uncustomisedCommandIds = useRibbonStore((s) => s.uncustomisedCommandIds);
 	const baseLanguageCode = useRibbonStore((s) => s.baseLanguageCode);
@@ -153,6 +155,7 @@ export const BulkPublishModal: React.FC = () => {
 				baselineLocLabels,
 				layer: layers[scope] ?? undefined,
 				unhiddenLayerHideIds: pendingUnhides[scope],
+				deletedOrphans: orphans[scope].filter((o) => pendingOrphanDeletes[scope].includes(o.id)),
 				customisedCommandIds,
 				// Per scope: uncustomising for the table leaves the application ribbon's copy (#31).
 				uncustomisedCommandIds: uncustomisedCommandIds[scope],
@@ -176,6 +179,8 @@ export const BulkPublishModal: React.FC = () => {
 			baselineLocLabels,
 			layers,
 			pendingUnhides,
+			orphans,
+			pendingOrphanDeletes,
 			customisedCommandIds,
 			uncustomisedCommandIds,
 		],

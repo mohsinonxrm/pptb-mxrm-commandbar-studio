@@ -16,6 +16,7 @@ import {
 	ownControlIds,
 	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
+import { findLayerOrphans, type LayerOrphan } from "@/services/layerOrphans";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { groupControls, removeMenuItem } from "@/utils/ribbonMenu";
@@ -34,6 +35,8 @@ export interface RibbonWorkspaceData {
 	layers?: { entity: LayerSnapshot | null; application: LayerSnapshot | null };
 	/** Organisation base language (`organizations.languagecode`). */
 	baseLanguageCode?: number;
+	/** What the table's layer adds that isn't on the canvas (#64). */
+	orphans?: LayerOrphan[];
 }
 
 function dedupeById<T extends { id: string }>(items: T[]): T[] {
@@ -406,6 +409,20 @@ export async function fetchRibbonWorkspace(
 	const locLabels = dedupeById([...entity.locLabels, ...application.locLabels]);
 	resolveLabelsIn([...Object.values(entity.ribbons), application.ribbon], locLabels, baseLanguageCode);
 
+	// The table's CustomActions the ribbon doesn't return anywhere (#64), listed
+	// so they can be deleted. Not the application ribbon's: its CustomActions
+	// can target any table's locations, and only this table is loaded.
+	const orphans = entityLayer
+		? findLayerOrphans(entityLayer, Object.values(entity.ribbons), entityLogicalName, locLabels, baseLanguageCode)
+		: [];
+	if (orphans.length > 0) {
+		logs.logWarn(
+			"ribbon",
+			`${orphans.length} element(s) of the table's unmanaged customizations aren't on the canvas — the ribbon ` +
+				`doesn't return them (see "Orphaned customizations"): ${orphans.map((o) => `${o.id} at ${o.location}`).join(", ")}.`,
+		);
+	}
+
 	return {
 		ribbons: {
 			HomepageGrid: entity.ribbons.HomepageGrid,
@@ -422,5 +439,6 @@ export async function fetchRibbonWorkspace(
 			application: appLayer ? layerSnapshotFromParts(appLayer) : null,
 		},
 		baseLanguageCode,
+		orphans,
 	};
 }

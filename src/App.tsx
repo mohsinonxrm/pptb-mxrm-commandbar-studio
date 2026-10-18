@@ -273,6 +273,7 @@ export function App() {
 					locLabels: workspace.locLabels,
 					layers: workspace.layers,
 					baseLanguageCode: workspace.baseLanguageCode,
+					orphans: { entity: workspace.orphans ?? [] },
 				});
 
 				// Snapshot the current selection at success-time via getState()
