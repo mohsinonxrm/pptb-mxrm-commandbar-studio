@@ -24,6 +24,7 @@ import {
 	AppsAddInRegular,
 	LockClosedRegular,
 	AddRegular,
+	ChevronDownRegular,
 } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -32,7 +33,7 @@ import FluentIcon from "@/components/shared/FluentIcon";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
-import { sourceForCopy } from "@/utils/copyButton";
+import { copyControl } from "@/utils/ribbonMenu";
 
 const DRAG_MIME = "application/x-rw-btn";
 // Drag-source MIME emitted by SolutionElementsPane when the user drags an
@@ -247,15 +248,14 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 						groupId,
 						button: {
 							// A copy of the whole button — icon, images, command, tooltips —
-							// as a new control (#60): no LocLabel tokens of the original.
-							...seButton,
-							id: `${seButton.id}${stamp}`,
+							// as a new control (#60): no LocLabel tokens of the original, and
+							// a menu with ids of its own (#27).
+							...copyControl(seButton, `${seButton.id}${stamp}`),
 							label: seButton.label ?? "New Button",
 							kind: seButton.kind ?? "button",
 							sequence: 50,
 							templateAlias: seButton.templateAlias ?? "o1",
 							commandId: seButton.commandId ?? "",
-							source: sourceForCopy(seButton.source),
 							hidden: false,
 							oob: false,
 							custom: true,
@@ -325,6 +325,8 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							>
 								<FluentIcon name={button.icon || "apps_add_in"} size={16} />
 								<Text size={200}>{resolveDisplayLabel(button.label, locLabels)}</Text>
+								{/* Flyout / split button: its menu opens under the bar when selected (#27). */}
+								{button.menu && <ChevronDownRegular fontSize={12} aria-label="Has a menu" />}
 								{button.hidden && <EyeOffRegular fontSize={12} aria-hidden />}
 								{button.custom && (
 									<Badge size="extra-small" color="brand" appearance="tint" aria-label="Custom">

@@ -75,6 +75,29 @@ function ensureUnique(base: string, existingIds: Set<string>): string {
 }
 
 /**
+ * Ids for a new button (or menu item) and its command:
+ * `{prefix}.{entity}.{location}.{Label}.Button` / `….Command`. The location
+ * keeps the same label on the grid, sub-grid and form from producing colliding
+ * ids in the table's single RibbonDiffXml; `existingIds` (every control and
+ * command already loaded) de-duplicates.
+ */
+export function newButtonIds(
+	prefix: string,
+	entityName: string,
+	location: string,
+	label: string,
+	existingIds: Set<string>,
+): { id: string; commandId: string } {
+	const safeName = label.replace(/[^a-zA-Z0-9_]/g, "") || "Button";
+	const base = `${prefix}.${entityName}.${location}.${safeName}`;
+	let stem = base;
+	for (let n = 2; existingIds.has(`${stem}.Button`) || existingIds.has(`${stem}.Command`); n++) {
+		stem = `${base}${n}`;
+	}
+	return { id: `${stem}.Button`, commandId: `${stem}.Command` };
+}
+
+/**
  * Validates that a ribbon element ID contains no whitespace or forbidden characters.
  */
 export function validateRibbonId(id: string): string | null {

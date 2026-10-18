@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🧹 Unsupported command actions ([#28](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/28))
+
+- The command editor no longer offers **Power Fx** or **Custom API** actions:
+  classic ribbon commands can't run them (they exist only in modern commanding).
+  A command that still has one (from an older saved session) shows an error with
+  **Remove**, and publishing it is blocked with a message saying what to do.
+
+### 🧭 Canvas opens on the main tab ([#64](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/64))
+
+- Loading a table or switching location opens the table's **main tab** instead of the
+  first tab listed (on the Home Grid that was the Charts tab).
+- The Charts / `AllEntities` tabs show a warning (in every view):
+  Unified Interface never shows their buttons, and they don't come back on reload.
+
 ### 🖼️ Icons on copies and picked web resources ([#60](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/60), [#61](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/61))
 
 - A button **duplicated** or **copied from Solution Elements** keeps its icon (the loaded

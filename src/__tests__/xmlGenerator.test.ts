@@ -37,6 +37,11 @@ function makeInput(
 	};
 }
 
+/** The same tabs and groups without buttons: the buttons are new, the containers exist. */
+function shell(def: RibbonDefinition): RibbonDefinition {
+	return { ...def, tabs: def.tabs.map((t) => ({ ...t, groups: t.groups.map((g) => ({ ...g, buttons: [] })) })) };
+}
+
 // ── escapeXml ──────────────────────────────────────────────────────────────
 
 describe("escapeXml", () => {
@@ -104,7 +109,7 @@ describe("generateRibbonDiffXml — custom button", () => {
 			],
 		};
 
-		const xml = generateRibbonDiffXml(makeInput(current));
+		const xml = generateRibbonDiffXml(makeInput(current, shell(current)));
 
 		expect(xml).toContain('Location="Mscrm.HomepageGrid.account.MainTab.New.Controls._children"');
 		expect(xml).toContain('Id="Contoso.account.CreditCheck.Button"');
@@ -145,7 +150,7 @@ describe("generateRibbonDiffXml — custom button", () => {
 				},
 			],
 		};
-		const xml = generateRibbonDiffXml(makeInput(current));
+		const xml = generateRibbonDiffXml(makeInput(current, shell(current)));
 		expect(xml).toContain('Location="Group1.Controls._children"');
 	});
 
@@ -672,8 +677,12 @@ describe("generateRibbonDiffXml — new groups and tabs", () => {
 		expect(xml).toContain('<Group Id="mxrm.account.MyGroup"');
 		// short template name is qualified
 		expect(xml).toContain('Template="Mscrm.Templates.Flexible2"');
-		// …and the button inside it anchors to the new group's controls.
-		expect(xml).toContain('Location="mxrm.account.MyGroup.Controls._children"');
+		// …and the button created with it is written inside its <Controls> (#59):
+		// a separate {group}.Controls._children CustomAction was dropped by Dataverse.
+		expect(xml).not.toContain('Location="mxrm.account.MyGroup.Controls._children"');
+		const doc = new DOMParser().parseFromString(xml, "application/xml");
+		const groupEl = doc.querySelector('CustomAction > CommandUIDefinition > Group[Id="mxrm.account.MyGroup"]')!;
+		expect(groupEl.querySelector(':scope > Controls > Button')?.getAttribute("Id")).toBe("mxrm.account.NewBtn.Button");
 		expectNoDanglingLocLabelRefs(xml);
 	});
 
