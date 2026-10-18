@@ -26,6 +26,7 @@ export const NewButtonModal: React.FC = () => {
 	const closeNewButton = useUIStore((s) => s.closeNewButton);
 	const createButton = useRibbonStore((s) => s.createButton);
 	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
+	const batch = useRibbonStore((s) => s.batch);
 	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 	const sessionPublisherPrefix = useSessionStore((s) => s.publisherPrefix);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
@@ -75,36 +76,39 @@ export const NewButtonModal: React.FC = () => {
 			return;
 		}
 
-		createButton({
-			location: activeLocation,
-			tabId: targetTabId,
-			groupId: newButtonGroupId,
-			button: {
-				id,
-				label,
-				kind,
-				sequence: 50,
-				templateAlias: "o1",
-				commandId,
-				hidden: false,
-				oob: false,
-				custom: true,
-				managed: false,
-			},
-		});
+		// The button and its command are one undo step (#34).
+		batch(() => {
+			createButton({
+				location: activeLocation,
+				tabId: targetTabId,
+				groupId: newButtonGroupId,
+				button: {
+					id,
+					label,
+					kind,
+					sequence: 50,
+					templateAlias: "o1",
+					commandId,
+					hidden: false,
+					oob: false,
+					custom: true,
+					managed: false,
+				},
+			});
 
-		// Also create a CommandDefinition for this button. Without it, the
-		// published RibbonDiffXml references a command that doesn't exist
-		// anywhere in the solution, and Unified Interface silently refuses
-		// to render the button (this was the "publish succeeds but button
-		// doesn't appear in CRM" bug). The command starts empty; the user
-		// fills in actions / enable / display rules via the Command Editor
-		// or the properties pane.
-		upsertCommand({
-			id: commandId,
-			enableRules: [],
-			displayRules: [],
-			actions: [],
+			// Also create a CommandDefinition for this button. Without it, the
+			// published RibbonDiffXml references a command that doesn't exist
+			// anywhere in the solution, and Unified Interface silently refuses
+			// to render the button (this was the "publish succeeds but button
+			// doesn't appear in CRM" bug). The command starts empty; the user
+			// fills in actions / enable / display rules via the Command Editor
+			// or the properties pane.
+			upsertCommand({
+				id: commandId,
+				enableRules: [],
+				displayRules: [],
+				actions: [],
+			});
 		});
 
 		// Select the newly-created button so it's immediately visible in the

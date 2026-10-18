@@ -55,8 +55,12 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
+			// In a text field (or the code editor) Ctrl+Z / Ctrl+Y undo the text,
+			// not the workspace (#34 review).
+			const inTextField = isEditableTarget(target) || !!target.closest?.(".monaco-editor");
+
 			// Undo: Ctrl+Z / Cmd+Z
-			if (ctrl && e.key === "z" && !e.shiftKey && past.length > 0) {
+			if (ctrl && e.key === "z" && !e.shiftKey && past.length > 0 && !inTextField) {
 				e.preventDefault();
 				undo();
 				announce("Undo");
@@ -64,7 +68,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Redo: Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y
-			if ((ctrl && e.key === "y") || (ctrl && e.shiftKey && e.key === "z")) {
+			if (((ctrl && e.key === "y") || (ctrl && e.shiftKey && e.key === "z")) && !inTextField) {
 				e.preventDefault();
 				if (future.length > 0) {
 					redo();
