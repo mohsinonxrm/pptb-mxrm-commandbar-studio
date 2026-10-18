@@ -1,5 +1,6 @@
 import { decompressRibbonZip } from "@/utils/decompressRibbonZip";
 import { parseRibbonXml } from "@/services/xmlParser";
+import { canonicalXml } from "@/services/ribbonXmlCanonical";
 import type { LocLabel, RibbonDefinition, RibbonLocation, RibbonTab, ScalingDefinition } from "@/types/ribbon";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import {
@@ -215,17 +216,43 @@ export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
 }
 
 /**
- * Fills in command / rule definitions the merged ribbon is missing but the
- * unmanaged layer has (#52): right after a publish RetrieveEntityRibbon has been
- * seen returning the new buttons without their CommandDefinitions for about a
- * minute. Only buttons' commands that are missing are added (with their rules);
- * nothing the merged ribbon returned is replaced. Returns the added command ids.
+ * Makes the loaded commands and rules match the unmanaged layer (#52). Right
+ * after a publish RetrieveEntityRibbon has been seen, for a minute or more,
+ * returning new buttons without their CommandDefinitions, and returning an
+ * older copy of a command or rule the publish changed (verified live: a rule
+ * edited to Minimum="2" came back as Minimum="1" from one call and was missing
+ * from the next). The unmanaged layer is always the top layer and is what a
+ * publish merges into, so for every command and rule it defines its copy wins:
+ * - a button's command the merged ribbon doesn't have is added, with its rules;
+ * - a command or rule the merged ribbon returned differently is replaced.
+ * Definitions the layer doesn't define are never touched. Returns the ids
+ * added and replaced.
  */
 export function reconcileWithLayer(
 	defs: RibbonDefinition[],
 	data: Pick<RibbonWorkspaceData, "commands" | "enableRules" | "displayRules">,
 	layer: RibbonDiffParts,
-): string[] {
+): { added: string[]; replaced: string[] } {
+	const out = { added: [] as string[], replaced: [] as string[] };
+	if (layer.commandDefinitions.size + layer.enableRules.size + layer.displayRules.size === 0) return out;
+	const fromLayer = definitionsFromParts(layer);
+	// Raw XML kept for unmodelled actions / rules is compared canonically: the
+	// merged ribbon and the layer rows can format the same element differently.
+	const same = (a: unknown, b: unknown) => JSON.stringify(a, canonicalRaw) === JSON.stringify(b, canonicalRaw);
+	const refresh = <T extends { id: string }>(list: T[], layerItems: T[]) => {
+		const byId = new Map(layerItems.map((x) => [x.id, x]));
+		for (let i = 0; i < list.length; i++) {
+			const own = byId.get(list[i].id);
+			if (own && !same(own, list[i])) {
+				list[i] = own;
+				out.replaced.push(own.id);
+			}
+		}
+	};
+	refresh(data.commands, fromLayer.commands);
+	refresh(data.enableRules, fromLayer.enableRules);
+	refresh(data.displayRules, fromLayer.displayRules);
+
 	const known = new Set(data.commands.map((c) => c.id));
 	const missing = new Set<string>();
 	for (const def of defs)
@@ -234,18 +261,19 @@ export function reconcileWithLayer(
 				for (const button of groupControls(group))
 					if (button.commandId && !known.has(button.commandId) && layer.commandDefinitions.has(button.commandId))
 						missing.add(button.commandId);
-	if (missing.size === 0) return [];
-	const fromLayer = definitionsFromParts(layer);
 	const added = fromLayer.commands.filter((c) => missing.has(c.id));
 	data.commands.push(...added);
+	out.added.push(...added.map((c) => c.id));
+	// Rules the layer defines that a loaded command uses but the merged ribbon didn't return.
 	const haveEnable = new Set(data.enableRules.map((r) => r.id));
 	const haveDisplay = new Set(data.displayRules.map((r) => r.id));
-	for (const cmd of added) {
+	for (const cmd of data.commands) {
 		for (const id of cmd.enableRules) {
 			const rule = fromLayer.enableRules.find((r) => r.id === id);
 			if (rule && !haveEnable.has(id)) {
 				data.enableRules.push(rule);
 				haveEnable.add(id);
+				out.added.push(id);
 			}
 		}
 		for (const id of cmd.displayRules) {
@@ -253,10 +281,37 @@ export function reconcileWithLayer(
 			if (rule && !haveDisplay.has(id)) {
 				data.displayRules.push(rule);
 				haveDisplay.add(id);
+				out.added.push(id);
 			}
 		}
 	}
-	return added.map((c) => c.id);
+	return out;
+}
+
+/** JSON.stringify replacer: XML strings in canonical form, so formatting and attribute order don't count. */
+function canonicalRaw(_key: string, value: unknown): unknown {
+	if (typeof value !== "string" || !value.trimStart().startsWith("<")) return value;
+	try {
+		return canonicalXml(value);
+	} catch {
+		return value;
+	}
+}
+
+/**
+ * The part of the application ribbon's layer the table's layer doesn't
+ * redefine: the merged table ribbon also carries application-ribbon commands
+ * and rules, and for those the application layer's copy is the current one.
+ */
+export function applicationOnlyParts(app: RibbonDiffParts, entity: RibbonDiffParts | null): RibbonDiffParts {
+	const without = (m: Map<string, string>, own?: Map<string, string>) =>
+		new Map([...m].filter(([id]) => !own?.has(id)));
+	return {
+		...app,
+		commandDefinitions: without(app.commandDefinitions, entity?.commandDefinitions),
+		enableRules: without(app.enableRules, entity?.enableRules),
+		displayRules: without(app.displayRules, entity?.displayRules),
+	};
 }
 
 /**
@@ -369,6 +424,22 @@ export function addLayerTabs(
 	return parsed.ribbon.tabs.map((t) => t.id);
 }
 
+/** Runtime-log note for definitions taken from the unmanaged layer instead of the merged ribbon (#52). */
+function logReconciled(source: string, r: { added: string[]; replaced: string[] }): void {
+	if (r.added.length + r.replaced.length === 0) return;
+	const parts = [
+		r.added.length > 0 ? `${r.added.length} missing (${r.added.join(", ")})` : "",
+		r.replaced.length > 0 ? `${r.replaced.length} out of date (${r.replaced.join(", ")})` : "",
+	].filter(Boolean);
+	useRuntimeLogStore
+		.getState()
+		.logWarn(
+			"ribbon",
+			`${source} returned command / rule definitions that don't match your unmanaged customizations — ` +
+				`${parts.join("; ")}. It can lag behind for a few minutes after a publish; loaded them from the unmanaged layer.`,
+		);
+}
+
 export async function fetchRibbonWorkspace(
 	entityLogicalName: string,
 ): Promise<RibbonWorkspaceData> {
@@ -392,19 +463,18 @@ export async function fetchRibbonWorkspace(
 		if (tabs.length > 0) logs.logInfo("ribbon", `Loaded tab(s) ${tabs.join(", ")} from the table's unmanaged layer.`);
 		const own = ownControlIds(entityLayer);
 		for (const def of Object.values(entity.ribbons)) applyLayerOwnership(def, own);
-		const added = reconcileWithLayer(Object.values(entity.ribbons), entity, entityLayer);
-		if (added.length > 0) {
-			logs.logWarn(
-				"ribbon",
-				`RetrieveEntityRibbon returned ${added.length} button command(s) without their definition ` +
-					`(it can lag right after a publish); loaded them from the unmanaged layer: ${added.join(", ")}.`,
-			);
-		}
+		logReconciled("RetrieveEntityRibbon", reconcileWithLayer(Object.values(entity.ribbons), entity, entityLayer));
 	}
 	if (appLayer) {
 		addLayerTabs({ Application: application.ribbon }, appLayer, null, appLabels);
 		applyLayerOwnership(application.ribbon, ownControlIds(appLayer));
-		reconcileWithLayer([application.ribbon], application, appLayer);
+		logReconciled("RetrieveApplicationRibbon", reconcileWithLayer([application.ribbon], application, appLayer));
+		// The table's merged ribbon repeats application-ribbon definitions (they're
+		// merged first below, so they must be current there too).
+		logReconciled(
+			"RetrieveEntityRibbon",
+			reconcileWithLayer(Object.values(entity.ribbons), entity, applicationOnlyParts(appLayer, entityLayer)),
+		);
 	}
 
 	const locLabels = dedupeById([...entity.locLabels, ...application.locLabels]);

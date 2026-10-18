@@ -648,3 +648,15 @@ describe("final review 2 — publishRibbon always reports what it changed", () =
 		expect(result.changedKeys).toBeUndefined();
 	});
 });
+
+describe("drafts (#64 x #16)", () => {
+	it("a pending orphan delete is saved in the draft and restored", async () => {
+		const { workspaceDelta, draftWorkspace } = await import("@/services/ribbonDraft");
+		const { useRibbonStore: store } = await import("@/store/ribbonStore");
+		store.setState({ pendingOrphanDeletes: { entity: ["cbs.Orphan.Button"], application: [] } });
+		const delta = workspaceDelta(store.getState());
+		store.setState({ pendingOrphanDeletes: { entity: [], application: [] } });
+		const restored = draftWorkspace({ delta } as Parameters<typeof draftWorkspace>[0], store.getState());
+		expect(restored.pendingOrphanDeletes.entity).toEqual(["cbs.Orphan.Button"]);
+	});
+});
