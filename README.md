@@ -91,10 +91,12 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - CBS-specific completions: `$LocLabels:`, `$webresource:`, `Command=`, `ModernImage=`
 
 ### 🔄 Publish Pipeline
-- Correct delta-only `RibbonDiffXml` — only changed elements emitted
+- Read → merge → write: reads the table's existing unmanaged ribbon layer (CustomActions, commands, rules, labels) and merges your changes into it, so customizations made elsewhere (e.g. with Ribbon Workbench) are kept
+- Pre-publish validation — blocking errors stop the import; warnings are logged
 - Solution ZIP packaging with `behavior=2` (shell-only) root component — does **not** pull in all entity subcomponents
-- 5-minute import polling with progress beats
-- Post-publish `ribbonmetadatasettoprocess` monitoring — surfaces compile errors that `publishCustomizations` silently swallows
+- Import → publish → re-import → publish, so Unified Interface picks up the change
+- Waits and retries while the environment is busy with another import, publish or ribbon-metadata job
+- Post-publish verification — reads the published layer back and checks every element this publish changed has the imported content
 - `Mscrm.OpenRecordItem` override support — emitted as a system-command override when the user defines a JS action on it
 
 ### 🧩 Solution Conflict Drawer
@@ -254,12 +256,14 @@ src/
     shared/              — MonacoEditor, FluentIcon, CrmParameterEditor,
                            RuleStepEditor, RuleStepPicker, ResizableHandle
   services/
-    xmlGenerator.ts      — Delta-only RibbonDiffXml generator (all 30 rule kinds)
+    xmlGenerator.ts      — RibbonDiffXml generator (all 30 rule kinds)
     xmlParser.ts         — Merged ribbon XML parser (all 30 rule kinds)
     xmlValidator.ts      — Pre-import validation with user-friendly messages
+    publishPlan.ts       — What a publish changes per location (and what it can't)
+    ribbonDiffMerge.ts   — Merges your changes into the existing unmanaged layer
     dataverse/
       ribbonService.ts         — RetrieveEntityRibbon / RetrieveApplicationRibbon
-      publishService.ts        — Solution ZIP packaging + import + ribbonmetadatasettoprocess poll
+      publishService.ts        — Layer merge, solution ZIP packaging, import, publish and verification
       ribbonProvenanceService.ts — msdyn_componentlayer solution-layer provenance
       conflictService.ts       — fetchConflictLayersForElement
       webResourceService.ts    — loadWebResources / loadWebResourceByName / loadWebResourceContent
