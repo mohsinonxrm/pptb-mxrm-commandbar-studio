@@ -4,6 +4,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	addExistingWebResourceToActiveSolution,
 	WEB_RESOURCE_COMPONENT_TYPE,
 	saveWebResource,
 	upsertWebResource,
@@ -185,5 +186,68 @@ describe("saveWebResource", () => {
 		const res = await saveWebResource("cbstest_/x.js", "Ow==", 3);
 		expect(res.solutionWarning).toBeUndefined();
 		expect(useRuntimeLogStore.getState().entries).toEqual([]);
+	});
+});
+
+describe("addExistingWebResourceToActiveSolution (#61)", () => {
+	const solution = (isManaged: boolean): Solution => ({
+		id: "sol",
+		uniqueName: "CBSLiveTest",
+		friendlyName: "CBS Live Test",
+		version: "1.0.0.0",
+		isManaged,
+		publisherId: "pub",
+		publisherUniqueName: "cbstest",
+		publisherName: "CBS Test",
+		publisherPrefix: "cbstest",
+	});
+	afterEach(() => {
+		useSessionStore.setState({ activeSolution: null });
+		useRuntimeLogStore.setState({ entries: [] });
+		delete (window as unknown as { dataverseAPI?: unknown }).dataverseAPI;
+	});
+
+	it("adds a picked web resource to the active unmanaged solution", async () => {
+		const api = fakeApi();
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
+		useSessionStore.setState({ activeSolution: solution(false) });
+		const res = await addExistingWebResourceToActiveSolution("cbstest_/icons/x.svg", { id: "wr-1", isCustom: true });
+		expect(res.solutionUniqueName).toBe("CBSLiveTest");
+		expect(api.execute.mock.calls[0]).toEqual(addComponentCall("wr-1", "CBSLiveTest"));
+	});
+
+	it("looks a typed name up, and fails when it doesn't exist", async () => {
+		const api = fakeApi("wr-2");
+		api.queryData.mockResolvedValue({ value: [{ webresourceid: "wr-2", ismanaged: false }] } as never);
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
+		useSessionStore.setState({ activeSolution: solution(false) });
+		await addExistingWebResourceToActiveSolution("cbstest_/icons/y.svg");
+		expect(api.execute.mock.calls[0]).toEqual(addComponentCall("wr-2", "CBSLiveTest"));
+
+		const missing = fakeApi();
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = missing;
+		await expect(addExistingWebResourceToActiveSolution("cbstest_/icons/none.svg")).rejects.toThrow(
+			/No web resource named cbstest_\/icons\/none\.svg/,
+		);
+		expect(missing.execute).not.toHaveBeenCalled();
+	});
+
+	it("doesn't add a managed web resource to the user's solution", async () => {
+		const api = fakeApi();
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
+		useSessionStore.setState({ activeSolution: solution(false) });
+		const res = await addExistingWebResourceToActiveSolution("msdyn_/icons/x.svg", { id: "wr-9", isCustom: false });
+		expect(res.solutionUniqueName).toBeUndefined();
+		expect(res.solutionWarning).toMatch(/is managed, so it isn't added to your solution/);
+		expect(api.execute).not.toHaveBeenCalled();
+	});
+
+	it("warns instead of adding when the active solution is managed", async () => {
+		const api = fakeApi();
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
+		useSessionStore.setState({ activeSolution: solution(true) });
+		const res = await addExistingWebResourceToActiveSolution("cbstest_/icons/x.svg", { id: "wr-1", isCustom: true });
+		expect(res.solutionWarning).toMatch(/not added to any solution because the active solution CBSLiveTest is managed/);
+		expect(api.execute).not.toHaveBeenCalled();
 	});
 });

@@ -1,6 +1,7 @@
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { useSessionStore } from "@/store/sessionStore";
 import type { WebResource, WebResourceType } from "@/types/webResource";
+import type { WebResourceStatus } from "@/services/xmlValidator";
 
 function getHostDataverseApi(): DataverseAPI.API {
 	const api = (window as Window & typeof globalThis).dataverseAPI;
@@ -184,6 +185,88 @@ export async function upsertWebResource(
 	return result;
 }
 
+/** Names (or ids) per OData `or` filter: keeps a lookup URL well under the request-length limit. */
+const LOOKUP_CHUNK = 40;
+
+const chunks = <T>(items: T[], size: number): T[][] =>
+	Array.from({ length: Math.ceil(items.length / size) }, (_, i) =>
+		items.slice(i * size, (i + 1) * size),
+	);
+
+/**
+ * An OData string literal inside a query string: quotes doubled, and every
+ * character that would end or change the query (`%`, `&`, `#`, `+`, `?`, `=`,
+ * `;`, whitespace…) percent-encoded. `/`, letters, digits, `.`, `_` and `-`
+ * (all a web resource name may contain) stay as they are — the form verified
+ * live through PPTB's queryData.
+ */
+const odataString = (v: string) =>
+	`'${v.replace(/'/g, "''").replace(/[^A-Za-z0-9/._\-'~]/gu, (c) => encodeURIComponent(c))}'`;
+
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Whether the web resources a ribbon references exist and are in a solution
+ * (#35): one query for the names, one for their solution components (more only
+ * past LOOKUP_CHUNK names). Keyed by lower-case name — Dataverse compares
+ * names case-insensitively; a query string or fragment (`page.htm?id=1`) is
+ * not part of the name. Takes the API so tests can pass a fake.
+ */
+export async function lookupWebResources(
+	api: Pick<DataverseAPI.API, "queryData">,
+	names: string[],
+	solutionId?: string,
+): Promise<Record<string, WebResourceStatus>> {
+	const bare = names.map((n) => n.split(/[?#]/)[0].trim()).filter(Boolean);
+	const unique = bare.filter(
+		(n, i) => bare.findIndex((m) => m.toLowerCase() === n.toLowerCase()) === i,
+	);
+	const out: Record<string, WebResourceStatus> = {};
+	for (const n of unique) out[n.toLowerCase()] = { exists: false, inSolution: false };
+	if (unique.length === 0) return out;
+
+	const byId = new Map<string, string>();
+	for (const part of chunks(unique, LOOKUP_CHUNK)) {
+		const filter = part.map((n) => `name eq ${odataString(n)}`).join(" or ");
+		const result = await api.queryData(
+			`webresourceset?$select=webresourceid,name,ismanaged&$filter=${filter}`,
+		);
+		for (const raw of result.value ?? []) {
+			const r = raw as Record<string, unknown>;
+			const lower = String(r["name"] ?? "").toLowerCase();
+			if (!(lower in out)) continue;
+			out[lower] = { exists: true, inSolution: false, managed: r["ismanaged"] === true };
+			const id = String(r["webresourceid"] ?? "").toLowerCase();
+			if (GUID.test(id)) byId.set(id, lower);
+		}
+	}
+
+	const solution = solutionId?.replace(/[{}]/g, "");
+	if (solution && GUID.test(solution) && byId.size > 0) {
+		for (const part of chunks([...byId.keys()], LOOKUP_CHUNK)) {
+			const ids = part.map((id) => `objectid eq ${id}`).join(" or ");
+			const result = await api.queryData(
+				`solutioncomponents?$select=objectid&$filter=_solutionid_value eq ${solution} and componenttype eq ${WEB_RESOURCE_COMPONENT_TYPE} and (${ids})`,
+			);
+			for (const raw of result.value ?? []) {
+				const lower = byId.get(
+					String((raw as Record<string, unknown>)["objectid"] ?? "").toLowerCase(),
+				);
+				if (lower) out[lower].inSolution = true;
+			}
+		}
+	}
+	return out;
+}
+
+/** lookupWebResources through the PPTB host. */
+export async function loadWebResourceStatus(
+	names: string[],
+	solutionId?: string,
+): Promise<Record<string, WebResourceStatus>> {
+	return lookupWebResources(getHostDataverseApi(), names, solutionId);
+}
+
 export async function loadWebResources(typeFilter?: WebResourceType): Promise<WebResource[]> {
 	return getWebResources(getHostDataverseApi(), typeFilter);
 }
@@ -250,6 +333,41 @@ export async function saveWebResource(
 		useRuntimeLogStore.getState().logWarn("webresource", result.solutionWarning);
 	}
 	return result;
+}
+
+/**
+ * Adds an existing web resource, picked by name, to the active unmanaged
+ * solution (#61), so a solution export carries the icon a ribbon references.
+ * Throws when no web resource has that name; with a managed or missing active
+ * solution nothing is added and `solutionWarning` says why (also logged).
+ */
+export async function addExistingWebResourceToActiveSolution(
+	name: string,
+	known?: { id: string; isCustom?: boolean },
+): Promise<{ solutionUniqueName?: string; solutionWarning?: string }> {
+	const found = known ?? (await loadWebResourceByName(name));
+	if (!found?.id) throw new Error(`No web resource named ${name} exists in this environment.`);
+	const id = found.id;
+	if (found.isCustom === false) {
+		// A managed web resource belongs to the solution that installed it;
+		// adding it to the user's solution would export a component they don't own.
+		const solutionWarning =
+			`Web resource ${name} is managed, so it isn't added to your solution. ` +
+			`The solution that provides it must be installed wherever you import your customizations.`;
+		useRuntimeLogStore.getState().logWarn("webresource", solutionWarning);
+		return { solutionWarning };
+	}
+	const active = useSessionStore.getState().activeSolution;
+	if (!active || active.isManaged) {
+		const why = active ? `the active solution ${active.uniqueName} is managed` : "no solution is selected";
+		const solutionWarning =
+			`Web resource ${name} was not added to any solution because ${why}. ` +
+			`Select an unmanaged solution and pick the icon again so it travels with your customizations.`;
+		useRuntimeLogStore.getState().logWarn("webresource", solutionWarning);
+		return { solutionWarning };
+	}
+	await addWebResourceToSolution(getHostDataverseApi(), id, active.uniqueName);
+	return { solutionUniqueName: active.uniqueName };
 }
 
 /**

@@ -10,6 +10,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
 import type { CommandDefinition, DisplayRule, RuleStep } from "@/types/ribbon";
+import { findGroupControl } from "@/utils/ribbonMenu";
 
 const useStyles = makeStyles({
 	section: {
@@ -45,6 +46,7 @@ export const AdvancedSection: React.FC = () => {
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
 	const upsertDisplayRule = useRibbonStore((s) => s.upsertDisplayRule);
+	const batch = useRibbonStore((s) => s.batch);
 	const commands = useRibbonStore((s) => s.commands);
 	const displayRules = useRibbonStore((s) => s.displayRules);
 	const openCommandEditor = useUIStore((s) => s.openCommandEditor);
@@ -52,7 +54,7 @@ export const AdvancedSection: React.FC = () => {
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
 	const group = tab?.groups.find((g) => g.id === selectedGroupId);
-	const button = group?.buttons.find((b) => b.id === selectedButtonId);
+	const button = findGroupControl(group, selectedButtonId);
 	const showOpenRecordItemToggle = location === "HomepageGrid" || location === "SubGrid";
 
 	const hasOpenRecordOverride = commands.some((c) => c.id === "Mscrm.OpenRecordItem");
@@ -95,6 +97,7 @@ export const AdvancedSection: React.FC = () => {
 		);
 
 		let ruleId = existingRule?.id;
+		let rule: DisplayRule | undefined;
 		if (!ruleId) {
 			const baseRuleId = `${selectedCommand.id}.${type}.DisplayRule`;
 			ruleId = baseRuleId;
@@ -108,19 +111,23 @@ export const AdvancedSection: React.FC = () => {
 				kind: "CommandClientTypeRule",
 				type,
 			};
-			const rule: DisplayRule = {
+			rule = {
 				id: ruleId,
 				steps: [step],
 			};
-			upsertDisplayRule(rule);
 		}
 
-		if (!selectedCommand.displayRules.includes(ruleId)) {
-			upsertCommand({
-				...selectedCommand,
-				displayRules: [...selectedCommand.displayRules, ruleId],
-			});
-		}
+		// The new rule and its binding are one undo step (#34).
+		const boundRuleId = ruleId;
+		batch(() => {
+			if (rule) upsertDisplayRule(rule);
+			if (!selectedCommand.displayRules.includes(boundRuleId)) {
+				upsertCommand({
+					...selectedCommand,
+					displayRules: [...selectedCommand.displayRules, boundRuleId],
+				});
+			}
+		});
 	};
 
 	return (

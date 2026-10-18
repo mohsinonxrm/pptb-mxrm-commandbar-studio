@@ -218,7 +218,7 @@ describe("N3 / N7 — edits keep menus and replace existing overrides", () => {
 		expect(doc.querySelectorAll('CustomAction[Location="Mscrm.HomepageGrid.contact.NewRecord"]')).toHaveLength(1);
 	});
 
-	it("new flyouts and edits of others' flyouts are reported as unsupported", () => {
+	it("empty new flyouts (#27) and edits of others' flyouts are reported as unsupported", () => {
 		const base = load().ribbon;
 		const cur = clone(base);
 		cur.tabs[0].groups[0].buttons.push({ ...btn(cur, "rw.contact.Mine.Button"), id: "cbstest.Fly", kind: "flyout", source: undefined } as RibbonButton);
@@ -227,8 +227,8 @@ describe("N3 / N7 — edits keep menus and replace existing overrides", () => {
 		btn(cur, "msdyn.contact.Book.Button").kind = "splitButton";
 		btn(cur, "msdyn.contact.Book.Button").tooltipTitle = "x";
 		const p = plan(cur, base);
-		expect(p.unsupported.some((u) => u.includes("New flyout"))).toBe(true);
-		expect(p.unsupported.some((u) => u.includes("msdyn.contact.Book.Button") && u.includes("menu button"))).toBe(true);
+		expect(p.unsupported.some((u) => u.includes("New flyout") && u.includes("no menu items"))).toBe(true);
+		expect(p.unsupported.some((u) => u.includes("msdyn.contact.Book.Button") && u.includes("flyout / split button"))).toBe(true);
 	});
 });
 

@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🧹 Unsupported command actions ([#28](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/28))
+
+- The command editor no longer offers **Power Fx** or **Custom API** actions:
+  classic ribbon commands can't run them (they exist only in modern commanding).
+  A command that still has one (from an older saved session) shows an error with
+  **Remove**, and publishing it is blocked with a message saying what to do.
+
+### 🧭 Canvas opens on the main tab ([#64](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/64))
+
+- Loading a table or switching location opens the table's **main tab** instead of the
+  first tab listed (on the Home Grid that was the Charts tab).
+- The Charts / `AllEntities` tabs show a warning (in every view):
+  Unified Interface never shows their buttons, and they don't come back on reload.
+
+### 🖼️ Icons on copies and picked web resources ([#60](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/60), [#61](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/61))
+
+- A button **duplicated** or **copied from Solution Elements** keeps its icon (the loaded
+  ModernImage and image16/image32); a copy from Solution Elements also keeps its command
+  and tooltips. Label tokens of the original are still not reused.
+- Picking an **existing web resource** in the icon picker adds it to the active unmanaged
+  solution, so a solution export carries the icon (with a warning when no unmanaged
+  solution is selected; an error when the typed name doesn't exist).
+- Dropping onto a button in the modern command bar no longer applies the drop twice
+  (a Solution Elements copy was created twice and a drag-move ran twice, the second time
+  into the tab's first group).
+
+### 🛡️ Pre-publish validation ([#35](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/35))
+
+- The publish dialog checks the RibbonDiffXml each scope would import (your
+  existing unmanaged layer plus this session's changes) before **Publish** is
+  enabled. **Errors block the publish**: dropped Power Fx / Custom API actions,
+  flyout / split buttons without a menu, controls' commands or commands' rules
+  that are defined nowhere, scaling steps of a tab on the same Sequence (Unified
+  Interface then drops every custom control of the table) and duplicate control
+  ids. **Warnings don't**: rule kinds in the wrong kind of rule, `$LocLabels:`
+  references without a label in the customization, missing web resources or
+  ones outside the solution, scaling sizes that aren't a layout of the group's
+  template, and new ids without the publisher prefix. Problems only in what is
+  already published are warnings. A check that takes over 30 s is reported as
+  incomplete and doesn't hold Publish back; publishing re-runs the check and
+  imports nothing on an error.
+
 ### 🧾 No form-specific ribbon scope ([#14](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/14))
 
 - Removed the **Specific form only** option (and its form picker) from the properties
