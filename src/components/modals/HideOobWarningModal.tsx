@@ -54,8 +54,8 @@ export const HideOobWarningModal: React.FC<HideOobWarningModalProps> = ({
 						<MessageBar intent="warning">
 							<MessageBarBody>
 								<Text weight="semibold">A HideCustomAction removes the button from the ribbon.</Text>{" "}
-								Command Bar Studio can&apos;t show a hidden button again yet (#47), and in a managed
-								solution a hide can&apos;t be undone with a patch.
+								To show it again, use Unhide under &ldquo;Hidden by customizations&rdquo; in the
+								Properties pane; in a managed solution a hide can&apos;t be undone with a patch.
 							</MessageBarBody>
 						</MessageBar>
 						<Text style={{ display: "block", marginTop: "12px" }}>
