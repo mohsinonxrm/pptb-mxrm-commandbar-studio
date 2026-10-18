@@ -48,6 +48,7 @@ import {
 	type WebResourceStatus,
 } from "@/services/xmlValidator";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { withCloseGuard } from "@/utils/pptbRuntime";
 import type {
 	RibbonDefinition,
 	CommandDefinition,
@@ -489,6 +490,13 @@ export function publishValidationContext(
 	const loadedAttributes: Record<string, Record<string, string>> = {};
 	const baselineGroups = new Set<string>();
 	const currentGroups = new Set<string>();
+	const menuControlsIds = new Set<string>();
+	for (const { current, baseline } of input.locations)
+		for (const def of [baseline, current])
+			for (const tab of def.tabs)
+				for (const group of tab.groups)
+					for (const b of groupControls(group))
+						for (const section of b.menu?.sections ?? []) menuControlsIds.add(section.controlsId);
 	for (const { current, baseline } of input.locations) {
 		Object.assign(templateLayouts, baseline.templateLayouts);
 		for (const tab of baseline.tabs) {
@@ -545,6 +553,7 @@ export function publishValidationContext(
 		tabScaling,
 		groupTemplates,
 		templateLayouts,
+		menuControlsIds,
 		// Where the table's CustomActions can place what they add (#64).
 		...(input.entity
 			? {
@@ -686,7 +695,14 @@ export async function verifyPublishedLayer(
  * import ONE complete RibbonDiffXml → verify Dataverse actually applied it →
  * (optionally) PublishXml.
  */
-export async function publishRibbon(
+export function publishRibbon(
+	input: PublishRibbonInput,
+	onProgress?: (msg: string) => void,
+): Promise<PublishRibbonResult> {
+	return withCloseGuard(() => publishRibbonUnguarded(input, onProgress));
+}
+
+async function publishRibbonUnguarded(
 	input: PublishRibbonInput,
 	onProgress?: (msg: string) => void,
 ): Promise<PublishRibbonResult> {
@@ -923,7 +939,14 @@ function buildPublishXml(input: PublishXmlInput): string {
 	return `<importexportxml><entities>${entityNodes}</entities>${dependencyNodes}</importexportxml>`;
 }
 
-export async function publishUsingPublishXml(
+export function publishUsingPublishXml(
+	input: PublishXmlInput,
+	onProgress?: (msg: string) => void,
+): Promise<void> {
+	return withCloseGuard(() => publishUsingPublishXmlUnguarded(input, onProgress));
+}
+
+async function publishUsingPublishXmlUnguarded(
 	input: PublishXmlInput,
 	onProgress?: (msg: string) => void,
 ): Promise<void> {
@@ -977,7 +1000,14 @@ export async function publishUsingPublishXml(
 	}
 }
 
-export async function publishAllAsync(
+export function publishAllAsync(
+	onProgress?: (msg: string) => void,
+	options?: { pollIntervalMs?: number; timeoutMs?: number },
+): Promise<PublishAllAsyncResult> {
+	return withCloseGuard(() => publishAllAsyncUnguarded(onProgress, options));
+}
+
+async function publishAllAsyncUnguarded(
 	onProgress?: (msg: string) => void,
 	options?: { pollIntervalMs?: number; timeoutMs?: number },
 ): Promise<PublishAllAsyncResult> {

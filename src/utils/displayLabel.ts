@@ -42,10 +42,19 @@ export function resolveDisplayLabel(
 
 	// $Resources reference → strip the prefix; we can't resolve the actual
 	// localized text without the runtime resource file.
-	const resMatch = label.match(/^\$Resources:(.+)$/);
+	const resMatch = label.match(/^\$Resources(?:\([^)]*\))?:(.+)$/);
 	if (resMatch) {
 		return resMatch[1];
 	}
 
 	return label;
+}
+
+/**
+ * A platform text: `$Resources:Key`, or a parameterised one such as
+ * `$Resources(EntityDisplayName):Ribbon.Tooltip.New`. Dataverse resolves it;
+ * CBS can't, so it's written back as is and never turned into a label (#86).
+ */
+export function isPlatformText(value: string | undefined): boolean {
+	return !!value && /^\$Resources(\([^)]*\))?:/.test(value);
 }

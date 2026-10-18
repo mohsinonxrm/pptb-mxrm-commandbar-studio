@@ -32,6 +32,7 @@ import {
 	removeMenuItem,
 } from "@/utils/ribbonMenu";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
+import { isPlatformText } from "@/utils/displayLabel";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 
 /** A ribbon scope with its own unmanaged layer: the table, or the application ribbon. */
@@ -1017,9 +1018,12 @@ export const useRibbonStore = create<RibbonStore>()(
 							// The copy is a new control: it must not reuse the original's
 							// LocLabel tokens / attributes (#11 review N5) — only its icon
 							// (#60, copyControl) — and its menu gets ids of its own (#27).
+							// A platform text (`$Resources:`) can't take a " (copy)" suffix:
+							// the copy keeps it as it is (#86).
+							const platformLabel = isPlatformText(btn.source?.labelToken);
 							const copy: RibbonButton = {
 								...copyControl(btn, `${btn.id}_copy_${Date.now()}`),
-								label: `${btn.label} (copy)`,
+								label: platformLabel ? btn.label : `${btn.label} (copy)`,
 								sequence: btn.sequence + 5,
 							};
 							const place = menuItemPlace(group, buttonId);
