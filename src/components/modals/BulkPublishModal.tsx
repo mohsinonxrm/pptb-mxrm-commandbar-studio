@@ -334,9 +334,9 @@ export const BulkPublishModal: React.FC = () => {
 							)}
 
 							{warnings.length > 0 && !done && (
-								<MessageBar intent="warning" layout="multiline">
+								<MessageBar intent="info" layout="multiline">
 									<MessageBarBody>
-										<strong>Check after publishing:</strong>
+										<strong>Good to know:</strong>
 										<ul style={{ margin: `${tokens.spacingVerticalXS} 0 0`, paddingLeft: 20 }}>
 											{warnings.map((w) => (
 												<li key={w}>{w}</li>

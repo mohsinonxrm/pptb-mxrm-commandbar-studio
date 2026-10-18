@@ -123,7 +123,7 @@ export interface PublishRibbonInput {
 	locLabels: LocLabel[];
 	/** What changed in this scope (see publishPlan.planScope). */
 	plan: Pick<ScopePlan, "editedCommandIds" | "editedEnableRuleIds" | "editedDisplayRuleIds" | "deletedButtonIds" | "unhiddenButtonIds"> &
-		Partial<Pick<ScopePlan, "deletedContainerIds" | "movedButtons" | "editedLocLabelIds" | "editedTabIds">>;
+		Partial<Pick<ScopePlan, "deletedContainerIds" | "movedButtons" | "editedLocLabelIds" | "editedTabIds" | "renamedLabels">>;
 	/** Organisation base language for edited labels (#50). Read from the organisation when omitted. */
 	languageCode?: number;
 	solution: PublishSolutionInfo;
@@ -201,6 +201,16 @@ export async function buildMergedRibbonDiffXml(
 	// changed. Labels the generator writes (new / edited buttons) win below —
 	// they carry the edited text.
 	const labels = input.locLabels.filter((l) => plan.editedLocLabelIds.includes(l.id));
+	// Renamed tabs / groups the layer adds (#58): the base-language title of
+	// their Title label changes, other languages are kept.
+	const lang = input.languageCode ?? 1033;
+	for (const r of input.plan.renamedLabels ?? []) {
+		const prev = labels.find((l) => l.id === r.id) ?? input.locLabels.find((l) => l.id === r.id);
+		const titles = [{ languageCode: lang, description: r.text }, ...(prev?.titles ?? []).filter((t) => t.languageCode !== lang)];
+		const i = labels.findIndex((l) => l.id === r.id);
+		if (i >= 0) labels[i] = { id: r.id, titles };
+		else labels.push({ id: r.id, titles });
+	}
 	let delta = labels.length
 		? parseRibbonDiffParts(`<RibbonDiffXml><LocLabels>${labels.map(locLabelXml).join("")}</LocLabels></RibbonDiffXml>`)
 		: emptyRibbonDiffParts();

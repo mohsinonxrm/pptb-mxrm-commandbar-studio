@@ -332,9 +332,9 @@ export function RibbonCanvas({
 				</MessageBar>
 			)}
 
-			{/* A custom tab: what Unified Interface does with it isn't documented (#58). */}
+			{/* A custom tab: how Unified Interface shows it (#58). */}
 			{currentTab && !/^(Mscrm|Microsoft)\./.test(currentTab.id) && (
-				<MessageBar intent="warning" style={{ flexShrink: 0 }}>
+				<MessageBar intent="info" style={{ flexShrink: 0 }}>
 					<MessageBarBody>{UCI_TAB_NOTE}</MessageBarBody>
 				</MessageBar>
 			)}

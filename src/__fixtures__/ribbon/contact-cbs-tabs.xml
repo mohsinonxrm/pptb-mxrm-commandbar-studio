@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Shape of RetrieveEntityRibbon(contact, All) after CBS published (#58, #59):
-  a new group with two buttons on the home grid's main tab, and a new tab on the
-  home grid, the form and the sub-grid. Grid and form tabs share the entity's
-  one Mscrm.Tabs collection; the sub-grid tab sits in the sub-grid contextual
+  RetrieveEntityRibbon(contact, All)-shaped ribbon with a new group (two
+  buttons) on the home grid's main tab and custom tabs on the home grid, the
+  form and the sub-grid (#58, #59). Grid and form tabs share the entity's one
+  Mscrm.Tabs collection; the sub-grid tab sits in the sub-grid contextual
   group. Which location a custom tab belongs to is only known from its
   TabDisplayRule. RetrieveEntityRibbon returns no LocLabels: `$LocLabels:`
   titles resolve from the unmanaged layer.
+
+  Verified live after #66: the new group on the main tab IS returned, but tabs
+  the unmanaged layer adds at Mscrm.Tabs._children are NOT (only the table's
+  template tabs are). The tests strip the cbs.* tabs to get that shape and
+  rebuild them from the layer (ribbonService.addLayerTabs); the full file
+  covers custom tabs that the merged ribbon does return.
 -->
 <RibbonDefinitions>
   <RibbonDefinition>

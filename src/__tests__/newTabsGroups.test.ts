@@ -21,6 +21,7 @@ import { parseRibbonXml } from "@/services/xmlParser";
 import {
 	emptyRibbonDiffParts,
 	foldIntoOwnContainers,
+	mergeRibbonDiffParts,
 	ownContainerIds,
 	ownControlIds,
 	parseRibbonDiffParts,
@@ -29,7 +30,7 @@ import {
 } from "@/services/ribbonDiffMerge";
 import { planScope, UCI_TAB_NOTE } from "@/services/publishPlan";
 import { layerSnapshotFromParts, locLabelsFromParts } from "@/services/dataverse/ribbonLayerService";
-import { splitTabsByLocation } from "@/services/dataverse/ribbonService";
+import { addLayerTabs, reconcileWithLayer, splitTabsByLocation } from "@/services/dataverse/ribbonService";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -376,13 +377,33 @@ async function publish(
 
 const FIXTURE = readFileSync(resolve(__dirname, "../__fixtures__/ribbon/contact-cbs-tabs.xml"), "utf-8");
 
-/** Session 2: the table reloaded from RetrieveEntityRibbon after session 1 was published. */
-function reload() {
+/**
+ * What RetrieveEntityRibbon really returns after a CBS publish (verified live,
+ * #58): the table's template tabs (with the new group on the main tab), but
+ * NOT the tabs the layer adds at Mscrm.Tabs._children, nor their commands.
+ */
+const LIVE = (() => {
+	const doc = parse(FIXTURE);
+	for (const el of Array.from(doc.querySelectorAll('Tab[Id^="cbs."], TabDisplayRule'))) el.remove();
+	for (const el of Array.from(doc.querySelectorAll("CommandDefinition"))) {
+		if (/Sync|\.Tab\.Command$/.test(el.getAttribute("Id") ?? "")) el.remove();
+	}
+	return new XMLSerializer().serializeToString(doc);
+})();
+
+/**
+ * Session 2: the table reloaded after session 1 was published, the way
+ * fetchRibbonWorkspace does it: the merged ribbon, plus the layer's own tabs
+ * rebuilt from the layer, ownership, and commands the merged ribbon lacks.
+ */
+function reload(xml = LIVE) {
 	const labels = locLabelsFromParts(layer);
-	const parsed = parseRibbonXml(FIXTURE, "HomepageGrid", E, labels);
+	const parsed = parseRibbonXml(xml, "HomepageGrid", E, labels);
 	const ribbons = splitTabsByLocation(parsed.ribbon.tabs, E, parsed.ribbon.scalingByTab);
+	addLayerTabs(ribbons, layer, E, labels);
 	const own = ownControlIds(layer);
 	for (const d of Object.values(ribbons)) applyLayerOwnership(d, own);
+	reconcileWithLayer(Object.values(ribbons), parsed, layer);
 	return { ...parsed, ribbons };
 }
 
@@ -419,12 +440,26 @@ describe("round trip — publish, reload, publish again", () => {
 		);
 	});
 
-	it("reload: RetrieveEntityRibbon's tabs go to their locations with their groups, buttons and rules", async () => {
+	it("custom tabs RetrieveEntityRibbon returns go to the location their display rule names", async () => {
 		await publishSession1();
-		const { ribbons, locLabels } = reload();
+		const { ribbons } = reload(FIXTURE);
 		expect(ribbons.HomepageGrid.tabs.map((t) => t.id)).toEqual([MAIN, TAB]);
 		expect(ribbons.Form.tabs.map((t) => t.id)).toEqual([`Mscrm.Form.${E}.MainTab`, "cbs.contact.Form.Review.Tab"]);
 		expect(ribbons.SubGrid.tabs.map((t) => t.id)).toEqual([`Mscrm.SubGrid.${E}.MainTab`, "cbs.contact.SubGrid.Extra.Tab"]);
+	});
+
+	it("reload: the layer's tab, missing from RetrieveEntityRibbon, is rebuilt from the layer with its group, button, rule and command", async () => {
+		await publishSession1();
+		expect(LIVE).not.toContain(TAB);
+		const { ribbons, locLabels, commands } = reload();
+		expect(ribbons.HomepageGrid.tabs.map((t) => t.id)).toEqual([MAIN, TAB]);
+		expect(ribbons.Form.tabs.map((t) => t.id)).toEqual([`Mscrm.Form.${E}.MainTab`]);
+		expect(ribbons.HomepageGrid.scalingByTab?.[TAB]?.maxSizes.map((m) => m.groupId)).toEqual([TAB_GROUP]);
+		expect(ribbons.HomepageGrid.tabs[1].groups[0].buttons.map((b) => [b.id, b.label, b.origin, b.commandId])).toEqual([
+			["cbs.contact.Sync.Button", "Sync", "unmanaged", "cbs.contact.Sync.Command"],
+		]);
+		// The button's command comes from the layer (the #57 reconcile path).
+		expect(commands.find((c) => c.id === "cbs.contact.Sync.Command")?.actions).toHaveLength(1);
 
 		const tab = ribbons.HomepageGrid.tabs[1];
 		expect(tab.commandId).toBe(`${TAB}.Command`);
@@ -769,8 +804,9 @@ describe("#66 review — a new group's MaxSize never reuses a scaling Sequence o
 			scales: [],
 		});
 		expect(Object.keys(ribbons.HomepageGrid.scalingByTab ?? {})).toEqual([MAIN, TAB]);
-		expect(Object.keys(ribbons.Form.scalingByTab ?? {})).toEqual(["cbs.contact.Form.Review.Tab"]);
-		expect(Object.keys(ribbons.SubGrid.scalingByTab ?? {})).toEqual(["cbs.contact.SubGrid.Extra.Tab"]);
+		const full = reload(FIXTURE).ribbons;
+		expect(Object.keys(full.Form.scalingByTab ?? {})).toEqual(["cbs.contact.Form.Review.Tab"]);
+		expect(Object.keys(full.SubGrid.scalingByTab ?? {})).toEqual(["cbs.contact.SubGrid.Extra.Tab"]);
 		// An unchanged reload still plans nothing (scaling is compared too).
 		const p = planOf(ribbons.HomepageGrid, clone(ribbons.HomepageGrid), { commands, baselineCommands: clone(commands) });
 		expect(p.hasChanges).toBe(false);
@@ -840,5 +876,98 @@ describe("#66 review — new group ids and new button sequences", () => {
 			["c", 50],
 			["d", 60],
 		]);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Live result of #66: tabs the layer adds are never returned by
+// RetrieveEntityRibbon / RetrieveApplicationRibbon — CBS rebuilds them.
+// ---------------------------------------------------------------------------
+
+describe("#58 — the layer's own tabs are loaded from the layer", () => {
+	const reloadFor = async () => {
+		await publishSession1();
+		const { ribbons, commands, locLabels } = reload();
+		return { baseline: clone(ribbons.HomepageGrid), current: clone(ribbons.HomepageGrid), commands, locLabels };
+	};
+
+	it("renaming the tab changes its title label only", async () => {
+		const { baseline, current, commands, locLabels } = await reloadFor();
+		const before = layer.customActions.get(`ca:${TAB}.CustomAction`)!;
+		current.tabs[1].label = "Utilities";
+		const { doc, plan } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		expect(plan.unsupported).toEqual([]);
+		expect(plan.renamedLabels).toEqual([{ id: `${TAB}.Title`, text: "Utilities" }]);
+		expect(doc.querySelector(`LocLabel[Id="${TAB}.Title"] Title`)!.getAttribute("description")).toBe("Utilities");
+		const after = parseRibbonDiffParts(new XMLSerializer().serializeToString(doc));
+		expect(stableElementXml("customActions", after.customActions.get(`ca:${TAB}.CustomAction`)!)).toBe(
+			stableElementXml("customActions", before),
+		);
+	});
+
+	it("renaming a group of the tab (or the layer's group on the main tab) changes its title label; other languages stay", async () => {
+		const { baseline, current, commands, locLabels } = await reloadFor();
+		current.tabs[1].groups[0].label = "Sync tools";
+		current.tabs[0].groups.find((g) => g.id === GROUP)!.label = "Reviews";
+		const labels = locLabels.map((l) => (l.id === `${GROUP}.Title` ? { ...l, titles: [...l.titles, { languageCode: 1031, description: "Freigaben" }] } : l));
+		const { doc, plan } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels: labels });
+		expect(plan.unsupported).toEqual([]);
+		const titles = (id: string) =>
+			Array.from(doc.querySelectorAll(`LocLabel[Id="${id}"] Title`)).map((t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`);
+		expect(titles(`${TAB_GROUP}.Title`)).toEqual(["1033=Sync tools"]);
+		expect(titles(`${GROUP}.Title`).sort()).toEqual(["1031=Freigaben", "1033=Reviews"]);
+	});
+
+	it("renaming an out-of-the-box tab is still reported", async () => {
+		const { baseline, current, commands, locLabels } = await reloadFor();
+		current.tabs[0].label = "My contacts";
+		const p = planOf(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		expect(p.unsupported).toEqual([
+			`Renaming tab ${MAIN} — only tabs and groups your unmanaged customizations add (with a translatable title) can be renamed`,
+		]);
+	});
+
+	it("form and sub-grid tabs of the layer are placed by their location and display rule", () => {
+		const tab = (id: string): RibbonTab => ({ ...clone(session1().tabs[1]), id, groups: [] });
+		layer = mergeRibbonDiffParts(
+			parseRibbonDiffParts(generate(def("Form", [tab("cbs.contact.Form.F.Tab")]), def("Form", []))),
+			parseRibbonDiffParts(generate(def("SubGrid", [tab("cbs.contact.SubGrid.S.Tab")]), def("SubGrid", []))),
+		);
+		const { ribbons } = reload();
+		expect(ribbons.Form.tabs.map((t) => t.id)).toEqual([`Mscrm.Form.${E}.MainTab`, "cbs.contact.Form.F.Tab"]);
+		expect(ribbons.SubGrid.tabs.map((t) => t.id)).toEqual([`Mscrm.SubGrid.${E}.MainTab`, "cbs.contact.SubGrid.S.Tab"]);
+		expect(ribbons.HomepageGrid.tabs.map((t) => t.id)).toEqual([MAIN]);
+		expect(ribbons.Form.tabs[1].tabDisplayRules[0].rules[0]).toMatchObject({ kind: "EntityRule", context: "Form" });
+	});
+
+	it("children the layer adds separately are folded in, and controls it hides are left out", () => {
+		const ca = (id: string, location: string, inner: string) =>
+			`<CustomAction Id="${id}" Location="${location}" Sequence="10"><CommandUIDefinition>${inner}</CommandUIDefinition></CustomAction>`;
+		layer = parseRibbonDiffParts(`<RibbonDiffXml><CustomActions>
+			${ca(`${TAB}.CustomAction`, "Mscrm.Tabs._children", `<Tab Id="${TAB}" Command="${TAB}.Command" Title="Tools" Sequence="500"><Groups Id="${TAB}.Groups"><Group Id="${TAB_GROUP}" Title="Tools" Sequence="10" Template="Mscrm.Templates.Flexible2"><Controls Id="${TAB_GROUP}.Controls"><Button Id="cbs.contact.Hidden.Button" Command="x" Sequence="5" LabelText="Hidden" TemplateAlias="o1" /></Controls></Group></Groups></Tab>`)}
+			${ca("cbs.contact.Sync.Button.CustomAction", `${TAB_GROUP}.Controls._children`, `<Button Id="cbs.contact.Sync.Button" Command="cbs.contact.Sync.Command" Sequence="10" LabelText="Sync" TemplateAlias="o1" />`)}
+			<HideCustomAction HideActionId="h" Location="cbs.contact.Hidden.Button" />
+		</CustomActions></RibbonDiffXml>`);
+		const { ribbons } = reload();
+		const tab = ribbons.HomepageGrid.tabs.find((t) => t.id === TAB)!;
+		expect(tab.groups[0].buttons.map((b) => [b.id, b.origin])).toEqual([["cbs.contact.Sync.Button", "unmanaged"]]);
+		// No display rule in the layer → the home grid.
+		expect(tab.tabDisplayRules).toEqual([]);
+	});
+
+	it("an application-ribbon tab of the layer is added to the application ribbon", () => {
+		const app: RibbonDefinition = { location: "Application", entityLogicalName: "{!EntityLogicalName}", tabs: [] };
+		const tab: RibbonTab = {
+			id: "cbs.App.Tab",
+			label: "App",
+			sequence: 10,
+			commandId: "cbs.App.Tab.Command",
+			tabDisplayRules: [{ tabCommand: "cbs.App.Tab.Command", rules: [{ kind: "PageRule", address: "/main.aspx" }] }],
+			groups: [],
+		};
+		const appLayer = parseRibbonDiffParts(generate({ ...app, tabs: [tab] }, app));
+		expect(addLayerTabs({ Application: app }, appLayer, null, [])).toEqual(["cbs.App.Tab"]);
+		expect(app.tabs.map((t) => [t.id, t.commandId])).toEqual([["cbs.App.Tab", "cbs.App.Tab.Command"]]);
+		expect(app.tabs[0].tabDisplayRules[0].rules).toEqual([{ kind: "PageRule", address: "/main.aspx" }]);
 	});
 });

@@ -10,7 +10,12 @@ import {
 	type LayerSnapshot,
 } from "@/services/dataverse/ribbonLayerService";
 import { fetchOrganizationLanguageCode } from "@/services/dataverse/environmentService";
-import { ownControlIds, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
+import {
+	foldIntoOwnContainers,
+	hideActionsOf,
+	ownControlIds,
+	type RibbonDiffParts,
+} from "@/services/ribbonDiffMerge";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 
@@ -262,6 +267,68 @@ function resolveLabelsIn(defs: RibbonDefinition[], locLabels: LocLabel[], langua
 				}
 }
 
+/**
+ * Adds the tabs the unmanaged layer adds that the merged ribbon doesn't
+ * return (#58). Verified live: a tab added at `Mscrm.Tabs._children` (with a
+ * Command and a TabDisplayRule) is published, kept in the layer and shown by
+ * Unified Interface, but neither RetrieveEntityRibbon nor
+ * RetrieveApplicationRibbon ever returns it — they return the table's template
+ * tabs only. So such a tab is rebuilt from its layer row: its Tab element
+ * (groups, controls, scaling) is parsed like the merged ribbon, children the
+ * layer adds separately are folded in first, controls the layer hides are left
+ * out (as RetrieveEntityRibbon does), and it is placed by its TabDisplayRule
+ * (sub-grid tabs by their contextual-group location). Mutates `ribbons`;
+ * returns the ids of the tabs added.
+ */
+export function addLayerTabs(
+	ribbons: Partial<Record<RibbonLocation, RibbonDefinition>>,
+	layer: RibbonDiffParts,
+	entityLogicalName: string | null,
+	locLabels: LocLabel[],
+): string[] {
+	const known = new Set(Object.values(ribbons).flatMap((d) => d?.tabs.map((t) => t.id) ?? []));
+	const hidden = new Set(hideActionsOf(layer).map((h) => h.location));
+	const subGridLocation = entityLogicalName ? `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs._children` : null;
+	const tabsXml: { xml: string; subGrid: boolean }[] = [];
+	for (const xml of foldIntoOwnContainers(layer.customActions).values()) {
+		const ca = new DOMParser().parseFromString(xml, "application/xml").documentElement;
+		if (ca.tagName !== "CustomAction") continue;
+		const location = ca.getAttribute("Location");
+		if (location !== "Mscrm.Tabs._children" && location !== subGridLocation) continue;
+		const tab = Array.from(ca.getElementsByTagName("CommandUIDefinition")[0]?.children ?? [])[0];
+		const id = tab?.tagName === "Tab" ? tab.getAttribute("Id") : null;
+		if (!id || known.has(id)) continue;
+		tabsXml.push({ xml: new XMLSerializer().serializeToString(tab), subGrid: location === subGridLocation });
+	}
+	if (tabsXml.length === 0) return [];
+
+	const doc =
+		`<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs>${tabsXml.map((t) => t.xml).join("")}</Tabs></Ribbon></UI>` +
+		`<RuleDefinitions><TabDisplayRules>${[...layer.tabDisplayRules.values()].join("")}</TabDisplayRules></RuleDefinitions>` +
+		`</RibbonDefinition></RibbonDefinitions>`;
+	const parsed = parseRibbonXml(doc, entityLogicalName ? "HomepageGrid" : "Application", entityLogicalName ?? "{!EntityLogicalName}", locLabels);
+	for (const tab of parsed.ribbon.tabs)
+		for (const group of tab.groups) group.buttons = group.buttons.filter((b) => !hidden.has(b.id));
+
+	const subGridIds = new Set(
+		tabsXml.filter((t) => t.subGrid).map((t) => new DOMParser().parseFromString(t.xml, "application/xml").documentElement.getAttribute("Id")),
+	);
+	const place = (tab: RibbonTab): RibbonLocation => {
+		if (!entityLogicalName) return "Application";
+		if (subGridIds.has(tab.id)) return "SubGrid";
+		return locationFromTabDisplayRules(tab) ?? "HomepageGrid";
+	};
+	for (const tab of parsed.ribbon.tabs) {
+		const def = ribbons[place(tab)];
+		if (!def) continue;
+		def.tabs.push(tab);
+		def.tabs.sort((a, b) => a.sequence - b.sequence);
+		const scaling = parsed.ribbon.scalingByTab?.[tab.id];
+		if (scaling) def.scalingByTab = { ...(def.scalingByTab ?? {}), [tab.id]: scaling };
+	}
+	return parsed.ribbon.tabs.map((t) => t.id);
+}
+
 export async function fetchRibbonWorkspace(
 	entityLogicalName: string,
 ): Promise<RibbonWorkspaceData> {
@@ -281,6 +348,8 @@ export async function fetchRibbonWorkspace(
 		fetchApplicationRibbon(appLabels),
 	]);
 	if (entityLayer) {
+		const tabs = addLayerTabs(entity.ribbons, entityLayer, entityLogicalName, [...entityLabels, ...appLabels]);
+		if (tabs.length > 0) logs.logInfo("ribbon", `Loaded tab(s) ${tabs.join(", ")} from the table's unmanaged layer.`);
 		const own = ownControlIds(entityLayer);
 		for (const def of Object.values(entity.ribbons)) applyLayerOwnership(def, own);
 		const added = reconcileWithLayer(Object.values(entity.ribbons), entity, entityLayer);
@@ -293,6 +362,7 @@ export async function fetchRibbonWorkspace(
 		}
 	}
 	if (appLayer) {
+		addLayerTabs({ Application: application.ribbon }, appLayer, null, appLabels);
 		applyLayerOwnership(application.ribbon, ownControlIds(appLayer));
 		reconcileWithLayer([application.ribbon], application, appLayer);
 	}

@@ -80,9 +80,14 @@ export interface ScopePlan {
 	editedLocLabelIds: string[];
 	/** Tabs the layer adds whose TabDisplayRules changed (#49). */
 	editedTabIds: string[];
+	/**
+	 * Tabs / groups the layer adds that were renamed: the base-language title of
+	 * the LocLabel their Title refers to is replaced with `text` (#58).
+	 */
+	renamedLabels: { id: string; text: string }[];
 	/** Human-readable descriptions of changes CBS cannot publish yet. */
 	unsupported: string[];
-	/** Things that publish but may not do what the user expects (they don't block the publish). */
+	/** Things worth knowing about what publishes (they don't block the publish). */
 	warnings: string[];
 }
 
@@ -91,12 +96,12 @@ export interface ScopePlan {
  * Interface "tabs and groups still act as containers for controls, but there is
  * no visual indication of these containers"
  * (https://learn.microsoft.com/power-apps/developer/model-driven-apps/command-bar-ribbon-presentation).
- * Which tabs' buttons its command bar takes is not documented.
+ * Verified live: a custom home-grid tab's buttons appear in the table's
+ * command bar (or its overflow menu) where the tab's display rule applies.
  */
 export const UCI_TAB_NOTE =
-	"Unified Interface doesn't show tabs: there, tabs and groups are only containers for buttons. Microsoft doesn't " +
-	"document whether the command bar includes the buttons of a custom tab, so check them in the app after publishing. " +
-	"To be sure a button shows in Unified Interface, add it to a group on the main tab.";
+	"Unified Interface has no visible tabs: this tab's buttons appear in the table's command bar (or its overflow " +
+	"menu) wherever the tab's display rule applies.";
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -127,6 +132,7 @@ export function planScope(input: PlanInput): ScopePlan {
 	const deletedContainers: string[] = [];
 	const moved: MovedControl[] = [];
 	const editedTabIds: string[] = [];
+	const renamedLabels: { id: string; text: string }[] = [];
 	let generatorChange = false;
 	const referencedCommandIds = new Set<string>();
 	const ownContainers = asSet(input.layer?.containerIds);
@@ -142,6 +148,19 @@ export function planScope(input: PlanInput): ScopePlan {
 	// of the scope (e.g. cut on the grid, pasted on the form), not deleted.
 	const placedNew = new Map<string, { groupId: string; sequence: number }>();
 	const newMenus: { id: string; label: string }[] = [];
+
+	// Renaming a tab / group the layer adds whose Title is a label the layer
+	// defines: the label's text changes. Anything else isn't something CBS writes.
+	const rename = (kind: "tab" | "group", id: string, before: string, after: string) => {
+		const labelId = locRef(before);
+		if (ownContainers.has(id) && labelId && ownLabels.has(labelId) && !locRef(after) && after.trim()) {
+			renamedLabels.push({ id: labelId, text: after });
+		} else {
+			unsupported.push(
+				`Renaming ${kind} ${id} — only tabs and groups your unmanaged customizations add (with a translatable title) can be renamed`,
+			);
+		}
+	};
 
 	for (const { current, baseline } of input.locations) {
 		const summary = summarizeRibbonDiff(current, baseline);
@@ -235,7 +254,7 @@ export function planScope(input: PlanInput): ScopePlan {
 				}
 				warnings.push(`New tab "${tab.label}" (${tab.id}): ${UCI_TAB_NOTE}`);
 			}
-			if (bt && bt.label !== tab.label) unsupported.push(`Renaming tab ${tab.id} — not supported yet`);
+			if (bt && bt.label !== tab.label) rename("tab", tab.id, bt.label, tab.label);
 			if (bt && !same(bt.tabDisplayRules ?? [], tab.tabDisplayRules ?? [])) {
 				if (!ownContainers.has(tab.id)) {
 					unsupported.push(
@@ -252,9 +271,8 @@ export function planScope(input: PlanInput): ScopePlan {
 				if (groupRef) referencedLabels.add(groupRef);
 				const bg = baseGroups.get(g.id);
 				if (!bg) generatorLabels.add(`${g.id}.Title`);
-				if (bg && (bg.label !== g.label || bg.template !== g.template)) {
-					unsupported.push(`Renaming or re-templating group ${g.id} — not supported yet`);
-				}
+				if (bg && bg.template !== g.template) unsupported.push(`Re-templating group ${g.id} — not supported yet`);
+				if (bg && bg.label !== g.label) rename("group", g.id, bg.label, g.label);
 			}
 		}
 
@@ -370,7 +388,8 @@ export function planScope(input: PlanInput): ScopePlan {
 			deletedContainers.length > 0 ||
 			moved.length > 0 ||
 			editedLocLabelIds.length > 0 ||
-			editedTabIds.length > 0,
+			editedTabIds.length > 0 ||
+			renamedLabels.length > 0,
 		editedCommandIds,
 		editedEnableRuleIds,
 		editedDisplayRuleIds,
@@ -380,6 +399,7 @@ export function planScope(input: PlanInput): ScopePlan {
 		movedButtons: moved,
 		editedLocLabelIds,
 		editedTabIds,
+		renamedLabels,
 		unsupported: [...new Set(unsupported)],
 		warnings: [...new Set(warnings)],
 	};

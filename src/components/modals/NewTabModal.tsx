@@ -114,7 +114,7 @@ export const NewTabModal: React.FC = () => {
 								</Text>
 							</MessageBarBody>
 						</MessageBar>
-						<MessageBar intent="warning">
+						<MessageBar intent="info">
 							<MessageBarBody>
 								<Text size={200}>{UCI_TAB_NOTE}</Text>
 							</MessageBarBody>
