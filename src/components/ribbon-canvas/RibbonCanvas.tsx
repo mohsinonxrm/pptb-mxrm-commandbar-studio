@@ -23,6 +23,7 @@ import {
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { useUIStore } from "@/store/uiStore";
 import type { RibbonLocation } from "@/types/ribbon";
 import { ClassicRibbon } from "./ClassicRibbon";
@@ -250,13 +251,15 @@ export function RibbonCanvas({
 	);
 
 	const ribbon = ribbons[location];
-	const currentTab = ribbon.tabs.find((t) => t.id === tabId) ?? ribbon.tabs[0];
+	const currentTab =
+		ribbon.tabs.find((t) => t.id === tabId) ?? ribbon.tabs.find((t) => t.id === defaultTabId(ribbon.tabs));
 
 	useEffect(() => {
 		if (!ribbon.tabs.length) return;
 		const exists = ribbon.tabs.some((t) => t.id === tabId);
 		if (!exists) {
-			setTabId(ribbon.tabs[0].id);
+			const first = defaultTabId(ribbon.tabs);
+			if (first) setTabId(first);
 		}
 	}, [ribbon.tabs, tabId, setTabId]);
 
@@ -272,7 +275,7 @@ export function RibbonCanvas({
 						className={`${styles.locationTab} ${location === loc.value ? styles.locationTabActive : ""}`}
 						onClick={() => {
 							setLocation(loc.value);
-							const firstTabId = ribbons[loc.value].tabs[0]?.id;
+							const firstTabId = defaultTabId(ribbons[loc.value].tabs);
 							if (firstTabId) setTabId(firstTabId);
 						}}
 						title={loc.desc}
@@ -327,6 +330,16 @@ export function RibbonCanvas({
 					<MessageBarBody>
 						Buttons added to GlobalTab appear in the persistent global command bar at the top of
 						every page. OOB GlobalTab buttons are read-only and cannot be customized.
+					</MessageBarBody>
+				</MessageBar>
+			)}
+
+			{currentTab && ribbonViewStyle !== "classic" && isHiddenOnUnifiedInterface(currentTab.id) && (
+				<MessageBar intent="warning" style={{ flexShrink: 0 }}>
+					<MessageBarBody>
+						Unified Interface doesn&apos;t show this tab&apos;s buttons on the command bar, and they
+						don&apos;t come back when the table is reloaded. Add buttons to the table&apos;s main tab
+						instead.
 					</MessageBarBody>
 				</MessageBar>
 			)}

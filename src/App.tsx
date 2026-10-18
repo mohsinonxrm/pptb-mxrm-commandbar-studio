@@ -32,6 +32,7 @@ import { fetchEntitiesByMetadataIds } from "@/services/dataverse/entityService";
 import { fetchRibbonWorkspace } from "@/services/dataverse/ribbonService";
 import { fetchRibbonProvenance } from "@/services/dataverse/ribbonProvenanceService";
 import { applyProvenanceToRibbons, type ButtonProvenance } from "@/utils/ribbonProvenance";
+import { defaultTabId } from "@/utils/defaultTab";
 import type { ConflictEntry } from "@/types/ribbon";
 import { fetchCurrentUser } from "@/services/dataverse/userService";
 import {
@@ -277,7 +278,7 @@ export function App() {
 				const tabsForLocation = workspace.ribbons[currentLocation]?.tabs ?? [];
 				const tabStillExists = tabsForLocation.some((t) => t.id === currentTabId);
 				if (!tabStillExists) {
-					const firstTabId = tabsForLocation[0]?.id;
+					const firstTabId = defaultTabId(tabsForLocation);
 					if (firstTabId) setTabId(firstTabId);
 				}
 
