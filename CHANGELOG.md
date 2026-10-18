@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0-beta.1] - 2026-10-18
+
 ### 💾 Restoring unsaved changes ([#16](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/16))
 
 - **Restore** now brings back everything that was going to be published: the canvas,
@@ -127,6 +129,79 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   verifies the published ribbon layer and explains Unified Interface caching.
 - **Reload right after publish** fills in button commands missing from
   `RetrieveEntityRibbon` from the unmanaged layer.
+
+### 🔁 Publishing keeps what's already there ([#11](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/11))
+
+- Publish reads the solution's existing unmanaged ribbon layer and merges your changes into it
+  in one import, so customizations made elsewhere (for example with Ribbon Workbench) are kept.
+  Every publish is imported twice so Unified Interface picks it up, and the published layer is
+  read back and checked.
+- Load: when the server returns an out-of-date copy of a command or rule right after a publish
+  (it can lag 10 minutes or more), the copy in your customizations is used ([#52](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/52)).
+
+### 📂 Flyout and split-button menus ([#27](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/27))
+
+- Menus are modelled, parsed and published: add, edit, hide and delete menu items, create new
+  flyouts and split buttons with sections.
+- Duplicating a flyout gives its items short ids of their own, and label ids stay within 128
+  characters: longer ones inside a menu made publishing fail after the import ([#86](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/86)).
+  Copies keep platform (`$Resources:`) texts instead of showing the resource key.
+
+### 🧱 New tabs and groups ([#58](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/58), [#59](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/59))
+
+- Buttons in a new group on an existing tab are written with the group; new tabs get a command
+  and a display rule, are rebuilt on reload, and can be renamed and deleted.
+- Group scaling uses free sequences: colliding ones made Unified Interface drop every custom
+  control of the table. Layers written by earlier versions are repaired on the next publish.
+
+### ✏️ Editing what isn't yours ([#25](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/25), [#26](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/26), [#31](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/31))
+
+- **Customise Command** copies an out-of-the-box command into your customizations so it can be
+  changed; **Customise button** copies a button and hides the original.
+- Moving a button that isn't yours moves your copy and hides the original, as one undo step.
+- Edits to existing commands and rules are published.
+
+### 🧷 Rules and actions round trip ([#29](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/29), [#42](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/42))
+
+- Rules and actions are kept exactly as loaded (unknown kinds verbatim); generated XML is
+  schema-valid.
+- ToggleButton, Label, DropDown, MRUSplitButton, Spinner and GalleryButton show on the canvas
+  (read-only), can be hidden and unhidden, and are never dropped. Tab and group `Description`s
+  round trip, and tabs inside customizations no longer appear as phantom tabs.
+
+### 📥 Importing RibbonDiffXml ([#30](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/30))
+
+- Import is lossless (labels in every language, rules, hides) and merges into the workspace as
+  one undo step; the result publishes.
+
+### ↩️ Undo and redo ([#34](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/34))
+
+- Undo / redo cover commands, rules and labels too, and typing is one step.
+
+### 🧩 Modern commands ([#32](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/32))
+
+- Modern commands (`appaction`) are shown read-only next to the classic buttons, with an App
+  filter; classic buttons (and flyout menu items) a migrated modern command hides or replaces
+  are flagged.
+
+### 🗑️ Deleting safely ([#17](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/17), [#18](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/18), [#75](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/75))
+
+- Delete only removes your own buttons, groups and tabs; for anything else it offers Hide.
+  Keyboard shortcuts stay out of text fields and dialogs.
+- Rename group, change template and confirmations are proper dialogs (`window.prompt` /
+  `confirm` don't work in Power Platform ToolBox); accessible names use readable titles.
+
+### 🧭 Orphaned customizations ([#64](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/64))
+
+- Customizations in your layer that the ribbon never shows (for example on the Charts tab, or in
+  a group that no longer exists) are listed with the reason and can be deleted. Right after a
+  publish, what it just wrote can't be deleted from there.
+
+### 🛑 Startup and closing ([#10](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/10), [#89](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/89))
+
+- Power Platform ToolBox asks before closing the tool while an import or publish runs.
+- A start-up failure (or a host that doesn't answer) shows what went wrong and what to try,
+  instead of a blank tab.
 
 ### 🧪 Dev harness ([#24](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/24))
 
