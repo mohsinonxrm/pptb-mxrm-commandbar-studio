@@ -61,6 +61,39 @@ import type {
 
 const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
 
+// Import and publish through the Dataverse actions themselves, not PPTB's
+// deploySolution() / publishCustomizations() helpers: those differ between
+// hosts. The VS Code extension (1.1.0) drops ImportJobId — CBS polls and
+// verifies that job — and sends a table publish to PublishAllXml (#89). These
+// are the requests the desktop app's helpers send.
+function importSolution(customizationFile: string, importJobId: string): Promise<unknown> {
+	return dataverseAPI.execute({
+		operationName: "ImportSolution",
+		operationType: "action",
+		parameters: {
+			CustomizationFile: customizationFile,
+			ImportJobId: importJobId,
+			OverwriteUnmanagedCustomizations: true,
+			PublishWorkflows: false,
+		},
+	});
+}
+
+/** PublishXml for the given tables. */
+function publishTables(entityLogicalNames: string[]): Promise<unknown> {
+	const entities = entityLogicalNames.map((name) => `<entity>${escapeXml(name)}</entity>`).join("");
+	return dataverseAPI.execute({
+		operationName: "PublishXml",
+		operationType: "action",
+		parameters: { ParameterXml: `<importexportxml><entities>${entities}</entities></importexportxml>` },
+	});
+}
+
+/** PublishAllXml: every unpublished customization in the environment. */
+function publishAll(): Promise<unknown> {
+	return dataverseAPI.execute({ operationName: "PublishAllXml", operationType: "action" });
+}
+
 type ImportStatus = {
 	// PPTB's getImportJobStatus return shape is loosely documented — over
 	// time we've observed both `{ data: { progress: { completed } } }` and
@@ -797,11 +830,7 @@ async function publishRibbonUnguarded(
 		await withBusyRetry(
 			"Import",
 			() =>
-				dataverseAPI.deploySolution(base64Zip, {
-					importJobId,
-					overwriteUnmanagedCustomizations: true,
-					publishWorkflows: false,
-				}),
+				importSolution(base64Zip, importJobId),
 			busy,
 		);
 
@@ -846,15 +875,15 @@ async function publishRibbonUnguarded(
 			"Publish",
 			async () => {
 				if (isApplication) {
-					// Targeted publish of the application ribbon only — publishCustomizations()
-					// without a table runs PublishAllXml for the whole environment.
+					// Targeted publish of the application ribbon only — PublishAllXml
+					// would publish the whole environment.
 					await dataverseAPI.execute({
 						operationName: "PublishXml",
 						operationType: "action",
 						parameters: { ParameterXml: "<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>" },
 					});
 				} else {
-					await dataverseAPI.publishCustomizations(input.entity!.logicalName);
+					await publishTables([input.entity!.logicalName]);
 				}
 			},
 			busy,
@@ -956,7 +985,7 @@ async function publishUsingPublishXmlUnguarded(
 	if (entities.length === 0) {
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Publishing all customizations...");
-			await dataverseAPI.publishCustomizations();
+			await publishAll();
 		}
 		return;
 	}
@@ -981,22 +1010,22 @@ async function publishUsingPublishXmlUnguarded(
 
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Publishing application ribbon...");
-			await dataverseAPI.publishCustomizations();
+			await publishAll();
 		}
 
 		logs.logInfo("publish", "PublishXml completed successfully.");
 	} catch (error) {
 		logs.logWarn(
 			"publish",
-			`PublishXml failed, falling back to publishCustomizations(): ${error instanceof Error ? error.message : String(error)}`,
+			`PublishXml failed, falling back to publishing table by table: ${error instanceof Error ? error.message : String(error)}`,
 		);
 		for (const entityName of entities) {
 			onProgress?.(`Fallback publish for ${entityName}...`);
-			await dataverseAPI.publishCustomizations(entityName);
+			await publishTables([entityName]);
 		}
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Fallback publish for application ribbon...");
-			await dataverseAPI.publishCustomizations();
+			await publishAll();
 		}
 	}
 }

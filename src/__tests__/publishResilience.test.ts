@@ -179,11 +179,16 @@ function fakeEnvironment(opts: { busyImports?: number; busyHistory?: number; dro
 			if (q.startsWith("msdyn_solutionhistories")) {
 				return busyHistory-- > 0 ? { value: [{ msdyn_name: "X", msdyn_operation: 0, msdyn_status: 0 }] } : { value: [] };
 			}
+			if (q.startsWith("RetrieveEntityRibbon(")) {
+				let b = "";
+				for (const c of zipSync({ "RibbonXml.xml": strToU8(MERGED) })) b += String.fromCharCode(c);
+				return { CompressedEntityXml: btoa(b) };
+			}
 			const table = q.split("?")[0] as "ribbondiffs" | "ribboncommands" | "ribbonrules";
 			if (q.includes("entity eq null")) return { value: [] };
 			return { value: rowsOf(server)[table] };
 		}),
-		deploySolution: vi.fn(async (zip: string) => {
+		importSolution: vi.fn(async (zip: string) => {
 			calls.push("import");
 			if (busyImports-- > 0) throw new Error(BUSY_IMPORT);
 			server = parseRibbonDiffParts(ribbonDiffOf(zip));
@@ -192,16 +197,13 @@ function fakeEnvironment(opts: { busyImports?: number; busyHistory?: number; dro
 		retrieve: vi.fn(async () => ({
 			data: `<importexportxml><entityRibbon id="${T}" processed="true"><result result="success" /></entityRibbon></importexportxml>`,
 		})),
-		publishCustomizations: vi.fn(async () => {
+		publishXml: vi.fn(async () => {
 			calls.push("publish");
 			if (opts.dropOnPublish) server.customActions.delete(opts.dropOnPublish);
 		}),
-		execute: vi.fn(async (req: { operationName: string }) => {
-			if (req.operationName === "RetrieveEntityRibbon") {
-				let b = "";
-				for (const c of zipSync({ "RibbonXml.xml": strToU8(MERGED) })) b += String.fromCharCode(c);
-				return { CompressedEntityXml: btoa(b) };
-			}
+		execute: vi.fn(async (req: { operationName: string; parameters?: Record<string, string> }) => {
+			if (req.operationName === "ImportSolution") return api.importSolution(req.parameters!.CustomizationFile);
+			if (req.operationName === "PublishXml") return api.publishXml();
 			if (req.operationName === "RetrieveApplicationRibbon") {
 				let b = "";
 				for (const c of zipSync({ "RibbonXml.xml": strToU8("<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs/></Ribbon></UI></RibbonDefinition></RibbonDefinitions>") }))
@@ -265,16 +267,42 @@ describe("publishRibbon in a busy environment (#46)", () => {
 		expect(result.verification).toMatchObject({ ok: true, missing: [], unexpected: [] });
 	});
 
+	it("sends the Dataverse actions itself, the same requests in every PPTB host (#89)", async () => {
+		const env = fakeEnvironment();
+		await publishUnhide(env);
+		const requests = env.execute.mock.calls.map(([req]) => req as { operationName: string; parameters?: Record<string, unknown> });
+		const imports = requests.filter((r) => r.operationName === "ImportSolution");
+		expect(imports).toHaveLength(2);
+		for (const r of imports) {
+			// The job CBS polls and verifies: a host that drops ImportJobId can't lose it.
+			expect(r.parameters).toMatchObject({ OverwriteUnmanagedCustomizations: true, PublishWorkflows: false });
+			expect(r.parameters!.ImportJobId).toMatch(/^[0-9a-f-]{36}$/);
+		}
+		// A table publish after each import, never PublishAllXml.
+		const tablePublish = { ParameterXml: `<importexportxml><entities><entity>${T}</entity></entities></importexportxml>` };
+		expect(requests.filter((r) => r.operationName === "PublishXml").map((r) => r.parameters)).toEqual([tablePublish, tablePublish]);
+		expect(requests.some((r) => r.operationName === "PublishAllXml")).toBe(false);
+	});
+
+	it("reads the table ribbon with the enum parameter unquoted, the one form Dataverse accepts (#89)", async () => {
+		vi.resetModules();
+		const { retrieveEntityRibbonQuery } = await import("@/services/dataverse/ribbonService");
+		// Verified live: quoted ('…'All''), 'All' or 7 are all a 400.
+		expect(retrieveEntityRibbonQuery(T)).toBe(
+			`RetrieveEntityRibbon(EntityName=@e,RibbonLocationFilter=@f)?@e='${T}'&@f=Microsoft.Dynamics.CRM.RibbonLocationFilters'All'`,
+		);
+	});
+
 	it("retries a busy publish", async () => {
 		const env = fakeEnvironment();
 		let busy = 1;
-		const publish = env.publishCustomizations;
-		env.publishCustomizations = vi.fn(async () => {
+		const publish = env.publishXml;
+		env.publishXml = vi.fn(async () => {
 			if (busy-- > 0) throw new Error("Cannot start the requested operation [Publish] because there is another [Import] running at this moment.");
 			return publish();
 		});
 		await publishUnhide(env);
-		expect(env.publishCustomizations).toHaveBeenCalledTimes(3);
+		expect(env.publishXml).toHaveBeenCalledTimes(3);
 	});
 
 	it("reports a published layer that doesn't match what was imported", async () => {

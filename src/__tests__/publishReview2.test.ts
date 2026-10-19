@@ -309,17 +309,16 @@ describe("N5 — duplicates are new controls", () => {
 
 describe("N1 — every publish refreshes Unified Interface metadata", () => {
 	it("a command-only edit imports twice", async () => {
-		const deploySolution = vi.fn(async () => undefined);
+		const execute = vi.fn(async (_req: { operationName: string }) => undefined);
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = Object.assign(
 			(window as unknown as { dataverseAPI?: object }).dataverseAPI ?? {},
 			{
-				deploySolution,
+				execute,
 				getImportJobStatus: vi.fn(async () => ({ progress: 100 })),
 				retrieve: vi.fn(async () => ({
 					data: '<importexportxml><entityRibbon id="Contact" processed="true"><result result="success" /></entityRibbon></importexportxml>',
 				})),
 				queryData: vi.fn(async () => ({ value: [{ languagecode: 1033 }] })),
-				publishCustomizations: vi.fn(async () => undefined),
 			},
 		);
 		vi.resetModules();
@@ -351,6 +350,6 @@ describe("N1 — every publish refreshes Unified Interface metadata", () => {
 			// verification (#57 review) re-reads the layer: don't wait between reads.
 			verifyDelayMs: 0,
 		});
-		expect(deploySolution).toHaveBeenCalledTimes(2);
+		expect(execute.mock.calls.filter(([req]) => req.operationName === "ImportSolution")).toHaveLength(2);
 	});
 });
