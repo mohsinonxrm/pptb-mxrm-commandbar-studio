@@ -9,6 +9,7 @@ import { useSessionStore } from "@/store/sessionStore";
 import { useUIStore } from "@/store/uiStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { App } from "./App";
+import { RootErrorBoundary } from "@/components/shared/RootErrorBoundary";
 import { connectToHost, renderStartupError } from "./startup";
 import "./index.css";
 
@@ -61,7 +62,9 @@ async function bootstrap() {
 	const root = createRoot(container);
 	root.render(
 		<StrictMode>
-			<App />
+			<RootErrorBoundary>
+				<App />
+			</RootErrorBoundary>
 		</StrictMode>,
 	);
 }

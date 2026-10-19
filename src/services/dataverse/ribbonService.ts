@@ -139,16 +139,23 @@ export function splitTabsByLocation(
  * The Web API expects the value as a type-qualified enum literal, e.g.
  *   RibbonLocationFilter=Microsoft.Dynamics.CRM.RibbonLocationFilters'All'
  *
- * PPTB's `formatFunctionParameter()` helper recognizes this pattern via the
- * regex `/^Microsoft\.Dynamics\.CRM\.\w+'.+'$/` and URL-encodes it WITHOUT the
- * Edm.String single-quote wrapping that ordinary strings receive. So we pass
- * the full type-qualified string and PPTB does the right thing.
+ * Quoted ('Microsoft…'All'', 'All') or numeric (7), Dataverse answers 400.
+ * The desktop app's execute() passes this pattern through unquoted, but the
+ * VS Code extension (1.1.0) quotes every string parameter (#89) — so CBS
+ * builds the function URL itself and sends it with queryData(), the same GET
+ * in every host.
  *
  * We use `'All'` (= 7, equivalent to Form | HomepageGrid | SubGrid) to fetch
  * the merged ribbon in a single call, then split by tab-ID prefix below.
  * Reference: https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/reference/ribbonlocationfilters
  */
 const RIBBON_LOCATION_FILTER_ALL = "Microsoft.Dynamics.CRM.RibbonLocationFilters'All'";
+
+/** The RetrieveEntityRibbon request for every location of a table, parameters as aliases. */
+export function retrieveEntityRibbonQuery(entityLogicalName: string): string {
+	const name = encodeURIComponent(entityLogicalName.replace(/'/g, "''"));
+	return `RetrieveEntityRibbon(EntityName=@e,RibbonLocationFilter=@f)?@e='${name}'&@f=${RIBBON_LOCATION_FILTER_ALL}`;
+}
 
 export async function fetchEntityRibbonAllLocations(
 	entityLogicalName: string,
@@ -163,14 +170,9 @@ export async function fetchEntityRibbonAllLocations(
 	useRuntimeLogStore
 		.getState()
 		.logInfo("dataverse", `RetrieveEntityRibbon(${entityLogicalName}, All)`);
-	const result = await dataverseAPI.execute({
-		operationName: "RetrieveEntityRibbon",
-		operationType: "function",
-		parameters: {
-			EntityName: entityLogicalName,
-			RibbonLocationFilter: RIBBON_LOCATION_FILTER_ALL,
-		},
-	});
+	const result = (await dataverseAPI.queryData(retrieveEntityRibbonQuery(entityLogicalName))) as unknown as {
+		CompressedEntityXml?: string;
+	};
 
 	const xml = await decompressRibbonZip(result.CompressedEntityXml as string);
 	// Parse once with a neutral location; we'll bucket the tabs ourselves below.

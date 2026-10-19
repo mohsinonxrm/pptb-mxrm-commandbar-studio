@@ -35,6 +35,11 @@ function toolIcon(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => ({
+	// Relative asset URLs: the host serves dist/ under a tool-specific path
+	// (the VS Code extension's webview resource URL), so root-absolute
+	// `/assets/…` lazy chunks and preloads resolve to the wrong place and 401,
+	// leaving a blank tab (#89). Same as the PPTB desktop app's own config.
+	base: "./",
 	plugins: [
 		react(),
 		toolIcon(),
