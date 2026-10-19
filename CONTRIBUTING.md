@@ -1,25 +1,98 @@
 # Contributing to Command Bar Studio
 
-Thanks for helping out! This file covers the local workflow. See
-[SECURITY.md](SECURITY.md) for reporting vulnerabilities.
+Thanks for helping. This guide covers setup, the branch and PR workflow, what a PR needs
+before it can merge, and the dev harness. Releases are described in
+[RELEASING.md](RELEASING.md). The workflow is the same as in FetchXML Studio and Dataverse
+Request Studio.
 
-## Workflow
+## Prerequisites
 
-1. Create a branch from `dev`: `feature/<issue>-short-slug` or `fix/<issue>-short-slug`.
-2. Use [Conventional Commits](https://www.conventionalcommits.org/) style messages
-   (`feat:`, `fix:`, `chore:` …).
-3. Open a pull request into `dev`. CI must pass; PRs into `dev` are squash-merged. The
-   release PR `dev → main` uses a **merge commit** (see [RELEASING.md](RELEASING.md)).
+- **Node.js 22 or later** (`engines` in `package.json`; CI uses Node 24) and npm.
+- **Power Platform ToolBox 1.2.7 or later** to run the tool for real (`minAPI` 1.2.7), in
+  the desktop app or the VS Code extension.
+- For the dev harness: the **Azure CLI** (`az login`) and a Dataverse **development** org.
 
 ## Setup
 
 ```bash
-npm ci            # installs from the committed package-lock.json
-npm run typecheck # app + node configs + dev harness
-npm run lint      # zero warnings allowed
+npm ci                 # exact versions from package-lock.json
+npm run dev            # Vite dev server (no Dataverse)
+npm run dev:harness    # the real UI in a browser against a live org; see below
+```
+
+Before opening a PR, run what CI runs:
+
+```bash
+npm run typecheck      # app + node configs + dev harness
+npm run lint           # zero warnings
 npm test
+npm run validate       # PPTB manifest rules
 npm run build
 ```
+
+CI also fails on any **high or critical** `npm audit --omit=dev` finding and checks the
+package contents (`.github/scripts/check-pack.mjs`).
+
+To try a build inside PPTB, load the repository folder as a local tool after
+`npm run build`.
+
+## Branches and PRs
+
+- Branch from `dev`: `feat/<issue>-<slug>`, `fix/<issue>-<slug>`, `chore/<issue>-<slug>`
+  or `docs/<issue>-<slug>`.
+- Open the PR into `dev`. A fix for the release being stabilized goes into `release/X.Y`,
+  and a fix for the current stable release goes into `main` as a `hotfix/*` branch. See
+  [RELEASING.md](RELEASING.md) → *Where a fix goes*.
+- Link the issue in the description: `Closes #123`, or `Part of #123` while manual checks
+  are pending.
+- The `check` status must pass. PRs into `dev` are squash-merged; merges between
+  long-lived branches use a merge commit.
+- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):
+  `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`.
+
+## What every PR includes
+
+- **CHANGELOG:** user-facing changes go under `## [Unreleased]` in `CHANGELOG.md`, in the
+  section that fits: `### ✨ Added`, `### 🔧 Changed`, `### 🔧 Fixed` or
+  `### 🏗️ Technical`.
+- **No version change.** The version, the README version badge and the dated CHANGELOG
+  section change only in release-prep PRs, so PRs stay independent.
+- **README:** update the feature docs when behaviour changes.
+- **Tests:** unit tests for changes to parsing, XML generation, the publish merge or
+  validation.
+
+## Product rules
+
+- **Ground behaviour in Microsoft Learn, then verify it live.** Cite the Learn page in the
+  code or PR. When the docs and Dataverse disagree, Dataverse's actual behaviour wins, and
+  the PR says what was verified and how.
+- **Publishing keeps what's already there.** A publish writes the table's complete ribbon
+  customization (what is published plus the session's changes) and verifies the result.
+  Changes to publishing are verified live on a test table, and the table is restored.
+- **Both hosts.** The tool runs in the PPTB desktop app and the VS Code extension. Use
+  Dataverse requests that behave the same in both (see `publishService.ts` and
+  `ribbonService.ts`).
+
+## UI changes
+
+- **Agree on the design first.** Share a prototype or screenshots in the issue before
+  building.
+- **Fluent UI v9 only** (`@fluentui/react-components`), following the PPTB theme in light
+  and dark. PR screenshots show both themes.
+- **Wording:** sentence case and "…" for ellipses. The same wording is shared with
+  FetchXML Studio and Dataverse Request Studio.
+
+## Dependencies
+
+- Prefer the platform and existing dependencies. New dependencies need a reason in the PR.
+- **Only versions published at least 14 days ago.** Dependabot's cooldown applies the same
+  rule to its version updates.
+- After changing dependencies, run `npm install` and commit `package-lock.json`.
+
+## Security
+
+Report vulnerabilities privately; see [SECURITY.md](SECURITY.md). Never commit tokens,
+org URLs with credentials, or `.env.local`.
 
 ## Running against a live org (dev harness)
 
@@ -40,6 +113,10 @@ publish → verify in the app), screenshots, or Playwright-style automation.
     `Microsoft.Dynamics.CRM.RibbonLocationFilters'All'` passed unquoted
   - `deploySolution` → `ImportSolution`
   - `publishCustomizations` → `PublishXml` / `PublishAllXml`
+
+  (CBS itself sends ImportSolution / PublishXml through `execute()` and RetrieveEntityRibbon
+  through `queryData()`, so the requests are the same in the desktop app and the VS Code
+  extension, whose helpers differ.)
   - `getImportJobStatus` → `importjobs(id)`
 - The stub sends requests to `/__dv/*` on the Vite dev server. A dev-server middleware
   (`dev/harness/vite-plugin-dataverse-proxy.ts`) forwards them to
