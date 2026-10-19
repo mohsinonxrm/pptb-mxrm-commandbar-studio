@@ -2,13 +2,6 @@ import { create } from "zustand";
 import type { Solution } from "@/types/solution";
 import type { EntityMetadata } from "@/types/entity";
 
-export type FormRibbonScope = "entity" | "form";
-
-export interface EntityFormInfo {
-	formId: string;
-	name: string;
-}
-
 export interface SessionStore {
 	connectionUrl: string;
 	connectionName: string;
@@ -41,9 +34,6 @@ export interface SessionStore {
 
 	currentUserId: string;
 	currentUserName: string;
-	formRibbonScope: FormRibbonScope;
-	entityForms: EntityFormInfo[];
-	selectedFormId: string;
 
 	setConnection(url: string, name: string, environment: SessionStore["environment"]): void;
 	setSolutions(solutions: Solution[]): void;
@@ -54,12 +44,23 @@ export interface SessionStore {
 	setSolutionRibbonComponentIds(ids: string[] | null): void;
 	setCurrentUser(id: string, name: string): void;
 	setPublisherPrefix(prefix: string): void;
-	setFormRibbonScope(scope: FormRibbonScope): void;
-	setEntityForms(forms: EntityFormInfo[]): void;
-	setSelectedFormId(formId: string): void;
 }
 
-export const useSessionStore = create<SessionStore>()((set) => ({
+/**
+ * Called when setActiveSolution switches to another solution, after the
+ * session's table selection is cleared. Stores holding the previous table's
+ * state (the ribbon workspace) reset there (#22); they register here because
+ * this store can't import them without an import cycle.
+ */
+const solutionSwitchListeners = new Set<() => void>();
+
+/** Runs `listener` on every switch to another solution. Returns an unsubscribe function. */
+export function onSolutionSwitch(listener: () => void): () => void {
+	solutionSwitchListeners.add(listener);
+	return () => solutionSwitchListeners.delete(listener);
+}
+
+export const useSessionStore = create<SessionStore>()((set, get) => ({
 	connectionUrl: "",
 	connectionName: "",
 	environment: "Dev",
@@ -74,9 +75,6 @@ export const useSessionStore = create<SessionStore>()((set) => ({
 
 	currentUserId: "",
 	currentUserName: "",
-	formRibbonScope: "entity",
-	entityForms: [],
-	selectedFormId: "",
 
 	setConnection: (url, name, environment) =>
 		set({ connectionUrl: url, connectionName: name, environment }),
@@ -114,15 +112,20 @@ export const useSessionStore = create<SessionStore>()((set) => ({
 					);
 			}
 		});
+		// Picking the solution that is already active keeps the table and its edits.
+		const switching = get().activeSolution?.id !== solution.id;
 		set({
 			activeSolution: solution,
 			publisherPrefix: solution.publisherPrefix || "new",
 			// Reset the entity selection + components when switching solutions —
 			// the previous entity may not be a component of the new solution.
-			activeEntity: null,
-			solutionEntityIds: null,
-			solutionRibbonComponentIds: null,
+			// The table list too: it would list the previous solution's tables
+			// until App.tsx loads the new solution's (#22).
+			...(switching
+				? { activeEntity: null, entities: [], solutionEntityIds: null, solutionRibbonComponentIds: null }
+				: {}),
 		});
+		if (switching) for (const listener of solutionSwitchListeners) listener();
 	},
 	setEntities: (entities) => set({ entities }),
 	setActiveEntity: (entity) => set({ activeEntity: entity }),
@@ -130,13 +133,4 @@ export const useSessionStore = create<SessionStore>()((set) => ({
 	setSolutionRibbonComponentIds: (ids) => set({ solutionRibbonComponentIds: ids }),
 	setCurrentUser: (id, name) => set({ currentUserId: id, currentUserName: name }),
 	setPublisherPrefix: (prefix) => set({ publisherPrefix: prefix }),
-	setFormRibbonScope: (scope) => set({ formRibbonScope: scope }),
-	setEntityForms: (forms) =>
-		set((state) => {
-			const nextSelected = forms.some((form) => form.formId === state.selectedFormId)
-				? state.selectedFormId
-				: (forms[0]?.formId ?? "");
-			return { entityForms: forms, selectedFormId: nextSelected };
-		}),
-	setSelectedFormId: (formId) => set({ selectedFormId: formId }),
 }));

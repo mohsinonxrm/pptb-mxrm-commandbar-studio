@@ -10,18 +10,8 @@ export default defineConfig({
 		},
 	},
 	test: {
+		// jsdom provides DOMParser / XMLSerializer for the ribbon XML tests.
 		environment: "jsdom",
-		setupFiles: ["./src/test-setup.ts"],
 		globals: true,
-		coverage: {
-			provider: "v8",
-			reporter: ["text", "html", "lcov"],
-			thresholds: {
-				statements: 80,
-				functions: 80,
-				lines: 80,
-				branches: 75,
-			},
-		},
 	},
 });

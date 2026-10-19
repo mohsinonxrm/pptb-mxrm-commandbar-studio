@@ -24,6 +24,9 @@ import FluentIcon from "@/components/shared/FluentIcon";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
+import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
+import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
+import { ModernCommandsTable } from "./modern/ModernCommandsTable";
 
 const useStyles = makeStyles({
 	root: {
@@ -69,7 +72,10 @@ interface RibbonListViewProps {
 
 interface ButtonRow {
 	button: RibbonButton;
+	/** The button's label as displayed (resolved). */
+	label: string;
 	groupId: string;
+	/** The group's title as displayed (resolved). */
 	groupLabel: string;
 }
 
@@ -79,23 +85,34 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
 
 	const isGlobalOobReadOnly = (button: RibbonButton) =>
 		location === "Application" && tab.id === "Mscrm.GlobalTab" && button.oob && !button.custom;
 
 	const [filter, setFilter] = useState("");
+	// Classic buttons hidden / replaced by a migrated modern command (#32).
+	const { overrides: modernOverrides } = useModernCanvas(location, tab);
+	const modernAppNames = useModernAppNames();
 
+	// Labels resolved as the canvas shows them, for cells, tooltips and accessible names (#75).
 	const allRows: ButtonRow[] = tab.groups.flatMap((g) =>
-		g.buttons.map((b) => ({ button: b, groupId: g.id, groupLabel: g.label })),
+		g.buttons.map((b) => ({
+			button: b,
+			label: resolveDisplayLabel(b.label, locLabels),
+			groupId: g.id,
+			groupLabel: resolveDisplayLabel(g.label, locLabels, lang),
+		})),
 	);
 
 	const rows: ButtonRow[] = useMemo(() => {
 		const q = filter.toLowerCase().trim();
 		if (!q) return allRows;
 		return allRows.filter(
-			({ button, groupLabel }) =>
+			({ button, label, groupLabel }) =>
 				button.id.toLowerCase().includes(q) ||
 				button.label.toLowerCase().includes(q) ||
+				label.toLowerCase().includes(q) ||
 				(button.commandId ?? "").toLowerCase().includes(q) ||
 				groupLabel.toLowerCase().includes(q),
 		);
@@ -144,10 +161,13 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 					Label
 				</Text>
 			),
-			renderCell: ({ button }) => (
-				<Text size={200} className={styles.clip} title={button.label}>
-					{resolveDisplayLabel(button.label, locLabels)}
-				</Text>
+			renderCell: ({ button, label }) => (
+				<span style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+					<Text size={200} className={styles.clip} title={label}>
+						{label}
+					</Text>
+					<ClassicModernOverrideBadge overrides={modernOverrides.get(button.id)} appNames={modernAppNames} />
+				</span>
 			),
 		}),
 		createTableColumn<ButtonRow>({
@@ -191,7 +211,7 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 			),
 			renderCell: ({ groupLabel }) => (
 				<Text size={200} className={styles.clip} title={groupLabel}>
-					{resolveDisplayLabel(groupLabel, locLabels)}
+					{groupLabel}
 				</Text>
 			),
 		}),
@@ -221,7 +241,7 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 					Visible
 				</Text>
 			),
-			renderCell: ({ button, groupId }) => (
+			renderCell: ({ button, label, groupId }) => (
 				<Switch
 					checked={!button.hidden}
 					label={button.hidden ? <EyeOffRegular fontSize={14} /> : undefined}
@@ -231,7 +251,7 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 							? "OOB global command bar buttons cannot be customized."
 							: undefined
 					}
-					aria-label={`Toggle visibility of ${button.label}`}
+					aria-label={`Toggle visibility of ${label}`}
 					onChange={(_, d) =>
 						setButtonProp(location, tab.id, groupId, button.id, { hidden: !d.checked })
 					}
@@ -302,6 +322,7 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 					)}
 				</DataGridBody>
 			</DataGrid>
+			<ModernCommandsTable tab={tab} location={location} />
 		</div>
 	);
 }

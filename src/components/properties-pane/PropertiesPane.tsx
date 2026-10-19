@@ -1,4 +1,4 @@
-import { makeStyles, tokens, Text, Subtitle2, Divider } from "@fluentui/react-components";
+import { makeStyles, tokens, Text, Subtitle2, Divider, Caption1 } from "@fluentui/react-components";
 import { CursorHoverRegular } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -9,6 +9,14 @@ import { EnableRulesSection } from "./EnableRulesSection";
 import { ScalingSectionSummary } from "./ScalingSectionSummary";
 import { AdvancedSection } from "./AdvancedSection";
 import { ConflictBanner } from "./ConflictBanner";
+import { HiddenByCustomizationsSection } from "./HiddenByCustomizationsSection";
+import { OrphanedCustomizationsSection } from "./OrphanedCustomizationsSection";
+import { ReadOnlyControlSection } from "./ReadOnlyControlSection";
+import { isReadOnlyControlKind } from "@/utils/controlKinds";
+import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
+import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { ModernCommandProperties, ModernOverrideSection } from "./ModernCommandProperties";
+import { useClassicOverrides, useSelectedModernCommand } from "@/hooks/useModernCommands";
 
 const useStyles = makeStyles({
 	root: {
@@ -51,7 +59,13 @@ export function PropertiesPane() {
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
 	const group = tab?.groups.find((g) => g.id === selectedGroupId);
-	const button = group?.buttons.find((b) => b.id === selectedButtonId);
+	const button = findGroupControl(group, selectedButtonId);
+	// A menu item (#27): say whose menu it is in.
+	const place = group && button ? menuItemPlace(group, button.id) : undefined;
+	const locLabels = useRibbonStore((s) => s.locLabels);
+	// Modern commands (#32) are shown read-only and live outside the ribbon store.
+	const modern = useSelectedModernCommand();
+	const modernOverrides = useClassicOverrides(location, button?.id);
 
 	return (
 		<aside className={styles.root} aria-label="Properties">
@@ -59,45 +73,72 @@ export function PropertiesPane() {
 				<Subtitle2>Properties</Subtitle2>
 			</div>
 
-			{!button ? (
-				<div className={styles.empty}>
-					<CursorHoverRegular fontSize={32} style={{ opacity: 0.4 }} />
-					<Text size={300}>Select a button to view its properties</Text>
-				</div>
+			{!button && modern ? (
+				<ModernCommandProperties command={modern.command} items={modern.children} />
+			) : !button ? (
+				<>
+					<div className={styles.empty}>
+						<CursorHoverRegular fontSize={32} style={{ opacity: 0.4 }} />
+						<Text size={300}>Select a button to view its properties</Text>
+					</div>
+					<HiddenByCustomizationsSection />
+					<OrphanedCustomizationsSection />
+				</>
 			) : (
 				<>
 					<ConflictBanner />
-					<IdentitySection
-						button={button}
-						location={location}
-						tabId={tabId}
-						groupId={selectedGroupId!}
-					/>
-					<Divider />
-					<div className={styles.section}>
-						<CommandSection
+					<ModernOverrideSection overrides={modernOverrides} />
+					{place && (
+						<div className={styles.section}>
+							<Caption1>
+								Menu item of “{resolveDisplayLabel(place.parent.label, locLabels)}”
+								{place.section.title ? ` — section “${place.section.title}”` : ""}
+							</Caption1>
+						</div>
+					)}
+					{isReadOnlyControlKind(button.kind) ? (
+						// ToggleButton, Label, DropDown, …: shown, never edited (#42).
+						<ReadOnlyControlSection
 							button={button}
-							groupId={selectedGroupId!}
-							tabId={tabId}
 							location={location}
+							tabId={tabId}
+							groupId={selectedGroupId!}
 						/>
-					</div>
-					<Divider />
-					<div className={styles.section}>
-						<DisplayRulesSection />
-					</div>
-					<Divider />
-					<div className={styles.section}>
-						<EnableRulesSection />
-					</div>
-					<Divider />
-					<div className={styles.section}>
-						<ScalingSectionSummary />
-					</div>
-					<Divider />
-					<div className={styles.section}>
-						<AdvancedSection />
-					</div>
+					) : (
+						<>
+							<IdentitySection
+								button={button}
+								location={location}
+								tabId={tabId}
+								groupId={selectedGroupId!}
+							/>
+							<Divider />
+							<div className={styles.section}>
+								<CommandSection
+									button={button}
+									groupId={selectedGroupId!}
+									tabId={tabId}
+									location={location}
+								/>
+							</div>
+							<Divider />
+							<div className={styles.section}>
+								<DisplayRulesSection />
+							</div>
+							<Divider />
+							<div className={styles.section}>
+								<EnableRulesSection />
+							</div>
+							<Divider />
+							<div className={styles.section}>
+								<ScalingSectionSummary />
+							</div>
+							<Divider />
+							<div className={styles.section}>
+								<AdvancedSection />
+							</div>
+						</>
+					)}
 				</>
 			)}
 		</aside>

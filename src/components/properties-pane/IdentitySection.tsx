@@ -15,10 +15,14 @@ import {
 	MessageBarBody,
 } from "@fluentui/react-components";
 import { ImageRegular, AddRegular } from "@fluentui/react-icons";
-import { useRibbonStore } from "@/store/ribbonStore";
+import { canCustomiseButton, useRibbonStore } from "@/store/ribbonStore";
+import { useSessionStore } from "@/store/sessionStore";
+import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
 import FluentIcon from "@/components/shared/FluentIcon";
+import { effectiveModernImage } from "@/services/xmlGenerator";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
+import { buttonTranslationLcids } from "@/utils/locLabelRef";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
 
 const BUTTON_KINDS: RibbonButton["kind"][] = [
@@ -94,18 +98,23 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 	const styles = useStyles();
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const baseLanguageCode = useRibbonStore((s) => s.baseLanguageCode);
 	const openIconPicker = useUIStore((s) => s.openIconPicker);
 	const openLocalizationEditor = useUIStore((s) => s.openLocalizationEditor);
 	const openWebResourceBrowser = useUIStore((s) => s.openWebResourceBrowser);
 	const customizeOobButton = useRibbonStore((s) => s.customizeOobButton);
+	const customiseButton = useRibbonStore((s) => s.customiseButton);
+	const activeSolution = useSessionStore((s) => s.activeSolution);
+	const sessionPrefix = useSessionStore((s) => s.publisherPrefix);
+	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 
 	function patch(update: Partial<RibbonButton>) {
 		setButtonProp(location, tabId, groupId, button.id, update);
 	}
 
-	// Gather all active LCIDs from LocLabel entries whose ID matches this button
-	const buttonLocLabel = locLabels.find((l) => l.id.startsWith(button.id));
-	const activeLcids: number[] = buttonLocLabel?.titles.map((t) => t.languageCode) ?? [];
+	// Languages of the labels this button's text and tooltips use (exact ids:
+	// a prefix match showed `Foo.Button2`'s translations on `Foo.Button`, #22).
+	const activeLcids = buttonTranslationLcids(button, locLabels, baseLanguageCode);
 
 	return (
 		<div className={styles.root}>
@@ -140,6 +149,20 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 							>
 								Create override
 							</Button>
+							{canCustomiseButton(location, tabId, button) && (
+								<Button
+									size="small"
+									appearance="subtle"
+									title="Copy the button into your solution and hide the original, so the copy can be changed and moved"
+									onClick={() => {
+										const prefix = activeSolution?.publisherPrefix?.trim() || sessionPrefix?.trim() || "new";
+										const id = customiseButton(location, tabId, groupId, button.id, prefix);
+										if (id) selectButtonInContext(location, tabId, groupId, id);
+									}}
+								>
+									Customise button
+								</Button>
+							)}
 						</Text>
 					</MessageBarBody>
 				</MessageBar>
@@ -218,7 +241,9 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 			{button.icon && (
 				<Field label="ModernImage (auto)">
 					<Input
-						value={`${button.icon}_20_regular`}
+						// What Publish writes: a picked icon is referenced as its SVG web
+						// resource (#51); an untouched icon keeps its loaded value.
+						value={effectiveModernImage(button) ?? "(none)"}
 						readOnly
 						contentAfter={
 							<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>

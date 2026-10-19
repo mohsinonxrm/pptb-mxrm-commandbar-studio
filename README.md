@@ -5,13 +5,13 @@ customizations** — the spiritual successor to [Ribbon Workbench](https://www.d
 reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 [Power Platform ToolBox](https://www.powerplatformtoolbox.com/).
 
-![Version](https://img.shields.io/badge/version-0.5.3--beta.1-orange)
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript)
-![Fluent UI](https://img.shields.io/badge/Fluent%20UI-v9-0078D4?logo=microsoft)
-![PPTB Types](https://img.shields.io/badge/%40pptb%2Ftypes-1.2.3-orange)
-![License](https://img.shields.io/badge/license-AGPL--3.0--only-green)
-![Tests](https://img.shields.io/badge/tests-148%20passing-brightgreen)
+![Version](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/version.svg)
+![Power Platform ToolBox 1.2.7 or later](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/pptb.svg)
+![@pptb/types 1.2.7](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/pptb-types.svg)
+![React 18](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/react.svg)
+![TypeScript 5.8](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/typescript.svg)
+![Fluent UI v9](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/fluent-ui.svg)
+![License AGPL-3.0-only](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/license.svg)
 
 > **Classic commands only.** CBS targets Dataverse `RibbonDiffXml` — the
 > classic commanding system. It does not modify Power Fx / Modern Commanding
@@ -92,10 +92,12 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - CBS-specific completions: `$LocLabels:`, `$webresource:`, `Command=`, `ModernImage=`
 
 ### 🔄 Publish Pipeline
-- Correct delta-only `RibbonDiffXml` — only changed elements emitted
+- Read → merge → write: reads the table's existing unmanaged ribbon layer (CustomActions, commands, rules, labels) and merges your changes into it, so customizations made elsewhere (e.g. with Ribbon Workbench) are kept
+- Pre-publish validation — blocking errors stop the import; warnings are logged
 - Solution ZIP packaging with `behavior=2` (shell-only) root component — does **not** pull in all entity subcomponents
-- 5-minute import polling with progress beats
-- Post-publish `ribbonmetadatasettoprocess` monitoring — surfaces compile errors that `publishCustomizations` silently swallows
+- Import → publish → re-import → publish, so Unified Interface picks up the change
+- Waits and retries while the environment is busy with another import, publish or ribbon-metadata job
+- Post-publish verification — reads the published layer back and checks every element this publish changed has the imported content
 - `Mscrm.OpenRecordItem` override support — emitted as a system-command override when the user defines a JS action on it
 
 ### 🧩 Solution Conflict Drawer
@@ -113,8 +115,15 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Arrow keys — navigate buttons on canvas
 
 ### 💾 Persistence
-- Auto-save ribbon state to `localStorage` keyed by org URL + entity
-- Restore-from-previous-session banner on startup
+- Unpublished changes are saved as a draft in `localStorage` after every change, per org,
+  solution and table: everything the publish needs (canvas, commands, rules, labels,
+  un-hides, customised / uncustomised commands). Only what differs from the loaded ribbon
+  is stored, compressed: a few KB per table
+- When the table loads again, a dialog offers to **Restore** the draft on top of the ribbon
+  as loaded (one undo step) or **Discard** it. Drafts older than 30 days are discarded
+- Switching table or solution with unpublished changes asks first: **Keep as draft**,
+  **Discard** or **Cancel**. When the browser storage is full, a banner says so and
+  **Keep as draft** is disabled, so the changes are never dropped silently
 - Pane widths, collapsed state, view mode all persisted
 
 ---
@@ -148,12 +157,19 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 
 Command Bar Studio runs **inside [Power Platform ToolBox](https://www.powerplatformtoolbox.com/)**. It requires the PPTB host to be available — authentication and Dataverse connectivity are provided by the host.
 
-1. Install Power Platform ToolBox
+1. Install Power Platform ToolBox **1.2.7 or later**
 2. Connect to a Dataverse environment
 3. Open Command Bar Studio from the tool list
 4. Pick an unmanaged solution from the TopBar
 5. Select a table from the left pane
 6. Edit ribbon buttons visually; click **Publish** when done
+
+Icons you pick or upload, and scripts you save, are created as web resources and
+added to the selected solution. A Fluent icon is uploaded as an SVG web resource named
+`<prefix>_/icons/cbs/<icon>.svg` (`<icon>.filled.svg` for the filled variant).
+
+If you turn on Dataverse impersonation for the tool in PPTB 1.2.7, web resources,
+the solution import and the publish run as the impersonated user.
 
 ---
 
@@ -185,8 +201,15 @@ npm run preview
 # Run tests
 npm test
 
-# Run tests with coverage
-npm run test:coverage
+# Lint (zero warnings allowed)
+npm run lint
+
+# Check / apply Prettier formatting
+npm run format:check
+npm run format
+
+# Validate the PPTB tool manifest
+npm run validate
 ```
 
 ### Standalone vs PPTB-embedded
@@ -194,8 +217,10 @@ npm run test:coverage
 CBS runs in two modes:
 
 - **Standalone** (`npm run dev`) — opens in a regular browser tab. Useful for UI
-  iteration. All Dataverse calls fail because `window.dataverseAPI` is absent; the
-  canvas and editors can still be exercised with the restore-from-localStorage path.
+  iteration. All Dataverse calls fail because `window.dataverseAPI` is absent.
+- **Dev harness** (`npm run dev:harness`) — the real UI in a browser tab against a
+  live Dataverse org, via a stubbed PPTB host and an Azure CLI–authenticated dev-server
+  proxy. See [CONTRIBUTING.md](CONTRIBUTING.md#running-against-a-live-org-dev-harness).
 - **Embedded in PPTB** — loads inside the PPTB iframe. The host injects
   `window.dataverseAPI` (typed) and `window.toolboxAPI`. All publish, load, and
   web-resource operations work against the active connection.
@@ -215,7 +240,7 @@ CBS runs in two modes:
 | **@fluentui-contrib/react-data-grid-react-window** | 1.4 | Virtualized entity list + web resource browser |
 | **Zustand** | 5 | Global state (ribbons, selection, UI, session) |
 | **fflate** | 0.8 | ZIP compression for solution package + ribbon XML decompression |
-| **@pptb/types** | 1.2.3 | Power Platform ToolBox host API types (`window.dataverseAPI`, `window.toolboxAPI`) |
+| **@pptb/types** | 1.2.7 | Power Platform ToolBox host API types (`window.dataverseAPI`, `window.toolboxAPI`) |
 | **Vitest** | 3 | Test runner — 148 tests across 8 suites |
 
 ---
@@ -238,12 +263,14 @@ src/
     shared/              — MonacoEditor, FluentIcon, CrmParameterEditor,
                            RuleStepEditor, RuleStepPicker, ResizableHandle
   services/
-    xmlGenerator.ts      — Delta-only RibbonDiffXml generator (all 30 rule kinds)
+    xmlGenerator.ts      — RibbonDiffXml generator (all 30 rule kinds)
     xmlParser.ts         — Merged ribbon XML parser (all 30 rule kinds)
     xmlValidator.ts      — Pre-import validation with user-friendly messages
+    publishPlan.ts       — What a publish changes per location (and what it can't)
+    ribbonDiffMerge.ts   — Merges your changes into the existing unmanaged layer
     dataverse/
       ribbonService.ts         — RetrieveEntityRibbon / RetrieveApplicationRibbon
-      publishService.ts        — Solution ZIP packaging + import + ribbonmetadatasettoprocess poll
+      publishService.ts        — Layer merge, solution ZIP packaging, import, publish and verification
       ribbonProvenanceService.ts — msdyn_componentlayer solution-layer provenance
       conflictService.ts       — fetchConflictLayersForElement
       webResourceService.ts    — loadWebResources / loadWebResourceByName / loadWebResourceContent
@@ -269,8 +296,8 @@ src/
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read the [Conventional Commits](https://www.conventionalcommits.org/) guide —
-all commits must follow the format enforced by `commitlint`.
+Contributions are welcome! Please use [Conventional Commits](https://www.conventionalcommits.org/)
+style messages (`feat:`, `fix:`, `chore:` …).
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feat/my-feature`

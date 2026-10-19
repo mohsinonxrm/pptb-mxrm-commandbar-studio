@@ -37,6 +37,15 @@ export function generateRuleId(
 	return ensureUnique(base, existingIds);
 }
 
+/**
+ * The distinctive part of a command id, used to name rules created for it:
+ * `cbstest.contact.HomepageGrid.Approve.Command` → `Approve`,
+ * `Mscrm.AssignSelectedRecord` → `AssignSelectedRecord`.
+ */
+export function ruleNameFromCommandId(commandId: string): string {
+	return commandId.replace(/\.Command$/, "").split(".").pop() || "Rule";
+}
+
 export function generateLocLabelId(buttonId: string, part: "LabelText" | "ToolTip"): string {
 	return `${buttonId}.${part}`;
 }
@@ -63,6 +72,29 @@ function ensureUnique(base: string, existingIds: Set<string>): string {
 	let i = 2;
 	while (existingIds.has(`${base}${i}`)) i++;
 	return `${base}${i}`;
+}
+
+/**
+ * Ids for a new button (or menu item) and its command:
+ * `{prefix}.{entity}.{location}.{Label}.Button` / `….Command`. The location
+ * keeps the same label on the grid, sub-grid and form from producing colliding
+ * ids in the table's single RibbonDiffXml; `existingIds` (every control and
+ * command already loaded) de-duplicates.
+ */
+export function newButtonIds(
+	prefix: string,
+	entityName: string,
+	location: string,
+	label: string,
+	existingIds: Set<string>,
+): { id: string; commandId: string } {
+	const safeName = label.replace(/[^a-zA-Z0-9_]/g, "") || "Button";
+	const base = `${prefix}.${entityName}.${location}.${safeName}`;
+	let stem = base;
+	for (let n = 2; existingIds.has(`${stem}.Button`) || existingIds.has(`${stem}.Command`); n++) {
+		stem = `${base}${n}`;
+	}
+	return { id: `${stem}.Button`, commandId: `${stem}.Command` };
 }
 
 /**

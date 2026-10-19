@@ -6,10 +6,6 @@ import {
 	webDarkTheme,
 	Tab,
 	TabList,
-	MessageBar,
-	MessageBarBody,
-	MessageBarActions,
-	Button,
 } from "@fluentui/react-components";
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/shell/Layout";
@@ -32,14 +28,19 @@ import { fetchEntitiesByMetadataIds } from "@/services/dataverse/entityService";
 import { fetchRibbonWorkspace } from "@/services/dataverse/ribbonService";
 import { fetchRibbonProvenance } from "@/services/dataverse/ribbonProvenanceService";
 import { applyProvenanceToRibbons, type ButtonProvenance } from "@/utils/ribbonProvenance";
+import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import type { ConflictEntry } from "@/types/ribbon";
 import { fetchCurrentUser } from "@/services/dataverse/userService";
-import {
-	useRibbonPersistence,
-	loadPersistedRibbonData,
-	clearPersistedRibbonData,
-} from "@/hooks/useRibbonPersistence";
+import { useRibbonPersistence } from "@/hooks/useRibbonPersistence";
+import { useDraftStore, draftKeyFor } from "@/store/draftStore";
+import { DraftSaveWarning } from "@/components/shell/DraftSaveWarning";
+import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
+import { UnsavedChangesDialog } from "@/components/modals/UnsavedChangesDialog";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { groupControls } from "@/utils/ribbonMenu";
+import { annotateRecentPublish } from "@/services/layerOrphans";
+import { recentPublishOf } from "@/utils/recentPublish";
+import { useModernCommandsLoader } from "@/hooks/useModernCommands";
 
 const useStyles = makeStyles({
 	leftPaneTabs: {
@@ -86,24 +87,22 @@ export function App() {
 	const setCurrentUser = useSessionStore((s) => s.setCurrentUser);
 	const setSolutionEntityIds = useSessionStore((s) => s.setSolutionEntityIds);
 	const setSolutionRibbonComponentIds = useSessionStore((s) => s.setSolutionRibbonComponentIds);
-	const connectionUrl = useSessionStore((s) => s.connectionUrl);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const activeEntity = useSessionStore((s) => s.activeEntity);
 	const loadWorkspace = useRibbonStore((s) => s.loadWorkspace);
-	const loadRibbons = useRibbonStore((s) => s.loadRibbons);
 	const setTabId = useSelectionStore((s) => s.setTabId);
 	const themeMode = useUIStore((s) => s.themeMode);
 	const logInfo = useRuntimeLogStore((s) => s.logInfo);
 	const logWarn = useRuntimeLogStore((s) => s.logWarn);
 	const logError = useRuntimeLogStore((s) => s.logError);
 
-	// Auto-save ribbon state on every mutation
+	// Saves unpublished changes as the table's draft on every change (#16).
 	useRibbonPersistence();
 
-	// Restore banner state
-	const [showRestoreBanner, setShowRestoreBanner] = useState(false);
-	const [pendingRestore, setPendingRestore] =
-		useState<ReturnType<typeof loadPersistedRibbonData>>(null);
+	// Modern commands (appaction, #32): read-only, loaded alongside the ribbon,
+	// never part of the ribbon store or publish.
+	useModernCommandsLoader();
+
 	const [ribbonLoadState, setRibbonLoadState] = useState<"idle" | "loading" | "error">("idle");
 	const [ribbonLoadError, setRibbonLoadError] = useState<string | null>(null);
 	const [reloadVersion, setReloadVersion] = useState(0);
@@ -202,9 +201,18 @@ export function App() {
 	// ----- When the user picks an entity (inside an active solution),
 	// load the ribbon workspace.
 	useEffect(() => {
-		if (!activeEntity?.logicalName) return;
+		// Until a table's workspace is loaded, no draft belongs to the store's (#16).
+		useDraftStore.getState().beginLoad();
+		// No table (e.g. after switching solution, which also empties the ribbon
+		// store, #22): a previous table's load error or spinner doesn't apply.
+		if (!activeEntity?.logicalName) {
+			setRibbonLoadState("idle");
+			setRibbonLoadError(null);
+			return;
+		}
 
 		let cancelled = false;
+		const draftKey = draftKeyFor(activeEntity.logicalName);
 		setRibbonLoadState("loading");
 		setRibbonLoadError(null);
 		logInfo("ribbon", `Loading ribbon workspace for ${activeEntity.logicalName}...`);
@@ -233,7 +241,7 @@ export function App() {
 				for (const ribbon of Object.values(workspace.ribbons)) {
 					for (const tab of ribbon.tabs) {
 						for (const group of tab.groups) {
-							for (const btn of group.buttons) {
+							for (const btn of groupControls(group)) {
 								if (btn.origin === "managed" && !seenButtonIds.has(btn.id)) {
 									seenButtonIds.add(btn.id);
 									conflictEntries.push({
@@ -264,6 +272,16 @@ export function App() {
 					displayRules: workspace.displayRules,
 					enableRules: workspace.enableRules,
 					locLabels: workspace.locLabels,
+					layers: workspace.layers,
+					baseLanguageCode: workspace.baseLanguageCode,
+					// Right after a publish the ribbon can be the one from before it:
+					// what that publish wrote isn't offered for deletion (#64 review).
+					orphans: {
+						entity: annotateRecentPublish(
+							workspace.orphans ?? [],
+							recentPublishOf(useSessionStore.getState().connectionUrl, activeEntity.logicalName),
+						),
+					},
 				});
 
 				// Snapshot the current selection at success-time via getState()
@@ -273,11 +291,18 @@ export function App() {
 				// clicks a tab or switches between Home/Sub/Form/Application.
 				const { location: currentLocation, tabId: currentTabId } = useSelectionStore.getState();
 				const tabsForLocation = workspace.ribbons[currentLocation]?.tabs ?? [];
-				const tabStillExists = tabsForLocation.some((t) => t.id === currentTabId);
+				// A tab shared by every table (the Charts / AllEntities tabs) "still
+				// exists" after switching tables; land on the new table's main tab.
+				const tabStillExists =
+					tabsForLocation.some((t) => t.id === currentTabId) && !isHiddenOnUnifiedInterface(currentTabId);
 				if (!tabStillExists) {
-					const firstTabId = tabsForLocation[0]?.id;
+					const firstTabId = defaultTabId(tabsForLocation);
 					if (firstTabId) setTabId(firstTabId);
 				}
+
+				// Autosave starts now, and a draft saved for this table is offered
+				// on top of what was just loaded (#16).
+				useDraftStore.getState().workspaceLoaded(draftKey);
 
 				setRibbonLoadState("idle");
 				logInfo("ribbon", `Ribbon workspace loaded for ${activeEntity.logicalName}.`);
@@ -295,35 +320,6 @@ export function App() {
 		};
 	}, [activeEntity?.logicalName, loadWorkspace, reloadVersion, setTabId, logInfo, logError]);
 
-	// Check for persisted state when entity or connection changes
-	useEffect(() => {
-		if (!connectionUrl) return;
-		const entityLogicalName = activeEntity?.logicalName ?? "";
-		const saved = loadPersistedRibbonData(connectionUrl, entityLogicalName);
-		if (saved) {
-			setPendingRestore(saved);
-			setShowRestoreBanner(true);
-		} else {
-			setShowRestoreBanner(false);
-			setPendingRestore(null);
-		}
-	}, [connectionUrl, activeEntity?.logicalName]);
-
-	function handleRestore() {
-		if (!pendingRestore) return;
-		loadRibbons(pendingRestore.ribbons);
-		setShowRestoreBanner(false);
-		setPendingRestore(null);
-	}
-
-	function handleDiscard() {
-		if (connectionUrl) {
-			clearPersistedRibbonData(connectionUrl, activeEntity?.logicalName ?? "");
-		}
-		setShowRestoreBanner(false);
-		setPendingRestore(null);
-	}
-
 	function handleRetryRibbonLoad() {
 		setReloadVersion((v) => v + 1);
 	}
@@ -331,34 +327,15 @@ export function App() {
 	return (
 		<FluentProvider theme={themeMode === "dark" ? webDarkTheme : webLightTheme}>
 			<Layout leftPane={<LeftPane />} rightPane={<PropertiesPane />} bottomPanel={<BottomPanel />}>
-				{showRestoreBanner && pendingRestore && (
-					<MessageBar
-						intent="warning"
-						style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 1000 }}
-					>
-						<MessageBarBody>
-							You have unsaved changes from a previous session (saved{" "}
-							{new Date(pendingRestore.savedAt).toLocaleString()}).
-						</MessageBarBody>
-						<MessageBarActions
-							containerAction={
-								<Button size="small" appearance="subtle" onClick={handleDiscard}>
-									Discard
-								</Button>
-							}
-						>
-							<Button size="small" appearance="primary" onClick={handleRestore}>
-								Restore
-							</Button>
-						</MessageBarActions>
-					</MessageBar>
-				)}
+				<DraftSaveWarning />
 				<RibbonCanvas
 					isLoadingRibbon={ribbonLoadState === "loading"}
 					ribbonLoadError={ribbonLoadError}
 					onRetryRibbonLoad={handleRetryRibbonLoad}
 				/>
 			</Layout>
+			<DraftRestoreDialog />
+			<UnsavedChangesDialog />
 		</FluentProvider>
 	);
 }

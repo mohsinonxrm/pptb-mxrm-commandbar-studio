@@ -4,7 +4,10 @@ import { SearchRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { useDraftStore } from "@/store/draftStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { findGroupControl, groupControls } from "@/utils/ribbonMenu";
+import { isReadOnlyControlKind } from "@/utils/controlKinds";
 
 const useStyles = makeStyles({
 	backdrop: {
@@ -113,7 +116,7 @@ export const CommandPalette: React.FC = () => {
 	const enableRules = useRibbonStore((s) => s.enableRules);
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const entities = useSessionStore((s) => s.entities);
-	const setActiveEntity = useSessionStore((s) => s.setActiveEntity);
+	const requestEntitySwitch = useDraftStore((s) => s.requestEntitySwitch);
 	const location = useSelectionStore((s) => s.location);
 	const tabId = useSelectionStore((s) => s.tabId);
 	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
@@ -140,6 +143,10 @@ export const CommandPalette: React.FC = () => {
 		const activeTab = ribbons[location].tabs.find((t) => t.id === tabId);
 		const fallbackGroupId = activeTab?.groups[0]?.id ?? null;
 		const targetGroupId = selectedGroupId ?? fallbackGroupId;
+		// ToggleButton, Label, DropDown, …: their labels aren't edited (#42).
+		const selectedReadOnly = isReadOnlyControlKind(
+			findGroupControl(activeTab?.groups.find((g) => g.id === selectedGroupId), selectedButtonId)?.kind,
+		);
 
 		// Actions
 		const actions: PaletteItem[] = [
@@ -169,8 +176,14 @@ export const CommandPalette: React.FC = () => {
 				subtitle: "Import RibbonDiffXml from clipboard",
 				kind: "action",
 				action: () => {
-					openImportXml();
 					close();
+					// Opens with the clipboard's XML; empty when it can't be read.
+					const read = navigator.clipboard?.readText?.();
+					if (!read) return openImportXml();
+					read.then(
+						(t) => openImportXml(t.trim().startsWith("<") ? t : ""),
+						() => openImportXml(),
+					);
 				},
 			},
 			{
@@ -199,12 +212,14 @@ export const CommandPalette: React.FC = () => {
 			{
 				id: "edit-labels",
 				label: "Edit localized labels",
-				subtitle: selectedButtonId
-					? "Open localization editor for selected button"
-					: "Select a button first",
+				subtitle: selectedReadOnly
+					? "The selected control is shown read-only"
+					: selectedButtonId
+						? "Open localization editor for selected button"
+						: "Select a button first",
 				kind: "action",
 				action: () => {
-					if (!selectedButtonId) return;
+					if (!selectedButtonId || selectedReadOnly) return;
 					openLocalizationEditor(selectedButtonId);
 					close();
 				},
@@ -247,7 +262,7 @@ export const CommandPalette: React.FC = () => {
 			const allButtons = Object.entries(ribbons).flatMap(([loc, r]) =>
 				r.tabs.flatMap((t) =>
 					t.groups.flatMap((g) =>
-						g.buttons.map((b) => ({
+						groupControls(g).map((b) => ({
 							id: `btn-${b.id}`,
 							label: b.label || b.id,
 							subtitle: `${loc} → ${t.label} → ${g.label}`,
@@ -311,7 +326,7 @@ export const CommandPalette: React.FC = () => {
 					subtitle: e.logicalName,
 					kind: "entity",
 					action: () => {
-						setActiveEntity(e);
+						requestEntitySwitch(e);
 						close();
 					},
 				});

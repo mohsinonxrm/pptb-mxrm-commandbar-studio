@@ -1,6 +1,6 @@
 {
 	"name": "@mohsinonxrm/pptb-commandbar-studio",
-	"version": "0.5.3-beta.1",
+	"version": "0.6.0",
 	"displayName": "Command Bar Studio",
 	"description": "Visual designer for Dataverse classic ribbon / command bar customizations — the spiritual successor to Ribbon Workbench, built for Power Platform ToolBox",
 	"author": "Mohsin On xRM",
@@ -23,7 +23,7 @@
 		"microsoft"
 	],
 	"main": "index.html",
-	"icon": "icons/command-bar-studio.svg",
+	"icon": "icons/icon.svg",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio.git"
@@ -35,8 +35,8 @@
 		}
 	],
 	"features": {
-		"multiConnection": "none",
-		"minAPI": "1.2.0"
+		"connections": 1,
+		"minAPI": "1.2.7"
 	},
 	"bugs": {
 		"url": "https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues"
@@ -48,32 +48,29 @@
 	},
 	"files": [
 		"dist",
-		"icons",
 		"index.html",
 		"LICENSE",
 		"README.md",
 		"CHANGELOG.md",
-		"SECURITY.md",
-		"npm-shrinkwrap.json"
+		"SECURITY.md"
 	],
 	"type": "module",
+	"engines": {
+		"node": ">=22"
+	},
 	"scripts": {
 		"dev": "vite",
+		"dev:harness": "vite --open /dev/harness/",
 		"build": "tsc -b && vite build",
 		"preview": "vite preview",
-		"typecheck": "tsc --noEmit",
-		"lint": "eslint src --max-warnings 0",
+		"typecheck": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.harness.json",
+		"lint": "eslint . --max-warnings 0",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:coverage": "vitest run --coverage",
-		"test:ui": "vitest --ui",
 		"validate": "pptb-validate",
-		"finalize-package": "npm run validate && npm run build && npm shrinkwrap",
-		"release": "release-it",
-		"release:dry": "release-it --dry-run",
-		"release:pre": "release-it --preRelease=beta",
-		"analyze": "vite build && start dist/stats.html",
-		"prepare": "if [ \"$CI\" = \"true\" ]; then echo 'Skipping Husky in CI'; else husky; fi"
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"version-badge": "node .github/scripts/version-badge.mjs"
 	},
 	"dependencies": {
 		"@dnd-kit/core": "^6.3.1",
@@ -89,33 +86,22 @@
 		"zustand": "^5.0.5"
 	},
 	"devDependencies": {
-		"@commitlint/cli": "^19.8.1",
-		"@commitlint/config-conventional": "^19.8.1",
 		"@eslint/js": "^9.25.0",
-		"@pptb/types": "^1.2.3",
-		"@release-it/conventional-changelog": "^10.0.6",
-		"@testing-library/jest-dom": "^6.6.3",
-		"@testing-library/react": "^16.3.0",
-		"@testing-library/user-event": "^14.6.1",
+		"@pptb/types": "1.2.7",
+		"@types/node": "^22.20.5",
 		"@types/react": "^18.3.21",
 		"@types/react-dom": "^18.3.5",
-		"@typescript-eslint/eslint-plugin": "^8.30.1",
-		"@typescript-eslint/parser": "^8.30.1",
 		"@vitejs/plugin-react": "^5.2.0",
-		"@vitest/coverage-v8": "^3.1.2",
-		"@vitest/ui": "^3.1.2",
 		"eslint": "^9.25.0",
 		"eslint-plugin-jsx-a11y": "^6.10.2",
 		"eslint-plugin-react-hooks": "^5.2.0",
 		"eslint-plugin-react-refresh": "^0.4.19",
-		"eslint-plugin-vitest": "^0.5.4",
 		"globals": "^16.0.0",
-		"husky": "^9.1.7",
 		"jsdom": "^26.1.0",
 		"monaco-editor": "^0.55.1",
-		"release-it": "^19.2.4",
-		"rollup-plugin-visualizer": "^5.14.0",
+		"prettier": "^3.9.10",
 		"typescript": "^5.8.3",
+		"typescript-eslint": "^8.71.2",
 		"vite": "^7.3.3",
 		"vitest": "^3.1.2"
 	}

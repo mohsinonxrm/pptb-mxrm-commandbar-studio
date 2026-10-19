@@ -20,6 +20,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useMemo, useState } from "react";
 import type { RibbonLocation } from "@/types/ribbon";
 import { generateCommandId, generateRuleId } from "@/utils/idGenerator";
+import { groupControls } from "@/utils/ribbonMenu";
 
 const DRAG_SE_MIME = "application/x-rw-se";
 
@@ -119,12 +120,13 @@ export function SolutionElementsPane() {
 			const baseRibbon = baseline[loc];
 			for (const tab of ribbon.tabs) {
 				for (const group of tab.groups) {
-					for (const btn of group.buttons) {
+					// Menu items too (#27).
+					for (const btn of groupControls(group)) {
 						if (!btn.custom) continue;
 						// Check if button was in baseline (not new)
 						const inBaseline = baseRibbon.tabs
 							.flatMap((t) => t.groups)
-							.flatMap((g) => g.buttons)
+							.flatMap((g) => groupControls(g))
 							.some((b) => b.id === btn.id);
 						result.push({
 							button: btn,
@@ -200,14 +202,8 @@ export function SolutionElementsPane() {
 									onDragStart={(e) => {
 										e.dataTransfer.setData(
 											DRAG_SE_MIME,
-											JSON.stringify({
-												button: {
-													id: button.id,
-													label: button.label,
-													icon: button.icon,
-													kind: button.kind,
-												},
-											}),
+											// The whole button: a copy keeps its icon, images and command (#60).
+											JSON.stringify({ button }),
 										);
 										e.dataTransfer.effectAllowed = "copy";
 									}}

@@ -1,9 +1,18 @@
 import { create, type StateCreator } from "zustand";
 import { persist } from "zustand/middleware";
+import type { RibbonLocation } from "@/types/ribbon";
 
 export type RibbonViewStyle = "classic" | "modern" | "list";
 export type RightPaneMode = "docked" | "floating" | "hidden";
 export type ThemeMode = "light" | "dark";
+
+/** Where a control (a top-level button or a menu item) is on the canvas. */
+export interface ControlRef {
+	location: RibbonLocation;
+	tabId: string;
+	groupId: string;
+	buttonId: string;
+}
 
 export interface UIStore {
 	// Pane dimensions
@@ -32,6 +41,8 @@ export interface UIStore {
 	newGroupOpen: boolean;
 	newButtonGroupId: string | null;
 	importXmlOpen: boolean;
+	/** XML the import dialog opens with (the XML drawer's, or the clipboard's). */
+	importXmlSeed: string;
 	conflictDrawerOpen: boolean;
 	conflictElementId: string | null;
 	webResourceBrowserOpen: boolean;
@@ -42,6 +53,8 @@ export interface UIStore {
 	scalingEditorOpen: boolean;
 	commandPaletteOpen: boolean;
 	newTabOpen: boolean;
+	/** A control Delete was pressed on that isn't yours: offered a hide instead (#17). */
+	hideInsteadOfDelete: ControlRef | null;
 
 	// Setters
 	setLeftPaneWidth(w: number): void;
@@ -69,7 +82,7 @@ export interface UIStore {
 	closeNewGroup(): void;
 	openNewButton(groupId: string): void;
 	closeNewButton(): void;
-	openImportXml(): void;
+	openImportXml(seed?: string): void;
 	closeImportXml(): void;
 	openConflictDrawer(elementId: string): void;
 	closeConflictDrawer(): void;
@@ -86,6 +99,8 @@ export interface UIStore {
 	setCommandPaletteOpen(open: boolean): void;
 	openNewTab(): void;
 	closeNewTab(): void;
+	openHideInsteadOfDelete(control: ControlRef): void;
+	closeHideInsteadOfDelete(): void;
 
 	// ARIA live region
 	announcement: string;
@@ -117,6 +132,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	newGroupOpen: false,
 	newButtonGroupId: null,
 	importXmlOpen: false,
+	importXmlSeed: "",
 	conflictDrawerOpen: false,
 	conflictElementId: null,
 	webResourceBrowserOpen: false,
@@ -127,6 +143,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	scalingEditorOpen: false,
 	commandPaletteOpen: false,
 	newTabOpen: false,
+	hideInsteadOfDelete: null,
 
 	// ARIA live region
 	announcement: "",
@@ -159,7 +176,8 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	closeNewGroup: () => set({ newGroupOpen: false }),
 	openNewButton: (groupId) => set({ newButtonGroupId: groupId }),
 	closeNewButton: () => set({ newButtonGroupId: null }),
-	openImportXml: () => set({ importXmlOpen: true }),
+	openImportXml: (seed) =>
+		set({ importXmlOpen: true, importXmlSeed: typeof seed === "string" ? seed : "" }),
 	closeImportXml: () => set({ importXmlOpen: false }),
 	openConflictDrawer: (elementId) =>
 		set({ conflictDrawerOpen: true, conflictElementId: elementId }),
@@ -177,6 +195,8 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	setCommandPaletteOpen: (open: boolean) => set({ commandPaletteOpen: open }),
 	openNewTab: () => set({ newTabOpen: true }),
 	closeNewTab: () => set({ newTabOpen: false }),
+	openHideInsteadOfDelete: (control) => set({ hideInsteadOfDelete: control }),
+	closeHideInsteadOfDelete: () => set({ hideInsteadOfDelete: null }),
 	announce: (message: string) => set({ announcement: message }),
 });
 

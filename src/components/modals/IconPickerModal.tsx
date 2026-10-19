@@ -27,24 +27,13 @@ import { useSessionStore } from "@/store/sessionStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import FluentIcon, { fluentIconToSvg } from "@/components/shared/FluentIcon";
 import {
+	addExistingWebResourceToActiveSolution,
 	loadWebResources,
 	saveWebResource,
-	publishWebResource,
 } from "@/services/dataverse/webResourceService";
+import { ensureFluentIconWebResource } from "@/services/iconWebResource";
+import { fluentIconWebResourceName, toSnakeCase } from "@/utils/iconWebResourceName";
 import type { WebResource } from "@/types/webResource";
-
-/** Convert PascalCase icon name to snake_case Fluent icon name, e.g. "CreditCard" → "credit_card" */
-function toSnakeCase(name: string): string {
-	return name.replace(/([A-Z])/g, (c, _m, i) => (i > 0 ? "_" : "") + c.toLowerCase());
-}
-
-/** UTF-8-safe base64 encode (web-resource `content` must be base64). */
-function toBase64Utf8(text: string): string {
-	const bytes = new TextEncoder().encode(text);
-	let binary = "";
-	for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-	return btoa(binary);
-}
 
 const CATEGORY_HINTS: Array<{ category: string; keywords: string[] }> = [
 	{
@@ -309,6 +298,10 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 	const tabId = useSelectionStore((s) => s.tabId);
 	const location = useSelectionStore((s) => s.location);
 	const publisherPrefix = useSessionStore((s) => s.publisherPrefix);
+	const activeSolution = useSessionStore((s) => s.activeSolution);
+	const [iconError, setIconError] = useState<string | null>(null);
+	/** Non-blocking note shown after the icon was applied (e.g. not added to a solution). */
+	const [iconNote, setIconNote] = useState<string | null>(null);
 
 	const [activeTab, setActiveTab] = useState<IconPickerTab>("fluent");
 	const [search, setSearch] = useState("");
@@ -320,6 +313,13 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 	const [loadingWebResources, setLoadingWebResources] = useState(false);
 	const [iconSearch, setIconSearch] = useState("");
 	const [uploading, setUploading] = useState(false);
+
+	React.useEffect(() => {
+		if (!open) {
+			setIconError(null);
+			setIconNote(null);
+		}
+	}, [open]);
 
 	React.useEffect(() => {
 		if (!open || activeTab !== "webresource") return;
@@ -346,71 +346,104 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 
 	const handleSelectFluentIcon = async () => {
 		if (!selectedIcon || !selectedButtonId || !selectedGroupId) return;
-		const prefix = publisherPrefix || "new";
-		const iconName = toSnakeCase(selectedIcon);
 		const logs = useRuntimeLogStore.getState();
+		setIconError(null);
 
-		// A Fluent icon is a CBS-UI-only React component — it is NOT a Dataverse
-		// web resource. Previously we fabricated `$webresource:…_16.svg` paths
-		// that pointed at files which never existed; the ribbon compile then
-		// failed to resolve them and the button silently never rendered.
-		//
-		// Instead, serialize the icon to SVG and upload it as a REAL web resource,
-		// then reference that. `icon` keeps the Fluent name purely for the CBS
-		// canvas preview (the generator never emits it as a bare ModernImage).
+		// A Fluent icon is a CBS-UI-only React component; a classic ribbon's
+		// ModernImage only resolves platform icon names and web resources (#51).
+		// So the icon is serialized to SVG and uploaded as a web resource in the
+		// active solution (reused if it already exists), and the button points
+		// at that. `icon` keeps the Fluent name for the CBS canvas preview only.
+		if (!activeSolution || activeSolution.isManaged) {
+			setIconError("Select an unmanaged solution first — the icon is added to it as an SVG web resource.");
+			return;
+		}
 		setUploading(true);
 		try {
-			const svg = await fluentIconToSvg(selectedIcon, 32);
-			if (!svg) throw new Error(`Could not serialize Fluent icon "${selectedIcon}"`);
-			const wrName = `${prefix}_/icons/${iconName}.svg`;
-			const content = toBase64Utf8(svg);
-			const { id } = await saveWebResource(wrName, content, 11, `${iconName}.svg`);
-			// Best-effort publish so the new web resource is immediately live; the
-			// button still resolves the dependency (record exists) even if this is
-			// skipped, so failures here are non-fatal.
-			try {
-				await publishWebResource(id);
-			} catch (pubErr) {
+			const wr = await ensureFluentIconWebResource(selectedIcon, variant, publisherPrefix, fluentIconToSvg, {
+				busy: { onProgress: (msg) => logs.logInfo("webresource", msg) },
+			});
+			if (wr.publishError) {
 				logs.logWarn(
 					"webresource",
-					`Created icon web resource ${wrName} but publish failed: ${pubErr instanceof Error ? pubErr.message : String(pubErr)}. It will publish with the next Publish.`,
+					`Publishing icon web resource ${wr.name} failed: ${wr.publishError}. Pick the icon again or publish customizations before using the button.`,
 				);
 			}
 			setButtonProp(location, tabId, selectedGroupId, selectedButtonId, {
-				icon: iconName,
-				image16: `$webresource:${wrName}`,
-				image32: `$webresource:${wrName}`,
+				icon: toSnakeCase(selectedIcon),
+				image16: `$webresource:${wr.name}`,
+				image32: `$webresource:${wr.name}`,
 			});
-			logs.logInfo("webresource", `Icon web resource ready: ${wrName}`);
-		} catch (err) {
-			// Fallback: preview-only. Set the Fluent name for the canvas but emit
-			// NO web-resource references, so the button still renders (just without
-			// a Dataverse icon) instead of being dropped by a broken reference.
-			logs.logWarn(
+			logs.logInfo(
 				"webresource",
-				`Fluent icon "${selectedIcon}" could not be uploaded as a web resource (${err instanceof Error ? err.message : String(err)}). Using preview-only; add a real icon via the Web resource tab.`,
+				`${wr.created ? "Uploaded" : "Reusing"} icon web resource ${wr.name} (solution ${activeSolution.uniqueName}).`,
 			);
-			setButtonProp(location, tabId, selectedGroupId, selectedButtonId, {
-				icon: iconName,
-				image16: undefined,
-				image32: undefined,
-			});
+			closeIconPicker();
+		} catch (err) {
+			// Leave the button unchanged: a Fluent name alone would never be
+			// published (the classic ribbon can't resolve it).
+			const message = err instanceof Error ? err.message : String(err);
+			logs.logError("webresource", `Fluent icon "${selectedIcon}" could not be added as a web resource: ${message}`);
+			setIconError(`Could not add the icon as a web resource: ${message}`);
 		} finally {
 			setUploading(false);
-			closeIconPicker();
 		}
 	};
 
-	const handleSelectWebResource = () => {
+	const handleSelectWebResource = async () => {
 		if (!webResourcePath || !selectedButtonId || !selectedGroupId) return;
+		const logs = useRuntimeLogStore.getState();
+		setIconError(null);
+		setIconNote(null);
+		// An existing web resource must also be in the active solution, or a
+		// solution export misses the icon the ribbon references (#61).
+		const name = webResourcePath.startsWith("$webresource:")
+			? webResourcePath.slice("$webresource:".length).trim()
+			: null;
+		let note: string | null = null;
+		if (name) {
+			setUploading(true);
+			try {
+				const known = webResources.find((wr) => wr.name === name);
+				const added = await addExistingWebResourceToActiveSolution(name, known);
+				if (added.solutionUniqueName) {
+					logs.logInfo("webresource", `Added web resource ${name} to solution ${added.solutionUniqueName}.`);
+				}
+				note = added.solutionWarning ?? null;
+			} catch (err) {
+				const message = err instanceof Error ? err.message : String(err);
+				if (/^No web resource named /.test(message)) {
+					// A typo: the ribbon would reference a web resource that doesn't exist.
+					setIconError(message);
+					return;
+				}
+				// The icon is still valid; only the solution membership failed.
+				note = `The icon was set, but ${name} could not be added to the solution: ${message}`;
+				logs.logError("webresource", note);
+			} finally {
+				setUploading(false);
+			}
+		}
 		setButtonProp(location, tabId, selectedGroupId, selectedButtonId, {
 			image16: webResourcePath,
 			image32: webResourcePath,
 		});
+		if (note) {
+			// Keep the dialog open so the note is seen; the icon is already applied.
+			setIconNote(note);
+			return;
+		}
 		closeIconPicker();
 	};
 
 	const handleUploadSvg = async (file: File) => {
+		// Same rule as the Fluent tab: the SVG must land in an unmanaged solution,
+		// or a ribbon referencing it fails to import elsewhere (#19).
+		if (!activeSolution || activeSolution.isManaged) {
+			setIconError("Select an unmanaged solution first — the SVG is added to it as a web resource.");
+			return;
+		}
+		setIconError(null);
 		setUploading(true);
 		try {
 			const content = await new Promise<string>((resolve, reject) => {
@@ -422,12 +455,16 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 				};
 				reader.readAsDataURL(file);
 			});
-			const name = `${publisherPrefix ?? "new"}_/icons/${file.name}`;
-			await saveWebResource(name, content, 11, file.name);
+			const name = `${publisherPrefix || "new"}_/icons/${file.name}`;
+			await saveWebResource(name, content, 11, { displayName: file.name });
 			setWebResourcePath(`$webresource:${name}`);
 			setActiveTab("webresource");
 			const rows = await loadWebResources("svg");
 			setWebResources(rows);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			useRuntimeLogStore.getState().logError("webresource", `SVG upload failed: ${message}`);
+			setIconError(`Upload failed: ${message}`);
 		} finally {
 			setUploading(false);
 		}
@@ -520,7 +557,8 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 										}}
 									>
 										<Text size={200} style={{ fontFamily: tokens.fontFamilyMonospace }}>
-											ModernImage=&quot;{selectedIcon}&quot;
+											ModernImage=&quot;$webresource:
+											{fluentIconWebResourceName(publisherPrefix || "new", selectedIcon, variant)}&quot;
 										</Text>
 										<Badge appearance="tint" color="success">
 											Selected
@@ -618,6 +656,16 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 								</label>
 							</div>
 						)}
+						{iconError && (
+							<Text role="alert" size={200} style={{ color: tokens.colorPaletteRedForeground1, flexShrink: 0 }}>
+								{iconError}
+							</Text>
+						)}
+						{iconNote && (
+							<Text role="status" size={200} style={{ color: tokens.colorPaletteMarigoldForeground1, flexShrink: 0 }}>
+								Icon applied. {iconNote}
+							</Text>
+						)}
 					</DialogContent>
 
 					<DialogActions>
@@ -636,10 +684,10 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 						{activeTab === "webresource" && (
 							<Button
 								appearance="primary"
-								disabled={!webResourcePath}
-								onClick={handleSelectWebResource}
+								disabled={!webResourcePath || uploading}
+								onClick={() => void handleSelectWebResource()}
 							>
-								Use web resource
+								{uploading ? "Adding icon…" : "Use web resource"}
 							</Button>
 						)}
 					</DialogActions>

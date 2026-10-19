@@ -31,6 +31,9 @@ import {
 	saveWebResource,
 } from "@/services/dataverse/webResourceService";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
+import { groupControls } from "@/utils/ribbonMenu";
+import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
+import { isCommandReadOnly, useCommandProvenance } from "@/hooks/useCommandProvenance";
 
 const useStyles = makeStyles({
 	drawer: {
@@ -100,6 +103,15 @@ const useStyles = makeStyles({
 	securityNote: {
 		fontSize: tokens.fontSizeBase100,
 	},
+	readOnly: {
+		border: "none",
+		margin: 0,
+		padding: 0,
+		minWidth: 0,
+		display: "flex",
+		flexDirection: "column",
+		gap: tokens.spacingVerticalS,
+	},
 	codePanel: {
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
 		borderRadius: tokens.borderRadiusMedium,
@@ -110,7 +122,12 @@ const useStyles = makeStyles({
 	},
 });
 
-type ActionKind = "javascript" | "url" | "powerFx" | "customApi";
+/**
+ * Action kinds that can be added. Classic ribbon commands have no Power Fx or
+ * Custom API action (those exist only in modern commanding, `appaction`), so
+ * they are not offered (#28).
+ */
+type ActionKind = "javascript" | "url";
 
 export const CommandEditorPanel: React.FC = () => {
 	const styles = useStyles();
@@ -139,11 +156,15 @@ export const CommandEditorPanel: React.FC = () => {
 	const [codeEditable, setCodeEditable] = useState(false);
 	const [codeLoading, setCodeLoading] = useState(false);
 	const [codeError, setCodeError] = useState<string | null>(null);
+	const [codeWarning, setCodeWarning] = useState<string | null>(null);
 	const [codeValue, setCodeValue] = useState("");
 	const [codeDirty, setCodeDirty] = useState(false);
 	const [codeWebResourceName, setCodeWebResourceName] = useState<string | null>(null);
 
 	const command = commands.find((c) => c.id === commandEditorId);
+	// A command being uncustomised (#31) is removed from the layer on publish, and
+	// one uncustomised and published needs a reload: neither is editable.
+	const readOnly = isCommandReadOnly(useCommandProvenance(command?.id));
 
 	const parseWebResourceName = (library: string): string => {
 		const trimmed = library.trim();
@@ -193,6 +214,13 @@ export const CommandEditorPanel: React.FC = () => {
 		}
 	}, [command]);
 
+	// The command went away while the editor was open (an undo of the step that
+	// added it, #22 review): close the editor instead of leaving it open on
+	// nothing (a redo would otherwise pop it up again).
+	useEffect(() => {
+		if (commandEditorOpen && commandEditorId && !command) closeCommandEditor();
+	}, [commandEditorOpen, commandEditorId, command, closeCommandEditor]);
+
 	const commandIdError = useMemo(() => {
 		if (!command) return "";
 		if (!draftCommandId.trim()) return "Command ID is required.";
@@ -211,7 +239,7 @@ export const CommandEditorPanel: React.FC = () => {
 		return Object.entries(ribbons).flatMap(([location, ribbon]) =>
 			ribbon.tabs.flatMap((tab) =>
 				tab.groups.flatMap((group) =>
-					group.buttons
+					groupControls(group)
 						.filter((b) => b.commandId === commandEditorId)
 						.map((button) => ({ location, tab, group, button })),
 				),
@@ -239,6 +267,7 @@ export const CommandEditorPanel: React.FC = () => {
 		setCodeEditable(editable);
 		setCodeLoading(true);
 		setCodeError(null);
+		setCodeWarning(null);
 		setCodeDirty(false);
 		setCodeWebResourceName(wrName);
 
@@ -266,13 +295,15 @@ export const CommandEditorPanel: React.FC = () => {
 		if (!codeEditable || codeActionIndex === null || !codeWebResourceName) return;
 		setCodeLoading(true);
 		setCodeError(null);
+		setCodeWarning(null);
 		try {
-			await saveWebResource(
+			const saved = await saveWebResource(
 				codeWebResourceName,
 				encodeUtf8Base64(codeValue),
 				inferWebResourceTypeCode(codeWebResourceName),
-				codeWebResourceName.split("/").pop(),
+				{ displayName: codeWebResourceName.split("/").pop() },
 			);
+			setCodeWarning(saved.solutionWarning ?? null);
 			setCodeDirty(false);
 		} catch (error: unknown) {
 			setCodeError(error instanceof Error ? error.message : "Failed to save web resource content.");
@@ -298,18 +329,8 @@ export const CommandEditorPanel: React.FC = () => {
 	const addAction = (kind: ActionKind) => {
 		const newAction: RibbonAction =
 			kind === "javascript"
-				? { kind: "javascript", library: "$webresource:", functionName: "", params: [] }
-				: kind === "url"
-					? { kind: "url", address: "https://", passParams: false, params: [] }
-					: kind === "powerFx"
-						? { kind: "powerFx", expression: "" }
-						: {
-								kind: "customApi",
-								actionName: "",
-								boundParameter: "",
-								inputParameters: [],
-								outputParameters: [],
-							};
+				? { kind: "javascript", library: "", functionName: "", params: [] }
+				: { kind: "url", address: "https://", params: [] };
 		updateCommand({ actions: [...command.actions, newAction] });
 	};
 
@@ -335,7 +356,15 @@ export const CommandEditorPanel: React.FC = () => {
 							<Input
 								style={{ flex: 1 }}
 								value={action.library}
-								onChange={(_, d) => updateAction(index, { ...action, library: d.value })}
+								onChange={(_, d) =>
+									updateAction(index, {
+										...action,
+										// Collapse a repeated `$webresource:` prefix (pasting a full
+										// reference into a pre-filled field produced
+										// `$webresource:$webresource:…`, which never resolves).
+										library: d.value.replace(/^(\s*\$webresource:\s*)+/i, "$webresource:"),
+									})
+								}
 								placeholder="$webresource:publisher_/scripts/myfile.js"
 							/>
 							<Button
@@ -407,6 +436,11 @@ export const CommandEditorPanel: React.FC = () => {
 							{codeError && (
 								<MessageBar intent="error">
 									<MessageBarBody>{codeError}</MessageBarBody>
+								</MessageBar>
+							)}
+							{codeWarning && (
+								<MessageBar intent="warning">
+									<MessageBarBody>{codeWarning}</MessageBarBody>
 								</MessageBar>
 							)}
 							{codeLoading ? (
@@ -506,7 +540,7 @@ export const CommandEditorPanel: React.FC = () => {
 						<Button
 							appearance={action.passParams ? "primary" : "subtle"}
 							size="small"
-							onClick={() => updateAction(index, { ...action, passParams: !action.passParams })}
+							onClick={() => updateAction(index, { ...action, passParams: action.passParams ? undefined : true })}
 						>
 							{action.passParams ? "✓ PassParams ON" : "PassParams OFF"} — appends typename, type,
 							id, orgname…
@@ -522,12 +556,14 @@ export const CommandEditorPanel: React.FC = () => {
 			);
 		}
 
-		if (action.kind === "powerFx") {
+		if (action.kind === "powerFx" || action.kind === "customApi") {
+			// Can't be added any more (#28); only reachable from a session saved by an
+			// older version. Publishing is blocked while the command has one.
 			return (
 				<div key={index} className={styles.actionCard}>
 					<div className={styles.actionHeader}>
-						<Badge appearance="filled" color="brand" size="small">
-							Power Fx
+						<Badge appearance="filled" color="danger" size="small">
+							{action.kind === "powerFx" ? "Power Fx" : "Custom API"} — not supported
 						</Badge>
 						<Button
 							appearance="subtle"
@@ -537,51 +573,26 @@ export const CommandEditorPanel: React.FC = () => {
 							aria-label="Remove action"
 						/>
 					</div>
-					<Field label="Expression">
-						<div
-							style={{
-								height: 120,
-								border: `1px solid ${tokens.colorNeutralStroke1}`,
-								borderRadius: tokens.borderRadiusMedium,
-								overflow: "hidden",
-							}}
-						>
-							<MonacoEditor
-								language="javascript"
-								value={action.expression}
-								onChange={(v) => updateAction(index, { ...action, expression: v ?? "" })}
-								options={{
-									minimap: { enabled: false },
-									lineNumbers: "off",
-									fontSize: 13,
-									scrollBeyondLastLine: false,
-									wordWrap: "on",
-									lineDecorationsWidth: 4,
-									lineNumbersMinChars: 0,
-									glyphMargin: false,
-									folding: false,
-									renderLineHighlight: "none",
-								}}
-							/>
-						</div>
-					</Field>
-					<MessageBar intent="info">
+					<MessageBar intent="error">
 						<MessageBarBody>
-							Variables: <code>ThisRecord</code>, <code>Selection</code>, <code>Self</code>. Power
-							Fx rules can return a Promise on Unified Interface (resolves false after 10 s if
-							unresolved).
+							Classic ribbon commands can't run{" "}
+							{action.kind === "powerFx" ? "Power Fx" : "Custom API"} actions, so this command can't
+							be published while it has one. Remove it and use a JavaScript function instead (for
+							example, call the API with <code>Xrm.WebApi.online.execute</code>), or build the
+							command with modern commanding in the app designer.
 						</MessageBarBody>
 					</MessageBar>
 				</div>
 			);
 		}
 
-		if (action.kind === "customApi") {
+		if (action.kind === "outlookCommand" || action.kind === "raw") {
+			// Not editable in CBS; kept exactly as loaded when the command is re-emitted.
 			return (
 				<div key={index} className={styles.actionCard}>
 					<div className={styles.actionHeader}>
-						<Badge appearance="filled" color="warning" size="small">
-							Custom API
+						<Badge appearance="outline" size="small">
+							{action.kind === "outlookCommand" ? "Outlook command" : action.tagName}
 						</Badge>
 						<Button
 							appearance="subtle"
@@ -591,38 +602,11 @@ export const CommandEditorPanel: React.FC = () => {
 							aria-label="Remove action"
 						/>
 					</div>
-					<Field label="Action logical name">
-						<Input
-							value={action.actionName}
-							onChange={(_, d) => updateAction(index, { ...action, actionName: d.value })}
-							placeholder="new_ExecuteBusinessAction"
-						/>
-					</Field>
-					<Field label="Bound parameter (optional)">
-						<Input
-							value={action.boundParameter ?? ""}
-							onChange={(_, d) => updateAction(index, { ...action, boundParameter: d.value })}
-							placeholder="Target"
-						/>
-					</Field>
-					<Field label="Input parameters (name=value per line)">
-						<Input
-							value={action.inputParameters.map((p) => `${p.name}=${p.value}`).join("; ")}
-							onChange={(_, d) => {
-								const inputParameters = d.value
-									.split(";")
-									.map((part) => part.trim())
-									.filter(Boolean)
-									.map((part) => {
-										const [name, ...valueParts] = part.split("=");
-										return { name: (name ?? "").trim(), value: valueParts.join("=").trim() };
-									})
-									.filter((p) => p.name.length > 0);
-								updateAction(index, { ...action, inputParameters });
-							}}
-							placeholder="ParamA=ValueA; ParamB=ValueB"
-						/>
-					</Field>
+					<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+						{action.kind === "outlookCommand"
+							? `ActionType="${action.actionType}"${action.data ? ` Data="${action.data}"` : ""}`
+							: action.xml}
+					</Text>
 				</div>
 			);
 		}
@@ -651,8 +635,6 @@ export const CommandEditorPanel: React.FC = () => {
 						<option value="">Add action...</option>
 						<option value="javascript">JavaScript function</option>
 						<option value="url">URL action</option>
-						<option value="powerFx">Power Fx expression</option>
-						<option value="customApi">Custom action / Web API</option>
 					</Select>
 				</Field>
 				<Button
@@ -670,22 +652,6 @@ export const CommandEditorPanel: React.FC = () => {
 					onClick={() => addAction("url")}
 				>
 					Add URL action
-				</Button>
-				<Button
-					icon={<AddRegular />}
-					appearance="secondary"
-					size="small"
-					onClick={() => addAction("powerFx")}
-				>
-					Add Power Fx action
-				</Button>
-				<Button
-					icon={<AddRegular />}
-					appearance="secondary"
-					size="small"
-					onClick={() => addAction("customApi")}
-				>
-					Add Custom API action
 				</Button>
 			</div>
 		</>
@@ -938,10 +904,14 @@ export const CommandEditorPanel: React.FC = () => {
 
 				<Divider />
 
-				{activeTab === "actions" && renderActionsTab()}
-				{activeTab === "enableRules" && renderRulesTab("enable")}
-				{activeTab === "displayRules" && renderRulesTab("display")}
-				{activeTab === "settings" && renderSettingsTab()}
+				<CommandProvenanceBar commandId={command.id} />
+
+				<fieldset disabled={readOnly} className={styles.readOnly}>
+					{activeTab === "actions" && renderActionsTab()}
+					{activeTab === "enableRules" && renderRulesTab("enable")}
+					{activeTab === "displayRules" && renderRulesTab("display")}
+					{activeTab === "settings" && renderSettingsTab()}
+				</fieldset>
 				{activeTab === "references" && renderReferencesTab()}
 				{activeTab === "versions" && renderVersionsTab()}
 			</DrawerBody>

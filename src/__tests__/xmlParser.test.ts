@@ -80,14 +80,14 @@ describe("parseRibbonXml — provenance heuristic", () => {
 	// Authoritative managed/unmanaged comes later from solution layers; the
 	// parser only sets a heuristic: Mscrm.*/Microsoft.* = OOB, else = custom.
 	const xml = `<?xml version="1.0" encoding="utf-8"?>
-<RibbonDefinitions><RibbonDefinition><Tabs>
+<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs>
   <Tab Id="Mscrm.Form.account.MainTab" Title="Main" Sequence="10"><Groups>
     <Group Id="Mscrm.Form.account.MainTab.Save" Title="Save" Sequence="10"><Controls>
       <Button Id="msdyn.account.FieldService.Button" LabelText="FS" TemplateAlias="o1" Sequence="10"/>
       <Button Id="Mscrm.Form.account.MainTab.Save.SavePrimary" LabelText="Save" TemplateAlias="o1" Sequence="20"/>
     </Controls></Group>
   </Groups></Tab>
-</Tabs></RibbonDefinition></RibbonDefinitions>`;
+</Tabs></Ribbon></UI></RibbonDefinition></RibbonDefinitions>`;
 
 	function findButton(ribbon: ReturnType<typeof parseRibbonXml>["ribbon"], id: string) {
 		return ribbon.tabs.flatMap((t) => t.groups.flatMap((g) => g.buttons)).find((b) => b.id === id);
@@ -176,7 +176,6 @@ describe("parseRibbonXml — all rule kinds fixture", () => {
 			"ValueRule",
 			"CrmOfflineAccessStateRule",
 			"CrmOutlookClientTypeRule",
-			"MiscellaneousPrivilegeRule",
 			"OrRule",
 		];
 		for (const kind of expected) {
@@ -199,15 +198,31 @@ describe("parseRibbonXml — all rule kinds fixture", () => {
 			"PageRule",
 			"RelationshipTypeRule",
 			"ReferencingAttributeRequiredRule",
-			"ShowOnQuickActionRule",
-			"ShowOnGridAndQuickActionRule",
-			"ShowOnGridRule",
 			"OutlookRenderTypeRule",
 			"CrmOutlookClientVersionRule",
+			"HideForTabletExperienceRule",
+			"MiscellaneousPrivilegeRule",
+			"OrganizationSettingRule",
+			"FormTypeRule",
+			"FeatureControlRule",
 		];
 		for (const kind of displayOnlyKinds) {
 			expect(kinds).toContain(kind);
 		}
+	});
+
+	// ShowOn* are not schema elements (they are references to the OOB enable rules
+	// Mscrm.ShowOnGrid etc. — #41). If a document contains them anyway they are kept
+	// verbatim as RawRule steps instead of being modelled or dropped. (Not in the
+	// fixture, which is schema-valid — #42.)
+	it("keeps non-schema ShowOn* elements verbatim as RawRule steps", () => {
+		const withShowOn = `<RibbonDefinitions><RibbonDefinition><RuleDefinitions><TabDisplayRules/><DisplayRules>
+  <DisplayRule Id="TestDisplayRule"><FormTypeRule Type="Main"/><ShowOnQuickActionRule/><ShowOnGridAndQuickActionRule/><ShowOnGridRule/></DisplayRule>
+</DisplayRules><EnableRules/></RuleDefinitions></RibbonDefinition></RibbonDefinitions>`;
+		const { displayRules } = parseRibbonXml(withShowOn, "HomepageGrid", "account");
+		const rule = displayRules.find((r) => r.id === "TestDisplayRule")!;
+		const raw = rule.steps.filter((s) => s.kind === "RawRule").map((s) => (s.kind === "RawRule" ? s.tagName : ""));
+		expect(raw).toEqual(["ShowOnQuickActionRule", "ShowOnGridAndQuickActionRule", "ShowOnGridRule"]);
 	});
 
 	// Verify parsed attribute values on a sampling of kinds
@@ -282,7 +297,7 @@ describe("parseRibbonXml — all rule kinds fixture", () => {
 	it("does not produce phantom groups from CustomAction-nested Group elements", () => {
 		// Inject a CustomAction with a nested Group to verify it is not duplicated.
 		const xmlWithCustomAction = xml.replace(
-			"<Tabs>",
+			'<Tabs Id="Mscrm.Tabs">',
 			`<CustomActions>
         <CustomAction Id="TestCA" Location="TestGroup.Controls._children" Sequence="20">
           <CommandUIDefinition>
@@ -290,8 +305,9 @@ describe("parseRibbonXml — all rule kinds fixture", () => {
           </CommandUIDefinition>
         </CustomAction>
       </CustomActions>
-      <Tabs>`,
+      <Tabs Id="Mscrm.Tabs">`,
 		);
+		expect(xmlWithCustomAction).toContain("TestCA.Button");
 		const { ribbon } = parseRibbonXml(xmlWithCustomAction, "HomepageGrid", "account");
 		const tab = ribbon.tabs.find((t) => t.id === "TestTab")!;
 		// Only one group should exist — the rogue `, Group` selector would have
@@ -306,7 +322,7 @@ describe("parseRibbonXml — all rule kinds fixture", () => {
 		const orStep = rule.steps.find((s) => s.kind === "OrRule");
 		expect(orStep).toBeDefined();
 		if (orStep?.kind === "OrRule") {
-			expect(orStep.rules.length).toBeGreaterThanOrEqual(2);
+			expect(orStep.groups.length).toBeGreaterThanOrEqual(2);
 		}
 	});
 

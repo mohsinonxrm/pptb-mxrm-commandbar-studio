@@ -15,8 +15,9 @@ import {
 } from "@fluentui/react-components";
 import { AddRegular, DismissRegular } from "@fluentui/react-icons";
 import type { EntityProperty, RuleStep } from "@/types/ribbon";
-import { RULE_KIND_LABELS } from "@/constants/ruleKinds";
+import { RULE_KIND_LABELS, type RuleContainer } from "@/constants/ruleKinds";
 import RuleStepPicker from "@/components/shared/RuleStepPicker";
+import CrmParameterEditor from "@/components/shared/CrmParameterEditor";
 
 const useStyles = makeStyles({
 	step: {
@@ -71,7 +72,8 @@ interface RuleStepEditorProps {
 	step: RuleStep;
 	onChange: (updated: RuleStep) => void;
 	onRemove: () => void;
-	disableEnableOnlyKinds?: boolean;
+	/** The rule type this step belongs to; restricts what can be added inside an OrRule (#41). */
+	container?: RuleContainer;
 }
 
 const PRIVILEGE_TYPES = [
@@ -117,15 +119,18 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 	step,
 	onChange,
 	onRemove,
-	disableEnableOnlyKinds = false,
+	container,
 }) => {
 	const styles = useStyles();
-	const [orPickerOpen, setOrPickerOpen] = React.useState(false);
+	// Which OrRule picker is open: an existing group's index, or "new" for a new <Or>.
+	const [orPicker, setOrPicker] = React.useState<number | "new" | null>(null);
 
-	const invertResult = "invertResult" in step ? step.invertResult : false;
-	const hasDefault = "default" in step;
-	const defaultVal = hasDefault ? (step as Record<string, unknown>).default : undefined;
-	const hasInvert = "invertResult" in step;
+	// Every rule kind except OrRule (and unmodelled raw XML) carries the schema's
+	// StandardRuleAttributes, Default and InvertResult (#7). undefined = not set,
+	// which keeps a loaded rule's XML unchanged.
+	const hasStandardAttributes = step.kind !== "OrRule" && step.kind !== "RawRule";
+	const invertResult = hasStandardAttributes ? step.invertResult : undefined;
+	const defaultVal = hasStandardAttributes ? step.default : undefined;
 
 	const setField = (patch: Partial<RuleStep>) => {
 		onChange({ ...step, ...patch } as RuleStep);
@@ -301,6 +306,12 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 								/>
 							</Field>
 						</div>
+						<Field label="Parameters">
+							<CrmParameterEditor
+								params={step.params ?? []}
+								onChange={(params) => setField({ params: params.length ? params : undefined })}
+							/>
+						</Field>
 						<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
 							Async support: on Unified Interface, custom rules can return Promise&lt;boolean&gt;;
 							unresolved promises default to false after 10 seconds.
@@ -506,47 +517,103 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 					</div>
 				);
 
-			case "OrRule":
+			case "OrRule": {
+				// Each <Or> group is ANDed; the rule passes when any group passes (#29).
+				const setGroups = (groups: RuleStep[][]) =>
+					onChange({ ...step, groups: groups.filter((g) => g.length > 0) });
+				const picker = (target: number | "new", label: string) => (
+					<Popover
+						open={orPicker === target}
+						onOpenChange={(_, d) => setOrPicker(d.open ? target : null)}
+					>
+						<PopoverTrigger>
+							<Button icon={<AddRegular />} appearance="secondary" size="small">
+								{label}
+							</Button>
+						</PopoverTrigger>
+						<PopoverSurface className={styles.pickerSurface}>
+							<RuleStepPicker
+								container={container}
+								insideOr
+								onSelect={(newStep) => {
+									setGroups(
+										target === "new"
+											? [...step.groups, [newStep]]
+											: step.groups.map((g, gi) => (gi === target ? [...g, newStep] : g)),
+									);
+									setOrPicker(null);
+								}}
+							/>
+						</PopoverSurface>
+					</Popover>
+				);
 				return (
 					<div className={styles.nested}>
-						{step.rules.map((nested, idx) => (
-							<RuleStepEditor
-								key={`${idx}-${nested.kind}`}
-								step={nested}
-								onChange={(updated) => {
-									const nextRules = [...step.rules];
-									nextRules[idx] = updated;
-									onChange({ ...step, rules: nextRules });
-								}}
-								onRemove={() => {
-									const nextRules = step.rules.filter((_, i) => i !== idx);
-									onChange({ ...step, rules: nextRules });
-								}}
-								disableEnableOnlyKinds={disableEnableOnlyKinds}
-							/>
+						{step.groups.map((group, gi) => (
+							<div key={gi} className={styles.nested}>
+								<Text size={100} weight="semibold">
+									{gi === 0 ? "Either" : "Or"}
+									{group.length > 1 ? " (all of)" : ""}
+								</Text>
+								{group.map((nested, si) => (
+									<RuleStepEditor
+										key={`${gi}-${si}-${nested.kind}`}
+										step={nested}
+										container={container}
+										onChange={(updated) =>
+											setGroups(
+												step.groups.map((g, i) =>
+													i === gi ? g.map((s, j) => (j === si ? updated : s)) : g,
+												),
+											)
+										}
+										onRemove={() =>
+											setGroups(
+												step.groups.map((g, i) =>
+													i === gi ? g.filter((_, j) => j !== si) : g,
+												),
+											)
+										}
+									/>
+								))}
+								<div className={styles.nestedToolbar}>{picker(gi, "And…")}</div>
+							</div>
 						))}
 						<div className={styles.nestedToolbar}>
-							<Popover open={orPickerOpen} onOpenChange={(_, d) => setOrPickerOpen(d.open)}>
-								<PopoverTrigger>
-									<Button icon={<AddRegular />} appearance="secondary" size="small">
-										Add nested step
-									</Button>
-								</PopoverTrigger>
-								<PopoverSurface className={styles.pickerSurface}>
-									<RuleStepPicker
-										disableEnableOnlyKinds={disableEnableOnlyKinds}
-										onSelect={(newStep) => {
-											onChange({ ...step, rules: [...step.rules, newStep] });
-											setOrPickerOpen(false);
-										}}
-									/>
-								</PopoverSurface>
-							</Popover>
+							{picker("new", "Add Or branch")}
 							<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-								OrRule should contain at least two nested steps.
+								An OrRule needs at least two branches.
 							</Text>
 						</div>
 					</div>
+				);
+			}
+
+			case "FeatureControlRule":
+				return (
+					<div className={styles.row}>
+						<Field label="Feature control bit">
+							<Input
+								value={step.featureControlBit}
+								onChange={(_, d) => setField({ featureControlBit: d.value })}
+							/>
+						</Field>
+						<Checkbox
+							label="Expected value"
+							checked={step.expectedValue}
+							onChange={(_, d) => setField({ expectedValue: d.checked === true })}
+						/>
+					</div>
+				);
+
+			case "RawRule":
+				return (
+					<>
+						<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+							Command Bar Studio doesn&apos;t edit this rule; it is kept exactly as loaded.
+						</Text>
+						<pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: "11px" }}>{step.xml}</pre>
+					</>
 				);
 
 			case "SkuRule":
@@ -791,34 +858,31 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 			<div className={styles.fields}>
 				{renderFields()}
 				<div className={styles.row}>
-					<Checkbox
-						label="Default value"
-						checked={hasDefault ? ((defaultVal as boolean) ?? true) : true}
-						disabled={!hasDefault}
-						title={
-							hasDefault
-								? "Default value returned if the rule cannot be evaluated."
-								: "This rule kind does not support a Default attribute in Ribbon XML."
-						}
-						onChange={(_, d) => {
-							if (!hasDefault) return;
-							setField({ default: d.checked as boolean });
-						}}
-					/>
-					<Checkbox
-						label="Invert result"
-						checked={hasInvert ? (invertResult ?? false) : false}
-						disabled={!hasInvert}
-						title={
-							hasInvert
-								? "Reverse the evaluated result."
-								: "This rule kind does not support InvertResult in Ribbon XML."
-						}
-						onChange={(_, d) => {
-							if (!hasInvert) return;
-							setField({ invertResult: d.checked as boolean });
-						}}
-					/>
+					{hasStandardAttributes && (
+						<>
+							<Field label="Default" title="Value the rule returns when it cannot be evaluated.">
+								<Select
+									value={defaultVal === undefined ? "" : String(defaultVal)}
+									onChange={(_, d) =>
+										setField({ default: d.value === "" ? undefined : d.value === "true" })
+									}
+								>
+									<option value="">(not set)</option>
+									<option value="true">true</option>
+									<option value="false">false</option>
+								</Select>
+							</Field>
+							<Checkbox
+								label="Invert result"
+								checked={invertResult === true}
+								title="Reverse the evaluated result."
+								onChange={(_, d) =>
+									// Unchecked → no attribute (same meaning as false).
+									setField({ invertResult: d.checked === true ? true : undefined })
+								}
+							/>
+						</>
+					)}
 				</div>
 			</div>
 		</div>

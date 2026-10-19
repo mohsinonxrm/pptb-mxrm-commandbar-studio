@@ -1,45 +1,58 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Application ribbon XML — cross-entity, GlobalTab and BasicHomeTab -->
+<!--
+  Application ribbon XML — cross-entity, GlobalTab and BasicHomeTab, shaped like
+  RetrieveApplicationRibbon output. Valid against RibbonCore.xsd / RibbonWSS.xsd
+  (#42): a Tab has no Template, and has its <Scaling> before <Groups>.
+-->
 <RibbonDefinitions>
-  <RibbonDefinition RibbonType="Application">
-    <Ribbon>
-      <Tabs>
-        <Tab Id="Mscrm.BasicHomeTab" Command="Mscrm.BasicHomeTab.Command" Sequence="10" Title="$LocLabels:Mscrm.BasicHomeTab.TabTitleText" Template="Mscrm.Templates.Ribbon.Flexible2">
-          <Groups>
-            <Group Id="Mscrm.BasicHomeTab.RecordManagement" Command="Mscrm.BasicHomeTab.RecordManagement.Command" Sequence="10" Title="$LocLabels:Mscrm.BasicHomeTab.RecordManagement.Label" Template="Mscrm.Templates.Flexible2">
-              <Controls Id="Mscrm.BasicHomeTab.RecordManagement.Controls">
-                <Button Id="Mscrm.BasicHomeTab.RecordManagement.Controls.Save"
-                        Command="Mscrm.SavePrimary"
-                        LabelText="$LocLabels:Mscrm.SavePrimary.LabelText"
-                        TemplateAlias="o1"
-                        Sequence="10"
-                        ModernImage="Save"/>
-              </Controls>
-            </Group>
-          </Groups>
-        </Tab>
-        <Tab Id="Mscrm.GlobalTab" Command="Mscrm.GlobalTab.Command" Sequence="20" Title="$LocLabels:Mscrm.GlobalTab.TabTitleText" Template="Mscrm.Templates.Ribbon.Flexible2">
-          <Groups>
-            <Group Id="Mscrm.GlobalTab.New" Command="Mscrm.GlobalTab.New.Command" Sequence="10" Title="$LocLabels:Mscrm.GlobalTab.New.Label" Template="Mscrm.Templates.Flexible2">
-              <Controls Id="Mscrm.GlobalTab.New.Controls">
-                <Button Id="Mscrm.GlobalTab.New.Controls.Home"
-                        Command="Mscrm.GlobalTab.Home"
-                        LabelText="$LocLabels:Mscrm.GlobalTab.Home.LabelText"
-                        TemplateAlias="o1"
-                        Sequence="10"
-                        ModernImage="Home"/>
-                <Button Id="Mscrm.GlobalTab.New.Controls.Recent"
-                        Command="Mscrm.GlobalTab.Recent"
-                        LabelText="$LocLabels:Mscrm.GlobalTab.Recent.LabelText"
-                        TemplateAlias="o1"
-                        Sequence="20"
-                        ModernImage="History"/>
-              </Controls>
-            </Group>
-          </Groups>
-        </Tab>
-      </Tabs>
-    </Ribbon>
+  <RibbonDefinition>
+    <UI>
+      <Ribbon>
+        <Tabs Id="Mscrm.Tabs">
+          <Tab Id="Mscrm.BasicHomeTab" Command="Mscrm.BasicHomeTab.Command" Sequence="10" Title="$LocLabels:Mscrm.BasicHomeTab.TabTitleText">
+            <Scaling Id="Mscrm.BasicHomeTab.Scaling">
+              <MaxSize Id="Mscrm.BasicHomeTab.RecordManagement.MaxSize" GroupId="Mscrm.BasicHomeTab.RecordManagement" Sequence="10" Size="LargeLarge"/>
+            </Scaling>
+            <Groups Id="Mscrm.BasicHomeTab.Groups">
+              <Group Id="Mscrm.BasicHomeTab.RecordManagement" Command="Mscrm.BasicHomeTab.RecordManagement.Command" Sequence="10" Title="$LocLabels:Mscrm.BasicHomeTab.RecordManagement.Label" Template="Mscrm.Templates.Flexible2">
+                <Controls Id="Mscrm.BasicHomeTab.RecordManagement.Controls">
+                  <Button Id="Mscrm.BasicHomeTab.RecordManagement.Controls.Save"
+                          Command="Mscrm.SavePrimary"
+                          LabelText="$LocLabels:Mscrm.SavePrimary.LabelText"
+                          TemplateAlias="o1"
+                          Sequence="10"
+                          ModernImage="Save"/>
+                </Controls>
+              </Group>
+            </Groups>
+          </Tab>
+          <Tab Id="Mscrm.GlobalTab" Command="Mscrm.GlobalTab.Command" Sequence="20" Title="$LocLabels:Mscrm.GlobalTab.TabTitleText">
+            <Scaling Id="Mscrm.GlobalTab.Scaling">
+              <MaxSize Id="Mscrm.GlobalTab.New.MaxSize" GroupId="Mscrm.GlobalTab.New" Sequence="10" Size="LargeLarge"/>
+            </Scaling>
+            <Groups Id="Mscrm.GlobalTab.Groups">
+              <Group Id="Mscrm.GlobalTab.New" Command="Mscrm.GlobalTab.New.Command" Sequence="10" Title="$LocLabels:Mscrm.GlobalTab.New.Label" Template="Mscrm.Templates.Flexible2">
+                <Controls Id="Mscrm.GlobalTab.New.Controls">
+                  <Button Id="Mscrm.GlobalTab.New.Controls.Home"
+                          Command="Mscrm.GlobalTab.Home"
+                          LabelText="$LocLabels:Mscrm.GlobalTab.Home.LabelText"
+                          TemplateAlias="o1"
+                          Sequence="10"
+                          ModernImage="Home"/>
+                  <Button Id="Mscrm.GlobalTab.New.Controls.Recent"
+                          Command="Mscrm.GlobalTab.Recent"
+                          LabelText="$LocLabels:Mscrm.GlobalTab.Recent.LabelText"
+                          TemplateAlias="o1"
+                          Sequence="20"
+                          ModernImage="History"/>
+                </Controls>
+              </Group>
+            </Groups>
+          </Tab>
+        </Tabs>
+        <ContextualTabs Id="Mscrm.ContextualTabs"/>
+      </Ribbon>
+    </UI>
   </RibbonDefinition>
   <CommandDefinitions>
     <CommandDefinition Id="Mscrm.SavePrimary">
@@ -54,11 +67,16 @@
     </CommandDefinition>
   </CommandDefinitions>
   <RuleDefinitions>
+    <TabDisplayRules/>
     <DisplayRules>
-      <DisplayRule Id="Mscrm.Enabled"/>
+      <DisplayRule Id="Mscrm.Enabled">
+        <CrmClientTypeRule Type="Web"/>
+      </DisplayRule>
     </DisplayRules>
     <EnableRules>
-      <EnableRule Id="Mscrm.Enabled"/>
+      <EnableRule Id="Mscrm.Enabled">
+        <CrmClientTypeRule Type="Web"/>
+      </EnableRule>
     </EnableRules>
   </RuleDefinitions>
   <LocLabels>

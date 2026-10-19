@@ -1,16 +1,98 @@
 import { zipSync, strToU8 } from "fflate";
-import { generateRibbonDiffXml, wrapInCustomizationsXml, escapeXml } from "@/services/xmlGenerator";
-import { useSessionStore } from "@/store/sessionStore";
+import {
+	generateRibbonDiffXml,
+	buildCustomizationsXml,
+	escapeXml,
+	generateCommandDefinition,
+	generateEnableRule,
+	generateDisplayRule,
+	generateTabDisplayRulesForTab,
+	newTabCommandId,
+} from "@/services/xmlGenerator";
+import {
+	emptyRibbonDiffParts,
+	mergeRibbonDiffParts,
+	parseRibbonDiffParts,
+	serializeRibbonDiffParts,
+	countRibbonDiffParts,
+	mergeScopeChanges,
+	ownControlIds,
+	ownContainerIds,
+	layerCommandRefs,
+	canUncustomiseCommand,
+	compareRibbonDiffParts,
+	layerScalingSteps,
+	normalizeLayerScaling,
+	setContainerTitle,
+	changedRibbonDiffKeys,
+	type RibbonDiffComparison,
+	type RibbonDiffParts,
+} from "@/services/ribbonDiffMerge";
+import { fetchUnmanagedRibbonParts } from "@/services/dataverse/ribbonLayerService";
+import {
+	fetchOrganizationLanguageCode,
+	waitForEnvironmentIdle,
+	withBusyRetry,
+	type BusyWaitOptions,
+} from "@/services/dataverse/environmentService";
+import type { ScopePlan } from "@/services/publishPlan";
+import { describeScalingChange, type ScalingChange } from "@/services/scalingSequence";
+import { ribbonPlaces } from "@/services/layerOrphans";
+import { groupControls } from "@/utils/ribbonMenu";
+import { controlCommandIds } from "@/utils/controlKinds";
+import { verifyRibbonImport } from "@/services/importJobVerification";
+import {
+	validatePublishRibbonDiff,
+	webResourceReferences,
+	type PublishFinding,
+	type PublishValidationContext,
+	type WebResourceStatus,
+} from "@/services/xmlValidator";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { withCloseGuard } from "@/utils/pptbRuntime";
 import type {
 	RibbonDefinition,
 	CommandDefinition,
 	EnableRule,
 	DisplayRule,
 	LocLabel,
+	ScalingDefinition,
 } from "@/types/ribbon";
 
 const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
+
+// Import and publish through the Dataverse actions themselves, not PPTB's
+// deploySolution() / publishCustomizations() helpers: those differ between
+// hosts. The VS Code extension (1.1.0) drops ImportJobId — CBS polls and
+// verifies that job — and sends a table publish to PublishAllXml (#89). These
+// are the requests the desktop app's helpers send.
+function importSolution(customizationFile: string, importJobId: string): Promise<unknown> {
+	return dataverseAPI.execute({
+		operationName: "ImportSolution",
+		operationType: "action",
+		parameters: {
+			CustomizationFile: customizationFile,
+			ImportJobId: importJobId,
+			OverwriteUnmanagedCustomizations: true,
+			PublishWorkflows: false,
+		},
+	});
+}
+
+/** PublishXml for the given tables. */
+function publishTables(entityLogicalNames: string[]): Promise<unknown> {
+	const entities = entityLogicalNames.map((name) => `<entity>${escapeXml(name)}</entity>`).join("");
+	return dataverseAPI.execute({
+		operationName: "PublishXml",
+		operationType: "action",
+		parameters: { ParameterXml: `<importexportxml><entities>${entities}</entities></importexportxml>` },
+	});
+}
+
+/** PublishAllXml: every unpublished customization in the environment. */
+function publishAll(): Promise<unknown> {
+	return dataverseAPI.execute({ operationName: "PublishAllXml", operationType: "action" });
+}
 
 type ImportStatus = {
 	// PPTB's getImportJobStatus return shape is loosely documented — over
@@ -47,36 +129,6 @@ function isImportComplete(status: ImportStatus): boolean {
 	return false;
 }
 
-interface PublishInput {
-	current: RibbonDefinition;
-	baseline: RibbonDefinition;
-	commands: CommandDefinition[];
-	enableRules: EnableRule[];
-	displayRules: DisplayRule[];
-	locLabels: LocLabel[];
-	entityLogicalName: string;
-	solutionUniqueName: string;
-	/** Publisher's `uniquename` (e.g. `mohsinonxrm`). Used for solution.xml's
-	 * `<Publisher><UniqueName>` so the import lands under the right publisher,
-	 * not the default "new" one. */
-	publisherUniqueName: string;
-	/** Publisher's display name (e.g. `MohsinOnXrm`). */
-	publisherName: string;
-	/** Publisher's `customizationprefix` (e.g. `mxrm`). */
-	publisherPrefix: string;
-	solutionVersion: string;
-	/**
-	 * GUIDs of `ribboncustomization` records that the solution declares as
-	 * components (`componenttype = 50`). Required when publishing
-	 * application-ribbon changes — each ID becomes a
-	 * `<RootComponent type="50" id="{guid}" behavior="0" />` entry in the
-	 * generated solution.xml so Dataverse accepts the import. Empty / omitted
-	 * for entity-scope publishes.
-	 */
-	ribbonCustomizationIds?: string[];
-	publishCustomizations?: boolean;
-}
-
 interface PublishXmlInput {
 	entityLogicalNames: string[];
 	includeApplicationRibbon: boolean;
@@ -88,101 +140,673 @@ interface PublishAllAsyncResult {
 	statusCode?: number;
 }
 
+export interface PublishLocationDelta {
+	current: RibbonDefinition;
+	baseline: RibbonDefinition;
+}
+
+export interface PublishSolutionInfo {
+	uniqueName: string;
+	/** Written as the solution's LocalizedName — must be the existing friendly
+	 * name, otherwise the import renames the solution (#15). */
+	friendlyName: string;
+	version: string;
+	/** Publisher's `uniquename` (e.g. `mohsinonxrm`). */
+	publisherUniqueName: string;
+	/** Publisher's display name (e.g. `MohsinOnXrm`). */
+	publisherName: string;
+	/** Publisher's `customizationprefix` (e.g. `mxrm`). */
+	publisherPrefix: string;
+	/** Publisher's `customizationoptionvalueprefix`. */
+	publisherOptionValuePrefix?: number;
+}
+
+export interface PublishRibbonInput {
+	/** The table whose ribbon is published, or `null` for the application ribbon. */
+	entity: { logicalName: string; schemaName?: string; displayName?: string } | null;
+	/** Every location of this ribbon scope that has changes. For a table that is
+	 * HomepageGrid / SubGrid / Form — they are published together in ONE import,
+	 * because each import replaces the table's whole unmanaged ribbon (#11). */
+	locations: PublishLocationDelta[];
+	commands: CommandDefinition[];
+	enableRules: EnableRule[];
+	displayRules: DisplayRule[];
+	locLabels: LocLabel[];
+	/**
+	 * Commands and rules as loaded (what exists outside this session's edits).
+	 * With them, the pre-publish check also reports commands and rules that are
+	 * referenced but not defined (#35).
+	 */
+	baselineCommands?: CommandDefinition[];
+	baselineEnableRules?: EnableRule[];
+	baselineDisplayRules?: DisplayRule[];
+	/** What changed in this scope (see publishPlan.planScope). */
+	plan: Pick<ScopePlan, "editedCommandIds" | "editedEnableRuleIds" | "editedDisplayRuleIds" | "deletedButtonIds" | "unhiddenButtonIds"> &
+		Partial<
+			Pick<
+				ScopePlan,
+				| "deletedContainerIds"
+				| "movedButtons"
+				| "editedLocLabelIds"
+				| "editedTabIds"
+				| "renamedLabels"
+				| "uncustomisedCommandIds"
+			>
+		>;
+	/** Organisation base language for edited labels (#50). Read from the organisation when omitted. */
+	languageCode?: number;
+	solution: PublishSolutionInfo;
+	/**
+	 * GUIDs of `ribboncustomization` components (`componenttype = 50`) in the
+	 * solution. The application ribbon can only be imported when the solution
+	 * contains Application Ribbons.
+	 */
+	ribbonCustomizationIds?: string[];
+	/** Run PublishXml for the table right after the import (default true). */
+	publishCustomizations?: boolean;
+	/** Busy-environment waiting / retry options (tests inject a fake clock). */
+	busy?: BusyWaitOptions;
+	/** Delay between post-publish verification attempts (default 5 s). */
+	verifyDelayMs?: number;
+}
+
+/** Server-side check of what a publish left in the unmanaged layer (#46). */
+export interface PublishVerification {
+	ok: boolean;
+	/** Elements CBS imported that the published layer doesn't have (`part:id`). */
+	missing: string[];
+	/** Elements in the published layer that CBS didn't import. */
+	unexpected: string[];
+	/** Elements this publish changed whose published content differs from what was imported. */
+	differing: string[];
+	message: string;
+}
+
+export interface PublishRibbonResult {
+	/** Number of elements in the RibbonDiffXml that was imported (existing + changed). */
+	elementCount: number;
+	/** Number of elements that came from the existing unmanaged layer. */
+	preservedCount: number;
+	importJobId: string;
+	/** Present when the scope was published (the layer tables only show published state). */
+	verification?: PublishVerification;
+	/**
+	 * The layer as imported. The store takes the scaling Sequences and label
+	 * tokens it wrote from it, so a second publish in the same session sees
+	 * them (#66 review B1, m4).
+	 */
+	parts: RibbonDiffParts;
+	/**
+	 * `part:id` of the elements this publish added or changed. The table's are
+	 * remembered for a while (utils/recentPublish): RetrieveEntityRibbon can
+	 * return the ribbon from before the publish, and those CustomActions must
+	 * not be offered for deletion as orphans then (#84 review). Required, so a
+	 * caller that drops it doesn't compile.
+	 */
+	changedKeys: string[];
+}
+
+function locLabelXml(label: LocLabel): string {
+	const titles = label.titles
+		.map((t) => `<Title languagecode="${t.languageCode}" description="${escapeXml(t.description)}"/>`)
+		.join("");
+	return `<LocLabel Id="${escapeXml(label.id)}"><Titles>${titles}</Titles></LocLabel>`;
+}
+
 /**
- * Generates RibbonDiffXml, packages it into a solution ZIP, imports it,
- * polls for completion, then publishes customizations.
+ * Builds the COMPLETE RibbonDiffXml for one ribbon scope: the existing
+ * unmanaged layer (read from the ribbon component tables) with CBS's changes
+ * for every location merged in (see ribbonDiffMerge.mergeScopeChanges).
  */
-export async function publishRibbon(
-	input: PublishInput,
-	onProgress?: (msg: string) => void,
-): Promise<void> {
-	const logs = useRuntimeLogStore.getState();
-	onProgress?.("Generating RibbonDiffXml…");
-	logs.logInfo("publish", `Generating RibbonDiffXml for ${input.entityLogicalName}.`);
+export async function buildMergedRibbonDiffXml(
+	input: Pick<
+		PublishRibbonInput,
+		"entity" | "locations" | "commands" | "enableRules" | "displayRules" | "locLabels" | "plan" | "languageCode"
+	>,
+): Promise<{
+	xml: string;
+	parts: RibbonDiffParts;
+	elementCount: number;
+	preservedCount: number;
+	changedCount: number;
+	/** `part:id` of the elements this publish adds or changes in the layer (checked by content after publishing). */
+	changedKeys: string[];
+	/** Scaling steps of the layer moved to a free Sequence (#66 review). */
+	scalingChanges: ScalingChange[];
+	/** `part:id` of the elements the layer doesn't have yet. */
+	newKeys: string[];
+	/** Commands and rules the existing unmanaged layer defines (replaced by what is imported). */
+	layerDefinitionIds: { commandIds: string[]; enableRuleIds: string[]; displayRuleIds: string[] };
+}> {
+	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
+	const plan = {
+		deletedContainerIds: input.plan.deletedContainerIds ?? [],
+		movedButtons: input.plan.movedButtons ?? [],
+		editedLocLabelIds: input.plan.editedLocLabelIds ?? [],
+		editedTabIds: input.plan.editedTabIds ?? [],
+	};
 
-	const ribbonDiffXml = generateRibbonDiffXml({
-		current: input.current,
-		baseline: input.baseline,
-		commands: input.commands,
-		enableRules: input.enableRules,
-		displayRules: input.displayRules,
-		locLabels: input.locLabels,
-		entityLogicalName: input.entityLogicalName,
-		location: input.current.location,
-	});
-
-	const formRibbonScope = useSessionStore.getState().formRibbonScope;
-	const selectedFormId = useSessionStore.getState().selectedFormId;
-	const scope =
-		input.current.location === "Application"
-			? "application"
-			: input.current.location === "Form" && formRibbonScope === "form"
-				? "form"
-				: "entity";
-	const customizationsXml = wrapInCustomizationsXml(
-		ribbonDiffXml,
-		input.entityLogicalName,
-		scope,
-		scope === "form" ? selectedFormId : undefined,
-	);
-
-	// Determine what root components to declare in solution.xml so Dataverse
-	// accepts the customizations we're packaging. Without these, the import
-	// fails with 0x8004803a "component is not declared in the solution file
-	// as a root component".
-	const rootComponents: RootComponentSpec[] = [];
-	if (scope === "entity" && input.entityLogicalName) {
-		// Entity-scope ribbon edit → declare the entity as a SHELL-ONLY root
-		// component (behavior=2 = "Include As Shell Only").
-		//
-		// This was previously behavior=0 ("Include Subcomponents"), which made
-		// the solution claim ownership of EVERY attribute / form / view /
-		// relationship of the entity. On import that drags all of them into the
-		// solution (and any later export carries them) — the reported
-		// "importing the ribbon pulls in all of account's components" bug.
-		//
-		// MS docs (export-prepare-edit-import-ribbon): "For the purpose of
-		// editing table ribbons, you do not have to include required
-		// components." behavior=2 adds just the entity shell so the
-		// RibbonDiffXml in customizations.xml has something to attach to,
-		// without pulling subcomponents.
-		rootComponents.push({
-			type: 1,
-			schemaName: input.entityLogicalName,
-			behavior: 2,
-		});
-	} else if (scope === "form" && input.entityLogicalName && selectedFormId) {
-		// Form-scope ribbon edit → declare the entity parent as a shell
-		// (behavior=2, same reasoning as above) plus the systemform, which is
-		// the actual ribbon carrier and so includes its own content (behavior=0).
-		rootComponents.push({
-			type: 1,
-			schemaName: input.entityLogicalName,
-			behavior: 2,
-		});
-		rootComponents.push({ type: 60, id: selectedFormId, behavior: 0 });
+	// Translation-only edits (#49): labels the layer defines whose titles
+	// changed. Labels the generator writes (new / edited buttons) win below —
+	// they carry the edited text.
+	const labels = input.locLabels.filter((l) => plan.editedLocLabelIds.includes(l.id));
+	// Renamed tabs / groups the layer adds (#58): the base-language title of
+	// their Title label changes, other languages are kept.
+	const lang = input.languageCode ?? 1033;
+	for (const r of input.plan.renamedLabels ?? []) {
+		const prev = labels.find((l) => l.id === r.id) ?? input.locLabels.find((l) => l.id === r.id);
+		const titles = [{ languageCode: lang, description: r.text }, ...(prev?.titles ?? []).filter((t) => t.languageCode !== lang)];
+		const i = labels.findIndex((l) => l.id === r.id);
+		if (i >= 0) labels[i] = { id: r.id, titles };
+		else labels.push({ id: r.id, titles });
 	}
-	if (scope === "application" && input.ribbonCustomizationIds?.length) {
-		// Application-ribbon publish path. Declare each `ribboncustomization`
-		// component the user's solution owns so Dataverse accepts the import.
-		// The user adds these to their solution via maker.powerapps.com →
-		// Solutions → <solution> → Add existing → Application Ribbons.
-		for (const id of input.ribbonCustomizationIds) {
-			rootComponents.push({ type: 50, id, behavior: 0 });
+	let delta = labels.length
+		? parseRibbonDiffParts(`<RibbonDiffXml><LocLabels>${labels.map(locLabelXml).join("")}</LocLabels></RibbonDiffXml>`)
+		: emptyRibbonDiffParts();
+
+	for (const loc of input.locations) {
+		const xml = generateRibbonDiffXml({
+			current: loc.current,
+			baseline: loc.baseline,
+			commands: input.commands,
+			enableRules: input.enableRules,
+			displayRules: input.displayRules,
+			locLabels: input.locLabels,
+			entityLogicalName,
+			location: loc.current.location,
+			languageCode: input.languageCode,
+		});
+		delta = mergeRibbonDiffParts(delta, parseRibbonDiffParts(xml));
+	}
+
+	// Display rules of existing tabs the layer adds (#49): the generator only
+	// writes them for tabs created this session (#40).
+	const removedTabCommands: string[] = [];
+	const tabRules: string[] = [];
+	for (const loc of input.locations) {
+		for (const tab of loc.current.tabs) {
+			if (!plan.editedTabIds.includes(tab.id)) continue;
+			if (tab.tabDisplayRules.length > 0) {
+				const xml = generateTabDisplayRulesForTab(tab, input.entity === null);
+				if (xml) tabRules.push(xml);
+			}
+			const now = new Set(tab.tabDisplayRules.map((r) => r.tabCommand));
+			for (const r of loc.baseline.tabs.find((t) => t.id === tab.id)?.tabDisplayRules ?? []) {
+				if (!now.has(r.tabCommand)) removedTabCommands.push(r.tabCommand);
+			}
+		}
+	}
+	if (tabRules.length > 0) {
+		delta = mergeRibbonDiffParts(
+			delta,
+			parseRibbonDiffParts(
+				`<RibbonDiffXml><RuleDefinitions><TabDisplayRules>${tabRules.join("")}</TabDisplayRules></RuleDefinitions></RibbonDiffXml>`,
+			),
+		);
+	}
+
+	// Commands / rules the user edited, even when no button changed (#25).
+	const extra = [
+		...input.commands.filter((c) => input.plan.editedCommandIds.includes(c.id)).map(generateCommandDefinition),
+	];
+	const extraRules = {
+		enable: input.enableRules.filter((r) => input.plan.editedEnableRuleIds.includes(r.id)).map(generateEnableRule),
+		display: input.displayRules.filter((r) => input.plan.editedDisplayRuleIds.includes(r.id)).map(generateDisplayRule),
+	};
+	if (extra.length || extraRules.enable.length || extraRules.display.length) {
+		delta = mergeRibbonDiffParts(
+			delta,
+			parseRibbonDiffParts(
+				`<RibbonDiffXml><CommandDefinitions>${extra.join("")}</CommandDefinitions><RuleDefinitions><DisplayRules>${extraRules.display.join("")}</DisplayRules><EnableRules>${extraRules.enable.join("")}</EnableRules></RuleDefinitions></RibbonDiffXml>`,
+			),
+		);
+	}
+
+	// The generator also emits the commands / rules of every button it writes
+	// (including managed and out-of-the-box ones, re-built from the parser's
+	// lossy model). Only definitions the user created or edited may enter the
+	// layer; everything else is already defined where it lives (#11 review N2, #13).
+	const keepOnly = (map: Map<string, string>, ids: string[]) => {
+		for (const id of Array.from(map.keys())) if (!ids.includes(id)) map.delete(id);
+	};
+	// …plus the Command of each tab created this session (#58): the generator
+	// defines it with the tab, and its TabDisplayRule refers to it.
+	const newTabCommands = input.locations.flatMap((loc) =>
+		loc.current.tabs.filter((t) => !loc.baseline.tabs.some((b) => b.id === t.id)).map(newTabCommandId),
+	);
+	keepOnly(delta.commandDefinitions, [...input.plan.editedCommandIds, ...newTabCommands]);
+	keepOnly(delta.enableRules, input.plan.editedEnableRuleIds);
+	keepOnly(delta.displayRules, input.plan.editedDisplayRuleIds);
+
+	const existing = await fetchUnmanagedRibbonParts(input.entity?.logicalName ?? null);
+
+	// Only controls this table's unmanaged layer defines can be removed; anything
+	// else comes from a managed solution or the platform (#11 review N4).
+	const own = ownControlIds(existing);
+	const notOwn = input.plan.deletedButtonIds.filter((id) => !own.has(id));
+	if (notOwn.length > 0) {
+		throw new Error(
+			`Can't delete ${notOwn.join(", ")}: not defined in this table's unmanaged customizations ` +
+				`(it comes from a managed solution or the platform). Undo the delete and hide the button instead.`,
+		);
+	}
+	const ownContainers = ownContainerIds(existing);
+	const notOwnContainers = plan.deletedContainerIds.filter((id) => !ownContainers.has(id));
+	if (notOwnContainers.length > 0) {
+		throw new Error(
+			`Can't delete ${notOwnContainers.join(", ")}: not added by this table's unmanaged customizations ` +
+				`(it comes from a managed solution or the platform). Undo the delete.`,
+		);
+	}
+	const notOwnMoves = plan.movedButtons.filter((m) => !own.has(m.id)).map((m) => m.id);
+	if (notOwnMoves.length > 0) {
+		throw new Error(
+			`Can't move ${notOwnMoves.join(", ")}: not defined in this table's unmanaged customizations. Undo the move.`,
+		);
+	}
+
+	// Uncustomise (#31) removes a copy of a command defined elsewhere — never
+	// your own command, which nothing would define once removed.
+	const layerRefs = layerCommandRefs(existing);
+	const ownCommands = (input.plan.uncustomisedCommandIds ?? []).filter(
+		(id) => existing.commandDefinitions.has(id) && !canUncustomiseCommand(id, layerRefs),
+	);
+	if (ownCommands.length > 0) {
+		throw new Error(
+			`Can't uncustomise ${ownCommands.join(", ")}: it is your own command (your customizations' buttons use it ` +
+				`and no other solution defines it), so removing it would leave those buttons without a command. Undo the uncustomise.`,
+		);
+	}
+
+	const retainedCommandIds = new Set<string>();
+	for (const loc of input.locations)
+		for (const tab of loc.current.tabs)
+			for (const group of tab.groups)
+				for (const button of groupControls(group)) for (const id of controlCommandIds(button)) retainedCommandIds.add(id);
+
+	// Rules other commands of the scope still use stay in the layer when an
+	// uncustomised command (#31) leaves it.
+	const uncustomisedCommandIds = input.plan.uncustomisedCommandIds ?? [];
+	const retainedEnableRuleIds = new Set<string>();
+	const retainedDisplayRuleIds = new Set<string>();
+	for (const c of input.commands) {
+		if (!retainedCommandIds.has(c.id) || uncustomisedCommandIds.includes(c.id)) continue;
+		c.enableRules.forEach((r) => retainedEnableRuleIds.add(r));
+		c.displayRules.forEach((r) => retainedDisplayRuleIds.add(r));
+		for (const raw of c.rawRuleRefs ?? []) {
+			const m = /^\s*<(EnableRule|DisplayRule)\b[^>]*?\sId="([^"]+)"/.exec(raw.xml);
+			if (m) (m[1] === "EnableRule" ? retainedEnableRuleIds : retainedDisplayRuleIds).add(m[2]);
 		}
 	}
 
-	const solutionXml = generateSolutionXml({
-		uniqueName: input.solutionUniqueName,
-		publisherUniqueName: input.publisherUniqueName,
-		publisherName: input.publisherName,
+	let merged = mergeScopeChanges(existing, delta, {
+		retainedCommandIds,
+		editedCommandIds: input.plan.editedCommandIds,
+		editedEnableRuleIds: input.plan.editedEnableRuleIds,
+		editedDisplayRuleIds: input.plan.editedDisplayRuleIds,
+		deletedControlIds: input.plan.deletedButtonIds,
+		unhiddenControlIds: input.plan.unhiddenButtonIds,
+		deletedContainerIds: plan.deletedContainerIds,
+		movedControls: plan.movedButtons,
+		removedTabCommands,
+		uncustomisedCommandIds,
+		retainedEnableRuleIds,
+		retainedDisplayRuleIds,
+	});
+
+	// A renamed tab / group whose title label other controls share gets a label
+	// of its own (#66 review t3).
+	for (const r of input.plan.renamedLabels ?? []) {
+		if (r.newLabel) merged = setContainerTitle(merged, r.containerId, `$LocLabels:${r.id}`);
+	}
+
+	// No two scaling steps of a tab may share a Sequence (#66 review): the
+	// layer's steps — including ones earlier CBS versions wrote at their
+	// group's Sequence — are moved to free Sequences; what can't be placed
+	// blocks the import.
+	const layerStepIds = new Set([...layerScalingSteps(existing), ...layerScalingSteps(merged)].map((st) => st.id));
+	const platform: Record<string, { maxSizes: number[]; scales: number[] }> = {};
+	for (const loc of input.locations) {
+		for (const [tabId, scaling] of Object.entries(loc.baseline.scalingByTab ?? {})) {
+			platform[tabId] = {
+				maxSizes: scaling.maxSizes.filter((st) => !layerStepIds.has(st.id)).map((st) => st.sequence),
+				scales: scaling.scales.filter((st) => !layerStepIds.has(st.id)).map((st) => st.sequence),
+			};
+		}
+	}
+	const scaling = normalizeLayerScaling(merged, platform);
+	if (scaling.problems.length > 0) {
+		throw new Error(`Not published: ${scaling.problems.join("; ")}.`);
+	}
+	merged = scaling.parts;
+	return {
+		scalingChanges: scaling.changes,
+		xml: serializeRibbonDiffParts(merged),
+		parts: merged,
+		elementCount: countRibbonDiffParts(merged),
+		preservedCount: countRibbonDiffParts(existing),
+		changedCount: countRibbonDiffParts(delta),
+		changedKeys: changedRibbonDiffKeys(existing, merged),
+		newKeys: (Object.keys(merged) as (keyof RibbonDiffParts)[]).flatMap((part) =>
+			Array.from(merged[part].keys())
+				.filter((id) => !existing[part].has(id))
+				.map((id) => `${part}:${id}`),
+		),
+		layerDefinitionIds: {
+			commandIds: Array.from(existing.commandDefinitions.keys()),
+			enableRuleIds: Array.from(existing.enableRules.keys()),
+			displayRuleIds: Array.from(existing.displayRules.keys()),
+		},
+	};
+}
+
+/**
+ * What the pre-publish check needs besides the merged RibbonDiffXml (#35):
+ * which elements this publish adds or changes, and the loaded ribbon (ids,
+ * scaling, group templates) the layer is applied to.
+ */
+export function publishValidationContext(
+	input: Pick<
+		PublishRibbonInput,
+		"locations" | "commands" | "baselineCommands" | "baselineEnableRules" | "baselineDisplayRules"
+	> &
+		Partial<Pick<PublishRibbonInput, "entity">> & { publisherPrefix?: string },
+	merged: {
+		changedKeys: string[];
+		newKeys: string[];
+		layerDefinitionIds?: { commandIds: string[]; enableRuleIds: string[]; displayRuleIds: string[] };
+	},
+): PublishValidationContext {
+	const elementIds: string[] = [];
+	const tabScaling: Record<string, ScalingDefinition> = {};
+	const groupTemplates: Record<string, string> = {};
+	const templateLayouts: Record<string, string[]> = {};
+	const loadedAttributes: Record<string, Record<string, string>> = {};
+	const baselineGroups = new Set<string>();
+	const currentGroups = new Set<string>();
+	const menuControlsIds = new Set<string>();
+	for (const { current, baseline } of input.locations)
+		for (const def of [baseline, current])
+			for (const tab of def.tabs)
+				for (const group of tab.groups)
+					for (const b of groupControls(group))
+						for (const section of b.menu?.sections ?? []) menuControlsIds.add(section.controlsId);
+	for (const { current, baseline } of input.locations) {
+		Object.assign(templateLayouts, baseline.templateLayouts);
+		for (const tab of baseline.tabs) {
+			elementIds.push(tab.id);
+			if (tab.label) loadedAttributes[tab.id] = { Title: tab.label };
+			for (const group of tab.groups) {
+				baselineGroups.add(group.id);
+				elementIds.push(group.id);
+				if (group.label) loadedAttributes[group.id] = { Title: group.label, Label: group.label };
+				// Menu items too (#27).
+				for (const b of groupControls(group)) {
+					elementIds.push(b.id);
+					if (b.source) loadedAttributes[b.id] = b.source.attributes;
+				}
+			}
+		}
+		for (const tab of current.tabs) for (const group of tab.groups) currentGroups.add(group.id);
+		for (const def of [baseline, current])
+			for (const tab of def.tabs)
+				for (const group of tab.groups) if (group.template) groupTemplates[group.id] = group.template;
+	}
+	// Loaded scaling, without the steps of groups this session removes (their
+	// steps leave the layer with them and can't collide any more).
+	const removedGroup = (s: { groupId: string }) => baselineGroups.has(s.groupId) && !currentGroups.has(s.groupId);
+	for (const { baseline } of input.locations) {
+		for (const [tabId, scaling] of Object.entries(baseline.scalingByTab ?? {})) {
+			tabScaling[tabId] = {
+				...scaling,
+				maxSizes: scaling.maxSizes.filter((s) => !removedGroup(s)),
+				scales: scaling.scales.filter((s) => !removedGroup(s)),
+			};
+		}
+	}
+	// What stays defined after the import: the merged XML (checked by the
+	// validator) plus everything defined outside the layer. The loaded ribbon
+	// also has the layer's own definitions, which the import replaces.
+	const outsideLayer = <T extends { id: string }>(loaded: T[] | undefined, layer: string[] | undefined) => {
+		if (!loaded) return undefined;
+		const own = new Set(layer ?? []);
+		return loaded.map((d) => d.id).filter((id) => !own.has(id));
+	};
+	return {
+		changedKeys: merged.changedKeys,
+		newKeys: merged.newKeys,
+		commands: input.commands,
+		known: {
+			commandIds: outsideLayer(input.baselineCommands, merged.layerDefinitionIds?.commandIds),
+			enableRuleIds: outsideLayer(input.baselineEnableRules, merged.layerDefinitionIds?.enableRuleIds),
+			displayRuleIds: outsideLayer(input.baselineDisplayRules, merged.layerDefinitionIds?.displayRuleIds),
+			elementIds,
+		},
+		loadedAttributes,
 		publisherPrefix: input.publisherPrefix,
-		version: input.solutionVersion,
+		tabScaling,
+		groupTemplates,
+		templateLayouts,
+		menuControlsIds,
+		// Where the table's CustomActions can place what they add (#64).
+		...(input.entity
+			? {
+					places: {
+						entityLogicalName: input.entity.logicalName,
+						tabByCollection: Object.fromEntries(
+							ribbonPlaces(
+								input.locations.map((l) => l.baseline),
+								input.entity.logicalName,
+							),
+						),
+					},
+				}
+			: {}),
+	};
+}
+
+/**
+ * Rejects when `promise` hasn't settled within `ms`, so a slow environment
+ * can't hold the publish dialog's check (and Publish) back indefinitely.
+ */
+export function withCheckTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error(`it didn't finish within ${Math.round(ms / 1000)} s`)), ms);
+		promise.then(
+			(v) => {
+				clearTimeout(timer);
+				resolve(v);
+			},
+			(err: unknown) => {
+				clearTimeout(timer);
+				reject(err);
+			},
+		);
+	});
+}
+
+/**
+ * The pre-publish check the publish dialog shows (#35): builds the RibbonDiffXml
+ * the publish would import (existing layer + this session's changes) and
+ * validates it. `lookupWebResources` resolves the `$webresource:` references
+ * (one batched Dataverse query); without it they aren't checked.
+ */
+export async function checkBeforePublish(
+	input: Pick<
+		PublishRibbonInput,
+		| "entity"
+		| "locations"
+		| "commands"
+		| "enableRules"
+		| "displayRules"
+		| "locLabels"
+		| "plan"
+		| "languageCode"
+		| "baselineCommands"
+		| "baselineEnableRules"
+		| "baselineDisplayRules"
+	> & { publisherPrefix?: string },
+	options: { lookupWebResources?: (names: string[]) => Promise<Record<string, WebResourceStatus>> } = {},
+): Promise<{ findings: PublishFinding[]; xml: string }> {
+	const merged = await buildMergedRibbonDiffXml(input);
+	const context = publishValidationContext(input, merged);
+	const lookupFindings: PublishFinding[] = [];
+	const names = webResourceReferences(merged.parts);
+	if (options.lookupWebResources && names.length > 0) {
+		try {
+			context.webResources = await options.lookupWebResources(names);
+		} catch (err) {
+			lookupFindings.push({
+				severity: "warning",
+				code: "webresource-lookup",
+				message: `Couldn't check the ${names.length} referenced web resource(s): ${err instanceof Error ? err.message : String(err)}`,
+			});
+		}
+	}
+	return { findings: [...validatePublishRibbonDiff(merged.parts, context), ...lookupFindings], xml: merged.xml };
+}
+
+/**
+ * Compares the layer as published with what CBS imported (#46). The ribbon
+ * tables only show published state, so this runs after PublishXml; a short
+ * lag is tolerated by re-reading a few times.
+ *
+ * Every element is checked for presence; the elements this publish changed
+ * (`contentKeys`) are also checked by content, in the form that survives an
+ * import (ribbonDiffMerge.stableElementXml: Dataverse rewrites actions that
+ * call platform libraries, so those are only checked for presence).
+ */
+export async function verifyPublishedLayer(
+	entityLogicalName: string | null,
+	expected: RibbonDiffParts,
+	options: { attempts?: number; delayMs?: number; contentKeys?: string[] } = {},
+): Promise<PublishVerification> {
+	const attempts = options.attempts ?? 3;
+	const contentKeys = options.contentKeys ?? [];
+	let last: RibbonDiffComparison = { missing: [], unexpected: [], differing: [] };
+	for (let i = 0; i < attempts; i++) {
+		if (i > 0) await new Promise((r) => setTimeout(r, options.delayMs ?? 5000));
+		try {
+			last = compareRibbonDiffParts(expected, await fetchUnmanagedRibbonParts(entityLogicalName), { contentKeys });
+		} catch (err) {
+			return {
+				ok: false,
+				missing: [],
+				unexpected: [],
+				differing: [],
+				message: `Couldn't read the published ribbon layer to verify it (${err instanceof Error ? err.message : String(err)}).`,
+			};
+		}
+		if (last.missing.length === 0 && last.unexpected.length === 0 && last.differing.length === 0) {
+			const changed = contentKeys.length;
+			return {
+				ok: true,
+				...last,
+				message:
+					"Verified: the published ribbon layer has every element that was imported" +
+					(changed > 0
+						? `, and the ${changed} element(s) this publish changed have the imported content.`
+						: "."),
+			};
+		}
+	}
+	const sample = (ids: string[]) => ids.slice(0, 5).join(", ") + (ids.length > 5 ? ", …" : "");
+	return {
+		ok: false,
+		...last,
+		message:
+			"The published ribbon layer doesn't match what was imported" +
+			(last.missing.length ? `; missing: ${sample(last.missing)}` : "") +
+			(last.unexpected.length ? `; unexpected: ${sample(last.unexpected)}` : "") +
+			(last.differing.length ? `; different content: ${sample(last.differing)}` : "") +
+			". Reload the table and check before publishing again.",
+	};
+}
+
+/**
+ * Publishes one ribbon scope (a table, or the application ribbon):
+ * read the existing unmanaged layer → merge CBS's edits from every location →
+ * import ONE complete RibbonDiffXml → verify Dataverse actually applied it →
+ * (optionally) PublishXml.
+ */
+export function publishRibbon(
+	input: PublishRibbonInput,
+	onProgress?: (msg: string) => void,
+): Promise<PublishRibbonResult> {
+	return withCloseGuard(() => publishRibbonUnguarded(input, onProgress));
+}
+
+async function publishRibbonUnguarded(
+	input: PublishRibbonInput,
+	onProgress?: (msg: string) => void,
+): Promise<PublishRibbonResult> {
+	const logs = useRuntimeLogStore.getState();
+	const scopeLabel = input.entity ? input.entity.logicalName : "Application ribbon";
+	const busy: BusyWaitOptions = { onProgress, ...input.busy };
+
+	onProgress?.(`Reading existing ribbon customizations for ${scopeLabel}…`);
+	logs.logInfo("publish", `Reading unmanaged ribbon layer for ${scopeLabel}.`);
+	const languageCode = input.languageCode ?? (await fetchOrganizationLanguageCode());
+	const merged = await buildMergedRibbonDiffXml({ ...input, languageCode });
+	logs.logInfo(
+		"publish",
+		`RibbonDiffXml for ${scopeLabel}: ${merged.preservedCount} existing element(s) preserved, ` +
+			`${merged.changedCount} element(s) from this session, ${merged.elementCount} total.`,
+	);
+	for (const c of merged.scalingChanges) logs.logWarn("publish", describeScalingChange(c));
+
+	// Pre-publish validation (#35): never import what the check rejects.
+	const findings = validatePublishRibbonDiff(
+		merged.parts,
+		publishValidationContext({ ...input, publisherPrefix: input.solution.publisherPrefix }, merged),
+	);
+	for (const f of findings) if (f.severity === "warning") logs.logWarn("publish", f.message);
+	const blocking = findings.filter((f) => f.severity === "error");
+	if (blocking.length > 0) {
+		for (const f of blocking) logs.logError("publish", f.message);
+		throw new Error(
+			`The pre-publish check found ${blocking.length} error(s), so nothing was imported: ` +
+				blocking.map((f) => f.message).join("; "),
+		);
+	}
+
+	const isApplication = input.entity === null;
+	if (isApplication && !input.ribbonCustomizationIds?.length) {
+		throw new Error(
+			"The selected solution does not contain Application Ribbons. Add it in make.powerapps.com " +
+				"(Solutions → your solution → Add existing → Application Ribbons) and reload the solution.",
+		);
+	}
+
+	const entityName = input.entity?.schemaName || input.entity?.logicalName || "";
+	const customizationsXml = isApplication
+		? buildCustomizationsXml({ applicationRibbonDiffXml: merged.xml })
+		: buildCustomizationsXml({
+				entities: [
+					{
+						schemaName: entityName,
+						localizedName: input.entity?.displayName || entityName,
+						ribbonDiffXml: merged.xml,
+					},
+				],
+			});
+
+	const rootComponents: RootComponentSpec[] = isApplication
+		? // Verified live: the application ribbon component is declared by this
+			// fixed schema name, exactly as maker exports write it.
+			[{ type: 50, schemaName: ":RibbonDiffXml", behavior: 0 }]
+		: // Shell only (behavior 2): the RibbonDiffXml needs the table as an
+			// anchor, but must not drag the table's columns/forms/views into the
+			// solution.
+			[{ type: 1, schemaName: input.entity!.logicalName, behavior: 2 }];
+
+	const solutionXml = generateSolutionXml({
+		...input.solution,
+		languageCode,
 		rootComponents,
 	});
 
 	onProgress?.("Packaging solution ZIP…");
-	logs.logInfo("publish", "Packaging solution ZIP...");
 	const zipBytes = zipSync({
 		"customizations.xml": strToU8(customizationsXml),
 		"solution.xml": strToU8(solutionXml),
@@ -190,195 +814,142 @@ export async function publishRibbon(
 			'<?xml version="1.0" encoding="utf-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>',
 		),
 	});
-
-	// Convert to base64
 	let binaryStr = "";
 	for (let i = 0; i < zipBytes.length; i++) {
 		binaryStr += String.fromCharCode(zipBytes[i]);
 	}
 	const base64Zip = btoa(binaryStr);
 
-	onProgress?.("Importing solution…");
-	logs.logInfo("publish", "Importing solution via deploySolution...");
-	// The Dataverse `ImportSolution` action requires the caller to supply a
-	// client-generated `ImportJobId` GUID — without it the request fails with
-	// 0x80048d19 ("One or more parameters of the operation 'ImportSolution'
-	// are missing from the request payload. The missing parameters are:
-	// ImportJobId."). PPTB's `deploySolution` types mark the option as
-	// optional, but Dataverse rejects the call when it's omitted.
-	const importJobId =
-		typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-			? crypto.randomUUID()
-			: // Fallback for runtimes without crypto.randomUUID (very old).
-				`${Date.now()}-${Math.random().toString(16).slice(2)}-${Math.random()
-					.toString(16)
-					.slice(2)}`;
-	logs.logInfo("publish", `Import job id: ${importJobId}`);
-	await dataverseAPI.deploySolution(base64Zip, {
-		importJobId,
-		overwriteUnmanagedCustomizations: true,
-		publishWorkflows: false,
-	});
+	const importAndVerify = async (pass: string): Promise<string> => {
+		onProgress?.(`Importing ${scopeLabel} ribbon${pass}…`);
+		// ImportSolution requires a client-generated ImportJobId (0x80048d19 otherwise).
+		const importJobId = crypto.randomUUID();
+		logs.logInfo("publish", `Importing solution${pass} (import job ${importJobId})…`);
+		// Another import / publish / ribbon-metadata generation makes ImportSolution
+		// fail with 0x80071151: wait for it and retry (#46).
+		await withBusyRetry(
+			"Import",
+			() =>
+				importSolution(base64Zip, importJobId),
+			busy,
+		);
 
-	onProgress?.("Waiting for import to complete…");
-	logs.logInfo("publish", `Polling import job ${importJobId}...`);
-	// Solution imports — especially ones that touch ribbon metadata — can
-	// legitimately take 2–5 minutes on busy environments. Previously we
-	// capped at 60 × 2s = 120s and reported a timeout even when the maker
-	// portal showed the import had succeeded. Bumped to 150 × 2s = 300s
-	// (5 minutes) and the completion check now accepts multiple signal shapes.
-	const MAX_ATTEMPTS = 150;
-	const POLL_INTERVAL_MS = 2000;
-	let status = (await dataverseAPI.getImportJobStatus(importJobId)) as ImportStatus;
-	let attempts = 0;
-	while (!isImportComplete(status) && attempts < MAX_ATTEMPTS) {
-		await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-		status = (await dataverseAPI.getImportJobStatus(importJobId)) as ImportStatus;
-		attempts++;
-		if (attempts % 15 === 0) {
-			// Surface a progress beat every 30s so the user can see we're
-			// still waiting and not stuck.
-			onProgress?.(`Still importing… (${attempts * 2}s elapsed)`);
+		// Ribbon imports take 20–50 s on a typical environment (measured live);
+		// allow up to 5 minutes before giving up.
+		const MAX_ATTEMPTS = 150;
+		const POLL_INTERVAL_MS = 2000;
+		let status = (await dataverseAPI.getImportJobStatus(importJobId)) as ImportStatus;
+		let attempts = 0;
+		while (!isImportComplete(status) && attempts < MAX_ATTEMPTS) {
+			await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+			status = (await dataverseAPI.getImportJobStatus(importJobId)) as ImportStatus;
+			attempts++;
+			if (attempts % 10 === 0) onProgress?.(`Still importing… (${attempts * 2}s elapsed)`);
 		}
-	}
+		if (!isImportComplete(status)) {
+			throw new Error(
+				`Solution import did not complete within ${(MAX_ATTEMPTS * POLL_INTERVAL_MS) / 1000} seconds. ` +
+					`Check Solutions › History for import job ${importJobId}.`,
+			);
+		}
 
-	if (!isImportComplete(status)) {
-		const elapsed = Math.round((MAX_ATTEMPTS * POLL_INTERVAL_MS) / 1000);
-		logs.logError(
-			"publish",
-			`Solution import did not complete within ${elapsed}s. Check Solutions › History in maker.powerapps.com for job ${importJobId} — the import may still succeed there.`,
+		onProgress?.("Verifying the import…");
+		const job = (await dataverseAPI.retrieve("importjob", importJobId, ["data"])) as { data?: string };
+		const verification = verifyRibbonImport(
+			job.data,
+			isApplication
+				? { kind: "application" }
+				: { kind: "entity", names: [entityName, input.entity!.logicalName] },
 		);
-		throw new Error(
-			`Solution import did not signal completion within ${elapsed} seconds. Check Solutions › History for job ${importJobId}.`,
+		if (!verification.ok) {
+			logs.logError("publish", verification.message);
+			throw new Error(verification.message);
+		}
+		logs.logInfo("publish", verification.message);
+		return importJobId;
+	};
+
+	const publishScope = async () => {
+		onProgress?.("Publishing customizations…");
+		await withBusyRetry(
+			"Publish",
+			async () => {
+				if (isApplication) {
+					// Targeted publish of the application ribbon only — PublishAllXml
+					// would publish the whole environment.
+					await dataverseAPI.execute({
+						operationName: "PublishXml",
+						operationType: "action",
+						parameters: { ParameterXml: "<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>" },
+					});
+				} else {
+					await publishTables([input.entity!.logicalName]);
+				}
+			},
+			busy,
 		);
-	}
+	};
+
+	// Don't start while another solution operation runs (#46).
+	onProgress?.("Checking that no other solution operation is running…");
+	await waitForEnvironmentIdle(busy);
+	const importJobId = await importAndVerify("");
+	let verification: PublishVerification | undefined;
 
 	if (input.publishCustomizations !== false) {
-		onProgress?.("Publishing customizations…");
-		logs.logInfo("publish", "Publishing customizations...");
-		const publishStart = new Date();
-		if (input.entityLogicalName && input.entityLogicalName !== "{!EntityLogicalName}") {
-			await dataverseAPI.publishCustomizations(input.entityLogicalName);
-		} else {
-			await dataverseAPI.publishCustomizations();
-		}
-		// Verify that the ribbon-metadata compile pipeline actually succeeded.
-		// publishCustomizations() returns when the customisation record is
-		// updated, but Dataverse processes the actual ribbon-metadata compilation
-		// asynchronously via the `ribbonmetadatasettoprocess` job queue. A
-		// schema-validation failure there is silent unless we poll for it.
-		await pollRibbonMetadataProcessing(input.entityLogicalName, publishStart, logs, onProgress);
-	}
-
-	onProgress?.("Published successfully!");
-	logs.logInfo("publish", "Publish completed successfully.");
-}
-
-/**
- * Polls the `ribbonmetadatasettoprocess` job-queue table for up to 30 s after
- * `publishCustomizations` returns.  The actual ribbon-metadata compilation runs
- * asynchronously in Dataverse; this is the only way to detect silent compile
- * failures (bad LocLabel refs, schema violations, etc.) that would otherwise
- * let CBS report "Success!" while the user's buttons never appear.
- *
- * The poll is best-effort: if the table is unavailable or no job row appears
- * within the window, we log a note and continue — the prior publish APIs
- * already confirmed the import completed.
- */
-async function pollRibbonMetadataProcessing(
-	entityLogicalName: string,
-	publishStart: Date,
-	logs: ReturnType<typeof useRuntimeLogStore.getState>,
-	onProgress?: (msg: string) => void,
-): Promise<void> {
-	const MAX_POLLS = 15;
-	const POLL_MS = 2000;
-	const entityFilter =
-		entityLogicalName && entityLogicalName !== "{!EntityLogicalName}"
-			? `entityname eq '${entityLogicalName}'`
-			: null;
-	// ISO timestamp (URL-safe, no fractional seconds)
-	const since = publishStart.toISOString().replace(/\.\d+Z$/, "Z");
-
-	// Base query — select only the fields we actually use.
-	const baseQuery =
-		`ribbonmetadatasettoprocess?$select=entityname,processedon,completedon,` +
-		`exceptionmessage,retrycount,status&$orderby=createdon desc&$top=10` +
-		`&$filter=createdon gt ${since}` +
-		(entityFilter ? ` and (${entityFilter})` : "");
-
-	for (let poll = 0; poll < MAX_POLLS; poll++) {
-		await new Promise((r) => setTimeout(r, POLL_MS));
-		try {
-			type MetaJob = {
-				entityname?: string;
-				status?: number;
-				completedon?: string | null;
-				processedon?: string | null;
-				exceptionmessage?: string | null;
-				retrycount?: number;
-			};
-			const resp = await dataverseAPI.queryData(baseQuery);
-			const jobs: MetaJob[] = Array.isArray(resp)
-				? resp
-				: Array.isArray(resp?.value)
-					? resp.value
-					: [];
-
-			if (jobs.length === 0) {
-				// No job created yet — Dataverse may still be queueing it.
-				continue;
-			}
-
-			// Check for failures first (exceptionmessage set).
-			const failedJob = jobs.find((j) => j.exceptionmessage);
-			if (failedJob) {
-				const entity = failedJob.entityname || entityLogicalName;
-				const msg = `Ribbon-metadata compile failed for ${entity}: ` + failedJob.exceptionmessage;
-				logs.logError("publish", msg);
-				onProgress?.(`⚠ ${msg}`);
-				// Throw so BulkPublishModal can surface this as an error rather
-				// than a silent success.
-				throw new Error(msg);
-			}
-
-			// Check for a successfully completed job.
-			const doneJob = jobs.find(
-				(j) => j.completedon || j.processedon || j.status === 4 /* Succeeded */,
-			);
-			if (doneJob) {
-				const entity = doneJob.entityname || entityLogicalName;
-				logs.logInfo("publish", `Ribbon metadata compiled successfully for ${entity}.`);
-				return;
-			}
-
-			if (poll === Math.floor(MAX_POLLS / 2)) {
-				onProgress?.("Waiting for ribbon-metadata compilation…");
-				logs.logInfo("publish", "Ribbon metadata job found; waiting for completion…");
-			}
-		} catch (err) {
-			if (err instanceof Error && err.message.includes("Ribbon-metadata compile failed")) {
-				throw err; // re-throw our own compile-error
-			}
-			// Any other error (permission denied, table not available in org,
-			// network blip) → log and give up gracefully without failing publish.
-			logs.logWarn(
+		await publishScope();
+		// Unified Interface renders command bars from "ribbon client metadata",
+		// which an import rebuilds from the ribbon as PUBLISHED at that moment.
+		// So buttons added by this import only reach Unified Interface after a
+		// LATER import (verified live: import+publish left new buttons missing for
+		// hours; re-importing the same package after publishing made them appear).
+		// Re-import the identical package once and publish again so the change is
+		// actually visible to users. This applies to command and rule edits too
+		// (#11 review N1), so it always runs.
+		{
+			logs.logInfo(
 				"publish",
-				`Could not read ribbonmetadatasettoprocess (${err instanceof Error ? err.message : String(err)}). ` +
-					`Ribbon metadata verification skipped.`,
+				"Refreshing Unified Interface command-bar metadata (second import of the same package)…",
 			);
-			return;
+			try {
+				await importAndVerify(" (refreshing Unified Interface metadata)");
+				await publishScope();
+			} catch (err) {
+				throw new Error(
+					`Your changes were imported and published, but refreshing Unified Interface's command-bar ` +
+						`metadata failed (${err instanceof Error ? err.message : String(err)}). New or changed buttons ` +
+						`may not appear in the app until you publish again.`,
+				);
+			}
 		}
+		onProgress?.("Verifying the published ribbon…");
+		verification = await verifyPublishedLayer(input.entity?.logicalName ?? null, merged.parts, {
+			delayMs: input.verifyDelayMs,
+			contentKeys: merged.changedKeys,
+		});
+		if (verification.ok) logs.logInfo("publish", verification.message);
+		else logs.logWarn("publish", verification.message);
+	} else {
+		logs.logWarn(
+			"publish",
+			"Imported without publishing. New or changed buttons appear in Unified Interface only after " +
+				"you publish from Command Bar Studio (which re-imports once to refresh the command-bar metadata).",
+		);
 	}
 
-	// Timed out without seeing a completed job — not necessarily an error;
-	// the compile may still succeed. The publish API calls already confirmed
-	// the import completed.
-	logs.logInfo(
-		"publish",
-		"Ribbon metadata job not observed within 30 s. The publish appears complete — " +
-			"open the entity to confirm your changes are live.",
+	onProgress?.(
+		input.publishCustomizations !== false
+			? `${scopeLabel} ribbon published.`
+			: `${scopeLabel} ribbon imported (not published).`,
 	);
+	return {
+		elementCount: merged.elementCount,
+		preservedCount: merged.preservedCount,
+		importJobId,
+		verification,
+		parts: merged.parts,
+		changedKeys: merged.changedKeys,
+	};
 }
 
 function buildPublishXml(input: PublishXmlInput): string {
@@ -398,7 +969,14 @@ function buildPublishXml(input: PublishXmlInput): string {
 	return `<importexportxml><entities>${entityNodes}</entities>${dependencyNodes}</importexportxml>`;
 }
 
-export async function publishUsingPublishXml(
+export function publishUsingPublishXml(
+	input: PublishXmlInput,
+	onProgress?: (msg: string) => void,
+): Promise<void> {
+	return withCloseGuard(() => publishUsingPublishXmlUnguarded(input, onProgress));
+}
+
+async function publishUsingPublishXmlUnguarded(
 	input: PublishXmlInput,
 	onProgress?: (msg: string) => void,
 ): Promise<void> {
@@ -407,7 +985,7 @@ export async function publishUsingPublishXml(
 	if (entities.length === 0) {
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Publishing all customizations...");
-			await dataverseAPI.publishCustomizations();
+			await publishAll();
 		}
 		return;
 	}
@@ -422,7 +1000,7 @@ export async function publishUsingPublishXml(
 	logs.logInfo("publish", `PublishXml request for ${entities.length} table(s).`);
 
 	try {
-		await (dataverseAPI as any).execute({
+		await dataverseAPI.execute({
 			operationName: "PublishXml",
 			operationType: "action",
 			parameters: {
@@ -432,27 +1010,34 @@ export async function publishUsingPublishXml(
 
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Publishing application ribbon...");
-			await dataverseAPI.publishCustomizations();
+			await publishAll();
 		}
 
 		logs.logInfo("publish", "PublishXml completed successfully.");
 	} catch (error) {
 		logs.logWarn(
 			"publish",
-			`PublishXml failed, falling back to publishCustomizations(): ${error instanceof Error ? error.message : String(error)}`,
+			`PublishXml failed, falling back to publishing table by table: ${error instanceof Error ? error.message : String(error)}`,
 		);
 		for (const entityName of entities) {
 			onProgress?.(`Fallback publish for ${entityName}...`);
-			await dataverseAPI.publishCustomizations(entityName);
+			await publishTables([entityName]);
 		}
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Fallback publish for application ribbon...");
-			await dataverseAPI.publishCustomizations();
+			await publishAll();
 		}
 	}
 }
 
-export async function publishAllAsync(
+export function publishAllAsync(
+	onProgress?: (msg: string) => void,
+	options?: { pollIntervalMs?: number; timeoutMs?: number },
+): Promise<PublishAllAsyncResult> {
+	return withCloseGuard(() => publishAllAsyncUnguarded(onProgress, options));
+}
+
+async function publishAllAsyncUnguarded(
 	onProgress?: (msg: string) => void,
 	options?: { pollIntervalMs?: number; timeoutMs?: number },
 ): Promise<PublishAllAsyncResult> {
@@ -463,7 +1048,7 @@ export async function publishAllAsync(
 	onProgress?.("Starting asynchronous publish (PublishAllXmlAsync)...");
 	logs.logInfo("publish", "Calling PublishAllXmlAsync action.");
 
-	const response = (await (dataverseAPI as any).execute({
+	const response = (await dataverseAPI.execute({
 		operationName: "PublishAllXmlAsync",
 		operationType: "action",
 	})) as { AsyncOperationId?: string };
@@ -524,7 +1109,7 @@ interface RootComponentSpec {
 	/** SolutionComponent type code — 1=Entity, 50=Ribbon Customization,
 	 * 60=SystemForm, 61=WebResource, etc. */
 	type: number;
-	/** Entity-type components use `schemaName` (logical name). */
+	/** Entity components use the logical name; the application ribbon uses `:RibbonDiffXml`. */
 	schemaName?: string;
 	/** Form / web resource / ribbon-customization components use the GUID `id`. */
 	id?: string;
@@ -532,12 +1117,9 @@ interface RootComponentSpec {
 	behavior: 0 | 1 | 2;
 }
 
-interface SolutionXmlInput {
-	uniqueName: string;
-	publisherUniqueName: string;
-	publisherName: string;
-	publisherPrefix: string;
-	version: string;
+interface SolutionXmlInput extends PublishSolutionInfo {
+	/** Organization base language. The solution manifest must match it. */
+	languageCode: number;
 	rootComponents: RootComponentSpec[];
 }
 
@@ -548,6 +1130,10 @@ function generateSolutionXml(input: SolutionXmlInput): string {
 	const pubUnique = input.publisherUniqueName?.trim() || "DefaultPublisher";
 	const pubName = input.publisherName?.trim() || pubUnique;
 	const pubPrefix = input.publisherPrefix?.trim() || "new";
+	const lang = input.languageCode || 1033;
+	// Keep the existing friendly name: the import overwrites the solution's
+	// display name with whatever LocalizedName we send (#15, verified live).
+	const friendly = input.friendlyName?.trim() || input.uniqueName;
 
 	const rootComponentsXml =
 		input.rootComponents.length === 0
@@ -565,11 +1151,11 @@ function generateSolutionXml(input: SolutionXmlInput): string {
     </RootComponents>`;
 
 	return `<?xml version="1.0" encoding="utf-8"?>
-<ImportExportXml version="9.1.0.0" SolutionPackageVersion="9.1" languagecode="1033" generatedBy="CommandBarStudio">
+<ImportExportXml version="9.1.0.0" SolutionPackageVersion="9.1" languagecode="${lang}" generatedBy="CommandBarStudio">
   <SolutionManifest>
     <UniqueName>${escapeXml(input.uniqueName)}</UniqueName>
     <LocalizedNames>
-      <LocalizedName description="${escapeXml(input.uniqueName)}" languagecode="1033"/>
+      <LocalizedName description="${escapeXml(friendly)}" languagecode="${lang}"/>
     </LocalizedNames>
     <Descriptions/>
     <Version>${escapeXml(input.version)}</Version>
@@ -577,13 +1163,13 @@ function generateSolutionXml(input: SolutionXmlInput): string {
     <Publisher>
       <UniqueName>${escapeXml(pubUnique)}</UniqueName>
       <LocalizedNames>
-        <LocalizedName description="${escapeXml(pubName)}" languagecode="1033"/>
+        <LocalizedName description="${escapeXml(pubName)}" languagecode="${lang}"/>
       </LocalizedNames>
       <Descriptions/>
       <EMailAddress/>
       <SupportingWebsiteUrl/>
       <CustomizationPrefix>${escapeXml(pubPrefix)}</CustomizationPrefix>
-      <CustomizationOptionValuePrefix>10000</CustomizationOptionValuePrefix>
+      <CustomizationOptionValuePrefix>${input.publisherOptionValuePrefix ?? 10000}</CustomizationOptionValuePrefix>
       <Addresses/>
     </Publisher>
     ${rootComponentsXml}

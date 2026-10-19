@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateRibbonDiffXml, escapeXml, wrapInCustomizationsXml } from "@/services/xmlGenerator";
+import { generateRibbonDiffXml, escapeXml, buildCustomizationsXml } from "@/services/xmlGenerator";
 import { parseRibbonXml } from "@/services/xmlParser";
 import type {
 	RibbonDefinition,
@@ -35,6 +35,11 @@ function makeInput(
 		entityLogicalName: current.entityLogicalName || "account",
 		location: current.location,
 	};
+}
+
+/** The same tabs and groups without buttons: the buttons are new, the containers exist. */
+function shell(def: RibbonDefinition): RibbonDefinition {
+	return { ...def, tabs: def.tabs.map((t) => ({ ...t, groups: t.groups.map((g) => ({ ...g, buttons: [] })) })) };
 }
 
 // ── escapeXml ──────────────────────────────────────────────────────────────
@@ -104,7 +109,7 @@ describe("generateRibbonDiffXml — custom button", () => {
 			],
 		};
 
-		const xml = generateRibbonDiffXml(makeInput(current));
+		const xml = generateRibbonDiffXml(makeInput(current, shell(current)));
 
 		expect(xml).toContain('Location="Mscrm.HomepageGrid.account.MainTab.New.Controls._children"');
 		expect(xml).toContain('Id="Contoso.account.CreditCheck.Button"');
@@ -145,7 +150,7 @@ describe("generateRibbonDiffXml — custom button", () => {
 				},
 			],
 		};
-		const xml = generateRibbonDiffXml(makeInput(current));
+		const xml = generateRibbonDiffXml(makeInput(current, shell(current)));
 		expect(xml).toContain('Location="Group1.Controls._children"');
 	});
 
@@ -672,8 +677,12 @@ describe("generateRibbonDiffXml — new groups and tabs", () => {
 		expect(xml).toContain('<Group Id="mxrm.account.MyGroup"');
 		// short template name is qualified
 		expect(xml).toContain('Template="Mscrm.Templates.Flexible2"');
-		// …and the button inside it anchors to the new group's controls.
-		expect(xml).toContain('Location="mxrm.account.MyGroup.Controls._children"');
+		// …and the button created with it is written inside its <Controls> (#59):
+		// a separate {group}.Controls._children CustomAction was dropped by Dataverse.
+		expect(xml).not.toContain('Location="mxrm.account.MyGroup.Controls._children"');
+		const doc = new DOMParser().parseFromString(xml, "application/xml");
+		const groupEl = doc.querySelector('CustomAction > CommandUIDefinition > Group[Id="mxrm.account.MyGroup"]')!;
+		expect(groupEl.querySelector(':scope > Controls > Button')?.getAttribute("Id")).toBe("mxrm.account.NewBtn.Button");
 		expectNoDanglingLocLabelRefs(xml);
 	});
 
@@ -718,7 +727,7 @@ describe("generateRibbonDiffXml — parse→generate round-trip", () => {
 	const mergedRibbon = `<?xml version="1.0" encoding="utf-8"?>
 <RibbonDefinitions>
   <RibbonDefinition>
-    <Tabs>
+    <UI><Ribbon><Tabs>
       <Tab Id="Mscrm.Form.account.MainTab" Title="Main" Sequence="10">
         <Groups>
           <Group Id="Mscrm.Form.account.MainTab.Save" Title="Save" Sequence="10" Template="Mscrm.Templates.Flexible2">
@@ -728,7 +737,7 @@ describe("generateRibbonDiffXml — parse→generate round-trip", () => {
           </Group>
         </Groups>
       </Tab>
-    </Tabs>
+    </Tabs></Ribbon></UI>
     <CustomActions>
       <CustomAction Id="mxrm.account.Button.MyButton.CustomAction" Location="Mscrm.Form.account.MainTab.Save.Controls._children" Sequence="10">
         <CommandUIDefinition>
@@ -827,11 +836,25 @@ describe("generateRibbonDiffXml — delta only", () => {
 		expect(doc.querySelector("parsererror")).toBeNull();
 	});
 
-	it("wraps RibbonDiffXml in entity customizations path via wrapInCustomizationsXml", () => {
-		const xml = "<RibbonDiffXml/>";
-		const wrapped = wrapInCustomizationsXml(xml, "account", "entity");
-		expect(wrapped).toContain("ImportExportXml");
-		expect(wrapped).toContain("account");
+	it("wraps an entity RibbonDiffXml under Entities/Entity with a <Name> child (#8)", () => {
+		const wrapped = buildCustomizationsXml({
+			entities: [{ schemaName: "Account", localizedName: "Account", ribbonDiffXml: "<RibbonDiffXml/>" }],
+		});
+		const doc = new DOMParser().parseFromString(wrapped, "application/xml");
+		expect(doc.querySelector("parsererror")).toBeNull();
+		const entity = doc.querySelector("ImportExportXml > Entities > Entity");
+		expect(entity).not.toBeNull();
+		// The attribute form <Entity Name="…"> is silently ignored by Dataverse.
+		expect(entity!.getAttribute("Name")).toBeNull();
+		expect(entity!.querySelector(":scope > Name")?.textContent).toBe("Account");
+		expect(entity!.querySelector(":scope > RibbonDiffXml")).not.toBeNull();
+	});
+
+	it("places the application ribbon RibbonDiffXml at the ImportExportXml root", () => {
+		const wrapped = buildCustomizationsXml({ applicationRibbonDiffXml: "<RibbonDiffXml/>" });
+		const doc = new DOMParser().parseFromString(wrapped, "application/xml");
+		expect(doc.querySelector("ImportExportXml > RibbonDiffXml")).not.toBeNull();
+		expect(doc.querySelector("Entities")).toBeNull();
 	});
 
 	it("does NOT include an <?xml ?> declaration (it's a fragment, not a document)", () => {
@@ -857,7 +880,9 @@ describe("generateRibbonDiffXml — delta only", () => {
 				tabs: [],
 			}),
 		);
-		const wrapped = wrapInCustomizationsXml(fragment, "account", "entity");
+		const wrapped = buildCustomizationsXml({
+			entities: [{ schemaName: "Account", localizedName: "Account", ribbonDiffXml: fragment }],
+		});
 		const declarations = wrapped.match(/<\?xml/g) ?? [];
 		expect(declarations.length).toBe(1);
 		// And the single declaration must be the very first non-whitespace.

@@ -36,7 +36,7 @@ describe("generateRibbonId", () => {
 
 	it("sanitizes entity names with special characters", () => {
 		const id = generateRibbonId("my entity!", "Test", "Button", new Set());
-		expect(id).not.toMatch(/[!@#$%^*()=+\[\]{}|;,<>?/\\]/);
+		expect(id).not.toMatch(/[!@#$%^*()=+[\]{}|;,<>?/\\]/);
 	});
 });
 
@@ -76,5 +76,14 @@ describe("generateLocLabelId", () => {
 	it("generates ToolTip IDs by appending .ToolTip", () => {
 		const id = generateLocLabelId("Contoso.account.Test.Button", "ToolTip");
 		expect(id).toBe("Contoso.account.Test.Button.ToolTip");
+	});
+});
+
+describe("ruleNameFromCommandId", () => {
+	it("uses the distinctive part of the command id", async () => {
+		const { ruleNameFromCommandId } = await import("@/utils/idGenerator");
+		expect(ruleNameFromCommandId("cbstest.contact.HomepageGrid.Approve.Command")).toBe("Approve");
+		expect(ruleNameFromCommandId("Mscrm.AssignSelectedRecord")).toBe("AssignSelectedRecord");
+		expect(ruleNameFromCommandId("")).toBe("Rule");
 	});
 });

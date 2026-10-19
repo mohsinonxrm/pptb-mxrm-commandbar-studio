@@ -5,17 +5,22 @@ import {
 	Text,
 	Switch,
 	Badge,
-	Field,
-	Select,
-	MessageBar,
-	MessageBarBody,
 } from "@fluentui/react-components";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
-import { useSessionStore } from "@/store/sessionStore";
 import { useUIStore } from "@/store/uiStore";
 import type { CommandDefinition, DisplayRule, RuleStep } from "@/types/ribbon";
-import { fetchEntityForms } from "@/services/dataverse/entityService";
+import { useSessionStore } from "@/store/sessionStore";
+import { findGroupControl } from "@/utils/ribbonMenu";
+import {
+	OPEN_RECORD_ITEM_COMMAND_ID,
+	OPEN_RECORD_ITEM_LOCATIONS,
+	isOpenRecordCarrier,
+	openRecordCarrierOwnership,
+	openRecordCarrierPlacement,
+	openRecordCarriers,
+	openRecordCommandUsers,
+} from "@/utils/openRecordItem";
 
 const useStyles = makeStyles({
 	section: {
@@ -51,46 +56,41 @@ export const AdvancedSection: React.FC = () => {
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
 	const upsertDisplayRule = useRibbonStore((s) => s.upsertDisplayRule);
+	const batch = useRibbonStore((s) => s.batch);
 	const commands = useRibbonStore((s) => s.commands);
 	const displayRules = useRibbonStore((s) => s.displayRules);
 	const openCommandEditor = useUIStore((s) => s.openCommandEditor);
+	const setOpenRecordOverride = useRibbonStore((s) => s.setOpenRecordOverride);
+	const clearSelection = useSelectionStore((s) => s.clearSelection);
+	const activeSolution = useSessionStore((s) => s.activeSolution);
+	const sessionPrefix = useSessionStore((s) => s.publisherPrefix);
 
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
 	const group = tab?.groups.find((g) => g.id === selectedGroupId);
-	const button = group?.buttons.find((b) => b.id === selectedButtonId);
-	const showOpenRecordItemToggle = location === "HomepageGrid" || location === "SubGrid";
-	const activeEntity = useSessionStore((s) => s.activeEntity);
-	const formRibbonScope = useSessionStore((s) => s.formRibbonScope);
-	const setFormRibbonScope = useSessionStore((s) => s.setFormRibbonScope);
-	const entityForms = useSessionStore((s) => s.entityForms);
-	const setEntityForms = useSessionStore((s) => s.setEntityForms);
-	const selectedFormId = useSessionStore((s) => s.selectedFormId);
-	const setSelectedFormId = useSessionStore((s) => s.setSelectedFormId);
-	const [formsLoading, setFormsLoading] = React.useState(false);
-	const [formsError, setFormsError] = React.useState<string | null>(null);
+	const button = findGroupControl(group, selectedButtonId);
+	const showOpenRecordItemToggle = OPEN_RECORD_ITEM_LOCATIONS.includes(location);
 
-	const hasOpenRecordOverride = commands.some((c) => c.id === "Mscrm.OpenRecordItem");
+	// The override is on for this location while the carrier the switch
+	// created is here (see utils/openRecordItem) — that is also what comes
+	// back from the layer on reload (#22).
+	const openRecordCarrierList = openRecordCarriers(ribbon);
+	const hasOpenRecordOverride = openRecordCarrierList.length > 0;
+	const ownership = openRecordCarrierList.map((c) => openRecordCarrierOwnership(c));
+	const openRecordTheirs = ownership.includes("theirs");
+	// Provenance not resolved: wait rather than call it another solution's.
+	const openRecordUnknown = !openRecordTheirs && ownership.includes("unknown");
+	const openRecordNoGroup = !hasOpenRecordOverride && !openRecordCarrierPlacement(ribbon);
+	// Other buttons (e.g. your own) using the command: turning off keeps them and the command.
+	const otherOpenRecordUsers = openRecordCommandUsers(ribbon).filter((c) => !isOpenRecordCarrier(c.button));
 
 	const handleOpenRecordToggle = (checked: boolean) => {
-		if (checked && !hasOpenRecordOverride) {
-			upsertCommand({
-				id: "Mscrm.OpenRecordItem",
-				enableRules: [],
-				displayRules: [],
-				actions: [
-					{
-						kind: "javascript",
-						library: "$webresource:",
-						functionName: "YourNamespace.openRecord",
-						params: [{ kind: "CrmParameter", value: "PrimaryControl" }],
-					},
-				],
-			});
-			// Open the Command Editor immediately so the user can set the real
-			// library path and function name.
-			openCommandEditor("Mscrm.OpenRecordItem");
-		}
+		const prefix = activeSolution?.publisherPrefix?.trim() || sessionPrefix?.trim() || "new";
+		if (!checked && openRecordCarrierList.some((c) => c.button.id === selectedButtonId)) clearSelection();
+		if (!setOpenRecordOverride(location, checked, prefix) || !checked) return;
+		// Open the Command Editor immediately so the user can set the real
+		// library path and function name.
+		openCommandEditor(OPEN_RECORD_ITEM_COMMAND_ID);
 	};
 
 	const getSelectedCommand = (): CommandDefinition | undefined => {
@@ -110,6 +110,7 @@ export const AdvancedSection: React.FC = () => {
 		);
 
 		let ruleId = existingRule?.id;
+		let rule: DisplayRule | undefined;
 		if (!ruleId) {
 			const baseRuleId = `${selectedCommand.id}.${type}.DisplayRule`;
 			ruleId = baseRuleId;
@@ -123,49 +124,24 @@ export const AdvancedSection: React.FC = () => {
 				kind: "CommandClientTypeRule",
 				type,
 			};
-			const rule: DisplayRule = {
+			rule = {
 				id: ruleId,
 				steps: [step],
 			};
-			upsertDisplayRule(rule);
 		}
 
-		if (!selectedCommand.displayRules.includes(ruleId)) {
-			upsertCommand({
-				...selectedCommand,
-				displayRules: [...selectedCommand.displayRules, ruleId],
-			});
-		}
+		// The new rule and its binding are one undo step (#34).
+		const boundRuleId = ruleId;
+		batch(() => {
+			if (rule) upsertDisplayRule(rule);
+			if (!selectedCommand.displayRules.includes(boundRuleId)) {
+				upsertCommand({
+					...selectedCommand,
+					displayRules: [...selectedCommand.displayRules, boundRuleId],
+				});
+			}
+		});
 	};
-
-	React.useEffect(() => {
-		if (location !== "Form") return;
-		if (!activeEntity?.logicalName) {
-			setEntityForms([]);
-			return;
-		}
-
-		let disposed = false;
-		setFormsLoading(true);
-		setFormsError(null);
-		void fetchEntityForms(activeEntity.logicalName)
-			.then((forms) => {
-				if (disposed) return;
-				setEntityForms(forms);
-			})
-			.catch((error: unknown) => {
-				if (disposed) return;
-				setEntityForms([]);
-				setFormsError(String(error));
-			})
-			.finally(() => {
-				if (!disposed) setFormsLoading(false);
-			});
-
-		return () => {
-			disposed = true;
-		};
-	}, [location, activeEntity?.logicalName, setEntityForms]);
 
 	return (
 		<div className={styles.section}>
@@ -184,71 +160,57 @@ export const AdvancedSection: React.FC = () => {
 			{showOpenRecordItemToggle && (
 				<div>
 					<Switch
-						label="Override default record open behavior (Mscrm.OpenRecordItem)"
+						label={`Override default record open behavior on the ${location === "SubGrid" ? "sub-grid" : "home grid"} (Mscrm.OpenRecordItem)`}
 						checked={hasOpenRecordOverride}
+						disabled={openRecordTheirs || openRecordUnknown || openRecordNoGroup}
 						onChange={(_, d) => handleOpenRecordToggle(d.checked)}
 					/>
 					<Text size={100} className={styles.note}>
-						When enabled, creates a CommandDefinition with Id=&quot;Mscrm.OpenRecordItem&quot; whose
-						JavaScript action overrides what happens when a user double-clicks a grid row or presses
-						Enter on a selected row. <strong>Unified Interface only.</strong> The Command Editor
-						will open so you can set the real web resource and function name.
+						When enabled, the table gets a CommandDefinition with Id=&quot;Mscrm.OpenRecordItem&quot;
+						whose action runs instead of opening the record when a user double-clicks a row of this
+						table&apos;s {location === "SubGrid" ? "sub-grids (on any form)" : "home grid"}, selects
+						its primary column link or presses Enter on it. As in Microsoft&apos;s recipe, an
+						&quot;Open record&quot; button using the command is added to this location&apos;s
+						command bar — the override only reaches a grid through a button there; don&apos;t
+						hide that button. <strong>Unified Interface only.</strong> The Command Editor will open
+						so you can set the real web resource and function name; Publish is blocked until you
+						do. Turning it off removes that button, and the command once no button uses it.
 					</Text>
+					{openRecordTheirs && (
+						<Text size={100} className={styles.note}>
+							The &quot;Open record&quot; button here comes from another solution, so the override
+							can&apos;t be turned off from your customizations.
+						</Text>
+					)}
+					{openRecordUnknown && (
+						<Text size={100} className={styles.note}>
+							CBS doesn&apos;t know yet which solution the &quot;Open record&quot; button here comes
+							from (its solution layers haven&apos;t loaded), so it isn&apos;t removed — reload the
+							table if this doesn&apos;t clear.
+						</Text>
+					)}
+					{otherOpenRecordUsers.length > 0 && (
+						<Text size={100} className={styles.note}>
+							Also using Mscrm.OpenRecordItem here:{" "}
+							{otherOpenRecordUsers.map((c) => c.button.id).join(", ")}. Turning the override off
+							keeps {otherOpenRecordUsers.length === 1 ? "it" : "them"} and the command.
+						</Text>
+					)}
+					{openRecordNoGroup && (
+						<Text size={100} className={styles.note}>
+							This location has no group to put the button in.
+						</Text>
+					)}
 				</div>
 			)}
 
 			{location === "Form" && (
-				<div style={{ display: "flex", flexDirection: "column", gap: tokens.spacingVerticalXS }}>
-					<Text size={100} weight="semibold" className={styles.note}>
-						Form ribbon scope
-					</Text>
-					<Field label="Scope target">
-						<Select
-							value={formRibbonScope}
-							onChange={(_, d) => setFormRibbonScope(d.value as "entity" | "form")}
-						>
-							<option value="entity">All forms for this table</option>
-							<option value="form">Specific form only</option>
-						</Select>
-					</Field>
-
-					{formRibbonScope === "form" && (
-						<Field label="Form picker" hint="Target systemform for RibbonDiffXml placement">
-							<Select
-								value={selectedFormId}
-								onChange={(_, d) => setSelectedFormId(d.value)}
-								disabled={formsLoading || entityForms.length === 0}
-							>
-								{entityForms.length === 0 && <option value="">No forms available</option>}
-								{entityForms.map((form) => (
-									<option key={form.formId} value={form.formId}>
-										{form.name}
-									</option>
-								))}
-							</Select>
-						</Field>
-					)}
-
-					{formsLoading && (
-						<Text size={100} className={styles.note}>
-							Loading forms...
-						</Text>
-					)}
-
-					{formsError && (
-						<MessageBar intent="warning">
-							<MessageBarBody>
-								Unable to load forms from Dataverse. Specific-form scope requires a valid form ID.
-							</MessageBarBody>
-						</MessageBar>
-					)}
-
-					<Text size={100} className={styles.note}>
-						All forms scope maps to ImportExportXml/Entities/Entity/RibbonDiffXml. Specific form
-						scope maps to
-						ImportExportXml/Entities/Entity/FormXml/forms/systemform/form/RibbonDiffXml.
-					</Text>
-				</div>
+				<Text size={100} className={styles.note}>
+					Form command bar changes apply to every main form of this table
+					(ImportExportXml/Entities/Entity/RibbonDiffXml). Form-specific ribbons
+					(systemform/form/RibbonDiffXml) aren&apos;t supported on Unified Interface, so CBS
+					doesn&apos;t write them (#14).
+				</Text>
 			)}
 
 			<div>

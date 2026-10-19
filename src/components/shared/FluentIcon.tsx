@@ -179,10 +179,11 @@ import {
 	ArrowCounterclockwiseRegular,
 	ArrowCounterclockwiseFilled,
 } from "@fluentui/react-icons";
+import type { FluentIconsProps } from "@fluentui/react-icons";
 
 type IconVariant = "regular" | "filled";
 
-type IconComponent = React.ComponentType<any>;
+type IconComponent = React.ComponentType<FluentIconsProps>;
 
 function normalizeName(name: string): string {
 	const aliasMap: Record<string, string> = {
@@ -350,6 +351,9 @@ export default FluentIcon;
  * back to preview-only). Uses a lazy import of `react-dom/server` so it doesn't
  * weigh down the main bundle.
  */
+// Shares ICON_COMPONENTS/normalizeName with the component above; moving it out
+// would only matter for HMR of this file during development.
+// eslint-disable-next-line react-refresh/only-export-components
 export async function fluentIconToSvg(
 	name: string,
 	size = 32,
@@ -371,5 +375,8 @@ export async function fluentIconToSvg(
 		markup = markup.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"');
 	}
 	markup = markup.replace(/width="1em"/, `width="${size}"`).replace(/height="1em"/, `height="${size}"`);
+	// CBS-only styling hooks (Griffel class names, ARIA for the canvas) mean
+	// nothing inside a web-resource file.
+	markup = markup.replace(/\s(?:class|aria-hidden|focusable|data-fui-icon|font-size)="[^"]*"/g, "");
 	return markup;
 }

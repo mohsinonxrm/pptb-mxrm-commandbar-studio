@@ -1,7 +1,12 @@
 import React, { useState } from "react";
 import { makeStyles, tokens, Input, Button, Text } from "@fluentui/react-components";
 import type { RuleStep } from "@/types/ribbon";
-import { RULE_KIND_GROUPS, RULE_KIND_LABELS } from "@/constants/ruleKinds";
+import {
+	RULE_KIND_GROUPS,
+	RULE_KIND_LABELS,
+	isRuleKindAllowed,
+	type RuleContainer,
+} from "@/constants/ruleKinds";
 
 const useStyles = makeStyles({
 	root: {
@@ -29,27 +34,16 @@ const useStyles = makeStyles({
 
 interface RuleStepPickerProps {
 	onSelect: (step: RuleStep) => void;
-	disableEnableOnlyKinds?: boolean;
+	/** Only kinds the schema allows in this rule type are offered (#41). */
+	container?: RuleContainer;
+	/** Picking a step for an `<Or>` group: a nested OrRule is not allowed. */
+	insideOr?: boolean;
 }
-
-const ENABLE_ONLY_INCOMPATIBLE: RuleStep["kind"][] = [
-	"EntityPrivilegeRule",
-	"EntityPropertyRule",
-	"DeviceTypeRule",
-	"OptionSetRule",
-	"CrmOutlookClientVersionRule",
-];
-
-const QUICK_ACTION_OOB_ONLY: RuleStep["kind"][] = [
-	"ShowOnQuickActionRule",
-	"ShowOnGridAndQuickActionRule",
-	"ShowOnGridRule",
-];
 
 function createDefaultStep(kind: RuleStep["kind"]): RuleStep {
 	switch (kind) {
 		case "CommandClientTypeRule":
-			return { kind, type: "Refresh", default: true };
+			return { kind, type: "Refresh" };
 		case "CrmClientTypeRule":
 			return { kind, type: "Web" };
 		case "FormStateRule":
@@ -61,7 +55,7 @@ function createDefaultStep(kind: RuleStep["kind"]): RuleStep {
 		case "EntityRule":
 			return { kind };
 		case "CustomRule":
-			return { kind, library: "$webresource:", functionName: "", default: true };
+			return { kind, library: "$webresource:", functionName: "" };
 		case "ValueRule":
 			return { kind, field: "", value: "" };
 		case "SkuRule":
@@ -69,11 +63,10 @@ function createDefaultStep(kind: RuleStep["kind"]): RuleStep {
 		case "OrRule":
 			return {
 				kind,
-				rules: [
-					{ kind: "FormStateRule", state: "Existing" },
-					{ kind: "SelectionCountRule", minimum: 1 },
-				],
+				groups: [[{ kind: "FormStateRule", state: "Existing" }], [{ kind: "FormStateRule", state: "Create" }]],
 			};
+		case "FeatureControlRule":
+			return { kind, featureControlBit: "", expectedValue: true };
 		case "OrganizationSettingRule":
 			return { kind, setting: "IsSharepointEnabled" };
 		case "EntityPrivilegeRule":
@@ -110,12 +103,6 @@ function createDefaultStep(kind: RuleStep["kind"]): RuleStep {
 			return { kind };
 		case "ReferencingAttributeRequiredRule":
 			return { kind };
-		case "ShowOnQuickActionRule":
-			return { kind };
-		case "ShowOnGridAndQuickActionRule":
-			return { kind };
-		case "ShowOnGridRule":
-			return { kind };
 		default:
 			return { kind } as RuleStep;
 	}
@@ -123,7 +110,8 @@ function createDefaultStep(kind: RuleStep["kind"]): RuleStep {
 
 export const RuleStepPicker: React.FC<RuleStepPickerProps> = ({
 	onSelect,
-	disableEnableOnlyKinds = false,
+	container,
+	insideOr = false,
 }) => {
 	const styles = useStyles();
 	const [search, setSearch] = useState("");
@@ -131,8 +119,8 @@ export const RuleStepPicker: React.FC<RuleStepPickerProps> = ({
 	const filtered = RULE_KIND_GROUPS.map((group) => ({
 		...group,
 		kinds: group.kinds.filter((k) => {
-			if (disableEnableOnlyKinds && ENABLE_ONLY_INCOMPATIBLE.includes(k)) return false;
-			if (QUICK_ACTION_OOB_ONLY.includes(k)) return false;
+			if (container && !isRuleKindAllowed(k, container, insideOr)) return false;
+			if (insideOr && k === "OrRule") return false;
 			const label = RULE_KIND_LABELS[k] ?? k;
 			return (
 				!search ||

@@ -13,5 +13,8 @@ export interface Solution {
 	publisherName: string;
 	/** Publisher's `customizationprefix` (e.g. `mxrm` — without trailing underscore). */
 	publisherPrefix: string;
+	/** Publisher's `customizationoptionvalueprefix` (e.g. `10000`). Written into solution.xml
+	 * so an import never rewrites the publisher's option-value prefix. */
+	publisherOptionValuePrefix?: number;
 	versionNumber?: number;
 }
