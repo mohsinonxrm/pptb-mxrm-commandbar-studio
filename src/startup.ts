@@ -73,7 +73,7 @@ export async function connectToHost(host: StartupHost): Promise<StartupResult> {
 }
 
 /** Replaces `container`'s content with a start-up error and what to try (plain DOM: React may be what failed). */
-export function renderStartupError(container: HTMLElement, error: unknown): void {
+export function renderStartupError(container: HTMLElement, error: unknown, title = "Command Bar Studio couldn't start"): void {
 	const doc = container.ownerDocument;
 	const el = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string) => {
 		const node = doc.createElement(tag);
@@ -83,7 +83,7 @@ export function renderStartupError(container: HTMLElement, error: unknown): void
 	const box = el("div");
 	box.setAttribute("role", "alert");
 	box.style.cssText = "font-family: 'Segoe UI', system-ui, sans-serif; padding: 24px; max-width: 720px; line-height: 1.5;";
-	box.append(el("h1", "Command Bar Studio couldn't start"));
+	box.append(el("h1", title));
 	const reason = el("p", messageOf(error));
 	reason.style.fontWeight = "600";
 	box.append(reason);
