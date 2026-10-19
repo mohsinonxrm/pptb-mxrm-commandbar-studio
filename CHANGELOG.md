@@ -201,7 +201,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Power Platform ToolBox asks before closing the tool while an import or publish runs.
 - A start-up failure (or a host that doesn't answer) shows what went wrong and what to try,
-  instead of a blank tab.
+  instead of a blank tab. So does an error later on that the tool can't recover from.
+
+### 🧑‍💻 Power Platform ToolBox for VS Code ([#89](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/89))
+
+- The tool now works in the Power Platform ToolBox VS Code extension (1.1.0): it loads instead
+  of showing a blank tab, reads table ribbons, and publishes. Before, its code files were
+  requested from the wrong address there.
+- Loading, importing and publishing send the same Dataverse requests in the desktop app and in
+  VS Code, so the extension's different helpers don't change what is imported or published.
 
 ### 🧪 Dev harness ([#24](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/24))
 
