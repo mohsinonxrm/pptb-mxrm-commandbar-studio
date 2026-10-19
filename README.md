@@ -5,6 +5,7 @@ customizations** — the spiritual successor to [Ribbon Workbench](https://www.d
 reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 [Power Platform ToolBox](https://www.powerplatformtoolbox.com/).
 
+![Version](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/version.svg)
 ![Power Platform ToolBox 1.2.7 or later](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/pptb.svg)
 ![@pptb/types 1.2.7](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/pptb-types.svg)
 ![React 18](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/react.svg)

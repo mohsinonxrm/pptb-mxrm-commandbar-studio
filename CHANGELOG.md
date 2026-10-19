@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🏗️ Technical
+
+- **Release process from FetchXML Studio.** `main` holds the stable release, betas are tagged on
+  `release/X.Y`, fixes merge forward, and the previous minor gets critical fixes for 30 days
+  (`RELEASING.md`, `SECURITY.md`, `CONTRIBUTING.md`, the PR template).
+  - `release.yml` chooses the npm tag from the version and the tagged branch: `-beta.N` / `-rc.N`
+    → `beta`, a stable tag on `main` → `latest`, on `support/X.Y` → `support-X.Y`. Anything else
+    fails before publishing.
+  - CI also runs on `release/**` and `support/**`, and fails on high or critical
+    `npm audit --omit=dev` findings.
+  - Dependabot proposes grouped weekly npm and GitHub Actions updates into `dev`, with a 14-day
+    cooldown.
+  - A README version badge, generated with `npm run version-badge`. `engines` asks for Node 22 or
+    later, and `@pptb/types` is pinned to 1.2.7.
+
 ### 💾 Restoring unsaved changes ([#16](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/16))
 
 - **Restore** now brings back everything that was going to be published: the canvas,
