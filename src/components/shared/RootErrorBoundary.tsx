@@ -10,7 +10,7 @@ interface RootErrorBoundaryState {
  * Last-resort boundary around the whole app. Without it, an error React can't
  * contain — e.g. a code chunk the host fails to serve (#89, VS Code extension)
  * — unmounts the tree and leaves a blank tab. Shows the start-up error screen
- * instead, with "Try again".
+ * instead, with what to do next.
  */
 export class RootErrorBoundary extends Component<{ children: ReactNode }, RootErrorBoundaryState> {
 	state: RootErrorBoundaryState = { error: undefined };

@@ -7,7 +7,7 @@ import { RootErrorBoundary } from "@/components/shared/RootErrorBoundary";
 afterEach(() => vi.restoreAllMocks());
 
 describe("RootErrorBoundary (#89)", () => {
-	it("shows the error screen with Try again when a lazy chunk fails to load", async () => {
+	it("shows the error screen when a lazy chunk fails to load", async () => {
 		vi.spyOn(console, "error").mockImplementation(() => {});
 		const Broken = lazy(() =>
 			Promise.reject(
@@ -28,7 +28,7 @@ describe("RootErrorBoundary (#89)", () => {
 		const alert = container.querySelector('[role="alert"]');
 		expect(alert?.querySelector("h1")?.textContent).toBe("Command Bar Studio stopped working");
 		expect(alert?.textContent).toContain("Failed to fetch dynamically imported module");
-		expect(alert?.querySelector("button")?.textContent).toBe("Try again");
+		expect(alert?.textContent).toContain("Close the Command Bar Studio tab and open the tool again.");
 		act(() => root.unmount());
 	});
 

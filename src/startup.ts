@@ -88,17 +88,16 @@ export function renderStartupError(container: HTMLElement, error: unknown, title
 	reason.style.fontWeight = "600";
 	box.append(reason);
 	const tips = el("ul");
+	// No reload button: neither host can reload a tool page — the desktop app
+	// loses the tool's context and the VS Code extension shows an empty frame.
 	for (const tip of [
+		"Close the Command Bar Studio tab and open the tool again.",
 		`Use Power Platform ToolBox ${MIN_PPTB_VERSION} or later (desktop app or VS Code extension).`,
-		"Make sure a connection is active and signed in, then open the tool again.",
+		"Make sure a connection is active and signed in.",
 		"If it keeps happening, report it at https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues with this message.",
 	])
 		tips.append(el("li", tip));
 	box.append(tips);
-	const retry = el("button", "Try again");
-	retry.type = "button";
-	retry.addEventListener("click", () => doc.defaultView?.location.reload());
-	box.append(retry);
 	container.replaceChildren(box);
 }
 
