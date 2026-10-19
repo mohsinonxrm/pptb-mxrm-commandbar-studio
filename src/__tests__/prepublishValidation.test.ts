@@ -986,9 +986,9 @@ describe("checkBeforePublish / publishRibbon", () => {
 
 	it("publishRibbon refuses to import when the check finds an error", async () => {
 		layer = emptyRibbonDiffParts();
-		const deploySolution = vi.fn();
+		const execute = vi.fn();
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = {
-			deploySolution,
+			execute,
 			queryData: vi.fn(async () => ({ value: [] })),
 		};
 		vi.resetModules();
@@ -1035,7 +1035,7 @@ describe("checkBeforePublish / publishRibbon", () => {
 				busy: { sleep: async () => undefined },
 			}),
 		).rejects.toThrow(/pre-publish check found 1 error.*Power Fx/);
-		expect(deploySolution).not.toHaveBeenCalled();
+		expect(execute).not.toHaveBeenCalled();
 	});
 });
 

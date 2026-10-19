@@ -195,27 +195,30 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 				<ErrorBoundary label="Bottom panel">{bottomPanel}</ErrorBoundary>
 			</div>
 
-			{/* Lazy-loaded global overlays */}
-			<Suspense fallback={null}>
-				<XmlDrawer />
-				<CommandEditorPanel />
-				<RuleEditorPanel />
-				<BulkPublishModal />
-				<NewButtonModal />
-				<NewGroupModal />
-				<NewTabModal />
-				<ImportXmlModal />
-				<CommandPalette />
-				<LocalizationEditor />
-				<IconPickerModal />
-				<TabDisplayRulesPanel />
-				<ScalingEditorPanel />
-				<ConflictDrawer />
-				<WebResourceBrowser />
-				<UrlComposerModal />
-				<DiffViewer />
-				<HideInsteadOfDeleteModal />
-			</Suspense>
+			{/* Lazy-loaded global overlays. A chunk that fails to load must not take
+			    the whole tool down (#89). */}
+			<ErrorBoundary label="Panels">
+				<Suspense fallback={null}>
+					<XmlDrawer />
+					<CommandEditorPanel />
+					<RuleEditorPanel />
+					<BulkPublishModal />
+					<NewButtonModal />
+					<NewGroupModal />
+					<NewTabModal />
+					<ImportXmlModal />
+					<CommandPalette />
+					<LocalizationEditor />
+					<IconPickerModal />
+					<TabDisplayRulesPanel />
+					<ScalingEditorPanel />
+					<ConflictDrawer />
+					<WebResourceBrowser />
+					<UrlComposerModal />
+					<DiffViewer />
+					<HideInsteadOfDeleteModal />
+				</Suspense>
+			</ErrorBoundary>
 
 			{/* ARIA live region — announces keyboard shortcut actions to screen readers */}
 			<div

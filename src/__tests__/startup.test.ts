@@ -46,7 +46,7 @@ describe("connectToHost (#89)", () => {
 });
 
 describe("renderStartupError (#89)", () => {
-	it("shows the reason, what to try and a retry button instead of a blank tab", () => {
+	it("shows the reason and what to try instead of a blank tab", () => {
 		const root = document.createElement("div");
 		root.textContent = "Loading…";
 		renderStartupError(root, new Error("boom"));
@@ -54,7 +54,9 @@ describe("renderStartupError (#89)", () => {
 		expect(alert.textContent).toContain("Command Bar Studio couldn't start");
 		expect(alert.textContent).toContain("boom");
 		expect(alert.textContent).toContain("1.2.7 or later");
-		expect(root.querySelector("button")?.textContent).toBe("Try again");
+		expect(alert.textContent).toContain("Close the Command Bar Studio tab and open the tool again.");
+		// Reloading a tool page doesn't work in either host, so there's no reload button.
+		expect(root.querySelector("button")).toBeNull();
 		expect(root.textContent).not.toContain("Loading…");
 	});
 });
