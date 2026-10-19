@@ -2,47 +2,147 @@
 
 The npm package `@mohsinonxrm/pptb-commandbar-studio` is published by CI
 (`.github/workflows/release.yml`) when a `v*` tag is pushed. Nobody runs `npm publish`
-locally.
+locally. The same process is used by FetchXML Studio and Dataverse Request Studio.
 
 ## Branches
 
-- Work happens on branches cut from `dev` and squash-merged into `dev` by PR.
-- A release is a PR from `dev` into `main`. Merge it with a **merge commit**, so `main`
-  and `dev` keep the same history.
-- CI (`ci.yml`) runs on every PR and on pushes to `dev` and `main`.
+| Branch | Holds | Tags | npm |
+|---|---|---|---|
+| `main` | The current **stable** release, plus hotfixes | `vX.Y.Z` | `latest` |
+| `release/X.Y` | The next minor release while it **stabilizes**; exists from the feature freeze until `X.Y.0` ships | `vX.Y.0-beta.N`, `vX.Y.0-rc.N` | `beta` |
+| `dev` | Development of the release after that; **never frozen** | none | — |
+| `support/X.Y` | Critical fixes for the previous minor release; created only when needed (see *Supported versions*) | `vX.Y.Z` | `support-X.Y` |
 
-## Cutting a release
+- Work happens on branches cut from `dev`, merged into `dev` by PR (squash is fine).
+- Merges **between** long-lived branches (`main`, `release/*`, `support/*`, `dev`) always
+  use a **merge commit**, so history is shared and fixes are never lost.
+- CI (`ci.yml`) runs on every PR and on pushes to `dev`, `main`, `release/**` and
+  `support/**`. A ruleset on those branches requires PRs and the `check` status.
 
-1. On a branch from `dev`, set the version and date the changelog:
+## Every PR
 
-   ```bash
-   npm version 0.6.0 --no-git-tag-version          # or e.g. 0.6.0-beta.1
-   ```
+- Add your user-facing changes under `## [Unreleased]` in `CHANGELOG.md`, and update the
+  README's feature docs if behaviour changes.
+- Don't change the version: it's set when a release is cut. That keeps PRs independent,
+  so they can merge in any order.
+- Put `Closes #N` in the PR description. PRs into `dev` close the issue on merge. For PRs
+  into `main`, `release/*` or `support/*`, the issue closes when the squash commit (which
+  includes the description) reaches `dev` through the forward merge.
 
-   In `CHANGELOG.md`, rename `## [Unreleased]` to `## [0.6.0] - YYYY-MM-DD` and add a
-   new empty `## [Unreleased]` above it. Open a PR into `dev`.
+## Where a fix goes
 
-2. Open the release PR `dev → main` and merge it with a merge commit.
+**Fix on the oldest supported branch that has the bug, then merge forward:**
+`support/X.Y` → `main` → `release/X.Y` → `dev`. Never copy a fix backwards from `dev`.
 
-3. Tag the merge commit on `main` and push the tag:
+| The bug exists in | Fix PR into | Release | Then merge forward |
+|---|---|---|---|
+| The current stable release (and later) | `hotfix/X.Y.Z` → `main` | tag `vX.Y.Z` on `main` → `latest` | `main` → `release/*` (if open) → `dev` |
+| Only the release being stabilized | `release/X.Y` | tag `vX.Y.0-beta.N` → `beta` | `release/X.Y` → `dev` |
+| Only `dev` | `dev` | with the next release | — |
+| The previous minor only (support window) | `support/X.Y` | tag `vX.Y.Z` → `support-X.Y` | to `main` if it applies there too |
 
-   ```bash
-   git switch main && git pull
-   git tag v0.6.0 && git push origin v0.6.0
-   ```
+When a forward merge conflicts badly because the code has moved on, re-apply the fix on
+the newer branch in a small companion PR instead.
 
-4. `release.yml` checks that the tag matches `package.json`, runs the tests, validation
-   and build, publishes to npm, and creates the GitHub Release. Versions with a
-   pre-release part (`-beta.1`) go to the `beta` npm tag and are marked as pre-releases;
-   everything else goes to `latest`.
+**Resolving forward-merge conflicts** in `CHANGELOG.md`, `package.json` and
+`assets/badges/version.svg`: keep the newest version (the one being released), keep the
+target branch's own `[Unreleased]` entries on top (drop any that the incoming dated
+section already lists), and add the incoming dated sections in version order.
 
-## One-time setup
+## Release lifecycle
 
-- **npm trusted publisher**: on npmjs.com → package → *Settings* → *Trusted publishing*
-  → *GitHub Actions*: user `mohsinonxrm`, repository `pptb-mxrm-commandbar-studio`,
-  workflow `release.yml`. No npm token is needed.
-- `repository.url` in `package.json` must point at this GitHub repository, or
-  provenance and trusted publishing fail.
+### 1. Feature freeze: cut the release branch
+
+Once the release's scope is in `dev`:
+
+```bash
+git switch dev && git pull && git switch -c release/0.6 && git push -u origin release/0.6
+```
+
+`dev` carries on with the next release straight away.
+
+### 2. Betas (from `release/X.Y`)
+
+1. On a branch from `release/0.6` (e.g. `release/0.6.0-beta.2`):
+   - `npm version 0.6.0-beta.2 --no-git-tag-version`
+   - in `CHANGELOG.md`, rename `## [Unreleased]` to `## [0.6.0-beta.2] - YYYY-MM-DD` and
+     add a new empty `## [Unreleased]` above it
+   - `npm run version-badge` (rewrites `assets/badges/version.svg` from `package.json`)
+
+   and PR it into `release/0.6`.
+2. Tag the merged commit on `release/0.6`:
+   `git switch release/0.6 && git pull && git tag v0.6.0-beta.2 && git push origin v0.6.0-beta.2`.
+3. Merge `release/0.6` into `dev` with a PR (`merge/release-0.6-into-dev`, merge commit) so
+   `dev` has the fixes.
+
+`-beta.N` and `-rc.N` publish to the npm `beta` tag as a GitHub pre-release; `latest`
+doesn't change. The build bundles the gold Insider icon for pre-releases.
+
+### 3. Stabilizing (beta → stable)
+
+Before promoting a beta to `latest`:
+
+1. **Milestone clear:** every issue in the milestone is closed or moved.
+2. **Smoke test** the latest beta, installed from npm, in the PPTB version the tool
+   targets (`minAPI`), in the **desktop app and the VS Code extension**. Run the manual
+   checks the tracking issue lists, including a publish on a test table.
+3. **Soak:** 7 days with no new P0/P1 bug against the latest beta. Each fix ships as a
+   new `beta.N`, and the clock restarts.
+4. **Health:** CI green on `release/X.Y`; `npm audit --omit=dev --audit-level=high`
+   reports 0.
+
+### 4. Stable release (to `main`)
+
+1. Release-prep PR into `release/0.6`: `npm version 0.6.0 --no-git-tag-version`, a
+   `[0.6.0]` CHANGELOG section that summarises the betas above their history, and
+   `npm run version-badge`.
+2. PR `release/0.6` → `main`, merged with a merge commit.
+3. Tag the merge commit on `main`: `git switch main && git pull && git tag v0.6.0 && git push origin v0.6.0`.
+4. Merge `main` into `dev` (merge commit), then delete `release/0.6`.
+
+## Hotfixes (to the current stable release)
+
+1. Branch `hotfix/0.6.1` from `main`; fix, set the version (`0.6.1`), date its CHANGELOG
+   section, run `npm run version-badge`; PR into `main` (merge commit).
+2. Tag `v0.6.1` on `main` → npm `latest`.
+3. Merge `main` forward into `release/*` (if one is open) and `dev`.
+
+## Supported versions
+
+- **The current stable release** (`main`) gets fixes as hotfixes.
+- **The previous minor release** gets **critical and security fixes for 30 days** after
+  the next minor ships. Command Bar Studio 0.6 requires PPTB 1.2.7 (0.5.x ran on 1.2.0),
+  so 0.5.x stays available for users who can't update PPTB yet. When such a fix is needed,
+  create `support/0.5` (0.5.2 was published before tags were used, so branch from `main`:
+  `git switch -c support/0.5 origin/main && git push -u origin support/0.5`), PR the fix
+  into it, set the version to `0.5.3`, and tag `v0.5.3` there. It publishes to the npm
+  `support-0.5` tag, never `latest`, and isn't marked as the latest GitHub Release.
+- Older versions aren't supported. `SECURITY.md` lists the supported versions.
+
+## Milestones and tracking
+
+- Each release has a milestone (`v0.6.0`, `v0.6.1`). It's the release that **ships** the
+  change, and its closed issues are the list of what the release contains. Close issues
+  as they're done; that doesn't lose track of them.
+- What each beta contains is its `[X.Y.Z-beta.N]` CHANGELOG section and its GitHub
+  pre-release notes.
+- A **"Release X.Y.Z" tracking issue** in the minor release's milestone holds the
+  stabilizing checklist. The milestone closes when the stable release ships.
+
+## What `release.yml` does
+
+Checks the tag matches `package.json` and chooses the channel from the version and the
+tagged commit:
+
+| Tag | Tagged commit must be on | npm tag | GitHub Release |
+|---|---|---|---|
+| `vX.Y.Z-beta.N`, `vX.Y.Z-rc.N` | any branch (normally `release/X.Y`) | `beta` | pre-release |
+| `vX.Y.Z` | `main` | `latest` | latest |
+| `vX.Y.Z` | `support/X.Y` | `support-X.Y` | not marked latest |
+
+Any other tag fails before publishing. It then runs the tests, validation and build,
+publishes to npm with provenance and creates the GitHub Release. Afterwards, replace the
+generated release notes with the CHANGELOG section.
 
 ## Tool icon and README images
 
@@ -53,4 +153,18 @@ locally.
   and `*.githubusercontent.com`, and escapes raw HTML. Keep README images as files in
   the repo (badges live in `assets/badges/`) referenced by absolute
   `raw.githubusercontent.com/.../refs/heads/main/...` URLs, and don't use
-  `img.shields.io` or HTML tags. Update the badge SVGs when the versions they show change.
+  `img.shields.io` or HTML tags. The version badge is generated
+  (`npm run version-badge`); update the other badge SVGs by hand when the versions they
+  show change.
+
+## One-time setup
+
+- **npm trusted publisher**: npmjs.com → package → *Settings* → *Trusted publishing* →
+  *GitHub Actions*: user `mohsinonxrm`, repository `pptb-mxrm-commandbar-studio`,
+  workflow `release.yml`, no environment, *Allow npm publish*. No npm token is needed.
+- `repository.url` in `package.json` must point at this GitHub repository, or provenance
+  and trusted publishing fail.
+- A ruleset on `dev`, `main`, `release/**` and `support/**` requiring PRs and the `check`
+  status.
+- Repository *Settings* → *Pull Requests* → squash merging → default commit message
+  **"Pull request title and description"**, so `Closes #N` travels with the commit.
