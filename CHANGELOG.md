@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - CI's runtime audit fails on **moderate** findings and above (was high).
   - Dependabot groups take minor and patch updates only; a major arrives as its own PR, and
     eslint 10 waits for `eslint-plugin-jsx-a11y`.
+
 ## [0.6.0] - 2026-10-18
 
 The v0.6.0 milestone: publishing that keeps what's already in your customizations and verifies
