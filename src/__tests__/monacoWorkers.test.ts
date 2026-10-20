@@ -14,11 +14,11 @@ const exportsMap = JSON.parse(readFileSync(path.join(monacoRoot, "package.json")
 const setup = readFileSync(path.resolve(__dirname, "../utils/monacoSetup.ts"), "utf8");
 const specifiers = [...setup.matchAll(/from "monaco-editor\/([^"?]+)\?worker"/g)].map((m) => m[1]);
 
-/** Resolves `monaco-editor/<sub>` through the package's `./*` export, as Vite does. */
+/** Resolves `monaco-editor/<sub>` through the package's `./*` export, as Node and Vite do (every `*` in the target is replaced). */
 function resolveExport(sub: string): string {
 	const target = exportsMap["./*"];
 	if (typeof target !== "string") throw new Error("monaco-editor has no ./* export");
-	return path.join(monacoRoot, target.replace("*", sub));
+	return path.join(monacoRoot, target.replaceAll("*", sub));
 }
 
 describe("Monaco worker imports (#117)", () => {
