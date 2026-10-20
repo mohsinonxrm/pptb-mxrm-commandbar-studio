@@ -16,10 +16,14 @@ import { useDraftStore } from "@/store/draftStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useModernCommandStore } from "@/store/modernCommandStore";
-import { useUIStore } from "@/store/uiStore";
+import { useUIStore, type UIStore } from "@/store/uiStore";
+import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 
-/** Panels that show something of the loaded workspace. The publish dialog stays: a running publish reports there. */
+/**
+ * Panels that show something of the loaded workspace or the previous
+ * environment. The publish dialog stays: a running publish reports there.
+ */
 const WORKSPACE_PANELS = [
 	"commandEditorOpen",
 	"ruleEditorOpen",
@@ -29,13 +33,13 @@ const WORKSPACE_PANELS = [
 	"newGroupOpen",
 	"importXmlOpen",
 	"conflictDrawerOpen",
+	"webResourceBrowserOpen",
 	"urlComposerOpen",
 	"diffViewerOpen",
 	"tabDisplayRulesOpen",
 	"scalingEditorOpen",
 	"newTabOpen",
-	"newButtonOpen",
-] as const;
+] as const satisfies readonly (keyof UIStore)[];
 
 export type ConnectionChange = "none" | "details" | "switched";
 
@@ -82,16 +86,26 @@ export function applyHostConnection(connection: HostConnection | null): Connecti
 	useModernCommandStore.getState().reset();
 	resetPublishedIcons();
 	resetModernCommandLog();
-	const ui = useUIStore.getState() as unknown as Record<string, unknown>;
-	const closed = Object.fromEntries(
-		WORKSPACE_PANELS.filter((key) => key in ui).map((key) => [key, false]),
-	);
-	useUIStore.setState(closed as never);
+	// A web resource picked in the browser must not land on the reset workspace.
+	webResourceBrowserCallbackRegistry.clear();
 
 	session.switchConnection(connection, {
 		draftKept: hadChanges && kept,
 		draftLost: hadChanges && !kept,
 	});
+
+	// Last, and best effort: the UI store is persisted, and a full browser
+	// storage makes its write throw. The switch above must not depend on it.
+	try {
+		useUIStore.setState(
+			Object.fromEntries(WORKSPACE_PANELS.map((key) => [key, false])) as Partial<UIStore>,
+		);
+	} catch (error) {
+		log.logWarn(
+			"startup",
+			`Couldn't close the open panels after the connection change: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
 
 	log.logWarn(
 		"startup",

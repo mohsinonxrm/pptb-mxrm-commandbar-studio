@@ -1,3 +1,4 @@
+import type { WriteGuard } from "@/services/hostConnection";
 import {
 	publishWebResource,
 	saveWebResource,
@@ -44,7 +45,9 @@ export interface FluentIconWebResourceDeps {
 		typeCode: number,
 		options: UpsertWebResourceOptions,
 	) => Promise<UpsertWebResourceResult>;
-	publish: (id: string) => Promise<void>;
+	publish: (id: string, guard?: WriteGuard) => Promise<void>;
+	/** Bound when the user picked the icon (#120): the save and the publish go to that connection. */
+	guard?: WriteGuard;
 	/** Busy-environment retry for the publish (progress callback; tests inject a fake clock). */
 	busy?: BusyWaitOptions;
 	/** Ids of icon web resources published in this session (module-wide by default). */
@@ -96,11 +99,12 @@ export async function ensureFluentIconWebResource(
 	const saved = await save(name, toBase64Utf8(svg), SVG_TYPE_CODE, {
 		displayName: `${fluentIconFileName(pascalName, variant)} (CBS icon)`,
 		keepExisting: true,
+		guard: deps.guard,
 	});
 	const result: FluentIconWebResource = { name, id: saved.id, created: saved.created };
 	if (!published.has(saved.id)) {
 		try {
-			await withBusyRetry(`Publishing icon web resource ${name}`, () => publish(saved.id), {
+			await withBusyRetry(`Publishing icon web resource ${name}`, () => publish(saved.id, deps.guard), {
 				timeoutMs: PUBLISH_BUSY_TIMEOUT_MS,
 				...deps.busy,
 			});

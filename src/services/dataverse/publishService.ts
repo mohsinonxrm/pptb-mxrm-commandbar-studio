@@ -167,6 +167,12 @@ export interface PublishSolutionInfo {
 }
 
 export interface PublishRibbonInput {
+	/**
+	 * The guard of the whole publish run (#120): one run publishes several
+	 * scopes, and none may start on another connection than the run did.
+	 * Default: a guard bound when this publish starts.
+	 */
+	guard?: WriteGuard;
 	/** The table whose ribbon is published, or `null` for the application ribbon. */
 	entity: { logicalName: string; schemaName?: string; displayName?: string } | null;
 	/** Every location of this ribbon scope that has changes. For a table that is
@@ -746,7 +752,7 @@ async function publishRibbonUnguarded(
 	onProgress?: (msg: string) => void,
 ): Promise<PublishRibbonResult> {
 	// Every write of this operation goes to the connection it started on (#120).
-	const guard = writeGuard();
+	const guard = input.guard ?? writeGuard();
 	const logs = useRuntimeLogStore.getState();
 	const scopeLabel = input.entity ? input.entity.logicalName : "Application ribbon";
 	const busy: BusyWaitOptions = { onProgress, ...input.busy };
@@ -1043,17 +1049,17 @@ async function publishUsingPublishXmlUnguarded(
 
 export function publishAllAsync(
 	onProgress?: (msg: string) => void,
-	options?: { pollIntervalMs?: number; timeoutMs?: number },
+	options?: { pollIntervalMs?: number; timeoutMs?: number; guard?: WriteGuard },
 ): Promise<PublishAllAsyncResult> {
 	return withCloseGuard(() => publishAllAsyncUnguarded(onProgress, options));
 }
 
 async function publishAllAsyncUnguarded(
 	onProgress?: (msg: string) => void,
-	options?: { pollIntervalMs?: number; timeoutMs?: number },
+	options?: { pollIntervalMs?: number; timeoutMs?: number; guard?: WriteGuard },
 ): Promise<PublishAllAsyncResult> {
 	// Every write of this operation goes to the connection it started on (#120).
-	const guard = writeGuard();
+	const guard = options?.guard ?? writeGuard();
 	const logs = useRuntimeLogStore.getState();
 	const pollIntervalMs = options?.pollIntervalMs ?? 2000;
 	const timeoutMs = options?.timeoutMs ?? 10 * 60 * 1000;

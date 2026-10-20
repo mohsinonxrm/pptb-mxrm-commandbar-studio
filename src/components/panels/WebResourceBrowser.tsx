@@ -1,3 +1,4 @@
+import { writeGuard } from "@/services/hostConnection";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
 	makeStyles,
@@ -276,6 +277,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 	};
 
 	const handleUpload = async (file: File) => {
+		const guard = writeGuard(); // uploaded to the connection it was picked on (#120)
 		setUploading(true);
 		setWarning(null);
 		try {
@@ -297,6 +299,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 				}[ext] ?? 4;
 			const saved = await saveWebResource(inferWebResourceName(file), content, typeCode, {
 				displayName: file.name,
+				guard,
 			});
 			await reloadResources();
 			setWarning(saved.solutionWarning ?? null);

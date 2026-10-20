@@ -17,6 +17,7 @@ import {
 	connectionKey,
 	watchHostConnection,
 	writeGuard,
+	getPrimaryConnection,
 	type HostConnection,
 } from "@/services/hostConnection";
 import { applyHostConnection } from "@/services/connectionSwitch";
@@ -85,6 +86,7 @@ const session = () => useSessionStore.getState();
 let hostConnection: HostConnection | null;
 let handlers: Array<(event: unknown, payload: { event: string; data: unknown }) => void>;
 const getConnection = vi.fn(async (_slot: unknown) => hostConnection);
+const activeConnection = vi.fn(async () => hostConnection);
 const emit = (event: string) => handlers.forEach((h) => h({}, { event, data: {} }));
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
@@ -131,7 +133,7 @@ beforeEach(() => {
 	handlers = [];
 	getConnection.mockClear();
 	(window as unknown as { toolboxAPI: unknown }).toolboxAPI = {
-		connections: { getConnection, getActiveConnection: vi.fn(async () => hostConnection) },
+		connections: { getConnection, getActiveConnection: activeConnection },
 		events: { on: (h: (typeof handlers)[number]) => handlers.push(h), off: vi.fn() },
 	};
 	useDraftStore.setState({
@@ -272,7 +274,9 @@ describe("assertWorkspaceConnection (#120)", () => {
 	});
 
 	it("refuses when the host can't say which connection the tool is on", async () => {
+		// Neither slot 0 nor the active connection can be read.
 		getConnection.mockRejectedValueOnce(new Error("host gone"));
+		activeConnection.mockRejectedValueOnce(new Error("host gone"));
 		await expect(assertWorkspaceConnection("The import")).rejects.toBeInstanceOf(
 			ConnectionChangedError,
 		);
@@ -306,6 +310,45 @@ describe("assertWorkspaceConnection (#120)", () => {
 	});
 });
 
+describe("switch edge cases (#120)", () => {
+	it("a switch while the unsaved-changes prompt is open keeps the draft and drops the prompt", () => {
+		edit();
+		useDraftStore
+			.getState()
+			.requestEntitySwitch({ ...entity, logicalName: "account", metadataId: "md-account" });
+		expect(useDraftStore.getState().pendingSwitch).not.toBeNull();
+		applyHostConnection(PROD);
+		expect(useDraftStore.getState().pendingSwitch).toBeNull();
+		expect(readDraft(DEV_KEY)).not.toBeNull();
+		expect(session().connectionNotice?.draftKept).toBe(true);
+	});
+
+	it("when the draft can't be saved, the banner says the changes are lost", () => {
+		const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new DOMException("full", "QuotaExceededError");
+		});
+		try {
+			edit();
+			expect(useDraftStore.getState().saveFailed).toBe(true);
+			applyHostConnection(PROD);
+			expect(session().connectionNotice).toMatchObject({ draftKept: false, draftLost: true });
+			expect(useDraftStore.getState().saveFailed).toBe(false);
+		} finally {
+			setItem.mockRestore();
+		}
+	});
+});
+
+describe("getPrimaryConnection (#120)", () => {
+	it("reads slot 0, and the active connection when slot 0 has none or can't be read", async () => {
+		expect((await getPrimaryConnection())?.id).toBe(DEV.id);
+		getConnection.mockResolvedValueOnce(null);
+		expect((await getPrimaryConnection())?.id).toBe(DEV.id);
+		getConnection.mockRejectedValueOnce(new Error("no slots"));
+		expect((await getPrimaryConnection())?.id).toBe(DEV.id);
+	});
+});
+
 describe("watchHostConnection (#120)", () => {
 	it("re-reads the tool's connection on connection events only, and reports the latest answer", async () => {
 		const seen: Array<string | undefined> = [];
@@ -324,6 +367,22 @@ describe("watchHostConnection (#120)", () => {
 		emit("connection:deleted");
 		await flush();
 		expect(seen).toEqual(["c-prod", "c-prod"]);
+	});
+
+	it("a slow earlier answer doesn't override a newer one", async () => {
+		const seen: Array<string | undefined> = [];
+		watchHostConnection((c) => seen.push(c?.id));
+		let releaseFirst!: (c: HostConnection) => void;
+		getConnection.mockImplementationOnce(
+			() => new Promise<HostConnection>((r) => (releaseFirst = r)),
+		);
+		emit("connection:updated"); // first read: slow, answers Dev
+		hostConnection = PROD;
+		emit("connection:updated"); // second read: answers Prod at once
+		await flush();
+		releaseFirst(DEV);
+		await flush();
+		expect(seen).toEqual(["c-prod"]);
 	});
 
 	it("drives the reset end to end: a switch closes the workspace, a refresh doesn't", async () => {

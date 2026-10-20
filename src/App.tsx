@@ -127,6 +127,7 @@ export function App() {
 				logInfo("runtime", `Loaded ${sols.length} solution(s). Pick one to load its tables.`);
 			})
 			.catch((error) => {
+				if (cancelled) return;
 				logError(
 					"runtime",
 					`Failed to load solutions: ${error instanceof Error ? error.message : String(error)}`,

@@ -95,6 +95,12 @@ export interface UpsertWebResourceOptions {
 	 * its content (it is still added to the solution).
 	 */
 	keepExisting?: boolean;
+	/**
+	 * Bound when the user acted (#120), so a connection switch while the
+	 * content is prepared can't send it to the new environment. Default: bound
+	 * when the save starts.
+	 */
+	guard?: WriteGuard;
 }
 
 export interface UpsertWebResourceResult {
@@ -151,7 +157,7 @@ export async function upsertWebResource(
 	options: UpsertWebResourceOptions = {},
 ): Promise<UpsertWebResourceResult> {
 	// The save and the add to the solution go to the connection the save started on (#120).
-	const guard = writeGuard();
+	const guard = options.guard ?? writeGuard();
 	const { displayName, solutionUniqueName, keepExisting = false } = options;
 	// Check whether it already exists
 	const existing = await api.queryData(
@@ -353,6 +359,7 @@ export async function saveWebResource(
 export async function addExistingWebResourceToActiveSolution(
 	name: string,
 	known?: { id: string; isCustom?: boolean },
+	guard: WriteGuard = assertWorkspaceConnection,
 ): Promise<{ solutionUniqueName?: string; solutionWarning?: string }> {
 	const found = known ?? (await loadWebResourceByName(name));
 	if (!found?.id) throw new Error(`No web resource named ${name} exists in this environment.`);
@@ -375,7 +382,7 @@ export async function addExistingWebResourceToActiveSolution(
 		useRuntimeLogStore.getState().logWarn("webresource", solutionWarning);
 		return { solutionWarning };
 	}
-	await addWebResourceToSolution(getHostDataverseApi(), id, active.uniqueName);
+	await addWebResourceToSolution(getHostDataverseApi(), id, active.uniqueName, guard);
 	return { solutionUniqueName: active.uniqueName };
 }
 
@@ -384,10 +391,13 @@ export async function addExistingWebResourceToActiveSolution(
  * created/updated icon is immediately live (and resolvable by a ribbon that
  * references it). Best-effort — callers should treat failure as non-fatal.
  */
-export async function publishWebResource(id: string): Promise<void> {
+export async function publishWebResource(
+	id: string,
+	guard: WriteGuard = assertWorkspaceConnection,
+): Promise<void> {
 	const api = getHostDataverseApi();
 	const parameterXml = `<importexportxml><webresources><webresource>${id}</webresource></webresources></importexportxml>`;
-	await assertWorkspaceConnection("Publishing the web resource");
+	await guard("Publishing the web resource");
 	await api.execute({
 		operationName: "PublishXml",
 		operationType: "action",

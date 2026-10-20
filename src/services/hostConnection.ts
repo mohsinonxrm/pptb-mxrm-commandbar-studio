@@ -30,12 +30,18 @@ function connectionsApi(): Partial<ToolBoxAPI.ConnectionsAPI> | undefined {
 	return (window as Window & typeof globalThis).toolboxAPI?.connections;
 }
 
-/** The tool's primary connection (slot 0 on PPTB 1.2.7+, the active connection on older hosts). */
+/**
+ * The tool's primary connection: slot 0 on PPTB 1.2.7+, the active connection
+ * when the host has no slots or slot 0 has nothing. Start-up, the watcher and
+ * the write guard all read it this way, so they agree.
+ */
 export async function getPrimaryConnection(): Promise<HostConnection | null> {
 	const connections = connectionsApi();
 	if (!connections) return null;
-	if (typeof connections.getConnection === "function")
-		return (await connections.getConnection(0)) ?? null;
+	if (typeof connections.getConnection === "function") {
+		const primary = await connections.getConnection(0).catch(() => null);
+		if (primary) return primary;
+	}
 	if (typeof connections.getActiveConnection === "function")
 		return (await connections.getActiveConnection()) ?? null;
 	return null;
@@ -45,8 +51,8 @@ export async function getPrimaryConnection(): Promise<HostConnection | null> {
 export class ConnectionChangedError extends Error {
 	constructor(action: string) {
 		super(
-			`${action} was stopped: the tool's connection changed in Power Platform ToolBox, so it would have ` +
-				`written to a different environment than the one this workspace was loaded from. Nothing was written.`,
+			`${action} was stopped: the tool's connection changed in Power Platform ToolBox. Nothing was written to ` +
+				`the newly selected environment; anything already written by this operation went to the environment it started on.`,
 		);
 		this.name = "ConnectionChangedError";
 	}

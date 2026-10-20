@@ -1,3 +1,4 @@
+import { writeGuard } from "@/services/hostConnection";
 import React, { useState, useMemo } from "react";
 import {
 	makeStyles,
@@ -346,6 +347,8 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 
 	const handleSelectFluentIcon = async () => {
 		if (!selectedIcon || !selectedButtonId || !selectedGroupId) return;
+		// Bound now (#120): the icon is saved to the connection it was picked on.
+		const guard = writeGuard();
 		const logs = useRuntimeLogStore.getState();
 		setIconError(null);
 
@@ -362,6 +365,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 		try {
 			const wr = await ensureFluentIconWebResource(selectedIcon, variant, publisherPrefix, fluentIconToSvg, {
 				busy: { onProgress: (msg) => logs.logInfo("webresource", msg) },
+				guard,
 			});
 			if (wr.publishError) {
 				logs.logWarn(
@@ -392,6 +396,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 
 	const handleSelectWebResource = async () => {
 		if (!webResourcePath || !selectedButtonId || !selectedGroupId) return;
+		const guard = writeGuard();
 		const logs = useRuntimeLogStore.getState();
 		setIconError(null);
 		setIconNote(null);
@@ -405,7 +410,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 			setUploading(true);
 			try {
 				const known = webResources.find((wr) => wr.name === name);
-				const added = await addExistingWebResourceToActiveSolution(name, known);
+				const added = await addExistingWebResourceToActiveSolution(name, known, guard);
 				if (added.solutionUniqueName) {
 					logs.logInfo("webresource", `Added web resource ${name} to solution ${added.solutionUniqueName}.`);
 				}
@@ -437,6 +442,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 	};
 
 	const handleUploadSvg = async (file: File) => {
+		const guard = writeGuard();
 		// Same rule as the Fluent tab: the SVG must land in an unmanaged solution,
 		// or a ribbon referencing it fails to import elsewhere (#19).
 		if (!activeSolution || activeSolution.isManaged) {
@@ -456,7 +462,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 				reader.readAsDataURL(file);
 			});
 			const name = `${publisherPrefix || "new"}_/icons/${file.name}`;
-			await saveWebResource(name, content, 11, { displayName: file.name });
+			await saveWebResource(name, content, 11, { displayName: file.name, guard });
 			setWebResourcePath(`$webresource:${name}`);
 			setActiveTab("webresource");
 			const rows = await loadWebResources("svg");
