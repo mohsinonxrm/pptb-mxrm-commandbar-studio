@@ -29,6 +29,7 @@ import {
 	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
 import { fetchUnmanagedRibbonParts } from "@/services/dataverse/ribbonLayerService";
+import { writeGuard, type WriteGuard } from "@/services/hostConnection";
 import {
 	fetchOrganizationLanguageCode,
 	waitForEnvironmentIdle,
@@ -66,7 +67,9 @@ const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
 // hosts. The VS Code extension (1.1.0) drops ImportJobId — CBS polls and
 // verifies that job — and sends a table publish to PublishAllXml (#89). These
 // are the requests the desktop app's helpers send.
-function importSolution(customizationFile: string, importJobId: string): Promise<unknown> {
+async function importSolution(customizationFile: string, importJobId: string, guard: WriteGuard): Promise<unknown> {
+	// Never into another environment than the one the publish started on (#120).
+	await guard("The import");
 	return dataverseAPI.execute({
 		operationName: "ImportSolution",
 		operationType: "action",
@@ -80,7 +83,8 @@ function importSolution(customizationFile: string, importJobId: string): Promise
 }
 
 /** PublishXml for the given tables. */
-function publishTables(entityLogicalNames: string[]): Promise<unknown> {
+async function publishTables(entityLogicalNames: string[], guard: WriteGuard): Promise<unknown> {
+	await guard("Publishing");
 	const entities = entityLogicalNames.map((name) => `<entity>${escapeXml(name)}</entity>`).join("");
 	return dataverseAPI.execute({
 		operationName: "PublishXml",
@@ -90,7 +94,8 @@ function publishTables(entityLogicalNames: string[]): Promise<unknown> {
 }
 
 /** PublishAllXml: every unpublished customization in the environment. */
-function publishAll(): Promise<unknown> {
+async function publishAll(guard: WriteGuard): Promise<unknown> {
+	await guard("Publishing");
 	return dataverseAPI.execute({ operationName: "PublishAllXml", operationType: "action" });
 }
 
@@ -740,6 +745,8 @@ async function publishRibbonUnguarded(
 	input: PublishRibbonInput,
 	onProgress?: (msg: string) => void,
 ): Promise<PublishRibbonResult> {
+	// Every write of this operation goes to the connection it started on (#120).
+	const guard = writeGuard();
 	const logs = useRuntimeLogStore.getState();
 	const scopeLabel = input.entity ? input.entity.logicalName : "Application ribbon";
 	const busy: BusyWaitOptions = { onProgress, ...input.busy };
@@ -830,7 +837,7 @@ async function publishRibbonUnguarded(
 		await withBusyRetry(
 			"Import",
 			() =>
-				importSolution(base64Zip, importJobId),
+				importSolution(base64Zip, importJobId, guard),
 			busy,
 		);
 
@@ -877,13 +884,14 @@ async function publishRibbonUnguarded(
 				if (isApplication) {
 					// Targeted publish of the application ribbon only — PublishAllXml
 					// would publish the whole environment.
+					await guard("Publishing");
 					await dataverseAPI.execute({
 						operationName: "PublishXml",
 						operationType: "action",
 						parameters: { ParameterXml: "<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>" },
 					});
 				} else {
-					await publishTables([input.entity!.logicalName]);
+					await publishTables([input.entity!.logicalName], guard);
 				}
 			},
 			busy,
@@ -980,12 +988,14 @@ async function publishUsingPublishXmlUnguarded(
 	input: PublishXmlInput,
 	onProgress?: (msg: string) => void,
 ): Promise<void> {
+	// Every write of this operation goes to the connection it started on (#120).
+	const guard = writeGuard();
 	const logs = useRuntimeLogStore.getState();
 	const entities = input.entityLogicalNames.filter(Boolean);
 	if (entities.length === 0) {
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Publishing all customizations...");
-			await publishAll();
+			await publishAll(guard);
 		}
 		return;
 	}
@@ -1000,6 +1010,7 @@ async function publishUsingPublishXmlUnguarded(
 	logs.logInfo("publish", `PublishXml request for ${entities.length} table(s).`);
 
 	try {
+		await guard("Publishing");
 		await dataverseAPI.execute({
 			operationName: "PublishXml",
 			operationType: "action",
@@ -1010,7 +1021,7 @@ async function publishUsingPublishXmlUnguarded(
 
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Publishing application ribbon...");
-			await publishAll();
+			await publishAll(guard);
 		}
 
 		logs.logInfo("publish", "PublishXml completed successfully.");
@@ -1021,11 +1032,11 @@ async function publishUsingPublishXmlUnguarded(
 		);
 		for (const entityName of entities) {
 			onProgress?.(`Fallback publish for ${entityName}...`);
-			await publishTables([entityName]);
+			await publishTables([entityName], guard);
 		}
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Fallback publish for application ribbon...");
-			await publishAll();
+			await publishAll(guard);
 		}
 	}
 }
@@ -1041,6 +1052,8 @@ async function publishAllAsyncUnguarded(
 	onProgress?: (msg: string) => void,
 	options?: { pollIntervalMs?: number; timeoutMs?: number },
 ): Promise<PublishAllAsyncResult> {
+	// Every write of this operation goes to the connection it started on (#120).
+	const guard = writeGuard();
 	const logs = useRuntimeLogStore.getState();
 	const pollIntervalMs = options?.pollIntervalMs ?? 2000;
 	const timeoutMs = options?.timeoutMs ?? 10 * 60 * 1000;
@@ -1048,6 +1061,7 @@ async function publishAllAsyncUnguarded(
 	onProgress?.("Starting asynchronous publish (PublishAllXmlAsync)...");
 	logs.logInfo("publish", "Calling PublishAllXmlAsync action.");
 
+	await guard("Publishing");
 	const response = (await dataverseAPI.execute({
 		operationName: "PublishAllXmlAsync",
 		operationType: "action",

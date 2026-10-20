@@ -59,6 +59,11 @@ const defaultDeps: FluentIconWebResourceDeps = {
 /** Icon web resources CBS has published since it was opened. */
 const publishedThisSession = new Set<string>();
 
+/** Forgets which icons were published: the ids belong to the previous connection (#120). */
+export function resetPublishedIcons(): void {
+	publishedThisSession.clear();
+}
+
 /**
  * Makes a Fluent icon usable on a classic-ribbon button (#51). A classic
  * `ModernImage` only resolves platform icon names and web resources, so the

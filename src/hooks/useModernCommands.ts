@@ -87,6 +87,11 @@ export interface ModernCanvasModel {
 /** Diagnostics already written, so each location's list is logged once. */
 const loggedUnmatched = new Set<string>();
 
+/** Forgets which unmatched modern commands were logged (per connection, #120). */
+export function resetModernCommandLog(): void {
+	loggedUnmatched.clear();
+}
+
 /**
  * Location-wide model: migrated commands are matched against the classic
  * controls of every tab of the location; chips go on its command-bar tab only.

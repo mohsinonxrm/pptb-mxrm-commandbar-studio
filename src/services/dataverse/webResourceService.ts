@@ -1,5 +1,6 @@
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { assertWorkspaceConnection, writeGuard, type WriteGuard } from "@/services/hostConnection";
 import type { WebResource, WebResourceType } from "@/types/webResource";
 import type { WebResourceStatus } from "@/services/xmlValidator";
 
@@ -118,7 +119,9 @@ export async function addWebResourceToSolution(
 	api: DataverseAPI.API,
 	webResourceId: string,
 	solutionUniqueName: string,
+	guard: WriteGuard = assertWorkspaceConnection,
 ): Promise<void> {
+	await guard("Adding the web resource to the solution");
 	await api.execute({
 		operationName: "AddSolutionComponent",
 		operationType: "action",
@@ -147,6 +150,8 @@ export async function upsertWebResource(
 	typeCode: number,
 	options: UpsertWebResourceOptions = {},
 ): Promise<UpsertWebResourceResult> {
+	// The save and the add to the solution go to the connection the save started on (#120).
+	const guard = writeGuard();
 	const { displayName, solutionUniqueName, keepExisting = false } = options;
 	// Check whether it already exists
 	const existing = await api.queryData(
@@ -164,16 +169,20 @@ export async function upsertWebResource(
 	if (existing.value.length > 0) {
 		const rec = existing.value[0] as Record<string, unknown>;
 		const existingId = String(rec["webresourceid"] ?? "");
-		if (!keepExisting) await api.update("webresource", existingId, payload);
+		if (!keepExisting) {
+			await guard("Saving the web resource");
+			await api.update("webresource", existingId, payload);
+		}
 		result = { id: existingId, created: false, updated: !keepExisting };
 	} else {
+		await guard("Saving the web resource");
 		const created = await api.create("webresource", payload);
 		result = { id: String(created.id ?? ""), created: true, updated: false };
 	}
 
 	if (solutionUniqueName && result.id) {
 		try {
-			await addWebResourceToSolution(api, result.id, solutionUniqueName);
+			await addWebResourceToSolution(api, result.id, solutionUniqueName, guard);
 		} catch (err) {
 			throw new Error(
 				`Web resource ${name} was saved but could not be added to solution ` +
@@ -378,6 +387,7 @@ export async function addExistingWebResourceToActiveSolution(
 export async function publishWebResource(id: string): Promise<void> {
 	const api = getHostDataverseApi();
 	const parameterXml = `<importexportxml><webresources><webresource>${id}</webresource></webresources></importexportxml>`;
+	await assertWorkspaceConnection("Publishing the web resource");
 	await api.execute({
 		operationName: "PublishXml",
 		operationType: "action",
