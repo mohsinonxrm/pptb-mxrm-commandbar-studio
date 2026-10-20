@@ -81,6 +81,7 @@
 		"@fluentui/react-icons": "^2.0.290",
 		"@monaco-editor/react": "^4.7.0",
 		"fflate": "^0.8.2",
+		"monaco-editor": "^0.57.0",
 		"react": "^18.3.1",
 		"react-dom": "^18.3.1",
 		"zustand": "^5.0.5"
@@ -98,11 +99,15 @@
 		"eslint-plugin-react-refresh": "^0.4.19",
 		"globals": "^16.0.0",
 		"jsdom": "^26.1.0",
-		"monaco-editor": "^0.55.1",
 		"prettier": "^3.9.10",
 		"typescript": "^5.8.3",
 		"typescript-eslint": "^8.71.2",
 		"vite": "^7.3.3",
-		"vitest": "^3.1.2"
+		"vitest": "^5.0.3"
+	},
+	"overrides": {
+		"monaco-editor": {
+			"dompurify": "3.4.16"
+		}
 	}
 }

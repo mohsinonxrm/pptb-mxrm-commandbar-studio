@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🏗️ Technical
+
+- **Dependency security (#117).** `npm audit` reports 0 vulnerabilities, runtime and dev.
+  - `monaco-editor` 0.55.1 → 0.57.0, now listed under `dependencies` (it ships in the bundle).
+    Its DOMPurify is overridden to 3.4.16, which clears the mutation-XSS advisories. The
+    Monaco worker imports follow 0.56's new package layout.
+  - `vitest` 3 → 5.0.3, which also replaces `@vitest/mocker` and drops `tinypool` (dev-only
+    advisories, one critical).
+  - CI's runtime audit fails on **moderate** findings and above (was high).
+  - Dependabot groups take minor and patch updates only; a major arrives as its own PR, and
+    eslint 10 waits for `eslint-plugin-jsx-a11y`.
+
 ## [0.6.0] - 2026-10-18
 
 The v0.6.0 milestone: publishing that keeps what's already in your customizations and verifies

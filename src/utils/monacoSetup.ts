@@ -24,12 +24,13 @@ import * as monaco from "monaco-editor";
 
 // Language workers — bundled by Vite as separate same-origin chunks via the
 // `?worker` suffix. The `editorWorker` covers modes without a dedicated worker
-// (xml, plain text, diff views, etc.).
-import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
-import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
-import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
-import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
-import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
+// (xml, plain text, diff views, etc.). Since monaco-editor 0.56 the package
+// exports `./*` as `./esm/vs/*.js`, so the paths start below `esm/vs`.
+import editorWorker from "monaco-editor/editor/editor.worker?worker";
+import jsonWorker from "monaco-editor/languages/features/json/json.worker?worker";
+import tsWorker from "monaco-editor/languages/features/typescript/ts.worker?worker";
+import cssWorker from "monaco-editor/languages/features/css/css.worker?worker";
+import htmlWorker from "monaco-editor/languages/features/html/html.worker?worker";
 
 // Route @monaco-editor/react to the locally bundled instance.
 loader.config({ monaco });
