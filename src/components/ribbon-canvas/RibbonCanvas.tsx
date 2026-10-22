@@ -22,9 +22,13 @@ import {
 	DismissRegular,
 } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
-import { ownContainerIds, useRibbonStore } from "@/store/ribbonStore";
+import { ownContainerIds, scopeLayer, useRibbonStore } from "@/store/ribbonStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
-import { canDeleteTab as canDeleteTabWithContents } from "@/utils/ribbonProvenance";
+import {
+	canDeleteTab as canDeleteTabWithContents,
+	canRenameContainer,
+	RENAME_NOT_PUBLISHABLE,
+} from "@/utils/ribbonProvenance";
 import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { useUIStore } from "@/store/uiStore";
 import type { RibbonLocation, RibbonTab } from "@/types/ribbon";
@@ -263,6 +267,11 @@ export function RibbonCanvas({
 		return canDeleteTabWithContents(tab, baseline[location], ownContainerIds({ layers }, location));
 	}
 
+	/** Whether renaming the tab can be published (#33): new, or yours with a translatable title. */
+	function canRenameTab(tab: RibbonTab): boolean {
+		return canRenameContainer(tab.id, baseline[location], scopeLayer({ layers }, location));
+	}
+
 	// PointerSensor without an activation constraint starts a drag on every
 	// pointerdown, which steals the click event before `onClick` can run —
 	// users could never switch tabs by clicking. Requiring a small movement
@@ -426,13 +435,16 @@ export function RibbonCanvas({
 								}}
 								onDoubleClick={() => {
 									setTabId(tab.id);
+									if (!canRenameTab(tab)) return;
 									setEditingTabId(tab.id);
 									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
 								}}
 								onF2={() => {
+									if (!canRenameTab(tab)) return;
 									setEditingTabId(tab.id);
 									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
 								}}
+								renameBlocked={!canRenameTab(tab)}
 								onDelete={
 									currentTab?.id === tab.id && canDeleteTab(tab)
 										? () => setDeletingTabId(tab.id)
@@ -564,6 +576,8 @@ interface SortableTabProps {
 	onEditCancel: () => void;
 	/** Set when the tab can be deleted (your own or new tab, and selected); asks to confirm first. */
 	onDelete?: () => void;
+	/** Renaming it can't be published (#33): double-click / F2 don't edit, and the tooltip says why. */
+	renameBlocked?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	styles: Record<string, any>;
 }
@@ -581,6 +595,7 @@ function SortableTab({
 	onEditCommit,
 	onEditCancel,
 	onDelete,
+	renameBlocked,
 	styles,
 }: SortableTabProps) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -611,6 +626,7 @@ function SortableTab({
 			tabIndex={isActive ? 0 : -1}
 			onClick={onSelect}
 			onDoubleClick={onDoubleClick}
+			title={renameBlocked ? `${tab.id}\n${RENAME_NOT_PUBLISHABLE}.` : undefined}
 			onKeyDown={(e) => {
 				if (e.key === "F2") onF2();
 			}}
