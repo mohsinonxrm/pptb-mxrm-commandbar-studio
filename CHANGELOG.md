@@ -48,8 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the publish and was replaced by it (verified live: the layer tables, RetrieveEntityRibbon and a
   solution export all show only the published state). A publish now publishes the table (or the
   application ribbon) first, so those changes become part of the layer it merges into. The publish
-  at the end publishes everything pending for the table anyway, so nothing else changes; a
-  publish the pre-publish check refuses still writes nothing.
+  at the end publishes everything pending for the table anyway, so nothing else changes. A publish
+  the pre-publish check refuses as loaded still writes nothing; if it fails after the table was
+  published first, the message says so. The publish first waits until no other solution operation
+  runs, and an import that has to wait for another import stops instead of importing over what
+  that import may have left unpublished.
 
 ### 🏗️ Technical
 

@@ -32,6 +32,7 @@ import { fetchUnmanagedRibbonParts } from "@/services/dataverse/ribbonLayerServi
 import { writeGuard, type WriteGuard } from "@/services/hostConnection";
 import {
 	fetchOrganizationLanguageCode,
+	isEnvironmentBusyError,
 	waitForEnvironmentIdle,
 	withBusyRetry,
 	type BusyWaitOptions,
@@ -748,27 +749,50 @@ export class RibbonLayerChangedError extends Error {
 	/** What changed, e.g. "added: customActions:X; changed: commandDefinitions:Y". */
 	readonly summary: string;
 
+	/**
+	 * `importRan`: no change was seen, but another solution import ran while
+	 * this one waited (#103). What it wrote may not be published yet, so the
+	 * check can't see it, and importing could replace it.
+	 */
 	constructor(
 		readonly scopeLabel: string,
 		readonly changes: RibbonDiffComparison,
+		readonly importRan = false,
 	) {
-		const sample = (ids: string[]) => ids.slice(0, 5).join(", ") + (ids.length > 5 ? ", …" : "");
-		const summary = [
-			changes.unexpected.length ? `added: ${sample(changes.unexpected)}` : "",
-			changes.missing.length ? `removed: ${sample(changes.missing)}` : "",
-			changes.differing.length ? `changed: ${sample(changes.differing)}` : "",
-		]
-			.filter(Boolean)
-			.join("; ");
+		const summary = importRan
+			? "another solution import ran in the environment meanwhile, and what it changed may not be published yet"
+			: describeLayerChanges(changes);
 		super(
-			`${scopeLabel}'s ribbon customizations changed in Dataverse since you started publishing ` +
-				`(${summary}): other ribbon changes for it were published meanwhile, from another session, tool or solution import. ` +
-				`Importing would overwrite that change, so nothing was imported. ` +
-				`Reload the table to get the change, then publish again.`,
+			importRan
+				? `${scopeLabel}'s ribbon customizations may have changed in Dataverse since you started publishing: ` +
+						`${summary}. Importing could overwrite that change, so nothing was imported. Publish again: ` +
+						`the table is published first, so the change is kept.`
+				: `${scopeLabel}'s ribbon customizations changed in Dataverse since you started publishing ` +
+						`(${summary}): other ribbon changes for it were published meanwhile, from another session, tool or solution import. ` +
+						`Importing would overwrite that change, so nothing was imported. ` +
+						`Reload the table to get the change, then publish again.`,
 		);
 		this.name = "RibbonLayerChangedError";
 		this.summary = summary;
 	}
+}
+
+/** "added: customActions:X; changed: commandDefinitions:Y", at most five of each. */
+function describeLayerChanges(changes: RibbonDiffComparison): string {
+	const sample = (ids: string[]) => ids.slice(0, 5).join(", ") + (ids.length > 5 ? ", …" : "");
+	return [
+		changes.unexpected.length ? `added: ${sample(changes.unexpected)}` : "",
+		changes.missing.length ? `removed: ${sample(changes.missing)}` : "",
+		changes.differing.length ? `changed: ${sample(changes.differing)}` : "",
+	]
+		.filter(Boolean)
+		.join("; ");
+}
+
+/** The operation a busy error says is running ("…because there is a previous [Import] running…"). */
+function runningOperationOf(err: unknown): string | null {
+	const text = err instanceof Error ? err.message : String(err);
+	return /there is (?:another|a previous) \[(\w+)\] running/i.exec(text)?.[1] ?? null;
 }
 
 /** Every `part:id` of a layer: compared by content as well as presence. */
@@ -917,17 +941,57 @@ async function publishRibbonUnguarded(
 	// published would be lost. Publishing the scope first makes them part of the
 	// layer that is read and merged. The publish at the end publishes them anyway
 	// (with everything else pending for the table), so this adds no other effect.
-	// A publish the check refuses writes nothing: the check runs before, and
-	// again on the layer as published.
-	if (input.publishCustomizations !== false) {
-		await mergeAndCheck(false);
+	// A publish the check refuses as loaded writes nothing: the check runs before.
+	const dryRun = input.publishCustomizations !== false ? await mergeAndCheck(false) : null;
+	// Don't start while another solution operation runs (#46): an import still
+	// running is finished, and published below, before the layer is read.
+	onProgress?.("Checking that no other solution operation is running…");
+	await waitForEnvironmentIdle(busy);
+	// After the publish first, a failure says so: other makers' pending changes
+	// for the table were published, though nothing of yours was imported.
+	let importedOnce = false;
+	const publishedFirstNote = (err: unknown) => {
+		if (dryRun && !importedOnce && err instanceof Error) {
+			err.message +=
+				` (${scopeLabel} was published first, so customizations imported elsewhere for it and not yet ` +
+				`published are now published.)`;
+		}
+		return err;
+	};
+	if (dryRun) {
 		logs.logInfo(
 			"publish",
 			`Publishing ${scopeLabel} first, so ribbon changes imported elsewhere but not yet published are kept.`,
 		);
-		await publishScope(`Publishing ${scopeLabel} first (keeps changes imported elsewhere but not published)…`);
+		try {
+			await publishScope(`Publishing ${scopeLabel} first (keeps changes imported elsewhere but not published)…`);
+		} catch (err) {
+			if (err instanceof Error) err.message = `Publishing ${scopeLabel} first failed, so nothing was imported: ${err.message}`;
+			throw err;
+		}
 	}
-	const merged = await mergeAndCheck(true);
+	let merged: Awaited<ReturnType<typeof mergeAndCheck>>;
+	try {
+		merged = await mergeAndCheck(true);
+	} catch (err) {
+		// It merged before the publish first: what that published (imported elsewhere) is in the way.
+		if (dryRun && err instanceof Error && !err.message.startsWith("The pre-publish check")) {
+			err.message =
+				`${scopeLabel}'s customizations changed when it was published first (changes imported elsewhere ` +
+				`and not yet published): ${err.message} Reload the table to get them, then publish again.`;
+		}
+		throw publishedFirstNote(err);
+	}
+	if (dryRun) {
+		const published = exactLayerChanges(dryRun.layer, merged.layer);
+		if (hasChanges(published)) {
+			logs.logInfo(
+				"publish",
+				`Publishing ${scopeLabel} first published ribbon changes imported elsewhere (${describeLayerChanges(published)}); ` +
+					`they are kept.`,
+			);
+		}
+	}
 
 	const entityName = input.entity?.schemaName || input.entity?.logicalName || "";
 	const customizationsXml = isApplication
@@ -984,13 +1048,23 @@ async function publishRibbonUnguarded(
 		// Another import / publish / ribbon-metadata generation makes ImportSolution
 		// fail with 0x80071151: wait for it and retry (#46). The layer is read again
 		// before every attempt, after the wait.
+		let importRan = false;
 		await withBusyRetry(
 			"Import",
 			async () => {
 				// Still the connection the publish started on (#120), before reading it.
 				await guard("Importing");
+				// Another import ran while this one waited (#103): what it wrote may not
+				// be published, so the check below can't see it.
+				if (importRan) throw new RibbonLayerChangedError(scopeLabel, { missing: [], unexpected: [], differing: [] }, true);
 				await assertLayerUnchanged(input.entity?.logicalName ?? null, scopeLabel, expected.layer, expected.as);
-				return importSolution(base64Zip, importJobId, guard);
+				try {
+					await importSolution(base64Zip, importJobId, guard);
+				} catch (err) {
+					if (isEnvironmentBusyError(err) && runningOperationOf(err)?.toLowerCase() === "import") importRan = true;
+					throw err;
+				}
+				importedOnce = true;
 			},
 			busy,
 		);
@@ -1030,10 +1104,12 @@ async function publishRibbonUnguarded(
 		return importJobId;
 	};
 
-	// Don't start while another solution operation runs (#46).
-	onProgress?.("Checking that no other solution operation is running…");
-	await waitForEnvironmentIdle(busy);
-	const importJobId = await importAndVerify("", { layer: merged.layer, as: { kind: "read" } });
+	let importJobId: string;
+	try {
+		importJobId = await importAndVerify("", { layer: merged.layer, as: { kind: "read" } });
+	} catch (err) {
+		throw publishedFirstNote(err);
+	}
 	let verification: PublishVerification | undefined;
 
 	if (input.publishCustomizations !== false) {

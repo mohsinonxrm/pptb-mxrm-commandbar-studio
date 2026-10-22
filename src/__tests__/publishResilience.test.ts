@@ -473,6 +473,12 @@ describe("a change made elsewhere while publishing (#102)", () => {
 			}
 			return publish();
 		});
+		// An import replaces what is pending (#103): only a publish before it keeps it.
+		const importSolution = env.importSolution;
+		env.importSolution = vi.fn(async (zip: string) => {
+			pending = null;
+			return importSolution(zip);
+		});
 		const { result } = await publishUnhide(env);
 		expect(env.calls.slice(0, env.calls.indexOf("import")).filter((c) => c === "publish")).toHaveLength(1);
 		// Merged in, not replaced: the other session's button and this session's unhide are both published.
@@ -481,7 +487,7 @@ describe("a change made elsewhere while publishing (#102)", () => {
 		expect(result.verification?.ok).toBe(true);
 	});
 
-	it("writes nothing, not even the publish first, when the pre-publish check refuses (#103)", async () => {
+	it("writes nothing, not even the publish first, when the merge refuses (#103)", async () => {
 		const env = fakeEnvironment();
 		// Unhiding a control the layer doesn't hide is refused before anything is written.
 		vi.resetModules();
@@ -502,6 +508,89 @@ describe("a change made elsewhere while publishing (#102)", () => {
 			}),
 		).rejects.toThrow(/Can't delete cbs\.NotInTheLayer/);
 		expect(env.calls).not.toContain("publish");
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("waits for a running operation before publishing first, so an import still running is published (#103)", async () => {
+		const env = fakeEnvironment({ busyHistory: 1 });
+		await publishUnhide(env);
+		const firstPublish = env.calls.indexOf("publish");
+		expect(env.calls.lastIndexOf("query msdyn_solutionhistories", firstPublish)).toBeGreaterThanOrEqual(0);
+		expect(env.calls.slice(firstPublish).filter((c) => c === "query msdyn_solutionhistories")).toHaveLength(0);
+	});
+
+	it("imports nothing after waiting on another import: what it wrote may not be published yet (#103)", async () => {
+		const env = fakeEnvironment();
+		const importSolution = env.importSolution;
+		let busy = 1;
+		env.importSolution = vi.fn(async (zip: string) => {
+			env.calls.push("import");
+			if (busy-- > 0) throw new Error(BUSY_PREVIOUS);
+			return importSolution(zip);
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(
+			/may have changed in Dataverse since you started publishing: another solution import ran.*nothing was imported.*was published first/,
+		);
+		// Only the attempt that found the environment busy.
+		expect(env.importSolution).toHaveBeenCalledTimes(1);
+	});
+
+	it("doesn't import a second time after waiting on another import, and says so (#103)", async () => {
+		const env = fakeEnvironment();
+		const importSolution = env.importSolution;
+		let n = 0;
+		env.importSolution = vi.fn(async (zip: string) => {
+			if (++n === 2) throw new Error(BUSY_PREVIOUS);
+			return importSolution(zip);
+		});
+		const { result } = await publishUnhide(env);
+		expect(env.importSolution).toHaveBeenCalledTimes(2);
+		expect(result.verification?.ok).toBe(false);
+		expect(result.verification?.message).toMatch(/imported and published, but .*another solution import ran/);
+	});
+
+	it("says so when the publish first fails, and imports nothing (#103)", async () => {
+		const env = fakeEnvironment();
+		env.publishXml = vi.fn(async () => {
+			throw new Error("Publish went wrong.");
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(
+			/^Publishing cbstest_ribbontest first failed, so nothing was imported: Publish went wrong\.$/,
+		);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("explains a merge that fails only after the publish first (#103)", async () => {
+		const env = fakeEnvironment();
+		// Pending from elsewhere: the import removes the session's own button cbs.Go.
+		let pendingRemoval = true;
+		const publish = env.publishXml;
+		env.publishXml = vi.fn(async () => {
+			if (pendingRemoval) {
+				pendingRemoval = false;
+				env.server.customActions.delete("ca:cbs.Go.CustomAction");
+			}
+			return publish();
+		});
+		vi.resetModules();
+		const { publishRibbon } = await import("@/services/dataverse/publishService");
+		const parsed = parseRibbonXml(MERGED, "HomepageGrid", T);
+		await expect(
+			publishRibbon({
+				entity: { logicalName: T, schemaName: T },
+				locations: [{ current: parsed.ribbon, baseline: parsed.ribbon }],
+				commands: [],
+				enableRules: [],
+				displayRules: [],
+				locLabels: [],
+				plan: { editedCommandIds: [], editedEnableRuleIds: [], editedDisplayRuleIds: [], deletedButtonIds: ["cbs.Go"], unhiddenButtonIds: [] },
+				solution: SOLUTION,
+				busy: { sleep: async () => undefined },
+				verifyDelayMs: 0,
+			}),
+		).rejects.toThrow(
+			/cbstest_ribbontest's customizations changed when it was published first .*Can't delete cbs\.Go.*Reload the table.*was published first, so customizations imported elsewhere/,
+		);
 		expect(env.calls).not.toContain("import");
 	});
 
