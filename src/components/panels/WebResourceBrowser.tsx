@@ -38,8 +38,11 @@ import {
 } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import type { WebResource } from "@/types/webResource";
-import { loadWebResources, saveWebResource } from "@/services/dataverse/webResourceService";
+import { loadWebResources, saveWebResource, WebResourceSaveCancelled } from "@/services/dataverse/webResourceService";
+import { useReplaceWebResourceConfirm } from "@/hooks/useReplaceWebResourceConfirm";
 import { useSessionStore } from "@/store/sessionStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
 
 const useStyles = makeStyles({
@@ -142,6 +145,8 @@ interface WebResourceBrowserProps {
 
 export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect }) => {
 	const styles = useStyles();
+	// An upload never replaces an existing web resource without asking (#121).
+	const replaceConfirm = useReplaceWebResourceConfirm();
 	const open = useUIStore((s) => s.webResourceBrowserOpen);
 	const closeWebResourceBrowser = useUIStore((s) => s.closeWebResourceBrowser);
 	const publisherPrefix = useSessionStore((s) => s.publisherPrefix);
@@ -300,11 +305,16 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 			const saved = await saveWebResource(inferWebResourceName(file), content, typeCode, {
 				displayName: file.name,
 				guard,
+				onExisting: replaceConfirm.onExisting,
 			});
 			await reloadResources();
 			setWarning(saved.solutionWarning ?? null);
 		} catch (err) {
-			setError(err instanceof Error ? err.message : String(err));
+			if (err instanceof WebResourceSaveCancelled) return;
+			const message = err instanceof Error ? err.message : String(err);
+			setError(message);
+			// Also logged: after a connection change (#120) the browser is closed.
+			useRuntimeLogStore.getState().logError("webresource", `Upload of ${file.name} failed: ${message}`);
 		} finally {
 			setUploading(false);
 		}
@@ -321,6 +331,8 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 	};
 
 	return (
+		<>
+		{replaceConfirm.dialog}
 		<Dialog
 			open={open}
 			onOpenChange={(_, d) => {
@@ -481,7 +493,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 						)}
 					</DialogContent>
 
-					<DialogActions>
+					<DialogActions fluid>
 						<Button
 							appearance="subtle"
 							icon={<ArrowUploadRegular />}
@@ -490,6 +502,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 						>
 							{uploading ? "Uploading…" : "Upload"}
 						</Button>
+						<EnvironmentBadge prefix="Uploads to" />
 						<div style={{ flex: 1 }} />
 						<Button appearance="secondary" onClick={closeWebResourceBrowser}>
 							Cancel
@@ -501,6 +514,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 				</DialogBody>
 			</DialogSurface>
 		</Dialog>
+		</>
 	);
 };
 

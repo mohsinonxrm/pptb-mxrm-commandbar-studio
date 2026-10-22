@@ -101,6 +101,18 @@ export interface UpsertWebResourceOptions {
 	 * when the save starts.
 	 */
 	guard?: WriteGuard;
+	/**
+	 * Asked when a web resource with this name already exists and `keepExisting`
+	 * isn't set (#121): replace its content, keep it as it is (it is still added
+	 * to the solution), or cancel (WebResourceSaveCancelled). A managed one can
+	 * only be kept or cancelled: replacing it is refused. Without this, an
+	 * existing one is replaced (the command editor saving the script it opened).
+	 */
+	onExisting?: (existing: {
+		id: string;
+		name: string;
+		managed: boolean;
+	}) => Promise<ExistingWebResourceChoice>;
 }
 
 export interface UpsertWebResourceResult {
@@ -140,6 +152,17 @@ export async function addWebResourceToSolution(
 	});
 }
 
+/** What to do with an existing web resource of the same name (#121). */
+export type ExistingWebResourceChoice = "replace" | "keep" | "cancel";
+
+/** The user chose not to replace an existing web resource: nothing was written. */
+export class WebResourceSaveCancelled extends Error {
+	constructor(name: string) {
+		super(`Web resource ${name} already exists; it was left as it is.`);
+		this.name = "WebResourceSaveCancelled";
+	}
+}
+
 /**
  * Upload (create) a new web resource, or update an existing one, and add it
  * to the given unmanaged solution.
@@ -158,10 +181,11 @@ export async function upsertWebResource(
 ): Promise<UpsertWebResourceResult> {
 	// The save and the add to the solution go to the connection the save started on (#120).
 	const guard = options.guard ?? writeGuard();
-	const { displayName, solutionUniqueName, keepExisting = false } = options;
+	const { displayName, solutionUniqueName, onExisting } = options;
+	let keepExisting = options.keepExisting ?? false;
 	// Check whether it already exists
 	const existing = await api.queryData(
-		`webresourceset?$select=webresourceid&$filter=name eq '${name.replace(/'/g, "''")}'&$top=1`,
+		`webresourceset?$select=webresourceid,ismanaged&$filter=name eq '${name.replace(/'/g, "''")}'&$top=1`,
 	);
 
 	const payload: Record<string, unknown> = {
@@ -175,6 +199,18 @@ export async function upsertWebResource(
 	if (existing.value.length > 0) {
 		const rec = existing.value[0] as Record<string, unknown>;
 		const existingId = String(rec["webresourceid"] ?? "");
+		if (!keepExisting && onExisting) {
+			// An upload never replaces an existing web resource without asking (#121).
+			const managed = rec["ismanaged"] === true;
+			const choice = await onExisting({ id: existingId, name, managed });
+			if (choice === "cancel") throw new WebResourceSaveCancelled(name);
+			if (choice === "replace" && managed) {
+				throw new Error(
+					`A managed web resource named ${name} already exists, so it can't be replaced. Keep it, or rename the file and upload it again.`,
+				);
+			}
+			keepExisting = choice === "keep";
+		}
 		if (!keepExisting) {
 			await guard("Saving the web resource");
 			await api.update("webresource", existingId, payload);

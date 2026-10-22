@@ -32,6 +32,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useDraftStore } from "@/store/draftStore";
+import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
 
 const useStyles = makeStyles({
 	root: {
@@ -199,6 +200,11 @@ export function TopBar() {
 					Command Bar Studio
 				</Text>
 			</div>
+
+			<div className={styles.sep} />
+
+			{/* The environment every write goes to (#121) */}
+			<EnvironmentBadge />
 
 			<div className={styles.sep} />
 

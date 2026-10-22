@@ -1,3 +1,4 @@
+import { useReplaceWebResourceConfirm } from "@/hooks/useReplaceWebResourceConfirm";
 import { writeGuard } from "@/services/hostConnection";
 import React, { useState, useMemo } from "react";
 import {
@@ -27,10 +28,12 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import FluentIcon, { fluentIconToSvg } from "@/components/shared/FluentIcon";
+import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
 import {
 	addExistingWebResourceToActiveSolution,
 	loadWebResources,
 	saveWebResource,
+	WebResourceSaveCancelled,
 } from "@/services/dataverse/webResourceService";
 import { ensureFluentIconWebResource } from "@/services/iconWebResource";
 import { fluentIconWebResourceName, toSnakeCase } from "@/utils/iconWebResourceName";
@@ -291,6 +294,8 @@ interface IconPickerModalProps {
 
 export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 	const styles = useStyles();
+	// An SVG upload never replaces an existing web resource without asking (#121).
+	const replaceConfirm = useReplaceWebResourceConfirm();
 	const open = useUIStore((s) => s.iconPickerOpen);
 	const closeIconPicker = useUIStore((s) => s.closeIconPicker);
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
@@ -462,12 +467,17 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 				reader.readAsDataURL(file);
 			});
 			const name = `${publisherPrefix || "new"}_/icons/${file.name}`;
-			await saveWebResource(name, content, 11, { displayName: file.name, guard });
+			await saveWebResource(name, content, 11, {
+				displayName: file.name,
+				guard,
+				onExisting: replaceConfirm.onExisting,
+			});
 			setWebResourcePath(`$webresource:${name}`);
 			setActiveTab("webresource");
 			const rows = await loadWebResources("svg");
 			setWebResources(rows);
 		} catch (err) {
+			if (err instanceof WebResourceSaveCancelled) return;
 			const message = err instanceof Error ? err.message : String(err);
 			useRuntimeLogStore.getState().logError("webresource", `SVG upload failed: ${message}`);
 			setIconError(`Upload failed: ${message}`);
@@ -477,6 +487,8 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 	};
 
 	return (
+		<>
+		{replaceConfirm.dialog}
 		<Dialog open={open} onOpenChange={(_, d) => !d.open && closeIconPicker()}>
 			<DialogSurface className={styles.surface}>
 				<DialogBody className={styles.dialogBody}>
@@ -640,8 +652,11 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 									accept=".svg"
 									style={{ display: "none" }}
 									id="icon-upload-input"
+									disabled={uploading}
 									onChange={(e) => {
 										const file = e.target.files?.[0];
+										// The same file can be picked again (e.g. after Cancel).
+										e.target.value = "";
 										if (!file) return;
 										void handleUploadSvg(file);
 									}}
@@ -675,6 +690,8 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 					</DialogContent>
 
 					<DialogActions>
+						<EnvironmentBadge prefix="Saves to" />
+						<div style={{ flex: 1 }} />
 						<Button appearance="secondary" onClick={closeIconPicker}>
 							Cancel
 						</Button>
@@ -700,6 +717,7 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 				</DialogBody>
 			</DialogSurface>
 		</Dialog>
+		</>
 	);
 };
 
