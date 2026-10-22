@@ -104,11 +104,15 @@ export interface UpsertWebResourceOptions {
 	/**
 	 * Asked when a web resource with this name already exists and `keepExisting`
 	 * isn't set (#121): replace its content, keep it as it is (it is still added
-	 * to the solution), or cancel (WebResourceSaveCancelled). With this set, a
-	 * managed one is refused instead. Without it, an existing one is replaced
-	 * (the command editor saving the script it opened).
+	 * to the solution), or cancel (WebResourceSaveCancelled). A managed one can
+	 * only be kept or cancelled: replacing it is refused. Without this, an
+	 * existing one is replaced (the command editor saving the script it opened).
 	 */
-	onExisting?: (existing: { id: string; name: string }) => Promise<ExistingWebResourceChoice>;
+	onExisting?: (existing: {
+		id: string;
+		name: string;
+		managed: boolean;
+	}) => Promise<ExistingWebResourceChoice>;
 }
 
 export interface UpsertWebResourceResult {
@@ -197,13 +201,14 @@ export async function upsertWebResource(
 		const existingId = String(rec["webresourceid"] ?? "");
 		if (!keepExisting && onExisting) {
 			// An upload never replaces an existing web resource without asking (#121).
-			if (rec["ismanaged"] === true) {
+			const managed = rec["ismanaged"] === true;
+			const choice = await onExisting({ id: existingId, name, managed });
+			if (choice === "cancel") throw new WebResourceSaveCancelled(name);
+			if (choice === "replace" && managed) {
 				throw new Error(
-					`A managed web resource named ${name} already exists, so it can't be replaced. Rename the file and upload it again.`,
+					`A managed web resource named ${name} already exists, so it can't be replaced. Keep it, or rename the file and upload it again.`,
 				);
 			}
-			const choice = await onExisting({ id: existingId, name });
-			if (choice === "cancel") throw new WebResourceSaveCancelled(name);
 			keepExisting = choice === "keep";
 		}
 		if (!keepExisting) {

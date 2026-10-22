@@ -4,7 +4,8 @@
  * asks for a word to be typed before the action can run. Same block as FetchXML Studio's.
  *
  * The connection is read from the host when the block appears (getPrimaryConnection), so it
- * names the environment the requests will actually go to.
+ * names the environment the requests will actually go to, and again when its details change
+ * while the block is open (e.g. its type is set to Production).
  */
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -19,6 +20,7 @@ import {
 	tokens,
 } from "@fluentui/react-components";
 import { getPrimaryConnection, type HostConnection } from "@/services/hostConnection";
+import { useSessionStore } from "@/store/sessionStore";
 import {
 	isProductionEnvironment,
 	isTypedConfirmation,
@@ -58,10 +60,10 @@ export interface TargetScopeProps {
 	/** The word to type on a Production connection (e.g. the table's logical name). */
 	confirmWord: string;
 	/**
-	 * Called with whether the action may run: false while the connection is read, and on
-	 * Production until the word is typed.
+	 * Called with whether the action may run (false while the connection is read, and on
+	 * Production until the word is typed) and the environment type that was read.
 	 */
-	onConfirmationChange: (confirmed: boolean) => void;
+	onConfirmationChange: (confirmed: boolean, environment: string | undefined) => void;
 	disabled?: boolean;
 }
 
@@ -77,16 +79,21 @@ export function TargetScope({
 	const styles = useStyles();
 	const [state, setState] = useState<ConnectionState>({ status: "loading" });
 	const [typed, setTyped] = useState("");
+	// The session follows the host's connection (#120): any change re-reads it.
+	const sessionEnvironment = useSessionStore((s) => s.environment);
+	const sessionUrl = useSessionStore((s) => s.connectionUrl);
+	const connectionVersion = useSessionStore((s) => s.connectionVersion);
 
 	useEffect(() => {
 		let current = true;
+		setState({ status: "loading" });
 		getPrimaryConnection()
 			.then((connection) => current && setState({ status: "ready", connection }))
 			.catch(() => current && setState({ status: "ready", connection: null }));
 		return () => {
 			current = false;
 		};
-	}, []);
+	}, [sessionEnvironment, sessionUrl, connectionVersion]);
 
 	const connection = state.status === "ready" ? state.connection : null;
 	const isProduction = isProductionEnvironment(connection?.environment);
@@ -95,9 +102,10 @@ export function TargetScope({
 	const confirmed =
 		state.status === "ready" && (!askToType || isTypedConfirmation(typed, confirmWord));
 
+	const readEnvironment = connection?.environment;
 	useEffect(() => {
-		onConfirmationChange(confirmed);
-	}, [confirmed, onConfirmationChange]);
+		onConfirmationChange(confirmed, readEnvironment);
+	}, [confirmed, readEnvironment, onConfirmationChange]);
 
 	return (
 		<div className={styles.root}>

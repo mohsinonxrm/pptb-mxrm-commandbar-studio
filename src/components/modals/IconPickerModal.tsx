@@ -28,6 +28,7 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import FluentIcon, { fluentIconToSvg } from "@/components/shared/FluentIcon";
+import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
 import {
 	addExistingWebResourceToActiveSolution,
 	loadWebResources,
@@ -651,8 +652,11 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 									accept=".svg"
 									style={{ display: "none" }}
 									id="icon-upload-input"
+									disabled={uploading}
 									onChange={(e) => {
 										const file = e.target.files?.[0];
+										// The same file can be picked again (e.g. after Cancel).
+										e.target.value = "";
 										if (!file) return;
 										void handleUploadSvg(file);
 									}}
@@ -686,6 +690,8 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 					</DialogContent>
 
 					<DialogActions>
+						<EnvironmentBadge prefix="Saves to" />
+						<div style={{ flex: 1 }} />
 						<Button appearance="secondary" onClick={closeIconPicker}>
 							Cancel
 						</Button>

@@ -24,20 +24,22 @@ export function EnvironmentBadge({ prefix }: { prefix?: string }) {
 				}}
 			>
 				{prefix && (
-					<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+					<Text size={200} wrap={false} style={{ color: tokens.colorNeutralForeground3 }}>
 						{prefix}
 					</Text>
 				)}
 				<Text size={200} weight="semibold" truncate wrap={false} style={{ maxWidth: 180 }}>
 					{name || url}
 				</Text>
-				<Badge
-					size="small"
-					appearance={production ? "filled" : "tint"}
-					color={production ? "warning" : "informative"}
-				>
-					{environment}
-				</Badge>
+				{environment && (
+					<Badge
+						size="small"
+						appearance={production ? "filled" : "tint"}
+						color={production ? "warning" : "informative"}
+					>
+						{environment}
+					</Badge>
+				)}
 			</span>
 		</Tooltip>
 	);

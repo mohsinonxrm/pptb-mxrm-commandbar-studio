@@ -206,6 +206,35 @@ describe("the publish dialog names its target and guards Production (#121)", () 
 		expect(publishButton()?.disabled).toBe(false);
 	});
 
+	it("asks for the word when the connection becomes Production while the dialog is open", async () => {
+		environment = "Dev";
+		useSessionStore.setState({ environment: "Dev" });
+		await openPublishDialog();
+		expect(publishButton()?.disabled).toBe(false);
+
+		// PPTB's connection edit: same connection, its type set to Production (#120's "details").
+		environment = "Production";
+		act(() => useSessionStore.setState({ environment: "Production" }));
+		await flush();
+		expect(document.body.textContent).toContain("Production environment");
+		expect(confirmInput()).not.toBeNull();
+		expect(publishButton()?.disabled).toBe(true);
+	});
+
+	it("reads the connection again on Publish, and stops when it became Production", async () => {
+		environment = "Dev";
+		await openPublishDialog();
+		expect(publishButton()?.disabled).toBe(false);
+
+		// The host's connection changed without the session hearing of it yet.
+		environment = "Production";
+		act(() => publishButton()!.click());
+		await flush();
+		expect(document.body.textContent).not.toContain("Publishing...");
+		expect(confirmInput()).not.toBeNull();
+		expect(publishButton()?.disabled).toBe(true);
+	});
+
 	it("on Dev, the target is named and Publish needs no typing", async () => {
 		environment = "Dev";
 		await openPublishDialog();
@@ -251,7 +280,11 @@ describe("upsertWebResource with onExisting (#121)", () => {
 		const api = fakeApi({ ismanaged: false });
 		const onExisting = vi.fn(async () => "replace" as const);
 		const result = await upload(api, onExisting);
-		expect(onExisting).toHaveBeenCalledWith({ id: "wr-1", name: "cbstest_/icons/logo.svg" });
+		expect(onExisting).toHaveBeenCalledWith({
+			id: "wr-1",
+			name: "cbstest_/icons/logo.svg",
+			managed: false,
+		});
 		expect(api.update).toHaveBeenCalledTimes(1);
 		expect(result).toMatchObject({ id: "wr-1", updated: true, created: false });
 	});
@@ -276,14 +309,22 @@ describe("upsertWebResource with onExisting (#121)", () => {
 		expect(api.execute).not.toHaveBeenCalled();
 	});
 
-	it("refuses to replace a managed web resource, without asking", async () => {
+	it("says a managed web resource is managed, and never replaces it", async () => {
 		const api = fakeApi({ ismanaged: true });
 		const onExisting = vi.fn(async () => "replace" as const);
 		await expect(upload(api, onExisting)).rejects.toThrow(
 			/managed web resource .* can't be replaced/,
 		);
-		expect(onExisting).not.toHaveBeenCalled();
+		expect(onExisting).toHaveBeenCalledWith(expect.objectContaining({ managed: true }));
 		expect(api.update).not.toHaveBeenCalled();
+		expect(api.execute).not.toHaveBeenCalled();
+	});
+
+	it("keeps a managed web resource when told to", async () => {
+		const api = fakeApi({ ismanaged: true });
+		const result = await upload(api, async () => "keep");
+		expect(api.update).not.toHaveBeenCalled();
+		expect(result).toMatchObject({ id: "wr-1", updated: false });
 	});
 
 	it("doesn't ask for a new name", async () => {
@@ -298,5 +339,88 @@ describe("upsertWebResource with onExisting (#121)", () => {
 		const api = fakeApi({ ismanaged: false });
 		await upload(api);
 		expect(api.update).toHaveBeenCalledTimes(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// The replace prompt
+// ---------------------------------------------------------------------------
+
+describe("the replace prompt (#121)", () => {
+	type Hook = ReturnType<
+		typeof import("@/hooks/useReplaceWebResourceConfirm").useReplaceWebResourceConfirm
+	>;
+	let hook: Hook;
+	let host: HTMLDivElement;
+	let hostRoot: Root;
+
+	beforeEach(async () => {
+		const { useReplaceWebResourceConfirm } =
+			await import("@/hooks/useReplaceWebResourceConfirm");
+		function Probe() {
+			hook = useReplaceWebResourceConfirm();
+			return hook.dialog;
+		}
+		host = document.createElement("div");
+		document.body.appendChild(host);
+		hostRoot = createRoot(host);
+		act(() =>
+			hostRoot.render(
+				<FluentProvider theme={webLightTheme}>
+					<Probe />
+				</FluentProvider>,
+			),
+		);
+	});
+
+	afterEach(() => {
+		act(() => hostRoot.unmount());
+		host.remove();
+	});
+
+	const buttons = () =>
+		[...document.querySelectorAll("[role=dialog] button")].map((b) => b.textContent?.trim());
+
+	it("offers Replace for an unmanaged one, only Keep or Cancel for a managed one", async () => {
+		let answer: Promise<string> | undefined;
+		act(() => {
+			answer = hook.onExisting({ id: "1", name: "a.svg", managed: false });
+		});
+		await flush();
+		expect(buttons()).toEqual(["Cancel", "Keep existing", "Replace"]);
+		act(() =>
+			(document.querySelectorAll("[role=dialog] button")[2] as HTMLButtonElement).click(),
+		);
+		await expect(answer).resolves.toBe("replace");
+
+		act(() => {
+			answer = hook.onExisting({ id: "2", name: "b.svg", managed: true });
+		});
+		await flush();
+		expect(buttons()).toEqual(["Cancel", "Keep existing"]);
+		expect(document.body.textContent).toContain("can't be replaced");
+		act(() =>
+			(document.querySelectorAll("[role=dialog] button")[1] as HTMLButtonElement).click(),
+		);
+		await expect(answer).resolves.toBe("keep");
+	});
+
+	it("cancels an earlier question still open, and the open one on a connection change", async () => {
+		let first: Promise<string> | undefined;
+		let second: Promise<string> | undefined;
+		act(() => {
+			first = hook.onExisting({ id: "1", name: "a.svg", managed: false });
+		});
+		act(() => {
+			second = hook.onExisting({ id: "2", name: "b.svg", managed: false });
+		});
+		await expect(first).resolves.toBe("cancel");
+
+		act(() =>
+			useSessionStore.setState({
+				connectionVersion: useSessionStore.getState().connectionVersion + 1,
+			}),
+		);
+		await expect(second).resolves.toBe("cancel");
 	});
 });

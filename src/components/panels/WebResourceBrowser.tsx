@@ -41,6 +41,8 @@ import type { WebResource } from "@/types/webResource";
 import { loadWebResources, saveWebResource, WebResourceSaveCancelled } from "@/services/dataverse/webResourceService";
 import { useReplaceWebResourceConfirm } from "@/hooks/useReplaceWebResourceConfirm";
 import { useSessionStore } from "@/store/sessionStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
 
 const useStyles = makeStyles({
@@ -309,7 +311,10 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 			setWarning(saved.solutionWarning ?? null);
 		} catch (err) {
 			if (err instanceof WebResourceSaveCancelled) return;
-			setError(err instanceof Error ? err.message : String(err));
+			const message = err instanceof Error ? err.message : String(err);
+			setError(message);
+			// Also logged: after a connection change (#120) the browser is closed.
+			useRuntimeLogStore.getState().logError("webresource", `Upload of ${file.name} failed: ${message}`);
 		} finally {
 			setUploading(false);
 		}
@@ -488,7 +493,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 						)}
 					</DialogContent>
 
-					<DialogActions>
+					<DialogActions fluid>
 						<Button
 							appearance="subtle"
 							icon={<ArrowUploadRegular />}
@@ -497,6 +502,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 						>
 							{uploading ? "Uploading…" : "Upload"}
 						</Button>
+						<EnvironmentBadge prefix="Uploads to" />
 						<div style={{ flex: 1 }} />
 						<Button appearance="secondary" onClick={closeWebResourceBrowser}>
 							Cancel

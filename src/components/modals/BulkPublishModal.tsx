@@ -1,4 +1,5 @@
-import { writeGuard } from "@/services/hostConnection";
+import { getPrimaryConnection, writeGuard } from "@/services/hostConnection";
+import { requiresTypedConfirmation } from "@/components/shared/targetScopeRules";
 import React, { useState } from "react";
 import {
 	Badge,
@@ -132,8 +133,17 @@ export const BulkPublishModal: React.FC = () => {
 	const [incrementSolutionVersion, setIncrementSolutionVersion] = useState(false);
 	const [publishStrategy, setPublishStrategy] = useState<"targeted" | "allAsync">("targeted");
 	// The target block's verdict (#121): false while the connection is read, and on Production
-	// until the confirmation word is typed.
-	const [targetConfirmed, setTargetConfirmed] = useState(false);
+	// until the confirmation word is typed; with the environment type it was given for.
+	const [target, setTarget] = useState<{ confirmed: boolean; environment?: string }>({
+		confirmed: false,
+	});
+	const onTargetChange = React.useCallback(
+		(confirmed: boolean, environment: string | undefined) => setTarget({ confirmed, environment }),
+		[],
+	);
+	const targetConfirmed = target.confirmed;
+	// Bumped to read the connection again (a new TargetScope).
+	const [targetRead, setTargetRead] = useState(0);
 	const [progressMessage, setProgressMessage] = useState("");
 	const [publishComment, setPublishComment] = useState("");
 	const [solutionVersion, setSolutionVersion] = useState(activeSolution?.version ?? "1.0.0.0");
@@ -319,19 +329,34 @@ export const BulkPublishModal: React.FC = () => {
 	// One close guard for the whole run (#10): it would otherwise drop between scopes.
 	const handlePublish = () =>
 		withCloseGuard(async () => {
-		if (!activeSolution || unsupported.length > 0 || scopes.length === 0 || checkBlocks) return;
+		if (!activeSolution || unsupported.length > 0 || scopes.length === 0 || checkBlocks || !targetConfirmed) return;
 		setPublishing(true);
-		setProgressMessage("");
-		setErrorMessages([]);
-		setVerifications([]);
-		setRunScopes(scopes);
-		setStatusMap(Object.fromEntries(scopes.map((s) => [s, "pending" as PublishStatus])));
-
 		// One guard for the whole run (#120): every scope writes to the connection
 		// the run started on. After a switch, nothing more is published or stored.
 		const guard = writeGuard();
 		const startVersion = useSessionStore.getState().connectionVersion;
 		const switched = () => useSessionStore.getState().connectionVersion !== startVersion;
+		// The confirmation holds for the environment type it was given for (#121): the connection
+		// is read again, and if it is Production now and wasn't then, the word is asked for.
+		const connection = await getPrimaryConnection().catch(() => null);
+		if (switched()) {
+			setPublishing(false);
+			return;
+		}
+		if (requiresTypedConfirmation(connection?.environment) && !requiresTypedConfirmation(target.environment)) {
+			setTarget({ confirmed: false });
+			setTargetRead((n) => n + 1);
+			setPublishing(false);
+			useRuntimeLogStore
+				.getState()
+				.logWarn("publish", `${connection?.name ?? "The connection"} is a Production environment now: type the confirmation to publish.`);
+			return;
+		}
+		setProgressMessage("");
+		setErrorMessages([]);
+		setVerifications([]);
+		setRunScopes(scopes);
+		setStatusMap(Object.fromEntries(scopes.map((s) => [s, "pending" as PublishStatus])));
 
 		let hadError = false;
 		const published: RibbonLocation[] = [];
@@ -479,6 +504,7 @@ export const BulkPublishModal: React.FC = () => {
 		setCheckState("idle");
 		setCheckFindings([]);
 		setCheckError("");
+		setTarget({ confirmed: false });
 		closeBulkPublish();
 	};
 
@@ -610,6 +636,7 @@ export const BulkPublishModal: React.FC = () => {
 							{!publishing && !done && (
 								<>
 									<TargetScope
+										key={targetRead}
 										rows={[
 											{
 												label: "Solution",
@@ -646,7 +673,7 @@ export const BulkPublishModal: React.FC = () => {
 											},
 										]}
 										confirmWord={confirmWord}
-										onConfirmationChange={setTargetConfirmed}
+										onConfirmationChange={onTargetChange}
 									/>
 									<Field label="Afterwards">
 										<Dropdown

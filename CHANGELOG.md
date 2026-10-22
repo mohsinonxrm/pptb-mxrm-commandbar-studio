@@ -15,9 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - the top bar shows the connection's name and type, with Production highlighted;
   - the publish dialog shows the environment (name, type, URL), the solution, the tables and what
     the publish writes; on a **Production** connection, **Publish** waits until you type the
-    table's logical name (or `application ribbon`);
+    table's logical name (or `application ribbon`), including when the connection is set to
+    Production while the dialog is open;
   - an upload (web resource browser, icon picker SVG) over an existing web resource asks first:
-    **Replace**, **Keep existing** or **Cancel**; a managed one is never replaced;
+    **Replace**, **Keep existing** or **Cancel**; a managed one can only be kept;
   - the command editor's **Save Web Resource** shows the environment it saves to;
   - README: **What this tool changes** lists every write.
 
