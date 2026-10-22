@@ -43,6 +43,7 @@ import type { RibbonDiffParts } from "@/services/ribbonDiffMerge";
 import type { PublishFinding } from "@/services/xmlValidator";
 import type { RibbonLocation } from "@/types/ribbon";
 import { groupControls } from "@/utils/ribbonMenu";
+import { TargetScope } from "@/components/shared/TargetScope";
 
 const useStyles = makeStyles({
 	content: {
@@ -130,6 +131,9 @@ export const BulkPublishModal: React.FC = () => {
 	const [done, setDone] = useState(false);
 	const [incrementSolutionVersion, setIncrementSolutionVersion] = useState(false);
 	const [publishStrategy, setPublishStrategy] = useState<"targeted" | "allAsync">("targeted");
+	// The target block's verdict (#121): false while the connection is read, and on Production
+	// until the confirmation word is typed.
+	const [targetConfirmed, setTargetConfirmed] = useState(false);
 	const [progressMessage, setProgressMessage] = useState("");
 	const [publishComment, setPublishComment] = useState("");
 	const [solutionVersion, setSolutionVersion] = useState(activeSolution?.version ?? "1.0.0.0");
@@ -213,6 +217,8 @@ export const BulkPublishModal: React.FC = () => {
 		...(activeEntity && entityPlan?.hasChanges ? [activeEntity.logicalName] : []),
 		...(includeApplicationRibbon ? ["Application ribbon"] : []),
 	];
+	// Typed on a Production connection (#121): the table's logical name, or "application ribbon".
+	const confirmWord = activeEntity && entityPlan?.hasChanges ? activeEntity.logicalName : "application ribbon";
 
 	// Pre-publish check (#35): validates the RibbonDiffXml each scope would
 	// import (existing layer + changes). It runs once the plan has nothing
@@ -603,10 +609,43 @@ export const BulkPublishModal: React.FC = () => {
 
 							{!publishing && !done && (
 								<>
-									<Text>
-										<strong>Will publish:</strong>{" "}
-										{scopes.length > 0 ? scopes.join(", ") : "nothing (there are no changes to publish)"}
-									</Text>
+									<TargetScope
+										rows={[
+											{
+												label: "Solution",
+												value: activeSolution ? (
+													<Text weight="semibold">
+														{activeSolution.friendlyName || activeSolution.uniqueName}
+													</Text>
+												) : (
+													<Text>None selected</Text>
+												),
+											},
+											{
+												label: "Will publish",
+												value: (
+													<Text weight="semibold">
+														{scopes.length > 0 ? scopes.join(", ") : "nothing (there are no changes to publish)"}
+													</Text>
+												),
+											},
+											{
+												label: "Writes",
+												value: (
+													<Text>
+														Imports the ribbon customization of {scopes.length === 1 ? "it" : "each"} twice,
+														replacing what is in the solution&apos;s layer
+														{publishStrategy === "allAsync"
+															? ", then publishes every unpublished customization in the environment"
+															: ", then publishes it"}
+														.
+													</Text>
+												),
+											},
+										]}
+										confirmWord={confirmWord}
+										onConfirmationChange={setTargetConfirmed}
+									/>
 									<Field label="Afterwards">
 										<Dropdown
 											value={
@@ -728,7 +767,8 @@ export const BulkPublishModal: React.FC = () => {
 									!activeSolution ||
 									scopes.length === 0 ||
 									unsupported.length > 0 ||
-									checkBlocks
+									checkBlocks ||
+									!targetConfirmed
 								}
 							>
 								{publishing ? "Publishing..." : "Publish"}

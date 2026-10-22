@@ -128,6 +128,28 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 
 ---
 
+## ✏️ What this tool changes
+
+Command Bar Studio only reads from Dataverse until you use one of the operations below. Every
+write shows the **target environment** first: the connection's name and type (Production
+highlighted) are always in the top bar, and the publish dialog names the environment, solution
+and tables. On a **Production** connection you type the table's logical name (or
+`application ribbon`) before **Publish** is enabled. Writes run as the connected user, or the
+user PPTB is impersonating, and only go to the connection the tool was on when the operation
+started (if the tool's connection changes in Power Platform ToolBox, the operation stops).
+
+| Operation | When | What it does in Dataverse |
+|---|---|---|
+| **Publish** | **Publish All** in the top bar, or Ctrl+S | Builds a solution package for the selected unmanaged solution with the table's **complete** ribbon customization (what is in the solution's layer, plus your changes) and imports it **twice** (`ImportSolution` with `OverwriteUnmanagedCustomizations`), then publishes the table (`PublishXml`) and reads the layer back to verify it. Ribbon changes on that table that were imported elsewhere but not published are replaced. The same for the application ribbon, when the solution contains the Application Ribbons component. **Also publish all customizations** adds `PublishAllXmlAsync`, which publishes everything unpublished in the environment. |
+| **Upload a web resource** | Web resource browser → **Upload**; icon picker → **Upload SVG** | Creates a web resource named `<prefix>_/<folder>/<file name>` and adds it to the selected unmanaged solution (`AddSolutionComponent`). If one with that name exists you choose **Replace** (its content changes everywhere it is used), **Keep existing** or **Cancel**; a managed one is never replaced. |
+| **Pick a Fluent icon** | Icon picker → Fluent icons | Creates the SVG web resource `<prefix>_/icons/cbs/<icon>.svg` (an existing one is reused, never overwritten), adds it to the solution and publishes it (`PublishXml`). |
+| **Pick an existing web resource as an icon** | Icon picker → Web resource | Adds the web resource to the selected unmanaged solution (`AddSolutionComponent`). |
+| **Save a script** | Command editor → JavaScript action → **Save Web Resource** | Updates the content of the script you opened and adds it to the solution. The button shows the environment it saves to. |
+
+Nothing else writes to Dataverse:
+- **Unsaved changes** are kept as a draft in the browser storage of Power Platform ToolBox on your machine (`localStorage`), per environment, solution and table. A note of the last publish is kept for the session (`sessionStorage`).
+- **Export** writes a RibbonDiffXml file where you choose; **Import RibbonDiffXml** only changes the workspace until you publish.
+
 ## 🖼️ Interface Overview
 
 ```

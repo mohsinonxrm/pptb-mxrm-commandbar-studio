@@ -1,3 +1,4 @@
+import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
 import { writeGuard } from "@/services/hostConnection";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -473,6 +474,7 @@ export const CommandEditorPanel: React.FC = () => {
 								>
 									Close
 								</Button>
+								{codeEditable && <EnvironmentBadge prefix="Saves to" />}
 								{codeEditable && (
 									<Button
 										appearance="primary"

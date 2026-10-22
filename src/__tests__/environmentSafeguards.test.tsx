@@ -1,0 +1,302 @@
+/**
+ * #121 — every write names its target environment; Production needs a typed confirmation;
+ * an upload never replaces an existing web resource without asking, and never a managed one.
+ */
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { FluentProvider, webLightTheme } from "@fluentui/react-components";
+import { parseRibbonXml } from "@/services/xmlParser";
+import {
+	isProductionEnvironment,
+	isTypedConfirmation,
+	requiresTypedConfirmation,
+} from "@/components/shared/targetScopeRules";
+import {
+	upsertWebResource,
+	WebResourceSaveCancelled,
+	type UpsertWebResourceOptions,
+} from "@/services/dataverse/webResourceService";
+import { useRibbonStore } from "@/store/ribbonStore";
+import { useSessionStore } from "@/store/sessionStore";
+import { useUIStore } from "@/store/uiStore";
+import type { EntityMetadata } from "@/types/entity";
+import type { Solution } from "@/types/solution";
+import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
+
+// jsdom has no ResizeObserver; Fluent's MessageBar uses it for reflow.
+if (typeof window.ResizeObserver === "undefined") {
+	window.ResizeObserver = class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof ResizeObserver;
+}
+
+// The pre-publish check reads the org; here it finds nothing.
+vi.mock("@/services/dataverse/publishService", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/services/dataverse/publishService")>()),
+	checkBeforePublish: vi.fn(async () => ({ findings: [] })),
+}));
+
+describe("targetScopeRules", () => {
+	it("asks for a typed confirmation on Production only", () => {
+		expect(isProductionEnvironment("Production")).toBe(true);
+		expect(isProductionEnvironment(" production ")).toBe(true);
+		expect(isProductionEnvironment("Dev")).toBe(false);
+		expect(isProductionEnvironment(undefined)).toBe(false);
+		expect(requiresTypedConfirmation("Production")).toBe(true);
+		expect(requiresTypedConfirmation("UAT")).toBe(false);
+	});
+
+	it("accepts the word ignoring case and spaces, never an empty word", () => {
+		expect(isTypedConfirmation(" CBSTEST_RibbonTest ", "cbstest_ribbontest")).toBe(true);
+		expect(isTypedConfirmation("cbstest", "cbstest_ribbontest")).toBe(false);
+		expect(isTypedConfirmation("", "")).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// The publish dialog
+// ---------------------------------------------------------------------------
+
+const T = "cbstest_ribbontest";
+const MAIN = `Mscrm.HomepageGrid.${T}.MainTab`;
+const MGMT = `${MAIN}.Management`;
+const XML = `<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs>
+  <Tab Id="${MAIN}" Command="${MAIN}" Sequence="10"><Groups Id="${MAIN}.Groups">
+    <Group Id="${MGMT}" Sequence="10" Template="Mscrm.Templates.Flexible2"><Controls Id="${MGMT}.Controls">
+      <Button Id="Mscrm.HomepageGrid.${T}.Edit" Command="Mscrm.EditSelectedRecord" Sequence="20" LabelText="Edit" TemplateAlias="o1" />
+    </Controls></Group>
+  </Groups></Tab>
+</Tabs></Ribbon></UI><CommandDefinitions>
+  <CommandDefinition Id="Mscrm.EditSelectedRecord"><EnableRules/><DisplayRules/><Actions><JavaScriptFunction FunctionName="edit" Library="$webresource:lib.js"/></Actions></CommandDefinition>
+</CommandDefinitions><RuleDefinitions><TabDisplayRules/><DisplayRules/><EnableRules/></RuleDefinitions></RibbonDefinition></RibbonDefinitions>`;
+const empty = (location: RibbonLocation): RibbonDefinition => ({
+	location,
+	entityLogicalName: T,
+	tabs: [],
+});
+const entity: EntityMetadata = {
+	metadataId: "md",
+	logicalName: T,
+	displayName: "CBS Ribbon Test",
+	isCustomEntity: true,
+	isIntersect: false,
+};
+const solution = {
+	id: "s1",
+	uniqueName: "CBSLiveTest",
+	friendlyName: "CBS Live Test",
+	version: "1.0.0.0",
+	isManaged: false,
+	publisherPrefix: "cbstest",
+	publisherUniqueName: "cbstest",
+	publisherName: "CBS Test",
+} as Solution;
+
+let environment: "Dev" | "Production";
+let container: HTMLDivElement;
+let root: Root;
+const flush = async () => {
+	for (let i = 0; i < 5; i++) await act(async () => new Promise((r) => setTimeout(r, 0)));
+};
+const publishButton = () =>
+	[...document.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Publish") as
+		HTMLButtonElement | undefined;
+const confirmInput = () =>
+	document.querySelector<HTMLInputElement>(`input[aria-label="Type ${T} to confirm"]`);
+function type(input: HTMLInputElement, value: string) {
+	const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+	act(() => {
+		setter.call(input, value);
+		input.dispatchEvent(new Event("input", { bubbles: true }));
+	});
+}
+
+async function openPublishDialog() {
+	const { default: BulkPublishModal } = await import("@/components/modals/BulkPublishModal");
+	container = document.createElement("div");
+	document.body.appendChild(container);
+	root = createRoot(container);
+	act(() =>
+		root.render(
+			<FluentProvider theme={webLightTheme}>
+				<BulkPublishModal />
+			</FluentProvider>,
+		),
+	);
+	act(() => useUIStore.setState({ bulkPublishOpen: true }));
+	await flush();
+}
+
+describe("the publish dialog names its target and guards Production (#121)", () => {
+	beforeEach(() => {
+		(window as unknown as { toolboxAPI: unknown }).toolboxAPI = {
+			connections: {
+				getConnection: async () => ({
+					id: "c1",
+					name: "Contoso",
+					url: "https://contoso.crm.dynamics.com",
+					environment,
+				}),
+			},
+		};
+		useSessionStore.setState({
+			activeSolution: solution,
+			activeEntity: entity,
+			solutionRibbonComponentIds: [],
+			publisherPrefix: "cbstest",
+		});
+		const parsed = parseRibbonXml(XML, "HomepageGrid", T);
+		useRibbonStore.getState().loadWorkspace({
+			ribbons: {
+				HomepageGrid: parsed.ribbon,
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
+			commands: parsed.commands,
+			displayRules: parsed.displayRules,
+			enableRules: parsed.enableRules,
+			locLabels: [],
+		});
+		// A pending change: a new button.
+		useRibbonStore.getState().createButton({
+			location: "HomepageGrid",
+			tabId: MAIN,
+			groupId: MGMT,
+			button: {
+				id: "cbstest.New",
+				label: "New one",
+				kind: "button",
+				templateAlias: "o1",
+				commandId: "Mscrm.EditSelectedRecord",
+				hidden: false,
+				oob: false,
+				custom: true,
+				managed: false,
+			},
+		});
+	});
+
+	afterEach(() => {
+		act(() => root.unmount());
+		container.remove();
+		useUIStore.setState({ bulkPublishOpen: false });
+		delete (window as unknown as { toolboxAPI?: unknown }).toolboxAPI;
+	});
+
+	it("on Production, Publish waits for the table's logical name", async () => {
+		environment = "Production";
+		await openPublishDialog();
+		const text = document.body.textContent ?? "";
+		expect(text).toContain("Production environment");
+		expect(text).toContain("Contoso");
+		expect(text).toContain("https://contoso.crm.dynamics.com");
+		expect(text).toContain("CBS Live Test");
+		expect(publishButton()?.disabled).toBe(true);
+
+		type(confirmInput()!, "cbstest");
+		await flush();
+		expect(publishButton()?.disabled).toBe(true);
+
+		type(confirmInput()!, T.toUpperCase());
+		await flush();
+		expect(publishButton()?.disabled).toBe(false);
+	});
+
+	it("on Dev, the target is named and Publish needs no typing", async () => {
+		environment = "Dev";
+		await openPublishDialog();
+		const text = document.body.textContent ?? "";
+		expect(text).toContain("Contoso");
+		expect(text).not.toContain("Production environment");
+		expect(confirmInput()).toBeNull();
+		expect(publishButton()?.disabled).toBe(false);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// Web resource uploads over an existing name
+// ---------------------------------------------------------------------------
+
+function fakeApi(existing: { ismanaged: boolean } | null) {
+	return {
+		queryData: vi.fn(async () => ({
+			value: existing ? [{ webresourceid: "wr-1", ismanaged: existing.ismanaged }] : [],
+		})),
+		update: vi.fn(async () => undefined),
+		create: vi.fn(async () => ({ id: "wr-new" })),
+		execute: vi.fn(async () => ({})),
+	};
+}
+const upload = (
+	api: ReturnType<typeof fakeApi>,
+	onExisting?: UpsertWebResourceOptions["onExisting"],
+) =>
+	upsertWebResource(
+		api as unknown as DataverseAPI.API,
+		"cbstest_/icons/logo.svg",
+		"PHN2Zy8+",
+		11,
+		{
+			solutionUniqueName: "CBSLiveTest",
+			onExisting,
+		},
+	);
+
+describe("upsertWebResource with onExisting (#121)", () => {
+	it("asks, and replaces the content when told to", async () => {
+		const api = fakeApi({ ismanaged: false });
+		const onExisting = vi.fn(async () => "replace" as const);
+		const result = await upload(api, onExisting);
+		expect(onExisting).toHaveBeenCalledWith({ id: "wr-1", name: "cbstest_/icons/logo.svg" });
+		expect(api.update).toHaveBeenCalledTimes(1);
+		expect(result).toMatchObject({ id: "wr-1", updated: true, created: false });
+	});
+
+	it("keeps the existing content, and still adds it to the solution", async () => {
+		const api = fakeApi({ ismanaged: false });
+		const result = await upload(api, async () => "keep");
+		expect(api.update).not.toHaveBeenCalled();
+		expect(api.execute).toHaveBeenCalledWith(
+			expect.objectContaining({ operationName: "AddSolutionComponent" }),
+		);
+		expect(result).toMatchObject({ id: "wr-1", updated: false });
+	});
+
+	it("writes nothing when cancelled", async () => {
+		const api = fakeApi({ ismanaged: false });
+		await expect(upload(api, async () => "cancel")).rejects.toBeInstanceOf(
+			WebResourceSaveCancelled,
+		);
+		expect(api.update).not.toHaveBeenCalled();
+		expect(api.create).not.toHaveBeenCalled();
+		expect(api.execute).not.toHaveBeenCalled();
+	});
+
+	it("refuses to replace a managed web resource, without asking", async () => {
+		const api = fakeApi({ ismanaged: true });
+		const onExisting = vi.fn(async () => "replace" as const);
+		await expect(upload(api, onExisting)).rejects.toThrow(
+			/managed web resource .* can't be replaced/,
+		);
+		expect(onExisting).not.toHaveBeenCalled();
+		expect(api.update).not.toHaveBeenCalled();
+	});
+
+	it("doesn't ask for a new name", async () => {
+		const api = fakeApi(null);
+		const onExisting = vi.fn(async () => "cancel" as const);
+		const result = await upload(api, onExisting);
+		expect(onExisting).not.toHaveBeenCalled();
+		expect(result).toMatchObject({ id: "wr-new", created: true });
+	});
+
+	it("without onExisting (the command editor saving its script) the content is replaced as before", async () => {
+		const api = fakeApi({ ismanaged: false });
+		await upload(api);
+		expect(api.update).toHaveBeenCalledTimes(1);
+	});
+});
