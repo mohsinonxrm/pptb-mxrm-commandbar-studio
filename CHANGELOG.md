@@ -54,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   runs, and an import that has to wait for another import stops instead of importing over what
   that import may have left unpublished.
 
+- **Dynamic flyouts can be published (#101).** A flyout or split button that is populated at
+  runtime (`PopulateDynamically` with a `PopulateQueryCommand`, e.g. a copy of the out-of-the-box
+  **Flow** flyout) has no static menu; the pre-publish check reported it as an empty drop-down and
+  blocked the publish. It is accepted now (a dynamic one without a `PopulateQueryCommand` is only
+  warned about), and `PopulateDynamically` is read as a boolean ("true" or "1") everywhere.
+
 ### 🏗️ Technical
 
 - **Dependency security (#117).** `npm audit` reports 0 vulnerabilities, runtime and dev.

@@ -7,7 +7,7 @@ import {
 	type RuleKind,
 } from "@/constants/ruleKinds";
 import { CRM_PARAMETER_VALUE_SET, isNamedCrmParameterValue } from "@/constants/crmParameters";
-import { groupControls } from "@/utils/ribbonMenu";
+import { groupControls, isDynamicMenuValue } from "@/utils/ribbonMenu";
 import { isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { MAX_LOC_LABEL_ID_LENGTH } from "@/utils/locLabelRef";
 import { OPEN_RECORD_ITEM_COMMAND_ID, isOpenRecordCarrier } from "@/utils/openRecordItem";
@@ -621,11 +621,25 @@ export function validatePublishRibbonDiff(
 	}
 
 	// A flyout / split button without its <Menu> publishes as an empty drop-down.
+	// A dynamic one (#101) has none: its PopulateQueryCommand fills it at runtime
+	// (as in publishPlan, which doesn't report it as an empty menu either).
 	for (const { key, el } of customActions) {
 		for (const node of Array.from(el.getElementsByTagName("*"))) {
 			if (!MENU_CONTROL_TAGS.has(node.tagName)) continue;
 			if (childElements(node).some((c) => c.tagName === "Menu")) continue;
 			const id = node.getAttribute("Id") ?? "";
+			if (isDynamicMenuValue(node.getAttribute("PopulateDynamically"))) {
+				if (!node.getAttribute("PopulateQueryCommand")?.trim()) {
+					add(
+						"menu-missing",
+						key,
+						`${node.tagName} ${id} is populated dynamically but has no PopulateQueryCommand — its drop-down may stay empty`,
+						id,
+						true,
+					);
+				}
+				continue;
+			}
 			add(
 				"menu-missing",
 				key,
