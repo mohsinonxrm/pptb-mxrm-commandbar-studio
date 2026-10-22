@@ -633,11 +633,13 @@ export const BulkPublishModal: React.FC = () => {
 												label: "Writes",
 												value: (
 													<Text>
-														Imports the ribbon customization of {scopes.length === 1 ? "it" : "each"} twice,
-														replacing what is in the solution&apos;s layer
+														{scopes.length === 1 ? "Imports its" : "Imports each one's"} ribbon customization
+														twice, replacing what the solution&apos;s layer has, then publishes{" "}
 														{publishStrategy === "allAsync"
-															? ", then publishes every unpublished customization in the environment"
-															: ", then publishes it"}
+															? "every unpublished customization in the environment"
+															: scopes.length === 1
+																? "it"
+																: "them"}
 														.
 													</Text>
 												),
