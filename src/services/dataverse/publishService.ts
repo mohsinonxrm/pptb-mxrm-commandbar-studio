@@ -288,6 +288,8 @@ export async function buildMergedRibbonDiffXml(
 	newKeys: string[];
 	/** Commands and rules the existing unmanaged layer defines (replaced by what is imported). */
 	layerDefinitionIds: { commandIds: string[]; enableRuleIds: string[]; displayRuleIds: string[] };
+	/** The unmanaged layer as read for the merge: the import must not replace anything else (#102). */
+	layer: RibbonDiffParts;
 }> {
 	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
 	const plan = {
@@ -508,6 +510,7 @@ export async function buildMergedRibbonDiffXml(
 			enableRuleIds: Array.from(existing.enableRules.keys()),
 			displayRuleIds: Array.from(existing.displayRules.keys()),
 		},
+		layer: existing,
 	};
 }
 
@@ -735,6 +738,97 @@ export async function verifyPublishedLayer(
 }
 
 /**
+ * The table's ribbon changed in Dataverse while it was being published (#102):
+ * other changes to it were published meanwhile (another session, tool or
+ * solution import). Nothing more is imported, since the import would replace
+ * that change. The layer tables show published state only, so a change
+ * imported elsewhere but not published can't be seen.
+ */
+export class RibbonLayerChangedError extends Error {
+	/** What changed, e.g. "added: customActions:X; changed: commandDefinitions:Y". */
+	readonly summary: string;
+
+	constructor(
+		readonly scopeLabel: string,
+		readonly changes: RibbonDiffComparison,
+	) {
+		const sample = (ids: string[]) => ids.slice(0, 5).join(", ") + (ids.length > 5 ? ", …" : "");
+		const summary = [
+			changes.unexpected.length ? `added: ${sample(changes.unexpected)}` : "",
+			changes.missing.length ? `removed: ${sample(changes.missing)}` : "",
+			changes.differing.length ? `changed: ${sample(changes.differing)}` : "",
+		]
+			.filter(Boolean)
+			.join("; ");
+		super(
+			`${scopeLabel}'s ribbon customizations changed in Dataverse since you started publishing ` +
+				`(${summary}): other ribbon changes for it were published meanwhile, from another session, tool or solution import. ` +
+				`Importing would overwrite that change, so nothing was imported. ` +
+				`Reload the table to get the change, then publish again.`,
+		);
+		this.name = "RibbonLayerChangedError";
+		this.summary = summary;
+	}
+}
+
+/** Every `part:id` of a layer: compared by content as well as presence. */
+const allKeys = (parts: RibbonDiffParts): string[] =>
+	(Object.keys(parts) as (keyof RibbonDiffParts)[]).flatMap((part) =>
+		Array.from(parts[part].keys()).map((id) => `${part}:${id}`),
+	);
+
+/** Two reads of the layer, element by element, exactly as Dataverse stored them. */
+function exactLayerChanges(expected: RibbonDiffParts, actual: RibbonDiffParts): RibbonDiffComparison {
+	const missing: string[] = [];
+	const unexpected: string[] = [];
+	const differing: string[] = [];
+	for (const part of Object.keys(expected) as (keyof RibbonDiffParts)[]) {
+		for (const [id, xml] of expected[part]) {
+			const got = actual[part].get(id);
+			if (got === undefined) missing.push(`${part}:${id}`);
+			else if (got !== xml) differing.push(`${part}:${id}`);
+		}
+		for (const id of actual[part].keys()) if (!expected[part].has(id)) unexpected.push(`${part}:${id}`);
+	}
+	return { missing, unexpected, differing };
+}
+
+const hasChanges = (c: RibbonDiffComparison) => c.missing.length + c.unexpected.length + c.differing.length > 0;
+
+/** How the layer is compared before an import (#102). */
+type ExpectedLayer =
+	/** An earlier read of the layer: every element must be exactly as it was. */
+	| { kind: "read" }
+	/**
+	 * What an import wrote: Dataverse rewrites some of it (platform actions,
+	 * labels), so elements are compared in the form that survives an import,
+	 * and the layer is read up to `attempts` times, `delayMs` apart, since it
+	 * can lag behind the publish (as verifyPublishedLayer allows).
+	 */
+	| { kind: "imported"; attempts?: number; delayMs?: number };
+
+/** Reads the layer again and throws RibbonLayerChangedError when it isn't `expected` (#102). */
+async function assertLayerUnchanged(
+	entityLogicalName: string | null,
+	scopeLabel: string,
+	expected: RibbonDiffParts,
+	as: ExpectedLayer,
+): Promise<void> {
+	const attempts = as.kind === "imported" ? (as.attempts ?? 3) : 1;
+	let changes: RibbonDiffComparison = { missing: [], unexpected: [], differing: [] };
+	for (let i = 0; i < attempts; i++) {
+		if (i > 0 && as.kind === "imported") await new Promise((r) => setTimeout(r, as.delayMs ?? 5000));
+		const actual = await fetchUnmanagedRibbonParts(entityLogicalName);
+		changes =
+			as.kind === "read"
+				? exactLayerChanges(expected, actual)
+				: compareRibbonDiffParts(expected, actual, { contentKeys: allKeys(expected) });
+		if (!hasChanges(changes)) return;
+	}
+	throw new RibbonLayerChangedError(scopeLabel, changes);
+}
+
+/**
  * Publishes one ribbon scope (a table, or the application ribbon):
  * read the existing unmanaged layer → merge CBS's edits from every location →
  * import ONE complete RibbonDiffXml → verify Dataverse actually applied it →
@@ -833,17 +927,27 @@ async function publishRibbonUnguarded(
 	}
 	const base64Zip = btoa(binaryStr);
 
-	const importAndVerify = async (pass: string): Promise<string> => {
+	// The import replaces the whole unmanaged layer (#102): `expected` is what it
+	// must still be when the import starts, or someone else changed it.
+	const importAndVerify = async (
+		pass: string,
+		expected: { layer: RibbonDiffParts; as: ExpectedLayer },
+	): Promise<string> => {
 		onProgress?.(`Importing ${scopeLabel} ribbon${pass}…`);
 		// ImportSolution requires a client-generated ImportJobId (0x80048d19 otherwise).
 		const importJobId = crypto.randomUUID();
 		logs.logInfo("publish", `Importing solution${pass} (import job ${importJobId})…`);
 		// Another import / publish / ribbon-metadata generation makes ImportSolution
-		// fail with 0x80071151: wait for it and retry (#46).
+		// fail with 0x80071151: wait for it and retry (#46). The layer is read again
+		// before every attempt, after the wait.
 		await withBusyRetry(
 			"Import",
-			() =>
-				importSolution(base64Zip, importJobId, guard),
+			async () => {
+				// Still the connection the publish started on (#120), before reading it.
+				await guard("Importing");
+				await assertLayerUnchanged(input.entity?.logicalName ?? null, scopeLabel, expected.layer, expected.as);
+				return importSolution(base64Zip, importJobId, guard);
+			},
 			busy,
 		);
 
@@ -907,7 +1011,7 @@ async function publishRibbonUnguarded(
 	// Don't start while another solution operation runs (#46).
 	onProgress?.("Checking that no other solution operation is running…");
 	await waitForEnvironmentIdle(busy);
-	const importJobId = await importAndVerify("");
+	const importJobId = await importAndVerify("", { layer: merged.layer, as: { kind: "read" } });
 	let verification: PublishVerification | undefined;
 
 	if (input.publishCustomizations !== false) {
@@ -926,23 +1030,42 @@ async function publishRibbonUnguarded(
 				"Refreshing Unified Interface command-bar metadata (second import of the same package)…",
 			);
 			try {
-				await importAndVerify(" (refreshing Unified Interface metadata)");
+				// The layer is now what the first import wrote.
+				await importAndVerify(" (refreshing Unified Interface metadata)", {
+					layer: merged.parts,
+					as: { kind: "imported", delayMs: input.verifyDelayMs },
+				});
 				await publishScope();
 			} catch (err) {
-				throw new Error(
+				if (err instanceof RibbonLayerChangedError) {
+					// Your changes are published: the publish succeeded, with a warning.
+					verification = {
+						ok: false,
+						...err.changes,
+						message:
+							`Your changes were imported and published, but ${scopeLabel}'s ribbon customizations changed ` +
+							`in Dataverse after that (${err.summary}): other changes were published meanwhile. They weren't ` +
+							`imported a second time to refresh Unified Interface's command-bar metadata, since that would ` +
+							`overwrite the other change, so new or changed buttons may not appear in the app until the ` +
+							`table's ribbon is published again. Reload the table to see the other change.`,
+					};
+					logs.logWarn("publish", verification.message);
+				} else throw new Error(
 					`Your changes were imported and published, but refreshing Unified Interface's command-bar ` +
 						`metadata failed (${err instanceof Error ? err.message : String(err)}). New or changed buttons ` +
 						`may not appear in the app until you publish again.`,
 				);
 			}
 		}
-		onProgress?.("Verifying the published ribbon…");
-		verification = await verifyPublishedLayer(input.entity?.logicalName ?? null, merged.parts, {
-			delayMs: input.verifyDelayMs,
-			contentKeys: merged.changedKeys,
-		});
-		if (verification.ok) logs.logInfo("publish", verification.message);
-		else logs.logWarn("publish", verification.message);
+		if (!verification) {
+			onProgress?.("Verifying the published ribbon…");
+			verification = await verifyPublishedLayer(input.entity?.logicalName ?? null, merged.parts, {
+				delayMs: input.verifyDelayMs,
+				contentKeys: merged.changedKeys,
+			});
+			if (verification.ok) logs.logInfo("publish", verification.message);
+			else logs.logWarn("publish", verification.message);
+		}
 	} else {
 		logs.logWarn(
 			"publish",

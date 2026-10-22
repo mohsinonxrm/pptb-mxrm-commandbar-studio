@@ -34,6 +34,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - every write (import, publish, web resource save) first checks that the tool is still on the
     connection it started on, so a publish never continues into the newly selected environment.
     Token refreshes and edits to other connections change nothing.
+- **A publish no longer overwrites a change made elsewhere meanwhile (#102).** The import replaces
+  the table's whole unmanaged ribbon layer, and it can start minutes after the layer was read
+  (waiting for a busy environment, then a second import). The layer is now read again just before
+  each import, after any wait; if other ribbon changes for the table were published meanwhile
+  (another session, tool or solution import), nothing is imported and the message names the added,
+  removed or changed elements: reload the table and publish again. When that happens between the
+  two imports, your changes are already published, and the publish ends with a warning instead of
+  importing again. (Changes imported elsewhere but not published can't be seen, and are still
+  replaced.)
 
 ### 🏗️ Technical
 

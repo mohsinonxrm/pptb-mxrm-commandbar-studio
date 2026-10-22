@@ -163,10 +163,26 @@ const LAYER_XML = `<RibbonDiffXml><CustomActions>
 <LocLabels><LocLabel Id="cbs.Go.LabelText"><Titles><Title languagecode="1033" description="Go" /><Title languagecode="1031" description="Los" /></Titles></LocLabel></LocLabels>
 </RibbonDiffXml>`;
 
-function fakeEnvironment(opts: { busyImports?: number; busyHistory?: number; dropOnPublish?: string; languageCode?: number } = {}) {
+function fakeEnvironment(
+	opts: {
+		busyImports?: number;
+		busyHistory?: number;
+		/** An element the publish (every one, or only the n-th) leaves out of the published layer. */
+		dropOnPublish?: string;
+		dropOnPublishNumber?: number;
+		languageCode?: number;
+		/** Someone else writes to the layer just before its n-th read (#102). */
+		onLayerRead?: (n: number, server: RibbonDiffParts) => void;
+		/** The n-th read returns the layer as it was before any import: a read lagging behind the publish. */
+		staleRead?: number;
+	} = {},
+) {
 	let server = parseRibbonDiffParts(LAYER_XML);
+	let serving: RibbonDiffParts | null = null;
 	let busyImports = opts.busyImports ?? 0;
 	let busyHistory = opts.busyHistory ?? 0;
+	let layerReads = 0;
+	let publishes = 0;
 	const calls: string[] = [];
 	const api = {
 		calls,
@@ -185,8 +201,13 @@ function fakeEnvironment(opts: { busyImports?: number; busyHistory?: number; dro
 				return { CompressedEntityXml: btoa(b) };
 			}
 			const table = q.split("?")[0] as "ribbondiffs" | "ribboncommands" | "ribbonrules";
+			if (table === "ribbondiffs" && !q.includes("entity eq null")) {
+				layerReads++;
+				opts.onLayerRead?.(layerReads, server);
+				serving = layerReads === opts.staleRead ? parseRibbonDiffParts(LAYER_XML) : null;
+			}
 			if (q.includes("entity eq null")) return { value: [] };
-			return { value: rowsOf(server)[table] };
+			return { value: rowsOf(serving ?? server)[table] };
 		}),
 		importSolution: vi.fn(async (zip: string) => {
 			calls.push("import");
@@ -199,7 +220,8 @@ function fakeEnvironment(opts: { busyImports?: number; busyHistory?: number; dro
 		})),
 		publishXml: vi.fn(async () => {
 			calls.push("publish");
-			if (opts.dropOnPublish) server.customActions.delete(opts.dropOnPublish);
+			publishes++;
+			if (opts.dropOnPublish && (opts.dropOnPublishNumber ?? publishes) === publishes) server.customActions.delete(opts.dropOnPublish);
 		}),
 		execute: vi.fn(async (req: { operationName: string; parameters?: Record<string, string> }) => {
 			if (req.operationName === "ImportSolution") return api.importSolution(req.parameters!.CustomizationFile);
@@ -331,11 +353,108 @@ describe("publishRibbon in a busy environment (#46)", () => {
 	});
 
 	it("reports a published layer that doesn't match what was imported", async () => {
-		const env = fakeEnvironment({ dropOnPublish: "ca:cbs.Go.CustomAction" });
+		// After the second import (the first one is checked before re-importing, #102).
+		const env = fakeEnvironment({ dropOnPublish: "ca:cbs.Go.CustomAction", dropOnPublishNumber: 2 });
 		const { result } = await publishUnhide(env);
 		expect(result.verification?.ok).toBe(false);
 		expect(result.verification?.missing).toEqual(["customActions:ca:cbs.Go.CustomAction"]);
 		expect(result.verification?.message).toMatch(/doesn't match.*missing: customActions:ca:cbs\.Go\.CustomAction/);
+	});
+});
+
+describe("a change made elsewhere while publishing (#102)", () => {
+	const OTHER = "ca:other.Added.CustomAction";
+	const otherXml = `<CustomAction Id="other.Added.CustomAction" Location="Mscrm.HomepageGrid.${T}.MainTab.Management.Controls._children" Sequence="950"><CommandUIDefinition><Button Id="other.Added" Command="cbs.Go.Command" Sequence="950" LabelText="Other" TemplateAlias="o1" /></CommandUIDefinition></CustomAction>`;
+	const addOther = (server: RibbonDiffParts) => server.customActions.set(OTHER, otherXml);
+
+	it("imports nothing when the layer changed after it was read for the merge", async () => {
+		// Read 1 is the merge; another session adds a button before read 2, the check before the import.
+		const env = fakeEnvironment({ onLayerRead: (n, server) => n === 2 && addOther(server) });
+		await expect(publishUnhide(env)).rejects.toThrow(
+			/changed in Dataverse since you started publishing \(added: customActions:ca:other\.Added\.CustomAction\).*nothing was imported/,
+		);
+		expect(env.calls).not.toContain("import");
+		expect(env.calls).not.toContain("publish");
+		expect(env.server.customActions.has(OTHER)).toBe(true);
+	});
+
+	it("reads the layer again after waiting for a busy environment, before retrying the import", async () => {
+		// Read 2 is the check before the first (busy) attempt; the change lands during the wait.
+		const env = fakeEnvironment({ busyImports: 1, onLayerRead: (n, server) => n === 3 && addOther(server) });
+		const { RibbonLayerChangedError } = await import("@/services/dataverse/publishService");
+		const err = await publishUnhide(env).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect((err as Error).name).toBe(RibbonLayerChangedError.name);
+		// Only the busy attempt, which wrote nothing.
+		expect(env.calls.filter((c) => c === "import")).toHaveLength(1);
+		expect(env.server.customActions.has(OTHER)).toBe(true);
+	});
+
+	it("notices a changed element, not only an added or removed one", async () => {
+		const env = fakeEnvironment({
+			onLayerRead: (n, server) =>
+				n === 2 &&
+				server.commandDefinitions.set(
+					"cbs.Go.Command",
+					server.commandDefinitions.get("cbs.Go.Command")!.replace('FunctionName="go"', 'FunctionName="goElsewhere"'),
+				),
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(/changed: commandDefinitions:cbs\.Go\.Command/);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("doesn't import a second time when the layer changed after the first publish, and says so", async () => {
+		// Read 3 is the check before the second import.
+		const env = fakeEnvironment({ onLayerRead: (n, server) => n === 3 && addOther(server) });
+		const { result } = await publishUnhide(env);
+		// The changes are published: a result (the store marks them published), with a warning.
+		expect(result.verification?.ok).toBe(false);
+		expect(result.verification?.unexpected).toEqual([`customActions:${OTHER}`]);
+		expect(result.verification?.message).toMatch(
+			/imported and published, but .*changed in Dataverse after that \(added: customActions:ca:other\.Added\.CustomAction\).*weren't imported a second time/,
+		);
+		expect(env.calls.filter((c) => c === "import")).toHaveLength(1);
+		expect(env.calls.filter((c) => c === "publish")).toHaveLength(1);
+		expect(env.server.customActions.has(OTHER)).toBe(true);
+	});
+
+	it("reads again when the layer lags behind the first publish, rather than stopping", async () => {
+		// Read 3, the check before the second import, still returns the layer from before the import.
+		const env = fakeEnvironment({ staleRead: 3 });
+		const { result } = await publishUnhide(env);
+		expect(env.calls.filter((c) => c === "import")).toHaveLength(2);
+		expect(result.verification?.ok).toBe(true);
+	});
+
+	it("compares the two reads before the first import exactly: a removed translation counts", async () => {
+		const env = fakeEnvironment({
+			onLayerRead: (n, server) =>
+				n === 2 &&
+				server.locLabels.set(
+					"cbs.Go.LabelText",
+					server.locLabels.get("cbs.Go.LabelText")!.replace(/<Title languagecode="1031"[^>]*>/, ""),
+				),
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(/changed: locLabels:cbs\.Go\.LabelText/);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("checks the connection before reading the layer again (#120)", async () => {
+		const env = fakeEnvironment();
+		const guard = vi.fn(async (action: string) => {
+			if (action === "Importing") throw new Error("The connection changed.");
+		});
+		await expect(publishUnhide(env, { guard })).rejects.toThrow("The connection changed.");
+		// Only the read for the merge.
+		expect(env.calls.filter((c) => c === "query ribbondiffs")).toHaveLength(1);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("imports twice when nothing else changed the layer", async () => {
+		const env = fakeEnvironment();
+		const { result } = await publishUnhide(env);
+		expect(env.calls.filter((c) => c === "import")).toHaveLength(2);
+		expect(result.verification?.ok).toBe(true);
 	});
 });
 
