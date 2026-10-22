@@ -41,8 +41,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (another session, tool or solution import), nothing is imported and the message names the added,
   removed or changed elements: reload the table and publish again. When that happens between the
   two imports, your changes are already published, and the publish ends with a warning instead of
-  importing again. (Changes imported elsewhere but not published can't be seen, and are still
-  replaced.)
+  importing again. (Changes imported elsewhere but not published can't be seen by this check; see
+  #103 below.)
+- **Ribbon changes imported elsewhere but not published are kept (#103).** Dataverse shows only
+  published ribbon customizations, so a solution imported but not yet published was invisible to
+  the publish and was replaced by it (verified live: the layer tables, RetrieveEntityRibbon and a
+  solution export all show only the published state). A publish now publishes the table (or the
+  application ribbon) first, so those changes become part of the layer it merges into. The publish
+  at the end publishes everything pending for the table anyway, so nothing else changes. A publish
+  the pre-publish check refuses as loaded still writes nothing; if it fails after the table was
+  published first, the message says so. The publish first waits until no other solution operation
+  runs, and an import that has to wait for another import stops instead of importing over what
+  that import may have left unpublished.
 
 ### 🏗️ Technical
 
