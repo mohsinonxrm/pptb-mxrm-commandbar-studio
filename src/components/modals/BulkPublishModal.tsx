@@ -1,3 +1,4 @@
+import { writeGuard } from "@/services/hostConnection";
 import React, { useState } from "react";
 import {
 	Badge,
@@ -320,6 +321,12 @@ export const BulkPublishModal: React.FC = () => {
 		setRunScopes(scopes);
 		setStatusMap(Object.fromEntries(scopes.map((s) => [s, "pending" as PublishStatus])));
 
+		// One guard for the whole run (#120): every scope writes to the connection
+		// the run started on. After a switch, nothing more is published or stored.
+		const guard = writeGuard();
+		const startVersion = useSessionStore.getState().connectionVersion;
+		const switched = () => useSessionStore.getState().connectionVersion !== startVersion;
+
 		let hadError = false;
 		const published: RibbonLocation[] = [];
 		// The layers as imported: the store takes their scaling / labels (#66 review).
@@ -358,6 +365,7 @@ export const BulkPublishModal: React.FC = () => {
 				const result = await publishRibbon(
 					{
 						...common,
+						guard,
 						entity: {
 							logicalName: activeEntity.logicalName,
 							schemaName: activeEntity.schemaName,
@@ -385,13 +393,14 @@ export const BulkPublishModal: React.FC = () => {
 			published.push(...ENTITY_LOCATIONS); // nothing changed there
 		}
 
-		if (includeApplicationRibbon) {
+		if (includeApplicationRibbon && !switched()) {
 			const scope = "Application ribbon";
 			setStatusMap((prev) => ({ ...prev, [scope]: "publishing" }));
 			try {
 				const result = await publishRibbon(
 					{
 						...common,
+						guard,
 						entity: null,
 						locations: [{ current: ribbons.Application, baseline: baseline.Application }],
 						ribbonCustomizationIds: solutionRibbonComponentIds ?? [],
@@ -415,11 +424,23 @@ export const BulkPublishModal: React.FC = () => {
 
 		if (!hadError && publishStrategy === "allAsync") {
 			try {
-				await publishAllAsync((msg) => setProgressMessage(msg));
+				await publishAllAsync((msg) => setProgressMessage(msg), { guard });
 			} catch (err) {
 				hadError = true;
 				errors.push({ scope: "Publish all customizations", message: fmt(err) });
 			}
+		}
+
+		if (switched()) {
+			// The store holds the new connection's (empty) workspace now: nothing of
+			// this run belongs in it.
+			if (includeApplicationRibbon && !errors.some((e) => e.scope === "Application ribbon"))
+				errors.push({ scope: "Application ribbon", message: "Not published: the tool's connection changed during the publish." });
+			setVerifications(verified);
+			setErrorMessages(errors);
+			setDone(false);
+			setPublishing(false);
+			return;
 		}
 
 		// Only scopes that were actually imported (or had nothing to import) are

@@ -70,6 +70,13 @@ export interface DraftStore {
 	requestEntitySwitch(entity: EntityMetadata): void;
 	requestSolutionSwitch(solution: Solution): void;
 	resolveSwitch(choice: SwitchChoice): void;
+	/**
+	 * The tool's connection changed (#120): the unpublished changes are saved as
+	 * a draft under the previous org (the draft key holds its URL), and the
+	 * workspace no longer belongs to a draft. Nothing can be cancelled: the host
+	 * has already switched.
+	 */
+	releaseForConnectionChange(): { hadChanges: boolean; kept: boolean };
 }
 
 /** Whether `state` has anything to publish. The counter alone can't tell after a partial publish (#16 review). */
@@ -277,5 +284,22 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 		set({ pendingSwitch: null, target: null, pending: null, pendingBaselineChanged: false, saveFailed: false });
 		resetWorkspace();
 		applySwitch(pendingSwitch);
+	},
+
+	releaseForConnectionChange() {
+		const hadChanges = hasUnpublishedChanges();
+		// While an earlier draft waits for Restore / Discard, that one stays as it is.
+		const kept = hadChanges ? saveOrClear(useRibbonStore.getState()) : false;
+		restoredAt = null;
+		set({
+			target: null,
+			pending: null,
+			pendingBaselineChanged: false,
+			restoreError: null,
+			pendingSwitch: null,
+			saveFailed: false,
+			lastSavedAt: null,
+		});
+		return { hadChanges, kept };
 	},
 }));

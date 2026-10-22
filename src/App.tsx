@@ -34,6 +34,7 @@ import { fetchCurrentUser } from "@/services/dataverse/userService";
 import { useRibbonPersistence } from "@/hooks/useRibbonPersistence";
 import { useDraftStore, draftKeyFor } from "@/store/draftStore";
 import { DraftSaveWarning } from "@/components/shell/DraftSaveWarning";
+import { ConnectionChangedNotice } from "@/components/shell/ConnectionChangedNotice";
 import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
 import { UnsavedChangesDialog } from "@/components/modals/UnsavedChangesDialog";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
@@ -89,6 +90,7 @@ export function App() {
 	const setSolutionRibbonComponentIds = useSessionStore((s) => s.setSolutionRibbonComponentIds);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const activeEntity = useSessionStore((s) => s.activeEntity);
+	const connectionVersion = useSessionStore((s) => s.connectionVersion);
 	const loadWorkspace = useRibbonStore((s) => s.loadWorkspace);
 	const setTabId = useSelectionStore((s) => s.setTabId);
 	const themeMode = useUIStore((s) => s.themeMode);
@@ -115,13 +117,17 @@ export function App() {
 	// same workflow up-front.
 	useEffect(() => {
 		logInfo("runtime", "Loading solutions and current user...");
+		// An answer from the previous connection must not land after a switch (#120).
+		let cancelled = false;
 
 		fetchSolutions()
 			.then((sols) => {
+				if (cancelled) return;
 				setSolutions(sols);
 				logInfo("runtime", `Loaded ${sols.length} solution(s). Pick one to load its tables.`);
 			})
 			.catch((error) => {
+				if (cancelled) return;
 				logError(
 					"runtime",
 					`Failed to load solutions: ${error instanceof Error ? error.message : String(error)}`,
@@ -130,7 +136,7 @@ export function App() {
 
 		void fetchCurrentUser()
 			.then((user) => {
-				if (!user.id) return;
+				if (cancelled || !user.id) return;
 				setCurrentUser(user.id, user.name);
 				logInfo("runtime", `Current user: ${user.name}.`);
 			})
@@ -140,7 +146,11 @@ export function App() {
 					`Failed to resolve current user: ${error instanceof Error ? error.message : String(error)}`,
 				);
 			});
-	}, [setSolutions, setCurrentUser, logInfo, logWarn, logError]);
+		return () => {
+			cancelled = true;
+		};
+		// Again after the tool's connection changed (#120).
+	}, [setSolutions, setCurrentUser, logInfo, logWarn, logError, connectionVersion]);
 
 	// ----- When the user picks a solution: resolve its entity components and
 	// fetch metadata for ONLY those entities (no bulk 1883-row catalog load).
@@ -328,6 +338,7 @@ export function App() {
 		<FluentProvider theme={themeMode === "dark" ? webDarkTheme : webLightTheme}>
 			<Layout leftPane={<LeftPane />} rightPane={<PropertiesPane />} bottomPanel={<BottomPanel />}>
 				<DraftSaveWarning />
+				<ConnectionChangedNotice />
 				<RibbonCanvas
 					isLoadingRibbon={ribbonLoadState === "loading"}
 					ribbonLoadError={ribbonLoadError}

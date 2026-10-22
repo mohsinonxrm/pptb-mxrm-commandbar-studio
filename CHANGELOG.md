@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 Fixed
+
+- **Connection changes while the tool is open (#120).** Power Platform ToolBox can switch a running
+  tool to another connection (desktop app and VS Code extension). Command Bar Studio now follows:
+  - the solution and table loaded from the previous environment are closed, and their unpublished
+    changes are kept as a draft for that environment (offered again when the tool is back on it);
+  - the solutions and the current user load again for the new connection, and a banner names both
+    environments;
+  - a change of the connection's name or environment type only updates them;
+  - every write (import, publish, web resource save) first checks that the tool is still on the
+    connection it started on, so a publish never continues into the newly selected environment.
+    Token refreshes and edits to other connections change nothing.
+
 ### 🏗️ Technical
 
 - **Dependency security (#117).** `npm audit` reports 0 vulnerabilities, runtime and dev.

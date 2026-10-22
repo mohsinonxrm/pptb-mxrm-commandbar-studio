@@ -1,8 +1,20 @@
 import { create } from "zustand";
 import type { Solution } from "@/types/solution";
 import type { EntityMetadata } from "@/types/entity";
+import { setWorkspaceConnection } from "@/services/hostConnection";
+
+/** Shown after the tool's connection changed in Power Platform ToolBox (#120). */
+export interface ConnectionNotice {
+	from: { name: string; url: string; environment: SessionStore["environment"] };
+	to: { name: string; url: string; environment: SessionStore["environment"] };
+	/** The unpublished changes on `from` were kept as a draft (false: there were none, or saving failed). */
+	draftKept: boolean;
+	/** There were unpublished changes, but saving them as a draft failed. */
+	draftLost: boolean;
+}
 
 export interface SessionStore {
+	connectionId: string;
 	connectionUrl: string;
 	connectionName: string;
 	environment: "Dev" | "Test" | "UAT" | "Production";
@@ -35,7 +47,19 @@ export interface SessionStore {
 	currentUserId: string;
 	currentUserName: string;
 
-	setConnection(url: string, name: string, environment: SessionStore["environment"]): void;
+	/** Incremented when the tool's connection changes, so everything loaded per connection loads again (#120). */
+	connectionVersion: number;
+	/** The last connection change, for the banner; null once dismissed. */
+	connectionNotice: ConnectionNotice | null;
+
+	setConnection(url: string, name: string, environment: SessionStore["environment"], id?: string): void;
+	/**
+	 * The tool now works against another connection (#120): everything loaded
+	 * from the previous one is cleared and `connectionVersion` moves on. The
+	 * caller has kept the unpublished changes as a draft first.
+	 */
+	switchConnection(connection: ToolBoxAPI.Connection, notice: Omit<ConnectionNotice, "from" | "to">): void;
+	dismissConnectionNotice(): void;
 	setSolutions(solutions: Solution[]): void;
 	setActiveSolution(solution: Solution): void;
 	setEntities(entities: EntityMetadata[]): void;
@@ -61,6 +85,7 @@ export function onSolutionSwitch(listener: () => void): () => void {
 }
 
 export const useSessionStore = create<SessionStore>()((set, get) => ({
+	connectionId: "",
 	connectionUrl: "",
 	connectionName: "",
 	environment: "Dev",
@@ -76,8 +101,39 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
 	currentUserId: "",
 	currentUserName: "",
 
-	setConnection: (url, name, environment) =>
-		set({ connectionUrl: url, connectionName: name, environment }),
+	connectionVersion: 0,
+	connectionNotice: null,
+
+	setConnection: (url, name, environment, id = get().connectionId) => {
+		setWorkspaceConnection({ id, url });
+		set({ connectionId: id, connectionUrl: url, connectionName: name, environment });
+	},
+	switchConnection: (connection, notice) => {
+		const prev = get();
+		setWorkspaceConnection(connection);
+		set({
+			connectionId: connection.id,
+			connectionUrl: connection.url,
+			connectionName: connection.name,
+			environment: connection.environment,
+			publisherPrefix: "new",
+			solutions: [],
+			activeSolution: null,
+			entities: [],
+			activeEntity: null,
+			solutionEntityIds: null,
+			solutionRibbonComponentIds: null,
+			currentUserId: "",
+			currentUserName: "",
+			connectionVersion: prev.connectionVersion + 1,
+			connectionNotice: {
+				...notice,
+				from: { name: prev.connectionName, url: prev.connectionUrl, environment: prev.environment },
+				to: { name: connection.name, url: connection.url, environment: connection.environment },
+			},
+		});
+	},
+	dismissConnectionNotice: () => set({ connectionNotice: null }),
 	setSolutions: (solutions) => set({ solutions }),
 	setActiveSolution: (solution) => {
 		// Surface the picked solution's publisher info so the user (and the

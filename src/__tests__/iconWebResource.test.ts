@@ -90,7 +90,7 @@ describe("ensureFluentIconWebResource", () => {
 			11,
 			expect.objectContaining({ keepExisting: true }),
 		);
-		expect(deps.publish).toHaveBeenCalledWith("wr-1");
+		expect(deps.publish).toHaveBeenCalledWith("wr-1", undefined);
 	});
 
 	it("publishes a reused web resource that was not published in this session", async () => {
@@ -100,7 +100,7 @@ describe("ensureFluentIconWebResource", () => {
 		const res = await ensureFluentIconWebResource("Add", "regular", "cbstest", toSvg, deps);
 		expect(res.created).toBe(false);
 		expect(res.publishError).toBeUndefined();
-		expect(deps.publish).toHaveBeenCalledWith("wr-1");
+		expect(deps.publish).toHaveBeenCalledWith("wr-1", undefined);
 	});
 
 	it("does not republish a web resource already published in this session", async () => {
@@ -138,7 +138,7 @@ describe("ensureFluentIconWebResource", () => {
 		const second = await ensureFluentIconWebResource("Add", "regular", "cbstest", toSvg, deps);
 		expect(second.created).toBe(false);
 		expect(second.publishError).toBeUndefined();
-		expect(deps.publish).toHaveBeenCalledWith("wr-1");
+		expect(deps.publish).toHaveBeenCalledWith("wr-1", undefined);
 	});
 
 	it("publishes on the next pick when adding the new web resource to the solution failed", async () => {
@@ -154,7 +154,7 @@ describe("ensureFluentIconWebResource", () => {
 		deps.save.mockResolvedValueOnce({ id: "wr-1", created: false, updated: false, solutionUniqueName: "CBSLiveTest" });
 		const res = await ensureFluentIconWebResource("Add", "regular", "cbstest", toSvg, deps);
 		expect(res.created).toBe(false);
-		expect(deps.publish).toHaveBeenCalledWith("wr-1");
+		expect(deps.publish).toHaveBeenCalledWith("wr-1", undefined);
 	});
 
 	it("serializes the chosen variant and treats a publish failure as non-fatal", async () => {
@@ -174,5 +174,14 @@ describe("ensureFluentIconWebResource", () => {
 			ensureFluentIconWebResource("Nope", "regular", "cbstest", toSvg, deps),
 		).rejects.toThrow(/Nope/);
 		expect(deps.save).not.toHaveBeenCalled();
+	});
+
+	it("saves and publishes on the connection the icon was picked on (#120)", async () => {
+		const guard = vi.fn(async () => undefined);
+		const save = vi.fn(async (_n: string, _c: string, _t: number, _o: unknown) => ({ id: "wr-9", created: true, updated: false }));
+		const publish = vi.fn(async () => undefined);
+		await ensureFluentIconWebResource("Add", "regular", "cbs", async () => "<svg/>", { save, publish, guard, published: new Set() });
+		expect(save.mock.calls[0][3]).toMatchObject({ guard });
+		expect(publish).toHaveBeenCalledWith("wr-9", guard);
 	});
 });

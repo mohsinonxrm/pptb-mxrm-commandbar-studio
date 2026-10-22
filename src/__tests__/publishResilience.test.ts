@@ -226,7 +226,7 @@ const SOLUTION = {
 	publisherPrefix: "cbstest",
 };
 
-async function publishUnhide(env: ReturnType<typeof fakeEnvironment>) {
+async function publishUnhide(env: ReturnType<typeof fakeEnvironment>, extra: { guard?: (action: string) => Promise<void> } = {}) {
 	vi.resetModules();
 	const { publishRibbon } = await import("@/services/dataverse/publishService");
 	const parsed = parseRibbonXml(MERGED, "HomepageGrid", T);
@@ -249,11 +249,36 @@ async function publishUnhide(env: ReturnType<typeof fakeEnvironment>) {
 			solution: SOLUTION,
 			busy: { sleep: async () => undefined },
 			verifyDelayMs: 0,
+			...extra,
 		},
 		(m) => progress.push(m),
 	);
 	return { result, progress, env };
 }
+
+describe("a publish run and a connection switch (#120)", () => {
+	it("a scope that starts after the switch imports nothing, even though the new connection is current by then", async () => {
+		const env = fakeEnvironment();
+		const host = await import("@/services/hostConnection");
+		const dev = { id: "c-dev", url: "https://dev.crm.dynamics.com" };
+		const prod = { id: "c-prod", url: "https://prod.crm.dynamics.com" };
+		let current = dev;
+		(window as unknown as { toolboxAPI: unknown }).toolboxAPI = { connections: { getConnection: async () => current } };
+		try {
+			host.setWorkspaceConnection(dev);
+			const runGuard = host.writeGuard(); // the publish dialog's run starts on Dev
+			// The table scope imports on Dev; then the tool switches to Prod and the switch is handled.
+			host.setWorkspaceConnection(prod);
+			current = prod;
+			// The application-ribbon scope of the same run starts now.
+			await expect(publishUnhide(env, { guard: runGuard })).rejects.toBeInstanceOf(host.ConnectionChangedError);
+			expect(env.calls).not.toContain("import");
+			expect(env.calls).not.toContain("publish");
+		} finally {
+			delete (window as unknown as { toolboxAPI?: unknown }).toolboxAPI;
+		}
+	});
+});
 
 describe("publishRibbon in a busy environment (#46)", () => {
 	it("waits for a running operation, retries a busy import, and verifies the published layer", async () => {
