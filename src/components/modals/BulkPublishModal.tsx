@@ -605,7 +605,7 @@ export const BulkPublishModal: React.FC = () => {
 								<MessageBarBody>
 									Publishing writes this table&apos;s complete ribbon customization: what is already
 									published, plus your changes. Ribbon changes on this table that were imported
-									elsewhere but <strong>not published</strong> are replaced. Publishing takes about 1–4
+									elsewhere but <strong>not published</strong> are published first, so they are kept. Publishing takes about 1–4
 									minutes (the ribbon is imported twice so Unified Interface picks up the change). Users may need to refresh the page, or navigate away and back, to see the
 									update. You have <strong>{mutationsSincePublish}</strong> change(s) since the last
 									publish.
@@ -660,7 +660,9 @@ export const BulkPublishModal: React.FC = () => {
 												label: "Writes",
 												value: (
 													<Text>
-														{scopes.length === 1 ? "Imports its" : "Imports each one's"} ribbon customization
+														Publishes {scopes.length === 1 ? "it" : "them"} first (keeps changes imported
+														elsewhere but not published),{" "}
+														{scopes.length === 1 ? "imports its" : "imports each one's"} ribbon customization
 														twice, replacing what the solution&apos;s layer has, then publishes{" "}
 														{publishStrategy === "allAsync"
 															? "every unpublished customization in the environment"

@@ -325,9 +325,13 @@ describe("publishRibbon in a busy environment (#46)", () => {
 			expect(r.parameters).toMatchObject({ OverwriteUnmanagedCustomizations: true, PublishWorkflows: false });
 			expect(r.parameters!.ImportJobId).toMatch(/^[0-9a-f-]{36}$/);
 		}
-		// A table publish after each import, never PublishAllXml.
+		// A table publish before reading the layer (#103) and after each import, never PublishAllXml.
 		const tablePublish = { ParameterXml: `<importexportxml><entities><entity>${T}</entity></entities></importexportxml>` };
-		expect(requests.filter((r) => r.operationName === "PublishXml").map((r) => r.parameters)).toEqual([tablePublish, tablePublish]);
+		expect(requests.filter((r) => r.operationName === "PublishXml").map((r) => r.parameters)).toEqual([
+			tablePublish,
+			tablePublish,
+			tablePublish,
+		]);
 		expect(requests.some((r) => r.operationName === "PublishAllXml")).toBe(false);
 	});
 
@@ -349,12 +353,13 @@ describe("publishRibbon in a busy environment (#46)", () => {
 			return publish();
 		});
 		await publishUnhide(env);
-		expect(env.publishXml).toHaveBeenCalledTimes(3);
+		// 1 busy attempt + the publish first (#103) + one after each import.
+		expect(env.publishXml).toHaveBeenCalledTimes(4);
 	});
 
 	it("reports a published layer that doesn't match what was imported", async () => {
-		// After the second import (the first one is checked before re-importing, #102).
-		const env = fakeEnvironment({ dropOnPublish: "ca:cbs.Go.CustomAction", dropOnPublishNumber: 2 });
+		// After the second import (the first one is checked before re-importing, #102; publish 1 is the one first, #103).
+		const env = fakeEnvironment({ dropOnPublish: "ca:cbs.Go.CustomAction", dropOnPublishNumber: 3 });
 		const { result } = await publishUnhide(env);
 		expect(result.verification?.ok).toBe(false);
 		expect(result.verification?.missing).toEqual(["customActions:ca:cbs.Go.CustomAction"]);
@@ -368,19 +373,21 @@ describe("a change made elsewhere while publishing (#102)", () => {
 	const addOther = (server: RibbonDiffParts) => server.customActions.set(OTHER, otherXml);
 
 	it("imports nothing when the layer changed after it was read for the merge", async () => {
-		// Read 1 is the merge; another session adds a button before read 2, the check before the import.
-		const env = fakeEnvironment({ onLayerRead: (n, server) => n === 2 && addOther(server) });
+		// Read 2 is the merge (read 1 the check before publishing first, #103); another session adds a
+		// button before read 3, the check before the import.
+		const env = fakeEnvironment({ onLayerRead: (n, server) => n === 3 && addOther(server) });
 		await expect(publishUnhide(env)).rejects.toThrow(
 			/changed in Dataverse since you started publishing \(added: customActions:ca:other\.Added\.CustomAction\).*nothing was imported/,
 		);
 		expect(env.calls).not.toContain("import");
-		expect(env.calls).not.toContain("publish");
+		// Only the publish first (#103).
+		expect(env.calls.filter((c) => c === "publish")).toHaveLength(1);
 		expect(env.server.customActions.has(OTHER)).toBe(true);
 	});
 
 	it("reads the layer again after waiting for a busy environment, before retrying the import", async () => {
-		// Read 2 is the check before the first (busy) attempt; the change lands during the wait.
-		const env = fakeEnvironment({ busyImports: 1, onLayerRead: (n, server) => n === 3 && addOther(server) });
+		// Read 3 is the check before the first (busy) attempt; the change lands during the wait.
+		const env = fakeEnvironment({ busyImports: 1, onLayerRead: (n, server) => n === 4 && addOther(server) });
 		const { RibbonLayerChangedError } = await import("@/services/dataverse/publishService");
 		const err = await publishUnhide(env).catch((e: unknown) => e);
 		expect(err).toBeInstanceOf(Error);
@@ -393,7 +400,7 @@ describe("a change made elsewhere while publishing (#102)", () => {
 	it("notices a changed element, not only an added or removed one", async () => {
 		const env = fakeEnvironment({
 			onLayerRead: (n, server) =>
-				n === 2 &&
+				n === 3 &&
 				server.commandDefinitions.set(
 					"cbs.Go.Command",
 					server.commandDefinitions.get("cbs.Go.Command")!.replace('FunctionName="go"', 'FunctionName="goElsewhere"'),
@@ -404,8 +411,8 @@ describe("a change made elsewhere while publishing (#102)", () => {
 	});
 
 	it("doesn't import a second time when the layer changed after the first publish, and says so", async () => {
-		// Read 3 is the check before the second import.
-		const env = fakeEnvironment({ onLayerRead: (n, server) => n === 3 && addOther(server) });
+		// Read 4 is the check before the second import.
+		const env = fakeEnvironment({ onLayerRead: (n, server) => n === 4 && addOther(server) });
 		const { result } = await publishUnhide(env);
 		// The changes are published: a result (the store marks them published), with a warning.
 		expect(result.verification?.ok).toBe(false);
@@ -414,13 +421,14 @@ describe("a change made elsewhere while publishing (#102)", () => {
 			/imported and published, but .*changed in Dataverse after that \(added: customActions:ca:other\.Added\.CustomAction\).*weren't imported a second time/,
 		);
 		expect(env.calls.filter((c) => c === "import")).toHaveLength(1);
-		expect(env.calls.filter((c) => c === "publish")).toHaveLength(1);
+		// The publish first (#103) and the one after the import.
+		expect(env.calls.filter((c) => c === "publish")).toHaveLength(2);
 		expect(env.server.customActions.has(OTHER)).toBe(true);
 	});
 
 	it("reads again when the layer lags behind the first publish, rather than stopping", async () => {
-		// Read 3, the check before the second import, still returns the layer from before the import.
-		const env = fakeEnvironment({ staleRead: 3 });
+		// Read 4, the check before the second import, still returns the layer from before the import.
+		const env = fakeEnvironment({ staleRead: 4 });
 		const { result } = await publishUnhide(env);
 		expect(env.calls.filter((c) => c === "import")).toHaveLength(2);
 		expect(result.verification?.ok).toBe(true);
@@ -429,7 +437,7 @@ describe("a change made elsewhere while publishing (#102)", () => {
 	it("compares the two reads before the first import exactly: a removed translation counts", async () => {
 		const env = fakeEnvironment({
 			onLayerRead: (n, server) =>
-				n === 2 &&
+				n === 3 &&
 				server.locLabels.set(
 					"cbs.Go.LabelText",
 					server.locLabels.get("cbs.Go.LabelText")!.replace(/<Title languagecode="1031"[^>]*>/, ""),
@@ -445,8 +453,55 @@ describe("a change made elsewhere while publishing (#102)", () => {
 			if (action === "Importing") throw new Error("The connection changed.");
 		});
 		await expect(publishUnhide(env, { guard })).rejects.toThrow("The connection changed.");
-		// Only the read for the merge.
-		expect(env.calls.filter((c) => c === "query ribbondiffs")).toHaveLength(1);
+		// Only the check before publishing first (#103) and the read for the merge.
+		expect(env.calls.filter((c) => c === "query ribbondiffs")).toHaveLength(2);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("publishes the table first, so a change imported elsewhere but not published is kept (#103)", async () => {
+		const env = fakeEnvironment();
+		// Another session imported a button and didn't publish it: the layer tables don't show it yet.
+		let pending: RibbonDiffParts | null = parseRibbonDiffParts(LAYER_XML);
+		pending.customActions.set(OTHER, otherXml);
+		const publish = env.publishXml;
+		env.publishXml = vi.fn(async () => {
+			if (pending) {
+				// PublishXml makes it part of the published layer.
+				const p = pending;
+				pending = null;
+				p.customActions.forEach((xml, id) => env.server.customActions.set(id, xml));
+			}
+			return publish();
+		});
+		const { result } = await publishUnhide(env);
+		expect(env.calls.slice(0, env.calls.indexOf("import")).filter((c) => c === "publish")).toHaveLength(1);
+		// Merged in, not replaced: the other session's button and this session's unhide are both published.
+		expect(env.server.customActions.has(OTHER)).toBe(true);
+		expect(env.server.customActions.has("hide:cbs.HideEdit")).toBe(false);
+		expect(result.verification?.ok).toBe(true);
+	});
+
+	it("writes nothing, not even the publish first, when the pre-publish check refuses (#103)", async () => {
+		const env = fakeEnvironment();
+		// Unhiding a control the layer doesn't hide is refused before anything is written.
+		vi.resetModules();
+		const { publishRibbon } = await import("@/services/dataverse/publishService");
+		const parsed = parseRibbonXml(MERGED, "HomepageGrid", T);
+		await expect(
+			publishRibbon({
+				entity: { logicalName: T, schemaName: T },
+				locations: [{ current: parsed.ribbon, baseline: parsed.ribbon }],
+				commands: [],
+				enableRules: [],
+				displayRules: [],
+				locLabels: [],
+				plan: { editedCommandIds: [], editedEnableRuleIds: [], editedDisplayRuleIds: [], deletedButtonIds: ["cbs.NotInTheLayer"], unhiddenButtonIds: [] },
+				solution: SOLUTION,
+				busy: { sleep: async () => undefined },
+				verifyDelayMs: 0,
+			}),
+		).rejects.toThrow(/Can't delete cbs\.NotInTheLayer/);
+		expect(env.calls).not.toContain("publish");
 		expect(env.calls).not.toContain("import");
 	});
 

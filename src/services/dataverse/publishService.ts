@@ -851,32 +851,6 @@ async function publishRibbonUnguarded(
 	const scopeLabel = input.entity ? input.entity.logicalName : "Application ribbon";
 	const busy: BusyWaitOptions = { onProgress, ...input.busy };
 
-	onProgress?.(`Reading existing ribbon customizations for ${scopeLabel}…`);
-	logs.logInfo("publish", `Reading unmanaged ribbon layer for ${scopeLabel}.`);
-	const languageCode = input.languageCode ?? (await fetchOrganizationLanguageCode());
-	const merged = await buildMergedRibbonDiffXml({ ...input, languageCode });
-	logs.logInfo(
-		"publish",
-		`RibbonDiffXml for ${scopeLabel}: ${merged.preservedCount} existing element(s) preserved, ` +
-			`${merged.changedCount} element(s) from this session, ${merged.elementCount} total.`,
-	);
-	for (const c of merged.scalingChanges) logs.logWarn("publish", describeScalingChange(c));
-
-	// Pre-publish validation (#35): never import what the check rejects.
-	const findings = validatePublishRibbonDiff(
-		merged.parts,
-		publishValidationContext({ ...input, publisherPrefix: input.solution.publisherPrefix }, merged),
-	);
-	for (const f of findings) if (f.severity === "warning") logs.logWarn("publish", f.message);
-	const blocking = findings.filter((f) => f.severity === "error");
-	if (blocking.length > 0) {
-		for (const f of blocking) logs.logError("publish", f.message);
-		throw new Error(
-			`The pre-publish check found ${blocking.length} error(s), so nothing was imported: ` +
-				blocking.map((f) => f.message).join("; "),
-		);
-	}
-
 	const isApplication = input.entity === null;
 	if (isApplication && !input.ribbonCustomizationIds?.length) {
 		throw new Error(
@@ -884,6 +858,76 @@ async function publishRibbonUnguarded(
 				"(Solutions → your solution → Add existing → Application Ribbons) and reload the solution.",
 		);
 	}
+
+	const publishScope = async (progress = "Publishing customizations…") => {
+		onProgress?.(progress);
+		await withBusyRetry(
+			"Publish",
+			async () => {
+				if (isApplication) {
+					// Targeted publish of the application ribbon only — PublishAllXml
+					// would publish the whole environment.
+					await guard("Publishing");
+					await dataverseAPI.execute({
+						operationName: "PublishXml",
+						operationType: "action",
+						parameters: { ParameterXml: "<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>" },
+					});
+				} else {
+					await publishTables([input.entity!.logicalName], guard);
+				}
+			},
+			busy,
+		);
+	};
+
+	const languageCode = input.languageCode ?? (await fetchOrganizationLanguageCode());
+	// Reads the layer, merges this session's changes into it and runs the
+	// pre-publish check (#35): never import what the check rejects.
+	const mergeAndCheck = async (log: boolean) => {
+		onProgress?.(`Reading existing ribbon customizations for ${scopeLabel}…`);
+		if (log) logs.logInfo("publish", `Reading unmanaged ribbon layer for ${scopeLabel}.`);
+		const result = await buildMergedRibbonDiffXml({ ...input, languageCode });
+		const findings = validatePublishRibbonDiff(
+			result.parts,
+			publishValidationContext({ ...input, publisherPrefix: input.solution.publisherPrefix }, result),
+		);
+		const blocking = findings.filter((f) => f.severity === "error");
+		if (log || blocking.length > 0) {
+			logs.logInfo(
+				"publish",
+				`RibbonDiffXml for ${scopeLabel}: ${result.preservedCount} existing element(s) preserved, ` +
+					`${result.changedCount} element(s) from this session, ${result.elementCount} total.`,
+			);
+			for (const c of result.scalingChanges) logs.logWarn("publish", describeScalingChange(c));
+			for (const f of findings) if (f.severity === "warning") logs.logWarn("publish", f.message);
+		}
+		if (blocking.length > 0) {
+			for (const f of blocking) logs.logError("publish", f.message);
+			throw new Error(
+				`The pre-publish check found ${blocking.length} error(s), so nothing was imported: ` +
+					blocking.map((f) => f.message).join("; "),
+			);
+		}
+		return result;
+	};
+
+	// The layer tables show PUBLISHED state only, and the import replaces the
+	// whole unmanaged layer (#103): ribbon changes imported elsewhere but not yet
+	// published would be lost. Publishing the scope first makes them part of the
+	// layer that is read and merged. The publish at the end publishes them anyway
+	// (with everything else pending for the table), so this adds no other effect.
+	// A publish the check refuses writes nothing: the check runs before, and
+	// again on the layer as published.
+	if (input.publishCustomizations !== false) {
+		await mergeAndCheck(false);
+		logs.logInfo(
+			"publish",
+			`Publishing ${scopeLabel} first, so ribbon changes imported elsewhere but not yet published are kept.`,
+		);
+		await publishScope(`Publishing ${scopeLabel} first (keeps changes imported elsewhere but not published)…`);
+	}
+	const merged = await mergeAndCheck(true);
 
 	const entityName = input.entity?.schemaName || input.entity?.logicalName || "";
 	const customizationsXml = isApplication
@@ -984,28 +1028,6 @@ async function publishRibbonUnguarded(
 		}
 		logs.logInfo("publish", verification.message);
 		return importJobId;
-	};
-
-	const publishScope = async () => {
-		onProgress?.("Publishing customizations…");
-		await withBusyRetry(
-			"Publish",
-			async () => {
-				if (isApplication) {
-					// Targeted publish of the application ribbon only — PublishAllXml
-					// would publish the whole environment.
-					await guard("Publishing");
-					await dataverseAPI.execute({
-						operationName: "PublishXml",
-						operationType: "action",
-						parameters: { ParameterXml: "<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>" },
-					});
-				} else {
-					await publishTables([input.entity!.logicalName], guard);
-				}
-			},
-			busy,
-		);
 	};
 
 	// Don't start while another solution operation runs (#46).
