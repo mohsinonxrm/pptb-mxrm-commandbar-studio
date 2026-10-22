@@ -37,9 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A publish no longer overwrites a change made elsewhere meanwhile (#102).** The import replaces
   the table's whole unmanaged ribbon layer, and it can start minutes after the layer was read
   (waiting for a busy environment, then a second import). The layer is now read again just before
-  each import, after any wait; if another session, tool or solution import changed it, nothing is
-  imported and the message names the added, removed or changed elements: reload the table and
-  publish again.
+  each import, after any wait; if other ribbon changes for the table were published meanwhile
+  (another session, tool or solution import), nothing is imported and the message names the added,
+  removed or changed elements: reload the table and publish again. When that happens between the
+  two imports, your changes are already published, and the publish ends with a warning instead of
+  importing again. (Changes imported elsewhere but not published can't be seen, and are still
+  replaced.)
 
 ### 🏗️ Technical
 

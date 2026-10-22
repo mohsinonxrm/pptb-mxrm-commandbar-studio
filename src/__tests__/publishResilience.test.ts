@@ -173,9 +173,12 @@ function fakeEnvironment(
 		languageCode?: number;
 		/** Someone else writes to the layer just before its n-th read (#102). */
 		onLayerRead?: (n: number, server: RibbonDiffParts) => void;
+		/** The n-th read returns the layer as it was before any import: a read lagging behind the publish. */
+		staleRead?: number;
 	} = {},
 ) {
 	let server = parseRibbonDiffParts(LAYER_XML);
+	let serving: RibbonDiffParts | null = null;
 	let busyImports = opts.busyImports ?? 0;
 	let busyHistory = opts.busyHistory ?? 0;
 	let layerReads = 0;
@@ -198,9 +201,13 @@ function fakeEnvironment(
 				return { CompressedEntityXml: btoa(b) };
 			}
 			const table = q.split("?")[0] as "ribbondiffs" | "ribboncommands" | "ribbonrules";
-			if (table === "ribbondiffs" && !q.includes("entity eq null")) opts.onLayerRead?.(++layerReads, server);
+			if (table === "ribbondiffs" && !q.includes("entity eq null")) {
+				layerReads++;
+				opts.onLayerRead?.(layerReads, server);
+				serving = layerReads === opts.staleRead ? parseRibbonDiffParts(LAYER_XML) : null;
+			}
 			if (q.includes("entity eq null")) return { value: [] };
-			return { value: rowsOf(server)[table] };
+			return { value: rowsOf(serving ?? server)[table] };
 		}),
 		importSolution: vi.fn(async (zip: string) => {
 			calls.push("import");
@@ -396,14 +403,51 @@ describe("a change made elsewhere while publishing (#102)", () => {
 		expect(env.calls).not.toContain("import");
 	});
 
-	it("doesn't import a second time when the layer changed after the first publish", async () => {
+	it("doesn't import a second time when the layer changed after the first publish, and says so", async () => {
 		// Read 3 is the check before the second import.
 		const env = fakeEnvironment({ onLayerRead: (n, server) => n === 3 && addOther(server) });
-		await expect(publishUnhide(env)).rejects.toThrow(
-			/imported and published, but .*changed in Dataverse after that \(added: customActions:ca:other\.Added\.CustomAction\), so they weren't imported a second time/,
+		const { result } = await publishUnhide(env);
+		// The changes are published: a result (the store marks them published), with a warning.
+		expect(result.verification?.ok).toBe(false);
+		expect(result.verification?.unexpected).toEqual([`customActions:${OTHER}`]);
+		expect(result.verification?.message).toMatch(
+			/imported and published, but .*changed in Dataverse after that \(added: customActions:ca:other\.Added\.CustomAction\).*weren't imported a second time/,
 		);
 		expect(env.calls.filter((c) => c === "import")).toHaveLength(1);
+		expect(env.calls.filter((c) => c === "publish")).toHaveLength(1);
 		expect(env.server.customActions.has(OTHER)).toBe(true);
+	});
+
+	it("reads again when the layer lags behind the first publish, rather than stopping", async () => {
+		// Read 3, the check before the second import, still returns the layer from before the import.
+		const env = fakeEnvironment({ staleRead: 3 });
+		const { result } = await publishUnhide(env);
+		expect(env.calls.filter((c) => c === "import")).toHaveLength(2);
+		expect(result.verification?.ok).toBe(true);
+	});
+
+	it("compares the two reads before the first import exactly: a removed translation counts", async () => {
+		const env = fakeEnvironment({
+			onLayerRead: (n, server) =>
+				n === 2 &&
+				server.locLabels.set(
+					"cbs.Go.LabelText",
+					server.locLabels.get("cbs.Go.LabelText")!.replace(/<Title languagecode="1031"[^>]*>/, ""),
+				),
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(/changed: locLabels:cbs\.Go\.LabelText/);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("checks the connection before reading the layer again (#120)", async () => {
+		const env = fakeEnvironment();
+		const guard = vi.fn(async (action: string) => {
+			if (action === "Importing") throw new Error("The connection changed.");
+		});
+		await expect(publishUnhide(env, { guard })).rejects.toThrow("The connection changed.");
+		// Only the read for the merge.
+		expect(env.calls.filter((c) => c === "query ribbondiffs")).toHaveLength(1);
+		expect(env.calls).not.toContain("import");
 	});
 
 	it("imports twice when nothing else changed the layer", async () => {
