@@ -22,7 +22,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import FluentIcon from "@/components/shared/FluentIcon";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
-import { groupControls, isMenuKind, menuItemsOf, rootControlOf } from "@/utils/ribbonMenu";
+import { groupControls, isDynamicMenuValue, isMenuKind, menuItemsOf, rootControlOf } from "@/utils/ribbonMenu";
 import { canDeleteControl } from "@/utils/ribbonProvenance";
 import { newButtonIds } from "@/utils/idGenerator";
 import { useModernAppNames, useModernLocation } from "@/hooks/useModernCommands";
@@ -134,8 +134,8 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 	const groupId = group.id;
 	const label = (b: RibbonButton) => resolveDisplayLabel(b.label, locLabels);
 	const dynamicQuery = (b: RibbonButton) =>
-		b.source?.attributes["PopulateDynamically"]?.toLowerCase() === "true"
-			? (b.source.attributes["PopulateQueryCommand"] ?? "a command")
+		isDynamicMenuValue(b.source?.attributes["PopulateDynamically"])
+			? (b.source?.attributes["PopulateQueryCommand"] ?? "a command")
 			: null;
 
 	const renderMenu = (parent: RibbonButton) => {

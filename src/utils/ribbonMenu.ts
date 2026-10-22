@@ -12,6 +12,13 @@ import type { RibbonButton, RibbonGroup, RibbonMenu, RibbonMenuSection } from "@
 /** Kinds whose `<Menu>` CBS lets you edit. */
 export const isMenuKind = (kind?: string) => kind === "flyout" || kind === "splitButton";
 
+/**
+ * Whether a `PopulateDynamically` value turns the menu dynamic (filled at runtime by its
+ * PopulateQueryCommand, no static `<Menu>`): an xs:boolean, so "true" or "1" (#101).
+ */
+export const isDynamicMenuValue = (value?: string | null) =>
+	["true", "1"].includes(value?.trim().toLowerCase() ?? "");
+
 /** Every control inside a button's menu (depth first, in section / control order). */
 export function menuItemsOf(button: RibbonButton): RibbonButton[] {
 	const out: RibbonButton[] = [];

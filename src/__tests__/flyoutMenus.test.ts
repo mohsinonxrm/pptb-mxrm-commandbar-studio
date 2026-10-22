@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseRibbonXml } from "@/services/xmlParser";
 import { generateRibbonDiffXml, indexButtons, summarizeRibbonDiff } from "@/services/xmlGenerator";
-import { validateRibbonDiffXml } from "@/services/xmlValidator";
+import { validatePublishRibbonDiff, validateRibbonDiffXml } from "@/services/xmlValidator";
 import { canonicalXml, parseXmlElement } from "@/services/ribbonXmlCanonical";
 import {
 	partsFromRibbonTables,
@@ -1261,6 +1261,8 @@ describe("#62 review — new hidden controls, copies, ComboBox menus", () => {
 		);
 		// Not reported as an empty new menu.
 		expect(planOf(ribbonWith([copy]), ribbonWith([])).unsupported).toEqual([]);
+		// …nor by the pre-publish check, which would block the publish (#101).
+		expect(validatePublishRibbonDiff(xml).filter((f) => f.code === "menu-missing")).toEqual([]);
 	});
 
 	it("t2: editing an out-of-the-box ComboBox with a menu is reported, not written without its menu", () => {
