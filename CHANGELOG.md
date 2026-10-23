@@ -73,7 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Dependency security (#117).** `npm audit` reports 0 vulnerabilities, runtime and dev.
   - `monaco-editor` 0.55.1 → 0.57.0, now listed under `dependencies` (it ships in the bundle).
-    Its DOMPurify is overridden to 3.4.16, which clears the mutation-XSS advisories. The
+    Its DOMPurify is overridden to 3.4.17, which clears the mutation-XSS advisories and three
+    critical ones published since (GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr, GHSA-c6gr-qvv4-5v3f). The
     Monaco worker imports follow 0.56's new package layout.
   - `vitest` 3 → 5.0.3, which also replaces `@vitest/mocker` and drops `tinypool` (dev-only
     advisories, one critical).
