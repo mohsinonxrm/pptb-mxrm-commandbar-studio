@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0-beta.1] - 2026-10-23
+
+The first beta of 0.7.0 (npm `beta`): publish safety. A connection change, a Production target,
+a change published or imported elsewhere while you publish, and dynamic flyouts are now handled;
+renaming and duplicating groups are fixed. Requires Power Platform ToolBox 1.2.7 or later.
+
 ### ✨ Added
 
 - **Every write names its target environment (#121).** Same safeguards as FetchXML Studio:
