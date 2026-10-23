@@ -327,7 +327,9 @@ describe("N1 — every publish refreshes Unified Interface metadata", () => {
 				retrieve: vi.fn(async () => ({
 					data: '<importexportxml><entityRibbon id="Contact" processed="true"><result result="success" /></entityRibbon></importexportxml>',
 				})),
-				queryData: vi.fn(async () => ({ value: [{ languagecode: 1033 }] })),
+				queryData: vi.fn(async (q: string) =>
+					q.startsWith("solutions") ? { value: [{ description: "CBS Live Test", publisherid: { description: "Test publisher", emailaddress: "pub@example.com", supportingwebsiteurl: "https://example.com", customizationoptionvalueprefix: 31337, address1_line1: "1 Test Street", address1_city: "Testville" } }] } : { value: [{ languagecode: 1033 }] },
+				),
 			},
 		);
 		vi.resetModules();

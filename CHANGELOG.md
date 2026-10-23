@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 Fixed
+
+- **A publish no longer clears the publisher's contact details (#104).** The solution package
+  CBS imports had empty publisher `<EMailAddress>`, `<SupportingWebsiteUrl>` and `<Addresses>`,
+  and an import clears what they leave empty (verified live: e-mail, website and address were
+  wiped). CBS now reads the solution and its publisher before importing and writes their
+  descriptions, e-mail, website, addresses and option-value prefix as they are; if it can't read
+  them, nothing is imported (the prefix no longer defaults to 10000).
+- **The system Default solution isn't offered as a publish target (#105)**; the Common Data
+  Services Default Solution still is.
+- **The organization's base language is never assumed (#106).** A failed read of
+  `organizations.languagecode` was taken as English (1033), so a package could be written in the
+  wrong language. It is read twice; a publish that still can't read it stops before writing
+  anything, and on load a warning says labels are shown in English.
+
 ## [0.7.0-beta.1] - 2026-10-23
 
 The first beta of 0.7.0 (npm `beta`): publish safety. A connection change, a Production target,

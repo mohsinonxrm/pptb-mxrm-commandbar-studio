@@ -458,7 +458,14 @@ export async function fetchRibbonWorkspace(
 	const [entityLayer, appLayer, baseLanguageCode] = await Promise.all([
 		fetchUnmanagedRibbonParts(entityLogicalName).catch(() => null),
 		fetchUnmanagedRibbonParts(null).catch(() => null),
-		fetchOrganizationLanguageCode(),
+		// Unknown, not 1033 (#106): labels show in English, and a publish reads it again.
+		fetchOrganizationLanguageCode().catch((err: unknown) => {
+			logs.logWarn(
+				"dataverse",
+				`${err instanceof Error ? err.message : String(err)} Labels are shown in English; publishing reads it again and stops if it still can't.`,
+			);
+			return undefined;
+		}),
 	]);
 	const entityLabels = entityLayer ? locLabelsFromParts(entityLayer) : [];
 	const appLabels = appLayer ? locLabelsFromParts(appLayer) : [];
@@ -489,7 +496,9 @@ export async function fetchRibbonWorkspace(
 	}
 
 	const locLabels = dedupeById([...entity.locLabels, ...application.locLabels]);
-	resolveLabelsIn([...Object.values(entity.ribbons), application.ribbon], locLabels, baseLanguageCode);
+	// For showing labels only: a publish reads the base language itself (#106).
+	const displayLanguage = baseLanguageCode ?? 1033;
+	resolveLabelsIn([...Object.values(entity.ribbons), application.ribbon], locLabels, displayLanguage);
 
 	// The table's CustomActions the ribbon doesn't return anywhere (#64), listed
 	// so they can be deleted. Not the application ribbon's: its CustomActions
@@ -498,7 +507,7 @@ export async function fetchRibbonWorkspace(
 	const orphans = entityLayer
 		? findLayerOrphans(entityLayer, Object.values(entity.ribbons), entityLogicalName, {
 				locLabels,
-				languageCode: baseLanguageCode,
+				languageCode: displayLanguage,
 				otherHides: appLayer ? hideActionsOf(appLayer).map((h) => h.location) : [],
 			})
 		: [];
