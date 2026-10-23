@@ -74,13 +74,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependency security (#117).** `npm audit` reports 0 vulnerabilities, runtime and dev.
   - `monaco-editor` 0.55.1 → 0.57.0, now listed under `dependencies` (it ships in the bundle).
     Its DOMPurify is overridden to 3.4.17, which clears the mutation-XSS advisories and three
-    critical ones published since (GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr, GHSA-c6gr-qvv4-5v3f). The
+    critical ones published since (GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr, GHSA-c6gr-qvv4-5v3f);
+    Monaco imports its own copy, so the build bundles the npm package in its place (0.6.2). The
     Monaco worker imports follow 0.56's new package layout.
   - `vitest` 3 → 5.0.3, which also replaces `@vitest/mocker` and drops `tinypool` (dev-only
     advisories, one critical).
   - CI's runtime audit fails on **moderate** findings and above (was high).
   - Dependabot groups take minor and patch updates only; a major arrives as its own PR, and
     eslint 10 waits for `eslint-plugin-jsx-a11y`.
+
+## [0.6.2] - 2026-10-22
+
+A security hotfix: 0.6.1's DOMPurify fix didn't reach the shipped bundle.
+
+### 🔒 Security
+
+- **The Monaco editor now really uses DOMPurify 3.4.17.** Monaco ships its own copy of DOMPurify
+  (3.2.7 in Monaco 0.55.1) and imports that copy, not the npm package, so 0.6.1's npm override
+  satisfied `npm audit` but left 3.2.7 in the bundle. The build now replaces Monaco's copy with
+  the installed `dompurify` (3.4.17), which clears GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr and
+  GHSA-c6gr-qvv4-5v3f among others. Nothing else changes; the editors (the XML drawer and the
+  command editor) work as before.
+- **CI and the release workflow check the bundled DOMPurify** against the installed version, so a
+  bundle with Monaco's own copy can't be published again.
+
+## [0.6.1] - 2026-10-22
+
+A security hotfix for 0.6.0. **Superseded by 0.6.2:** the fix below didn't reach the bundle.
+
+### 🔒 Security
+
+- **DOMPurify 3.4.17 in the Monaco editor.** `monaco-editor` 0.55.1 pins DOMPurify 3.2.7, which
+  has advisories rated up to critical (including GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr and
+  GHSA-c6gr-qvv4-5v3f). An npm override resolves the npm dependency to 3.4.17 and
+  `npm audit --omit=dev` reports 0 vulnerabilities, but Monaco imports its own bundled copy, so
+  the published 0.6.1 still contains DOMPurify 3.2.7. Fixed in 0.6.2.
 
 ## [0.6.0] - 2026-10-18
 
