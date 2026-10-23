@@ -97,6 +97,35 @@ describe("undo / redo shortcuts", () => {
 		expect(labelOf()).toBe("Two");
 	});
 
+	// AltGr is Ctrl+Alt on Windows: AltGr+S types "ś" on a Polish keyboard (#123 review).
+	it("leave AltGr letters alone, and Ctrl+Shift+S / K don't publish or open the palette", () => {
+		act(() => useUIStore.setState({ bulkPublishOpen: false, commandPaletteOpen: false }));
+		const input = document.createElement("input");
+		document.body.append(input);
+		const altGr = new KeyboardEvent("keydown", {
+			key: "ś",
+			code: "KeyS",
+			ctrlKey: true,
+			altKey: true,
+			bubbles: true,
+			cancelable: true,
+		});
+		act(() => void input.dispatchEvent(altGr));
+		expect(altGr.defaultPrevented).toBe(false);
+		expect(useUIStore.getState().bulkPublishOpen).toBe(false);
+		act(() => {
+			document.body.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "ż", code: "KeyZ", ctrlKey: true, altKey: true, bubbles: true }),
+			);
+		});
+		expect(labelOf()).toBe("Two");
+		press(document.body, "S", true);
+		press(document.body, "K", true);
+		expect(useUIStore.getState().bulkPublishOpen).toBe(false);
+		expect(useUIStore.getState().commandPaletteOpen).toBe(false);
+		input.remove();
+	});
+
 	it("leave the workspace alone in an input, a textarea or the code editor", () => {
 		const input = document.createElement("input");
 		const textarea = document.createElement("textarea");

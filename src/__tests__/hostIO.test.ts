@@ -3,7 +3,9 @@
  * browser, and report failures instead of failing silently.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { copyText, saveTextFile } from "@/utils/hostIO";
+import { copyText, saveTextFile, HOST_COPY_TIMEOUT_MS } from "@/utils/hostIO";
+
+const { createObjectURL, revokeObjectURL } = URL;
 
 const setHost = (api: unknown) =>
 	((window as unknown as { toolboxAPI?: unknown }).toolboxAPI = api);
@@ -14,6 +16,9 @@ const setClipboard = (writeText?: (t: string) => Promise<void>) =>
 	});
 
 afterEach(() => {
+	vi.useRealTimers();
+	URL.createObjectURL = createObjectURL;
+	URL.revokeObjectURL = revokeObjectURL;
 	setHost(undefined);
 	setClipboard(undefined);
 	vi.restoreAllMocks();
@@ -37,6 +42,17 @@ describe("copyText", () => {
 		setHost({ utils: { copyToClipboard: vi.fn(async () => Promise.reject(new Error("no"))) } });
 		expect(await copyText("b")).toEqual({ ok: true });
 		expect(browser).toHaveBeenCalledTimes(2);
+	});
+
+	it("falls back when the host never answers", async () => {
+		vi.useFakeTimers();
+		const browser = vi.fn(async () => {});
+		setHost({ utils: { copyToClipboard: vi.fn(() => new Promise<void>(() => {})) } });
+		setClipboard(browser);
+		const result = copyText("x");
+		await vi.advanceTimersByTimeAsync(HOST_COPY_TIMEOUT_MS);
+		expect(await result).toEqual({ ok: true });
+		expect(browser).toHaveBeenCalledWith("x");
 	});
 
 	it("reports why when both fail", async () => {
@@ -86,6 +102,13 @@ describe("saveTextFile", () => {
 		expect(URL.revokeObjectURL).not.toHaveBeenCalled();
 		vi.runAllTimers();
 		expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:1");
-		vi.useRealTimers();
+	});
+
+	it("a host without a Save dialog downloads too, unconfirmed (no path)", async () => {
+		URL.createObjectURL = vi.fn(() => "blob:2");
+		URL.revokeObjectURL = vi.fn();
+		vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+		setHost({ utils: {} });
+		expect(await saveTextFile("a.xml", "<x/>")).toEqual({ ok: true });
 	});
 });

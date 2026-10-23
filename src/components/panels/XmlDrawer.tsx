@@ -91,7 +91,13 @@ export const XmlDrawer: React.FC = () => {
 	const [activeLocation, setActiveLocation] = useState<RibbonLocation>("HomepageGrid");
 	// What Copy / Download did (#122): they no longer fail silently.
 	const [status, setStatus] = useState<{ intent: "success" | "error"; text: string } | null>(null);
-	useEffect(() => setStatus(null), [activeLocation, xmlDrawerOpen]);
+	const [saving, setSaving] = useState(false);
+	// A result shows for the XML it was about: one that arrives after a switch is dropped.
+	const statusFor = useRef(0);
+	useEffect(() => {
+		statusFor.current++;
+		setStatus(null);
+	}, [activeLocation, xmlDrawerOpen]);
 	const [webResourceNames, setWebResourceNames] = useState<string[]>([]);
 
 	// Editor instance ref for Format action
@@ -173,9 +179,16 @@ export const XmlDrawer: React.FC = () => {
 	);
 
 	const xml = getXml(activeLocation);
+	// …nor after the XML changes.
+	useEffect(() => {
+		statusFor.current++;
+		setStatus(null);
+	}, [xml]);
 
 	const handleCopy = async () => {
+		const asked = statusFor.current;
 		const r = await copyText(xml);
+		if (asked !== statusFor.current) return;
 		setStatus(
 			r.ok
 				? { intent: "success", text: "Copied the XML to the clipboard." }
@@ -187,10 +200,20 @@ export const XmlDrawer: React.FC = () => {
 	};
 
 	const handleDownload = async () => {
-		const r = await saveTextFile(`RibbonDiffXml_${activeLocation}.xml`, xml, [{ name: "XML", extensions: ["xml"] }]);
-		if (r.ok) setStatus({ intent: "success", text: r.path ? `Saved to ${r.path}.` : "Downloaded the XML." });
-		else if (r.canceled) setStatus(null);
-		else setStatus({ intent: "error", text: `Couldn't save the file (${r.error}). Use Copy instead.` });
+		const asked = statusFor.current;
+		const name = `RibbonDiffXml_${activeLocation}.xml`;
+		setSaving(true);
+		try {
+			const r = await saveTextFile(name, xml, [{ name: "XML", extensions: ["xml"] }]);
+			if (asked !== statusFor.current) return;
+			if (r.ok && r.path) setStatus({ intent: "success", text: `Saved to ${r.path}.` });
+			// A browser download can't be confirmed, and some hosts block it.
+			else if (r.ok) setStatus({ intent: "success", text: `Started downloading ${name}. If no file appears, use Copy.` });
+			else if (r.canceled) setStatus(null);
+			else setStatus({ intent: "error", text: `Couldn't save the file (${r.error}). Use Copy instead.` });
+		} finally {
+			setSaving(false);
+		}
 	};
 
 	return (
@@ -241,7 +264,7 @@ export const XmlDrawer: React.FC = () => {
 					<ToolbarButton icon={<CopyRegular />} onClick={() => void handleCopy()}>
 						Copy
 					</ToolbarButton>
-					<ToolbarButton icon={<ArrowDownloadRegular />} onClick={() => void handleDownload()}>
+					<ToolbarButton icon={<ArrowDownloadRegular />} disabled={saving} onClick={() => void handleDownload()}>
 						Download
 					</ToolbarButton>
 					<ToolbarButton icon={<TextEditStyleRegular />} onClick={handleFormatXml}>

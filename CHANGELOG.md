@@ -44,7 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the browser outside PPTB too, and Import XML from the command palette says when it couldn't
   read the clipboard.
 - **Keyboard shortcuts work with Shift and Caps Lock (#123).** Ctrl+Shift+Z / Cmd+Shift+Z redoes,
-  and Ctrl+Z / Y / K / S / D work with Caps Lock on and on non-Latin keyboard layouts.
+  and Ctrl+Z / Y / K / S / D work with Caps Lock on and on non-Latin keyboard layouts. AltGr
+  letters (Polish "ś" is AltGr+S) are typed, never taken as shortcuts.
 - **A restored draft that was undone isn't offered again after a publish (#129).** A redo of the
   restore saves it again.
 - **The whole row of a table in the Tables list is clickable (#5)**, not just its name.

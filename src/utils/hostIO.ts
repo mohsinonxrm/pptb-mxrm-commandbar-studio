@@ -8,6 +8,7 @@
 export type CopyResult = { ok: true } | { ok: false; error: string };
 
 export type SaveResult =
+	/** No `path`: a browser download started, which can't be confirmed. */
 	| { ok: true; path?: string }
 	| { ok: false; canceled: true }
 	| { ok: false; canceled?: false; error: string };
@@ -19,13 +20,24 @@ export interface FileFilter {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+/** Longest wait for the host's clipboard before the browser's is tried. */
+export const HOST_COPY_TIMEOUT_MS = 3000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const timeout = new Promise<never>((_, reject) => {
+		timer = setTimeout(() => reject(new Error(`no answer in ${ms / 1000} s`)), ms);
+	});
+	return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 /** Copies `text`: the host's clipboard, else the browser's. */
 export async function copyText(text: string): Promise<CopyResult> {
 	const errors: string[] = [];
 	const host = window.toolboxAPI?.utils?.copyToClipboard;
 	if (host) {
 		try {
-			await host(text);
+			await withTimeout(host(text), HOST_COPY_TIMEOUT_MS);
 			return { ok: true };
 		} catch (e) {
 			errors.push(`host: ${message(e)}`);
