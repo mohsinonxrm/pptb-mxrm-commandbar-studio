@@ -258,7 +258,7 @@ CBS runs in two modes:
 | **TypeScript** | 5.8 | Strict mode, discriminated unions throughout |
 | **Vite** | 7 | Build tooling + HMR |
 | **Fluent UI v9** | 9.62 | Microsoft design system (Drawer, Dialog, DataGrid, Combobox…) |
-| **Monaco Editor** | 0.55 | XML / JS / diff editing across XmlDrawer, DiffViewer, Command Editor |
+| **Monaco Editor** | 0.57 | XML / JS / diff editing across XmlDrawer, DiffViewer, Command Editor |
 | **@dnd-kit** | 6.3 | Drag-to-reorder for tabs, ribbon buttons (DragOverlay ghost + DroppableSlot indicators), and rule steps |
 | **@fluentui-contrib/react-data-grid-react-window** | 1.4 | Virtualized entity list + web resource browser |
 | **Zustand** | 5 | Global state (ribbons, selection, UI, session) |

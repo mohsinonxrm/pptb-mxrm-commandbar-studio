@@ -55,8 +55,11 @@ ToolBox (PPTB) and talks to Dataverse only through the host's
 | Betas (npm `beta`) | Fixed in the next beta |
 | Anything older | ❌ |
 
-0.5.x keeps critical and security fixes for 30 days after 0.6.0 ships, because 0.6
-requires Power Platform ToolBox 1.2.7. See [RELEASING.md](RELEASING.md) →
+**Everything before 0.6.2 is deprecated on npm and gets no further fixes** — 0.5.x
+included. Those versions bundle DOMPurify 3.2.7 (in the Monaco editor), which has critical
+advisories; 0.6.2 bundles 3.4.17. Use 0.6.2 or later, which requires Power Platform ToolBox
+1.2.7 or later: users on an older PPTB need to update it. The previous-minor support window
+applies from 0.6 on (0.6.x after 0.7.0 ships). See [RELEASING.md](RELEASING.md) →
 *Supported versions*.
 
 Thanks for helping keep the tool safe.
