@@ -192,6 +192,8 @@ function fakeEnvironment(
 		queryData: vi.fn(async (q: string) => {
 			calls.push(`query ${q.split("?")[0]}`);
 			if (q.startsWith("organizations")) return { value: [{ languagecode: opts.languageCode ?? 1033 }] };
+			// The solution and its publisher, for the manifest (#104).
+			if (q.startsWith("solutions")) return { value: [{ description: "CBS Live Test", publisherid: { description: "Test publisher", emailaddress: "pub@example.com", supportingwebsiteurl: "https://example.com", customizationoptionvalueprefix: 31337, address1_line1: "1 Test Street", address1_city: "Testville" } }] };
 			if (q.startsWith("msdyn_solutionhistories")) {
 				return busyHistory-- > 0 ? { value: [{ msdyn_name: "X", msdyn_operation: 0, msdyn_status: 0 }] } : { value: [] };
 			}
@@ -599,6 +601,127 @@ describe("a change made elsewhere while publishing (#102)", () => {
 		const { result } = await publishUnhide(env);
 		expect(env.calls.filter((c) => c === "import")).toHaveLength(2);
 		expect(result.verification?.ok).toBe(true);
+	});
+});
+
+describe("the solution manifest keeps the solution's and publisher's details (#104)", () => {
+	const manifestOf = (base64Zip: string) => {
+		const bin = atob(base64Zip);
+		const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+		return new DOMParser().parseFromString(strFromU8(unzipSync(bytes)["solution.xml"]), "application/xml");
+	};
+
+	it("writes the description, e-mail, website, address and option-value prefix as they are", async () => {
+		const env = fakeEnvironment();
+		await publishUnhide(env);
+		const imports = env.execute.mock.calls
+			.map(([req]) => req as { operationName: string; parameters?: Record<string, string> })
+			.filter((r) => r.operationName === "ImportSolution");
+		expect(imports.length).toBeGreaterThan(0);
+		const doc = manifestOf(imports[0].parameters!.CustomizationFile);
+		const manifest = doc.querySelector("SolutionManifest")!;
+		const publisher = doc.querySelector("Publisher")!;
+		expect(manifest.querySelector(":scope > Descriptions > Description")?.getAttribute("description")).toBe("CBS Live Test");
+		expect(publisher.querySelector("Descriptions > Description")?.getAttribute("description")).toBe("Test publisher");
+		expect(publisher.querySelector("EMailAddress")?.textContent).toBe("pub@example.com");
+		expect(publisher.querySelector("SupportingWebsiteUrl")?.textContent).toBe("https://example.com");
+		expect(publisher.querySelector("CustomizationOptionValuePrefix")?.textContent).toBe("31337");
+		const address = publisher.querySelector("Addresses > Address")!;
+		expect(address.querySelector("AddressNumber")?.textContent).toBe("1");
+		expect(address.querySelector("Line1")?.textContent).toBe("1 Test Street");
+		expect(address.querySelector("City")?.textContent).toBe("Testville");
+		// Only one address has values.
+		expect(publisher.querySelectorAll("Addresses > Address")).toHaveLength(1);
+	});
+
+	it("keeps line breaks, special characters, number columns and address 2 as they are", async () => {
+		const env = fakeEnvironment();
+		const query = env.queryData.getMockImplementation()!;
+		env.queryData.mockImplementation((async (q: string) =>
+			q.startsWith("solutions")
+				? {
+						value: [
+							{
+								description: "Line 1\r\nLine 2\tend",
+								publisherid: {
+									description: "Pub",
+									emailaddress: "a&b@example.com",
+									supportingwebsiteurl: "https://example.com/?a=1&b=2",
+									customizationoptionvalueprefix: 31337,
+									address1_addresstypecode: 1,
+									address1_latitude: 47.6,
+									address1_line1: "1 \"Quoted\" Street",
+									address2_line1: "2 <Second> Road",
+									address2_city: "Otherton",
+								},
+							},
+						],
+					}
+				: query(q)) as never);
+		await publishUnhide(env);
+		const req = env.execute.mock.calls
+			.map(([r]) => r as { operationName: string; parameters?: Record<string, string> })
+			.find((r) => r.operationName === "ImportSolution")!;
+		const doc = manifestOf(req.parameters!.CustomizationFile);
+		expect(doc.querySelector("parsererror")).toBeNull();
+		expect(doc.querySelector("SolutionManifest > Descriptions > Description")?.getAttribute("description")).toBe(
+			"Line 1\r\nLine 2\tend",
+		);
+		const publisher = doc.querySelector("Publisher")!;
+		expect(publisher.querySelector("EMailAddress")?.textContent).toBe("a&b@example.com");
+		expect(publisher.querySelector("SupportingWebsiteUrl")?.textContent).toBe("https://example.com/?a=1&b=2");
+		const [one, two] = [...publisher.querySelectorAll("Addresses > Address")];
+		expect(one.querySelector("AddressTypeCode")?.textContent).toBe("1");
+		expect(one.querySelector("Latitude")?.textContent).toBe("47.6");
+		expect(one.querySelector("Line1")?.textContent).toBe('1 "Quoted" Street');
+		expect(two.querySelector("AddressNumber")?.textContent).toBe("2");
+		expect(two.querySelector("Line1")?.textContent).toBe("2 <Second> Road");
+		expect(two.querySelector("City")?.textContent).toBe("Otherton");
+	});
+
+	it("imports nothing when the solution and publisher can't be read", async () => {
+		const env = fakeEnvironment();
+		const query = env.queryData.getMockImplementation()!;
+		env.queryData.mockImplementation(async (q: string) => {
+			if (q.startsWith("solutions")) throw new Error("403 Forbidden");
+			return query(q);
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(
+			/Couldn't read solution CBSLiveTest and its publisher \(403 Forbidden\), so nothing was imported/,
+		);
+		expect(env.calls).not.toContain("import");
+		expect(env.calls).not.toContain("publish");
+	});
+
+	it("imports nothing when the solution isn't found, with a clear message", async () => {
+		const env = fakeEnvironment();
+		const query = env.queryData.getMockImplementation()!;
+		env.queryData.mockImplementation((async (q: string) => (q.startsWith("solutions") ? { value: [] } : query(q))) as never);
+		await expect(publishUnhide(env)).rejects.toThrow(/^Couldn't read solution CBSLiveTest and its publisher, so nothing was imported/);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("imports nothing when the publisher's option-value prefix is missing (never 10000)", async () => {
+		const env = fakeEnvironment();
+		const query = env.queryData.getMockImplementation()!;
+		env.queryData.mockImplementation((async (q: string) =>
+			q.startsWith("solutions") ? { value: [{ description: "", publisherid: { description: "" } }] } : query(q)) as never);
+		await expect(publishUnhide(env)).rejects.toThrow(/option-value prefix of publisher cbstest/);
+		expect(env.calls).not.toContain("import");
+	});
+});
+
+describe("the organization's base language is never assumed (#106)", () => {
+	it("a publish stops, writing nothing, when it can't be read", async () => {
+		const env = fakeEnvironment();
+		const query = env.queryData.getMockImplementation()!;
+		env.queryData.mockImplementation(async (q: string) => {
+			if (q.startsWith("organizations")) throw new Error("throttled");
+			return query(q);
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(/Couldn't read the organization's base language \(throttled\)/);
+		expect(env.calls).not.toContain("import");
+		expect(env.calls).not.toContain("publish");
 	});
 });
 

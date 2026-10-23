@@ -20,14 +20,21 @@ function api() {
 
 /** The organisation's base language (`organizations.languagecode`), 1033 when it can't be read. */
 export async function fetchOrganizationLanguageCode(): Promise<number> {
-	try {
-		const res = (await api().queryData("organizations?$select=languagecode")) as {
-			value?: Array<{ languagecode?: number }>;
-		};
-		return res.value?.[0]?.languagecode ?? 1033;
-	} catch {
-		return 1033;
+	// It decides the manifest's language and the language labels are written in:
+	// never assumed to be 1033 (#106). Read twice, then the failure is thrown.
+	let failure = "the organization record has no languagecode";
+	for (let attempt = 0; attempt < 2; attempt++) {
+		try {
+			const res = (await api().queryData("organizations?$select=languagecode")) as {
+				value?: Array<{ languagecode?: number }>;
+			};
+			const code = res.value?.[0]?.languagecode;
+			if (typeof code === "number") return code;
+		} catch (err) {
+			failure = err instanceof Error ? err.message : String(err);
+		}
 	}
+	throw new Error(`Couldn't read the organization's base language (${failure}).`);
 }
 
 const BUSY_PATTERNS = [

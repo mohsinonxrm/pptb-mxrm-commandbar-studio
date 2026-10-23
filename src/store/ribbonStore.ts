@@ -121,6 +121,12 @@ export type RibbonStoreState = {
 	/** Organisation base language (#50). */
 	baseLanguageCode: number;
 	/**
+	 * The base language couldn't be read when the table loaded (#106): labels show
+	 * in English, and publishing waits for a reload — it would write the canvas's
+	 * English texts as the real language's titles.
+	 */
+	baseLanguageUnknown: boolean;
+	/**
 	 * Out-of-the-box / other solutions' commands customised this session (#31,
 	 * "Customise Command"): copied into the layer on publish, even unchanged.
 	 */
@@ -158,6 +164,8 @@ export interface RibbonWorkspaceSeed {
 	conflicts?: ConflictEntry[];
 	layers?: Partial<Record<LayerScope, LayerSnapshot | null>>;
 	baseLanguageCode?: number;
+	/** The base language couldn't be read (#106). */
+	baseLanguageUnknown?: boolean;
 	/** The table's layer orphans (ribbonService.fetchRibbonWorkspace, #64). */
 	orphans?: Partial<Record<LayerScope, LayerOrphan[]>>;
 }
@@ -712,6 +720,7 @@ export const useRibbonStore = create<RibbonStore>()(
 		orphans: { entity: [], application: [] },
 		pendingOrphanDeletes: { entity: [], application: [] },
 		baseLanguageCode: 1033,
+		baseLanguageUnknown: false,
 		customisedCommandIds: [],
 		uncustomisedCommandIds: { entity: [], application: [] },
 		reloadRequiredCommandIds: [],
@@ -777,6 +786,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				orphans: { entity: [], application: [], ...(seed.orphans ?? {}) },
 				pendingOrphanDeletes: { ...NO_UNHIDES },
 				baseLanguageCode: seed.baseLanguageCode ?? 1033,
+				baseLanguageUnknown: seed.baseLanguageUnknown ?? false,
 				customisedCommandIds: [],
 				uncustomisedCommandIds: { entity: [], application: [] },
 				reloadRequiredCommandIds: [],
