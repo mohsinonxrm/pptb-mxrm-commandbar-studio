@@ -7,9 +7,10 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 const dist = process.argv[2] ?? "dist";
-// The version Monaco resolves: its own dependency, as the override set it.
+// The version Monaco resolves: its own dependency, as the override set it. Monaco's
+// folder is found on disk: 0.57's `exports` map hides monaco-editor/package.json.
 const fromMonaco = createRequire(
-	createRequire(import.meta.url).resolve("monaco-editor/package.json"),
+	path.join(process.cwd(), "node_modules", "monaco-editor", "package.json"),
 );
 let dir = path.dirname(fromMonaco.resolve("dompurify"));
 while (!statSync(path.join(dir, "package.json"), { throwIfNoEntry: false }))
