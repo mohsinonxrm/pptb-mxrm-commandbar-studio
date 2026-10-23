@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-22
+
+A security hotfix for 0.6.0.
+
+### 🔒 Security
+
+- **DOMPurify 3.4.17 in the Monaco editor.** `monaco-editor` 0.55.1 pins DOMPurify 3.2.7, which
+  has advisories rated up to critical (including GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr and
+  GHSA-c6gr-qvv4-5v3f). An npm override now resolves it to 3.4.17, and
+  `npm audit --omit=dev` reports 0 vulnerabilities. Nothing else changes; the editors (the XML
+  drawer and the command editor) work as before.
+
 ## [0.6.0] - 2026-10-18
 
 The v0.6.0 milestone: publishing that keeps what's already in your customizations and verifies
