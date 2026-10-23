@@ -16,6 +16,13 @@ import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 // `$Resources:` / `$LocLabels:` tokens. #18 — rename, template and confirm
 // dialogs instead of window.prompt / window.confirm (no-ops in PPTB's Electron).
 
+// Whether the workspace has unpublished changes, for the layer warning's Retry (#110).
+const drafts = vi.hoisted(() => ({ unpublished: false }));
+vi.mock("@/store/draftStore", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/store/draftStore")>()),
+	hasUnpublishedChanges: () => drafts.unpublished,
+}));
+
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 // jsdom has no ResizeObserver; Fluent's MessageBar uses it for reflow.
 if (typeof window.ResizeObserver === "undefined") {
@@ -416,6 +423,18 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			expect(bar?.textContent).toContain("the contact table's customizations: 503");
 			act(() => [...bar!.querySelectorAll("button")].find((b) => b.textContent === "Retry")!.click());
 			expect(retry).toHaveBeenCalledTimes(1);
+
+			// With unpublished changes, Retry asks first.
+			drafts.unpublished = true;
+			const retryButton = () => [...bar!.querySelectorAll("button")].find((b) => b.textContent === "Retry")!;
+			act(() => retryButton().click());
+			expect(dialog()?.textContent).toContain("You have unpublished changes");
+			act(() => dialogButton("Cancel").click());
+			expect(retry).toHaveBeenCalledTimes(1);
+			act(() => retryButton().click());
+			act(() => dialogButton("Reload").click());
+			expect(retry).toHaveBeenCalledTimes(2);
+			drafts.unpublished = false;
 
 			// Not while loading, nor on top of a load that failed outright.
 			render(<RibbonCanvas isLoadingRibbon layerReadError="x" onRetryRibbonLoad={retry} />);

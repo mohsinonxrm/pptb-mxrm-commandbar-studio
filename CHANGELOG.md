@@ -28,12 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   referenced with `Id` after another attribute is now removed with its command, and a rule is
   no longer kept by a rule of the other kind with the same id.
 - **An unmanaged layer that can't be read is reported (#110).** The ribbon still loads, but a
-  warning on the canvas says labels may show as ids and ownership is unknown, with Retry. A
-  ribbon response without its compressed XML now fails with a clear error.
+  warning on the canvas says labels may show as ids and ownership is unknown, with Retry (which
+  asks first when you have unpublished changes). A ribbon response without its compressed XML
+  now fails with a clear error.
 - **Copies keep labels another solution defines (#137).** Duplicate button, Duplicate group and
   Customise button published a copy of, say, an msdyn button with a new label reading the
   original label's id. The copy now references the same label, as it does platform texts; if
-  you edit its text, it gets a label of its own and the shared one is left alone.
+  you edit its text, it gets a label of its own and the shared one is left alone. The
+  Translations editor follows the same rule: another solution's label is read-only there, so it
+  is never overwritten in your layer for every control that uses it. While a layer can't be read
+  (#110), copies keep no label references, since they could be your own labels.
 
 ## [0.7.0-beta.1] - 2026-10-23
 

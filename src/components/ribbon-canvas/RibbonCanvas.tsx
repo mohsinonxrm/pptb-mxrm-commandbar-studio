@@ -39,6 +39,7 @@ import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
 import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
+import { hasUnpublishedChanges } from "@/store/draftStore";
 import { ModernAppFilter } from "./modern/ModernAppFilter";
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
@@ -246,6 +247,8 @@ export function RibbonCanvas({
 	const inputRef = useRef<HTMLInputElement>(null);
 	// Tab awaiting delete confirmation (#18: window.confirm doesn't work in PPTB).
 	const [deletingTabId, setDeletingTabId] = useState<string | null>(null);
+	// Retry of an unread layer replaces the canvas: unpublished changes are asked about first (#110).
+	const [confirmingReload, setConfirmingReload] = useState(false);
 	const deletingTab = deletingTabId ? ribbons[location].tabs.find((t) => t.id === deletingTabId) : undefined;
 
 	useEffect(() => {
@@ -377,7 +380,10 @@ export function RibbonCanvas({
 					</MessageBarBody>
 					{onRetryRibbonLoad && (
 						<MessageBarActions>
-							<Button size="small" onClick={onRetryRibbonLoad}>
+							<Button
+								size="small"
+								onClick={() => (hasUnpublishedChanges() ? setConfirmingReload(true) : onRetryRibbonLoad())}
+							>
 								Retry
 							</Button>
 						</MessageBarActions>
@@ -554,6 +560,22 @@ export function RibbonCanvas({
 					</>
 				)}
 			</div>
+			{confirmingReload && onRetryRibbonLoad && (
+				<ConfirmDialog
+					open
+					title="Reload the ribbon"
+					confirmLabel="Reload"
+					onConfirm={() => {
+						setConfirmingReload(false);
+						onRetryRibbonLoad();
+					}}
+					onCancel={() => setConfirmingReload(false)}
+				>
+					You have unpublished changes. Reloading replaces the canvas; your changes are kept in a draft that
+					is offered after the reload. They were made while your labels weren&apos;t loaded, so check their
+					texts before you publish: a text can read a label&apos;s id.
+				</ConfirmDialog>
+			)}
 			{deletingTab && (
 				<ConfirmDialog
 					open

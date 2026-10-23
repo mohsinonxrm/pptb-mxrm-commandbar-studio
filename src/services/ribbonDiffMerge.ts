@@ -773,7 +773,7 @@ function mergeMovedMenu(original: Element, imported: Element, elsewhere: (id: st
 }
 
 const LOC_LABEL_REF = /\$LocLabels:([^"'\s]+)/g;
-/** Rule references of a CommandDefinition, wherever they sit (also an `<EnableRule>` inside `<DisplayRules>`). */
+
 /** Commands any of the CustomActions references, by any command attribute (#108). */
 function commandsReferenced(customActions: Iterable<string>): Set<string> {
 	const out = new Set<string>();

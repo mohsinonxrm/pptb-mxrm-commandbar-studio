@@ -27,7 +27,7 @@ import {
 	ChevronDownRegular,
 } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
-import { useRibbonStore } from "@/store/ribbonStore";
+import { loadedLabelIdsOf, useRibbonStore } from "@/store/ribbonStore";
 import { CustomiseMenuItems } from "@/components/ribbon-canvas/CustomiseMenuItems";
 import { useUIStore } from "@/store/uiStore";
 import FluentIcon from "@/components/shared/FluentIcon";
@@ -283,7 +283,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							// A copy of the whole button — icon, images, command, tooltips —
 							// as a new control (#60): no LocLabel tokens of the original, and
 							// a menu with ids of its own (#27).
-							...copyControl(seButton, `${seButton.id}${stamp}`, new Set(locLabels.map((l) => l.id))),
+							...copyControl(seButton, `${seButton.id}${stamp}`, loadedLabelIdsOf(useRibbonStore.getState())),
 							label: seButton.label ?? "New Button",
 							kind: seButton.kind ?? "button",
 							sequence: 50,

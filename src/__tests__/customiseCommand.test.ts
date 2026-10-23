@@ -20,6 +20,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { commandProvenance } from "@/utils/commandProvenance";
 import { copyControl } from "@/utils/ribbonMenu";
+import { buttonLabelId, textLabelId } from "@/utils/locLabelRef";
 import type { RibbonButton, RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -1202,6 +1203,44 @@ describe("#137 — copies of controls whose labels another solution defines", ()
 		const labels = ids(doc, "LocLabels > LocLabel");
 		expect(labels).toContain(`${copy.id}.LabelText`);
 		expect(labels).not.toContain("msdyn.Other.LabelText");
+	});
+
+	it("Translations target the label the copy publishes to, never the shared one (#137 review)", async () => {
+		loadWithOther();
+		useRibbonStore.getState().duplicateButton("HomepageGrid", MAIN, MGMT, OTHER);
+		const [copy] = copies(`${OTHER}_copy_`);
+		const target = () => {
+			const c = copies(`${OTHER}_copy_`)[0];
+			const s = useRibbonStore.getState();
+			return textLabelId(c.source?.labelToken, buttonLabelId(c.id), c.label, s.locLabels, s.baseLanguageCode);
+		};
+		// Unchanged: the shared label isn't edited.
+		expect(target()).toBeNull();
+		// Its text edited: the copy's own label, which the translation joins.
+		useRibbonStore.getState().setButtonProp("HomepageGrid", MAIN, MGMT, copy.id, { label: "Book it" });
+		expect(target()).toBe(`${copy.id}.LabelText`);
+		useRibbonStore.getState().upsertLocLabel({ id: target()!, titles: [{ languageCode: 1036, description: "Réserver" }] });
+		const doc = await published();
+		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe(`$LocLabels:${copy.id}.LabelText`);
+		const titles = Array.from(
+			Array.from(doc.querySelectorAll("LocLabels > LocLabel"))
+				.find((l) => l.getAttribute("Id") === `${copy.id}.LabelText`)!
+				.querySelectorAll("Title"),
+		).map((t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`);
+		expect(titles.sort()).toEqual(["1033=Book it", "1036=Réserver"]);
+		expect(ids(doc, "LocLabels > LocLabel")).not.toContain("msdyn.Other.LabelText");
+	});
+
+	it("while a layer is unread, copies keep no label token: it could be one of yours (#137 review)", () => {
+		loadWithOther();
+		useRibbonStore.setState({ labelsUnknown: true });
+		useRibbonStore.getState().duplicateButton("HomepageGrid", MAIN, MGMT, OTHER);
+		const [copy] = copies(`${OTHER}_copy_`);
+		expect(copy.source?.labelToken).toBeUndefined();
+		expect(copy.label).toBe("msdyn.Other.LabelText (copy)");
+		const id = useRibbonStore.getState().customiseButton("HomepageGrid", MAIN, MGMT, OTHER, "cbs")!;
+		const customised = copies(id)[0];
+		expect(customised.source?.tooltipTitleToken).toBeUndefined();
 	});
 
 	it("a menu item's label from another solution is kept too; a loaded one isn't", () => {

@@ -128,6 +128,12 @@ export type RibbonStoreState = {
 	 */
 	baseLanguageUnknown: boolean;
 	/**
+	 * An unmanaged layer couldn't be read (#110): which labels are yours is
+	 * unknown, so a copy keeps no `$LocLabels:` token — it could be one of
+	 * yours, and a later edit of the copy would change the original (#137).
+	 */
+	labelsUnknown: boolean;
+	/**
 	 * Out-of-the-box / other solutions' commands customised this session (#31,
 	 * "Customise Command"): copied into the layer on publish, even unchanged.
 	 */
@@ -167,6 +173,8 @@ export interface RibbonWorkspaceSeed {
 	baseLanguageCode?: number;
 	/** The base language couldn't be read (#106). */
 	baseLanguageUnknown?: boolean;
+	/** An unmanaged layer couldn't be read (#110). */
+	labelsUnknown?: boolean;
 	/** The table's layer orphans (ribbonService.fetchRibbonWorkspace, #64). */
 	orphans?: Partial<Record<LayerScope, LayerOrphan[]>>;
 }
@@ -674,6 +682,13 @@ function isMoveInPlace(group: RibbonGroup, src: DragSource, dst: DragTarget): bo
 const LOC_LABEL_TOKEN = /^\$LocLabels:/;
 
 /**
+ * The session's LocLabel ids, for telling another solution's labels on a copy
+ * (#137); none while a layer is unread, so no token is kept then.
+ */
+export const loadedLabelIdsOf = (s: { locLabels: readonly LocLabel[]; labelsUnknown: boolean }) =>
+	s.labelsUnknown ? undefined : new Set(s.locLabels.map((l) => l.id));
+
+/**
  * The loaded source of a button for its copy: platform texts (`$Resources:`),
  * images and other attributes are kept so the copy looks the same, but
  * `$LocLabels:` tokens are not — those labels belong to the original, and
@@ -681,7 +696,7 @@ const LOC_LABEL_TOKEN = /^\$LocLabels:/;
  * solution's labels, whose text isn't loaded (#137): the generator gives the
  * copy a label of its own once its text is edited.
  */
-function copySource(source: RibbonButton["source"], loadedLabelIds: ReadonlySet<string>): RibbonButton["source"] {
+function copySource(source: RibbonButton["source"], loadedLabelIds?: ReadonlySet<string>): RibbonButton["source"] {
 	if (!source) return undefined;
 	const keep = (token?: string) =>
 		token && (!LOC_LABEL_TOKEN.test(token) || isOtherSolutionLabel(token, loadedLabelIds)) ? token : undefined;
@@ -725,6 +740,7 @@ export const useRibbonStore = create<RibbonStore>()(
 		pendingOrphanDeletes: { entity: [], application: [] },
 		baseLanguageCode: 1033,
 		baseLanguageUnknown: false,
+		labelsUnknown: false,
 		customisedCommandIds: [],
 		uncustomisedCommandIds: { entity: [], application: [] },
 		reloadRequiredCommandIds: [],
@@ -791,6 +807,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				pendingOrphanDeletes: { ...NO_UNHIDES },
 				baseLanguageCode: seed.baseLanguageCode ?? 1033,
 				baseLanguageUnknown: seed.baseLanguageUnknown ?? false,
+				labelsUnknown: seed.labelsUnknown ?? false,
 				customisedCommandIds: [],
 				uncustomisedCommandIds: { entity: [], application: [] },
 				reloadRequiredCommandIds: [],
@@ -1202,7 +1219,7 @@ export const useRibbonStore = create<RibbonStore>()(
 							// (#60, copyControl) — and its menu gets ids of its own (#27).
 							// A platform text (`$Resources:`) can't take a " (copy)" suffix:
 							// the copy keeps it as it is (#86).
-							const loadedLabelIds = new Set(state.locLabels.map((l) => l.id));
+							const loadedLabelIds = loadedLabelIdsOf(state);
 							const platformLabel =
 								isPlatformText(btn.source?.labelToken) || isOtherSolutionLabel(btn.source?.labelToken, loadedLabelIds);
 							const copy: RibbonButton = {
@@ -1352,7 +1369,7 @@ export const useRibbonStore = create<RibbonStore>()(
 						const grp = tab.groups.find((g) => g.id === groupId);
 						if (!grp) return;
 						const stamp = `_copy_${Date.now()}`;
-						const loadedLabelIds = new Set(state.locLabels.map((l) => l.id));
+						const loadedLabelIds = loadedLabelIdsOf(state);
 						const copy: RibbonGroup = {
 							...JSON.parse(JSON.stringify(grp)),
 							id: `${grp.id}${stamp}`,
@@ -1686,6 +1703,7 @@ export const useRibbonStore = create<RibbonStore>()(
 			// solution's label isn't loaded: the copy keeps using it (#137).
 			const labels: LocLabel[] = [];
 			const shared: string[] = [];
+			const loadedLabelIds = loadedLabelIdsOf(state);
 			const texts: [string | undefined, string][] = [
 				[btn.source?.labelToken, buttonLabelId(id)],
 				[btn.source?.tooltipTitleToken, buttonTooltipTitleId(id)],
@@ -1695,7 +1713,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				if (!token || !LOC_LABEL_TOKEN.test(token)) continue;
 				const original = state.locLabels.find((l) => l.id === token.replace(LOC_LABEL_TOKEN, ""));
 				if (original) labels.push({ id: labelId, titles: original.titles.map((t) => ({ ...t })) });
-				else shared.push(token);
+				else if (isOtherSolutionLabel(token, loadedLabelIds)) shared.push(token);
 			}
 			if (shared.length > 0) {
 				useRuntimeLogStore
@@ -1706,7 +1724,6 @@ export const useRibbonStore = create<RibbonStore>()(
 							`so the copy ${id} uses ${shared.length === 1 ? "it" : "them"} too. Edit the copy's text to give it a label of its own.`,
 					);
 			}
-			const loadedLabelIds = new Set(state.locLabels.map((l) => l.id));
 			const labelIds = new Set(labels.map((l) => l.id));
 			set((s) => {
 				const ribbons = cloneRibbons(s.ribbons);

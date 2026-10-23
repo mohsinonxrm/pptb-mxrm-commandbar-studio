@@ -220,6 +220,7 @@ export function App() {
 		if (!activeEntity?.logicalName) {
 			setRibbonLoadState("idle");
 			setRibbonLoadError(null);
+			setLayerReadError(null);
 			return;
 		}
 
@@ -289,6 +290,7 @@ export function App() {
 					baseLanguageCode: workspace.baseLanguageCode,
 					// Not read (#106): fetchRibbonWorkspace leaves it out when the read failed.
 					baseLanguageUnknown: workspace.baseLanguageCode === undefined,
+					labelsUnknown: workspace.layerReadError !== undefined,
 					// Right after a publish the ribbon can be the one from before it:
 					// what that publish wrote isn't offered for deletion (#64 review).
 					orphans: {
