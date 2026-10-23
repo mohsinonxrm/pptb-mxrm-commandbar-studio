@@ -28,6 +28,7 @@ import { loadWebResources } from "@/services/dataverse/webResourceService";
 import type { RibbonLocation } from "@/types/ribbon";
 import MonacoEditor from "@/components/shared/MonacoEditor";
 import { registerMonacoCompletions, disposeMonacoCompletions } from "@/utils/monacoCompletions";
+import { copyText, saveTextFile } from "@/utils/hostIO";
 
 const useStyles = makeStyles({
 	drawer: {
@@ -88,6 +89,9 @@ export const XmlDrawer: React.FC = () => {
 	const openImportXml = useUIStore((s) => s.openImportXml);
 
 	const [activeLocation, setActiveLocation] = useState<RibbonLocation>("HomepageGrid");
+	// What Copy / Download did (#122): they no longer fail silently.
+	const [status, setStatus] = useState<{ intent: "success" | "error"; text: string } | null>(null);
+	useEffect(() => setStatus(null), [activeLocation, xmlDrawerOpen]);
 	const [webResourceNames, setWebResourceNames] = useState<string[]>([]);
 
 	// Editor instance ref for Format action
@@ -170,18 +174,23 @@ export const XmlDrawer: React.FC = () => {
 
 	const xml = getXml(activeLocation);
 
-	const handleCopy = () => {
-		void navigator.clipboard.writeText(xml);
+	const handleCopy = async () => {
+		const r = await copyText(xml);
+		setStatus(
+			r.ok
+				? { intent: "success", text: "Copied the XML to the clipboard." }
+				: {
+						intent: "error",
+						text: `Couldn't copy (${r.error}). Click in the XML, press Ctrl+A, then Ctrl+C.`,
+					},
+		);
 	};
 
-	const handleDownload = () => {
-		const blob = new Blob([xml], { type: "application/xml" });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = `RibbonDiffXml_${activeLocation}.xml`;
-		a.click();
-		URL.revokeObjectURL(url);
+	const handleDownload = async () => {
+		const r = await saveTextFile(`RibbonDiffXml_${activeLocation}.xml`, xml, [{ name: "XML", extensions: ["xml"] }]);
+		if (r.ok) setStatus({ intent: "success", text: r.path ? `Saved to ${r.path}.` : "Downloaded the XML." });
+		else if (r.canceled) setStatus(null);
+		else setStatus({ intent: "error", text: `Couldn't save the file (${r.error}). Use Copy instead.` });
 	};
 
 	return (
@@ -229,10 +238,10 @@ export const XmlDrawer: React.FC = () => {
 				</div>
 
 				<div className={styles.toolbar}>
-					<ToolbarButton icon={<CopyRegular />} onClick={handleCopy}>
+					<ToolbarButton icon={<CopyRegular />} onClick={() => void handleCopy()}>
 						Copy
 					</ToolbarButton>
-					<ToolbarButton icon={<ArrowDownloadRegular />} onClick={handleDownload}>
+					<ToolbarButton icon={<ArrowDownloadRegular />} onClick={() => void handleDownload()}>
 						Download
 					</ToolbarButton>
 					<ToolbarButton icon={<TextEditStyleRegular />} onClick={handleFormatXml}>
@@ -242,6 +251,12 @@ export const XmlDrawer: React.FC = () => {
 						Import this XML
 					</ToolbarButton>
 				</div>
+
+				{status && (
+					<MessageBar intent={status.intent} className={styles.infoBar} role="status">
+						<MessageBarBody>{status.text}</MessageBarBody>
+					</MessageBar>
+				)}
 
 				<div className={styles.editorContainer}>
 					<MonacoEditor

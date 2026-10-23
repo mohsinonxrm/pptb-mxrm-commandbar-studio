@@ -80,6 +80,14 @@ export function useKeyboardShortcuts() {
 			const isMac = navigator.platform.toUpperCase().includes("MAC");
 			const ctrl = isMac ? e.metaKey : e.ctrlKey;
 			const target = e.target;
+			// The letter, whatever Shift / Caps Lock make of it ("Z" with Shift, #123),
+			// and on a non-Latin layout the key's Latin letter.
+			const key =
+				/^Key[A-Z]$/.test(e.code) && !/^[a-z]$/i.test(e.key)
+					? e.code.slice(3).toLowerCase()
+					: e.key.length === 1
+						? e.key.toLowerCase()
+						: e.key;
 
 			// Escape: close command palette
 			if (e.key === "Escape") {
@@ -90,12 +98,12 @@ export function useKeyboardShortcuts() {
 			// Nothing acts behind a dialog, popover or menu (#17): its own keys
 			// belong to it. Ctrl+S never reaches the browser's Save dialog.
 			if (isInOverlay(target)) {
-				if (ctrl && e.key === "s") e.preventDefault();
+				if (ctrl && key === "s") e.preventDefault();
 				return;
 			}
 
 			// Command palette: Ctrl+K / Cmd+K
-			if (ctrl && e.key === "k") {
+			if (ctrl && key === "k") {
 				e.preventDefault();
 				setCommandPaletteOpen(true);
 				announce("Command palette opened");
@@ -103,7 +111,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Save / Publish: Ctrl+S / Cmd+S
-			if (ctrl && e.key === "s") {
+			if (ctrl && key === "s") {
 				e.preventDefault();
 				openBulkPublish();
 				announce("Bulk publish dialog opened");
@@ -116,7 +124,7 @@ export function useKeyboardShortcuts() {
 			const inTextField = isTextEntryTarget(target);
 
 			// Undo: Ctrl+Z / Cmd+Z
-			if (ctrl && e.key === "z" && !e.shiftKey && past.length > 0 && !inTextField) {
+			if (ctrl && key === "z" && !e.shiftKey && past.length > 0 && !inTextField) {
 				e.preventDefault();
 				undo();
 				announce("Undo");
@@ -124,7 +132,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Redo: Ctrl+Shift+Z / Cmd+Shift+Z or Ctrl+Y
-			if (((ctrl && e.key === "y") || (ctrl && e.shiftKey && e.key === "z")) && !inTextField) {
+			if (((ctrl && key === "y") || (ctrl && e.shiftKey && key === "z")) && !inTextField) {
 				e.preventDefault();
 				if (future.length > 0) {
 					redo();
@@ -137,7 +145,7 @@ export function useKeyboardShortcuts() {
 			if (isInDrawer(target)) return;
 
 			// Duplicate: Ctrl+D / Cmd+D
-			if (ctrl && e.key === "d") {
+			if (ctrl && key === "d") {
 				if (!inTextField && selectedButtonId && selectedGroupId && selectedTabId && activeLocation) {
 					e.preventDefault();
 					duplicateButton(activeLocation, selectedTabId, selectedGroupId, selectedButtonId);
@@ -147,7 +155,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Cut button: Ctrl+X / Cmd+X
-			if (ctrl && e.key.toLowerCase() === "x") {
+			if (ctrl && key === "x") {
 				if (
 					!inTextField &&
 					selectedButtonId &&
@@ -176,7 +184,7 @@ export function useKeyboardShortcuts() {
 			}
 
 			// Paste cut button into focused/selected group: Ctrl+V / Cmd+V
-			if (ctrl && e.key.toLowerCase() === "v") {
+			if (ctrl && key === "v") {
 				const cut = cutBufferRef.current;
 				if (
 					!inTextField &&
