@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0-beta.2] - 2026-10-23
+
+The second beta of 0.7.0 (npm `beta`): correctness. A publish keeps the publisher's details and
+never assumes the base language; deletes clean up exactly what they leave unused; copies keep
+other solutions' labels; an unreadable layer is reported; and the XML drawer, shortcuts, drafts
+and the Tables list are fixed. Requires Power Platform ToolBox 1.2.7 or later.
+
 ### 🔧 Fixed
 
 - **A publish no longer clears the publisher's contact details (#104).** The solution package

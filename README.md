@@ -28,9 +28,12 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - All 4 ribbon locations: **Home Grid**, **Sub Grid**, **Form**, **Application**
 - Tab drag-to-reorder, inline rename (double-click), `+ Add tab`
 - Context menus on buttons and groups — hide/show, duplicate, move, rename, delete, override OOB
+- A copy (duplicate, customise button) keeps the labels another solution defines, so it shows the same text; edit its text to give it labels of its own
+- If your unmanaged ribbon customizations can't be read when a table loads, a warning says so (labels may show as ids, ownership is unknown), with **Retry**
 
 ### 📋 Properties Pane
 - Identity: label, translations (multi-LCID), tooltip, icon picker, image16/32, kind, sequence, template alias
+- Translations edit the labels a button publishes to; another solution's label, shared with every control that uses it, is read-only there
 - Command binding with action summary chips
 - Display rules + Enable rules pill lists with inline add/remove
 - Scaling summary with link to full editor
@@ -87,6 +90,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 
 ### 📊 XML Drawer + Diff Viewer
 - Per-location RibbonDiffXml view in Monaco (read-only + editable import path)
+- **Copy** and **Download** use Power Platform ToolBox's clipboard and Save dialog (the browser's outside it) and say whether the XML was copied, where it was saved, or why not
 - "Format XML" button
 - Monaco `DiffEditor` compare-to-baseline
 - CBS-specific completions: `$LocLabels:`, `$webresource:`, `Command=`, `ModernImage=`
@@ -98,6 +102,8 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Import → publish → re-import → publish, so Unified Interface picks up the change
 - Waits and retries while the environment is busy with another import, publish or ribbon-metadata job
 - Post-publish verification — reads the published layer back and checks every element this publish changed has the imported content
+- The package carries the solution's description and its publisher's description, e-mail, website, addresses and option-value prefix as they are, so an import never clears them; if they can't be read, nothing is imported
+- Labels are written in the organization's base language, read before every publish; if it can't be read, the publish stops. The system Default solution isn't offered as a target
 - `Mscrm.OpenRecordItem` override support — emitted as a system-command override when the user defines a JS action on it
 
 ### 🧩 Solution Conflict Drawer
@@ -110,6 +116,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - `Ctrl+Z/Y`, `Ctrl+Shift+Z` — Undo / Redo (80-entry stack)
 - `Ctrl+D` — Duplicate selected button
 - `Ctrl+S` — Open Bulk Publish
+- Shortcuts work with Caps Lock on and on non-Latin layouts; AltGr letters (e.g. Polish `ś`) are typed, never taken as shortcuts
 - `Delete/Backspace` — Delete button (with OOB confirm)
 - `F2` — Inline rename tab / group
 - Arrow keys — navigate buttons on canvas
