@@ -33,6 +33,27 @@ function toolIcon(): Plugin {
 	};
 }
 
+/**
+ * Monaco ships its own copy of DOMPurify (`vs/base/browser/dompurify/dompurify.js`:
+ * 3.2.7 in 0.55, 3.4.15 in 0.57) and imports that, not the npm package, so the
+ * `overrides` entry in package.json alone never reached the bundle (0.6.1).
+ * This sends the import to the installed `dompurify` — the same default export
+ * (the DOMPurify instance) — so security fixes come from npm.
+ * .github/scripts/check-dompurify.mjs checks the built bundle in CI.
+ */
+function monacoDompurify(): Plugin {
+	return {
+		name: "cbs-monaco-dompurify",
+		enforce: "pre",
+		async resolveId(source, importer, options) {
+			if (!importer || !/[\\/]monaco-editor[\\/]esm[\\/]vs[\\/]base[\\/]browser[\\/]/.test(importer)) return null;
+			if (!/(^|[\\/])dompurify[\\/]dompurify\.js$/.test(source)) return null;
+			// Resolved from Monaco's folder: its own (overridden) dompurify dependency.
+			return this.resolve("dompurify", importer, { ...options, skipSelf: true });
+		},
+	};
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => ({
 	// Relative asset URLs: the host serves dist/ under a tool-specific path
@@ -43,6 +64,7 @@ export default defineConfig(({ command }) => ({
 	plugins: [
 		react(),
 		toolIcon(),
+		monacoDompurify(),
 		// Dev harness only (`npm run dev:harness`): proxies /__dv/* to the org in
 		// CBS_HARNESS_ORG with an Azure CLI token. Never active for `vite build`.
 		...(command === "serve" && process.env.CBS_HARNESS_ORG
