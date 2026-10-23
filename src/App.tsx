@@ -107,6 +107,8 @@ export function App() {
 
 	const [ribbonLoadState, setRibbonLoadState] = useState<"idle" | "loading" | "error">("idle");
 	const [ribbonLoadError, setRibbonLoadError] = useState<string | null>(null);
+	// The ribbon loaded, but an unmanaged layer couldn't be read (#110).
+	const [layerReadError, setLayerReadError] = useState<string | null>(null);
 	const [reloadVersion, setReloadVersion] = useState(0);
 
 	// ----- Initial bootstrap: solutions + current user only -----
@@ -218,6 +220,7 @@ export function App() {
 		if (!activeEntity?.logicalName) {
 			setRibbonLoadState("idle");
 			setRibbonLoadError(null);
+			setLayerReadError(null);
 			return;
 		}
 
@@ -225,6 +228,7 @@ export function App() {
 		const draftKey = draftKeyFor(activeEntity.logicalName);
 		setRibbonLoadState("loading");
 		setRibbonLoadError(null);
+		setLayerReadError(null);
 		logInfo("ribbon", `Loading ribbon workspace for ${activeEntity.logicalName}...`);
 
 		// Load the ribbon and its solution-layer provenance in parallel, then
@@ -284,6 +288,9 @@ export function App() {
 					locLabels: workspace.locLabels,
 					layers: workspace.layers,
 					baseLanguageCode: workspace.baseLanguageCode,
+					// Not read (#106): fetchRibbonWorkspace leaves it out when the read failed.
+					baseLanguageUnknown: workspace.baseLanguageCode === undefined,
+					labelsUnknown: workspace.layerReadError !== undefined,
 					// Right after a publish the ribbon can be the one from before it:
 					// what that publish wrote isn't offered for deletion (#64 review).
 					orphans: {
@@ -314,6 +321,8 @@ export function App() {
 				// on top of what was just loaded (#16).
 				useDraftStore.getState().workspaceLoaded(draftKey);
 
+				setLayerReadError(workspace.layerReadError ?? null);
+				if (workspace.layerReadError) logWarn("ribbon", `Unmanaged layer not read: ${workspace.layerReadError}`);
 				setRibbonLoadState("idle");
 				logInfo("ribbon", `Ribbon workspace loaded for ${activeEntity.logicalName}.`);
 			})
@@ -328,7 +337,7 @@ export function App() {
 		return () => {
 			cancelled = true;
 		};
-	}, [activeEntity?.logicalName, loadWorkspace, reloadVersion, setTabId, logInfo, logError]);
+	}, [activeEntity?.logicalName, loadWorkspace, reloadVersion, setTabId, logInfo, logWarn, logError]);
 
 	function handleRetryRibbonLoad() {
 		setReloadVersion((v) => v + 1);
@@ -342,6 +351,7 @@ export function App() {
 				<RibbonCanvas
 					isLoadingRibbon={ribbonLoadState === "loading"}
 					ribbonLoadError={ribbonLoadError}
+					layerReadError={layerReadError}
 					onRetryRibbonLoad={handleRetryRibbonLoad}
 				/>
 			</Layout>

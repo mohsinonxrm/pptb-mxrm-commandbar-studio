@@ -279,6 +279,18 @@ describe("the publish dialog names its target and guards Production (#121)", () 
 		expect(publishButton()?.disabled).toBe(false);
 	}
 
+	it("Publish waits for a reload when the base language couldn't be read at load (#106)", async () => {
+		environment = "Dev";
+		useRibbonStore.setState({ baseLanguageUnknown: true });
+		try {
+			await openPublishDialog();
+			expect(document.body.textContent).toContain("base language couldn't be read when the table loaded");
+			expect(publishButton()?.disabled).toBe(true);
+		} finally {
+			useRibbonStore.setState({ baseLanguageUnknown: false });
+		}
+	});
+
 	it("on Dev, the target is named and Publish needs no typing", async () => {
 		environment = "Dev";
 		await openPublishDialog();

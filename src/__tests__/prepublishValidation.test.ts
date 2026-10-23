@@ -501,6 +501,12 @@ describe("$LocLabels references", () => {
 		).toHaveLength(1);
 	});
 
+	it("skips a label a loaded control already uses: a copy keeps another solution's label (#137)", () => {
+		// mxrm.B is the copy; msdyn.Orig was loaded with the same tooltip label.
+		const loadedAttributes = { "msdyn.Orig": { ToolTipTitle: "$LocLabels:mxrm.B.ToolTip" } };
+		expect(codes(check(spec([label("mxrm.B.LabelText")]), { loadedAttributes }), "loclabel-missing")).toEqual([]);
+	});
+
 	it("accepts references that all have a LocLabel", () => {
 		expect(
 			codes(

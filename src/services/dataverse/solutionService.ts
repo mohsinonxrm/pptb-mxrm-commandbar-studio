@@ -24,11 +24,14 @@ export async function fetchSolutions(): Promise<Solution[]> {
 	//     and isn't a user-editable target.
 	//   - `uniquename ne 'Active'` — belt-and-suspenders in case some tenants
 	//     leave the Active layer marked visible.
+	//   - `uniquename ne 'Default'` — the system Default Solution is visible but
+	//     isn't a solution a package can be imported into (#105). The Common
+	//     Data Services Default Solution (`Cr…`) stays: it's a real target.
 	const query =
 		"solutions" +
 		"?$select=solutionid,uniquename,friendlyname,version,ismanaged,versionnumber,isvisible" +
 		"&$expand=publisherid($select=publisherid,uniquename,friendlyname,customizationprefix,customizationoptionvalueprefix)" +
-		"&$filter=isvisible eq true and uniquename ne 'Active'" +
+		"&$filter=isvisible eq true and uniquename ne 'Active' and uniquename ne 'Default'" +
 		"&$orderby=friendlyname asc";
 
 	const result = await dataverseAPI.queryData(query);
