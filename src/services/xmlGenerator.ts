@@ -985,7 +985,10 @@ function resolveButtonText(
 		return token;
 	}
 	if (!current) return undefined;
-	const locId = token?.startsWith("$LocLabels:") ? token.slice("$LocLabels:".length) : conventionId;
+	// Edited text of another solution's label (not loaded, #137) gets a label of
+	// the control's own: that one is shared — by the original of a copy, say.
+	const tokenId = token?.startsWith("$LocLabels:") ? token.slice("$LocLabels:".length) : undefined;
+	const locId = tokenId && storeLocLabels.some((l) => l.id === tokenId) ? tokenId : conventionId;
 	return resolveLocalizedAttr(current, locId, storeLocLabels, sink, lang);
 }
 

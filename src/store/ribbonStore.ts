@@ -29,6 +29,7 @@ import { generateRibbonId, newButtonIds } from "@/utils/idGenerator";
 import {
 	copyControl,
 	findGroupControl,
+	isOtherSolutionLabel,
 	groupControls,
 	isMenuKind,
 	menuItemPlace,
@@ -676,11 +677,14 @@ const LOC_LABEL_TOKEN = /^\$LocLabels:/;
  * The loaded source of a button for its copy: platform texts (`$Resources:`),
  * images and other attributes are kept so the copy looks the same, but
  * `$LocLabels:` tokens are not — those labels belong to the original, and
- * editing the copy's text must not change them (#11 review N5).
+ * editing the copy's text must not change them (#11 review N5). Except another
+ * solution's labels, whose text isn't loaded (#137): the generator gives the
+ * copy a label of its own once its text is edited.
  */
-function copySource(source: RibbonButton["source"]): RibbonButton["source"] {
+function copySource(source: RibbonButton["source"], loadedLabelIds: ReadonlySet<string>): RibbonButton["source"] {
 	if (!source) return undefined;
-	const keep = (token?: string) => (token && !LOC_LABEL_TOKEN.test(token) ? token : undefined);
+	const keep = (token?: string) =>
+		token && (!LOC_LABEL_TOKEN.test(token) || isOtherSolutionLabel(token, loadedLabelIds)) ? token : undefined;
 	const attributes: Record<string, string> = {};
 	for (const [k, v] of Object.entries(source.attributes)) {
 		if (k !== "Id" && !LOC_LABEL_TOKEN.test(v)) attributes[k] = v;
@@ -1198,11 +1202,14 @@ export const useRibbonStore = create<RibbonStore>()(
 							// (#60, copyControl) — and its menu gets ids of its own (#27).
 							// A platform text (`$Resources:`) can't take a " (copy)" suffix:
 							// the copy keeps it as it is (#86).
-							const platformLabel = isPlatformText(btn.source?.labelToken);
+							const loadedLabelIds = new Set(state.locLabels.map((l) => l.id));
+							const platformLabel =
+								isPlatformText(btn.source?.labelToken) || isOtherSolutionLabel(btn.source?.labelToken, loadedLabelIds);
 							const copy: RibbonButton = {
-								...copyControl(btn, `${btn.id}_copy_${Date.now()}`),
+								...copyControl(btn, `${btn.id}_copy_${Date.now()}`, loadedLabelIds),
 								// A read-only kind is copied as loaded (#42), and a platform text
-								// (`$Resources:`) can't take a " (copy)" suffix (#86): both keep their label.
+								// (`$Resources:`) or another solution's label (#137) can't take a
+								// " (copy)" suffix (#86): both keep their label.
 								label: isReadOnlyControlKind(btn.kind) || platformLabel ? btn.label : `${btn.label} (copy)`,
 								sequence: btn.sequence + 5,
 							};
@@ -1345,6 +1352,7 @@ export const useRibbonStore = create<RibbonStore>()(
 						const grp = tab.groups.find((g) => g.id === groupId);
 						if (!grp) return;
 						const stamp = `_copy_${Date.now()}`;
+						const loadedLabelIds = new Set(state.locLabels.map((l) => l.id));
 						const copy: RibbonGroup = {
 							...JSON.parse(JSON.stringify(grp)),
 							id: `${grp.id}${stamp}`,
@@ -1355,7 +1363,7 @@ export const useRibbonStore = create<RibbonStore>()(
 							source: undefined,
 							description: undefined,
 							sequence: grp.sequence + 5,
-							buttons: grp.buttons.map((b) => copyControl(b, `${b.id}${stamp}`)),
+							buttons: grp.buttons.map((b) => copyControl(b, `${b.id}${stamp}`, loadedLabelIds)),
 						};
 						const idx = tab.groups.findIndex((g) => g.id === groupId);
 						tab.groups.splice(idx + 1, 0, copy);
@@ -1674,9 +1682,10 @@ export const useRibbonStore = create<RibbonStore>()(
 			for (let n = 2; taken.has(id); n++) id = `${base}.${n}`;
 			// Texts from the original's own LocLabels: the copy gets its own
 			// labels with every language of the original's (the generator writes
-			// the base language from the text and keeps the others).
+			// the base language from the text and keeps the others). Another
+			// solution's label isn't loaded: the copy keeps using it (#137).
 			const labels: LocLabel[] = [];
-			const notLoaded: string[] = [];
+			const shared: string[] = [];
 			const texts: [string | undefined, string][] = [
 				[btn.source?.labelToken, buttonLabelId(id)],
 				[btn.source?.tooltipTitleToken, buttonTooltipTitleId(id)],
@@ -1686,17 +1695,18 @@ export const useRibbonStore = create<RibbonStore>()(
 				if (!token || !LOC_LABEL_TOKEN.test(token)) continue;
 				const original = state.locLabels.find((l) => l.id === token.replace(LOC_LABEL_TOKEN, ""));
 				if (original) labels.push({ id: labelId, titles: original.titles.map((t) => ({ ...t })) });
-				else notLoaded.push(token);
+				else shared.push(token);
 			}
-			if (notLoaded.length > 0) {
+			if (shared.length > 0) {
 				useRuntimeLogStore
 					.getState()
-					.logWarn(
+					.logInfo(
 						"ribbon",
-						`Customise button ${btn.id}: the translations of ${notLoaded.join(", ")} aren't loaded, so the copy ${id} ` +
-							"gets its text in the base language only. Add the other languages in the Localization editor.",
+						`Customise button ${btn.id}: ${shared.join(", ")} ${shared.length === 1 ? "is" : "are"} defined by another solution, ` +
+							`so the copy ${id} uses ${shared.length === 1 ? "it" : "them"} too. Edit the copy's text to give it a label of its own.`,
 					);
 			}
+			const loadedLabelIds = new Set(state.locLabels.map((l) => l.id));
 			const labelIds = new Set(labels.map((l) => l.id));
 			set((s) => {
 				const ribbons = cloneRibbons(s.ribbons);
@@ -1707,7 +1717,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				const copy: RibbonButton = {
 					...original,
 					id,
-					source: copySource(original.source),
+					source: copySource(original.source, loadedLabelIds),
 					hidden: false,
 					custom: true,
 					oob: false,
@@ -1734,7 +1744,7 @@ export const useRibbonStore = create<RibbonStore>()(
 						"customised",
 						buttonId,
 						`copied to ${id}, original hidden` +
-							(notLoaded.length > 0 ? " (translations not loaded: base language only)" : ""),
+							(shared.length > 0 ? " (keeps another solution's labels)" : ""),
 						"copy",
 					),
 				);

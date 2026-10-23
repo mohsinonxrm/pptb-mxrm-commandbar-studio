@@ -407,6 +407,23 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			expect(tabs()).not.toContain("mxrm.contact.NewTab");
 		});
 
+		it("an unread unmanaged layer is said on the canvas, with Retry (#110)", () => {
+			const retry = vi.fn();
+			render(<RibbonCanvas layerReadError="the contact table's customizations: 503" onRetryRibbonLoad={retry} />);
+			const bar = [...container.querySelectorAll<HTMLElement>(".fui-MessageBar")].find((b) =>
+				b.textContent?.includes("Couldn't read your unmanaged ribbon customizations"),
+			);
+			expect(bar?.textContent).toContain("the contact table's customizations: 503");
+			act(() => [...bar!.querySelectorAll("button")].find((b) => b.textContent === "Retry")!.click());
+			expect(retry).toHaveBeenCalledTimes(1);
+
+			// Not while loading, nor on top of a load that failed outright.
+			render(<RibbonCanvas isLoadingRibbon layerReadError="x" onRetryRibbonLoad={retry} />);
+			expect(container.textContent).not.toContain("Couldn't read your unmanaged");
+			render(<RibbonCanvas ribbonLoadError="boom" layerReadError="x" onRetryRibbonLoad={retry} />);
+			expect(container.textContent).not.toContain("Couldn't read your unmanaged");
+		});
+
 		it("a tab is renamed in place only where the rename can be published (#33)", () => {
 			act(() => useRibbonStore.getState().createTab("HomepageGrid", { id: "mxrm.contact.NewTab", label: "Fresh" }));
 			useUIStore.setState({ ribbonViewStyle: "classic" });

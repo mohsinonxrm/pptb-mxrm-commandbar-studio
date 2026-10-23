@@ -199,12 +199,15 @@ const LOCATIONS: { value: RibbonLocation; label: string; icon: React.ReactNode; 
 interface RibbonCanvasProps {
 	isLoadingRibbon?: boolean;
 	ribbonLoadError?: string | null;
+	/** The ribbon loaded, but an unmanaged layer couldn't be read (#110). */
+	layerReadError?: string | null;
 	onRetryRibbonLoad?: () => void;
 }
 
 export function RibbonCanvas({
 	isLoadingRibbon = false,
 	ribbonLoadError = null,
+	layerReadError = null,
 	onRetryRibbonLoad,
 }: RibbonCanvasProps) {
 	const styles = useStyles();
@@ -364,6 +367,23 @@ export function RibbonCanvas({
 					</Button>
 				</div>
 			</div>
+
+			{layerReadError && !isLoadingRibbon && !ribbonLoadError && (
+				<MessageBar intent="warning" layout="multiline" style={{ flexShrink: 0 }}>
+					<MessageBarBody>
+						Couldn&apos;t read your unmanaged ribbon customizations, so labels may show as ids and
+						ownership (what you can edit or delete) is unknown. Reload before editing. Details:{" "}
+						{layerReadError}
+					</MessageBarBody>
+					{onRetryRibbonLoad && (
+						<MessageBarActions>
+							<Button size="small" onClick={onRetryRibbonLoad}>
+								Retry
+							</Button>
+						</MessageBarActions>
+					)}
+				</MessageBar>
+			)}
 
 			{/* Location-specific info banners */}
 			{location === "Form" && (

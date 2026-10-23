@@ -283,7 +283,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							// A copy of the whole button — icon, images, command, tooltips —
 							// as a new control (#60): no LocLabel tokens of the original, and
 							// a menu with ids of its own (#27).
-							...copyControl(seButton, `${seButton.id}${stamp}`),
+							...copyControl(seButton, `${seButton.id}${stamp}`, new Set(locLabels.map((l) => l.id))),
 							label: seButton.label ?? "New Button",
 							kind: seButton.kind ?? "button",
 							sequence: 50,
