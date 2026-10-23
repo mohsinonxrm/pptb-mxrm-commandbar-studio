@@ -1,6 +1,6 @@
 {
 	"name": "@mohsinonxrm/pptb-commandbar-studio",
-	"version": "0.6.0",
+	"version": "0.6.1",
 	"displayName": "Command Bar Studio",
 	"description": "Visual designer for Dataverse classic ribbon / command bar customizations — the spiritual successor to Ribbon Workbench, built for Power Platform ToolBox",
 	"author": "Mohsin On xRM",
@@ -104,5 +104,10 @@
 		"typescript-eslint": "^8.71.2",
 		"vite": "^7.3.3",
 		"vitest": "^3.1.2"
+	},
+	"overrides": {
+		"monaco-editor": {
+			"dompurify": "3.4.17"
+		}
 	}
 }
