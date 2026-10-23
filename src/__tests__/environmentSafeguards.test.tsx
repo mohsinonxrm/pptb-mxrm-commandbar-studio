@@ -235,6 +235,50 @@ describe("the publish dialog names its target and guards Production (#121)", () 
 		expect(publishButton()?.disabled).toBe(true);
 	});
 
+	it("Publish is enabled again after the dialog is closed and reopened (#33 validation)", async () => {
+		// As in a background window: Fluent's closing animation never ends, so the
+		// dialog's content stays mounted after it closes.
+		const animate = (Element.prototype as { animate?: unknown }).animate;
+		(Element.prototype as { animate?: unknown }).animate = () => ({
+			finished: new Promise(() => undefined),
+			onfinish: null,
+			oncancel: null,
+			playState: "running",
+			cancel() {},
+			finish() {},
+			pause() {},
+			play() {},
+			persist() {},
+			commitStyles() {},
+			addEventListener() {},
+			removeEventListener() {},
+		});
+		try {
+			await closeAndReopen();
+		} finally {
+			(Element.prototype as { animate?: unknown }).animate = animate;
+		}
+	});
+
+	async function closeAndReopen() {
+		environment = "Dev";
+		await openPublishDialog();
+		expect(publishButton()?.disabled).toBe(false);
+		// Cancel: the dialog's content can stay mounted (a closing animation that never ends,
+		// e.g. in a background window), so the target block must report again on reopening.
+		act(() =>
+			[...document.querySelectorAll("button")]
+				.find((b) => b.textContent?.trim() === "Cancel")!
+				.click(),
+		);
+		await flush();
+		// Still mounted (the case this covers), and Publish works on reopening.
+		expect(document.body.textContent).toContain("Publish to Dataverse");
+		act(() => useUIStore.setState({ bulkPublishOpen: true }));
+		await flush();
+		expect(publishButton()?.disabled).toBe(false);
+	}
+
 	it("on Dev, the target is named and Publish needs no typing", async () => {
 		environment = "Dev";
 		await openPublishDialog();

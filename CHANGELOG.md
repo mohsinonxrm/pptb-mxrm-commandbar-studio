@@ -60,11 +60,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   blocked the publish. It is accepted now (a dynamic one without a `PopulateQueryCommand` is only
   warned about), and `PopulateDynamically` is read as a boolean ("true" or "1") everywhere.
 
+- **Rename is offered only where it can be published (#33).** Renaming a tab or group publishes
+  when it is new, or your unmanaged customizations add it with a translatable title (its label's
+  text changes). For out-of-the-box and managed tabs and groups, **Rename…** in the group menu is
+  disabled and says why, and a tab can't be renamed in place — before, the rename was only refused
+  at publish. (Overriding those is #135; Unified Interface doesn't show group titles.)
+- **A duplicated group's title is text (#33).** Duplicating a group whose title is a label
+  (`$LocLabels:`) or a platform text (`$Resources:`) published the token with " (copy)" as its
+  title; the copy now gets the title's text, in the base language, with " (copy)".
+
 ### 🏗️ Technical
 
 - **Dependency security (#117).** `npm audit` reports 0 vulnerabilities, runtime and dev.
   - `monaco-editor` 0.55.1 → 0.57.0, now listed under `dependencies` (it ships in the bundle).
-    Its DOMPurify is overridden to 3.4.16, which clears the mutation-XSS advisories. The
+    Its DOMPurify is overridden to 3.4.17, which clears the mutation-XSS advisories and three
+    critical ones published since (GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr, GHSA-c6gr-qvv4-5v3f). The
     Monaco worker imports follow 0.56's new package layout.
   - `vitest` 3 → 5.0.3, which also replaces `@vitest/mocker` and drops `tinypool` (dev-only
     advisories, one critical).

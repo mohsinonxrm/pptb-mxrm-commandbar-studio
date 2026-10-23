@@ -22,11 +22,16 @@ import {
 	DismissRegular,
 } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
-import { ownContainerIds, useRibbonStore } from "@/store/ribbonStore";
+import { ownContainerIds, scopeLayer, useRibbonStore } from "@/store/ribbonStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
-import { canDeleteTab as canDeleteTabWithContents } from "@/utils/ribbonProvenance";
+import {
+	canDeleteTab as canDeleteTabWithContents,
+	canRenameContainer,
+	RENAME_NOT_PUBLISHABLE,
+} from "@/utils/ribbonProvenance";
 import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { useUIStore } from "@/store/uiStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type { RibbonLocation, RibbonTab } from "@/types/ribbon";
 import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ClassicRibbon } from "./ClassicRibbon";
@@ -263,6 +268,23 @@ export function RibbonCanvas({
 		return canDeleteTabWithContents(tab, baseline[location], ownContainerIds({ layers }, location));
 	}
 
+	/** Whether renaming the tab can be published (#33): new, or yours with a translatable title. */
+	function canRenameTab(tab: RibbonTab): boolean {
+		return canRenameContainer("tab", tab.id, baseline[location], scopeLayer({ layers }, location));
+	}
+
+	/** The tab whose rename was just refused: it says why (#33), until another tab is picked. */
+	const [renameRefusedTabId, setRenameRefusedTabId] = useState<string | null>(null);
+	function startTabRename(tab: RibbonTab) {
+		if (!canRenameTab(tab)) {
+			setRenameRefusedTabId(tab.id);
+			useRuntimeLogStore.getState().logInfo("canvas", `Tab ${tab.id} can't be renamed: ${RENAME_NOT_PUBLISHABLE}.`);
+			return;
+		}
+		setEditingTabId(tab.id);
+		setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
+	}
+
 	// PointerSensor without an activation constraint starts a drag on every
 	// pointerdown, which steals the click event before `onClick` can run —
 	// users could never switch tabs by clicking. Requiring a small movement
@@ -423,16 +445,14 @@ export function RibbonCanvas({
 								inputRef={tab.id === editingTabId ? inputRef : undefined}
 								onSelect={() => {
 									if (editingTabId !== tab.id) setTabId(tab.id);
+									if (renameRefusedTabId !== tab.id) setRenameRefusedTabId(null);
 								}}
 								onDoubleClick={() => {
 									setTabId(tab.id);
-									setEditingTabId(tab.id);
-									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
+									startTabRename(tab);
 								}}
-								onF2={() => {
-									setEditingTabId(tab.id);
-									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
-								}}
+								onF2={() => startTabRename(tab)}
+								renameRefused={renameRefusedTabId === tab.id}
 								onDelete={
 									currentTab?.id === tab.id && canDeleteTab(tab)
 										? () => setDeletingTabId(tab.id)
@@ -564,6 +584,8 @@ interface SortableTabProps {
 	onEditCancel: () => void;
 	/** Set when the tab can be deleted (your own or new tab, and selected); asks to confirm first. */
 	onDelete?: () => void;
+	/** A rename was just refused (#33): the tooltip says why. */
+	renameRefused?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	styles: Record<string, any>;
 }
@@ -581,6 +603,7 @@ function SortableTab({
 	onEditCommit,
 	onEditCancel,
 	onDelete,
+	renameRefused,
 	styles,
 }: SortableTabProps) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -611,6 +634,7 @@ function SortableTab({
 			tabIndex={isActive ? 0 : -1}
 			onClick={onSelect}
 			onDoubleClick={onDoubleClick}
+			title={renameRefused ? `${RENAME_NOT_PUBLISHABLE}.` : undefined}
 			onKeyDown={(e) => {
 				if (e.key === "F2") onF2();
 			}}

@@ -181,7 +181,10 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			],
 			// The canvas shows group titles in the organisation's base language.
 			baseLanguageCode: 1031,
-			layers: { entity: { controlIds: ["mxrm.Own.Button"], containerIds: [OWN], locLabelIds: [], hides: [] } },
+			// The layer adds OWN and defines its title label: renaming it publishes (#33).
+			layers: {
+				entity: { controlIds: ["mxrm.Own.Button"], containerIds: [OWN], locLabelIds: ["grp.Title"], hides: [] },
+			},
 		});
 		useSelectionStore.getState().setLocation("HomepageGrid");
 		useSelectionStore.getState().setTabId(MAIN);
@@ -271,19 +274,32 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 
 		it("the Rename button renames; an unchanged title keeps the label token", () => {
 			render(<Classic />);
-			openGroupMenu(MGMT);
+			openGroupMenu(OWN);
 			clickMenuItem("Rename");
-			expect(dialog()?.querySelector("input")?.value).toBe("Ribbon.HomepageGrid.MainTab.Management");
+			expect(dialog()?.querySelector("input")?.value).toBe("Meine Gruppe");
 			act(() => dialogButton("Rename").click());
 			expect(dialog()).toBeNull();
-			expect(group(MGMT)?.label).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
+			expect(group(OWN)?.label).toBe("$LocLabels:grp.Title");
 			expect(useRibbonStore.getState().past).toHaveLength(0);
 
-			openGroupMenu(MGMT);
+			openGroupMenu(OWN);
 			clickMenuItem("Rename");
 			typeInto(dialog()!.querySelector("input")!, "Manage");
 			act(() => dialogButton("Rename").click());
-			expect(group(MGMT)?.label).toBe("Manage");
+			expect(group(OWN)?.label).toBe("Manage");
+		});
+
+		it("an out-of-the-box group's Rename… is disabled and says why: it can't be published (#33)", () => {
+			render(<Classic />);
+			openGroupMenu(MGMT);
+			const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((el) =>
+				el.textContent?.includes("Rename"),
+			)!;
+			expect(item.getAttribute("aria-disabled")).toBe("true");
+			expect(item.getAttribute("title")).toMatch(/Only tabs and groups your unmanaged customizations add/);
+			act(() => item.click());
+			expect(dialog()).toBeNull();
+			expect(group(MGMT)?.label).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
 		});
 
 		it("Cancel and Escape change nothing", () => {
@@ -389,6 +405,28 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			act(() => container.querySelector<HTMLButtonElement>('[aria-label="Delete tab Fresh"]')!.click());
 			act(() => dialogButton("Delete tab").click());
 			expect(tabs()).not.toContain("mxrm.contact.NewTab");
+		});
+
+		it("a tab is renamed in place only where the rename can be published (#33)", () => {
+			act(() => useRibbonStore.getState().createTab("HomepageGrid", { id: "mxrm.contact.NewTab", label: "Fresh" }));
+			useUIStore.setState({ ribbonViewStyle: "classic" });
+			render(<RibbonCanvas />);
+			const tabEl = (id: string) =>
+				[...container.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent?.includes(id))!;
+			const renameInput = () => container.querySelector<HTMLInputElement>('[aria-label="Rename tab"]');
+
+			// The out-of-the-box main tab: no editor, and the tooltip says why.
+			act(() => tabEl(MAIN).dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+			expect(renameInput()).toBeNull();
+			press(tabEl(MAIN), "F2");
+			expect(renameInput()).toBeNull();
+			expect(tabEl(MAIN).getAttribute("title")).toMatch(/Only tabs and groups your unmanaged customizations add/);
+
+			// A tab created this session: renamed in place.
+			const fresh = tabEl("mxrm.contact.NewTab");
+			expect(fresh.getAttribute("title")).toBeNull();
+			act(() => fresh.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+			expect(renameInput()?.value).toBe("Fresh");
 		});
 
 		it("discarding a customisation with unpublished edits asks first", () => {

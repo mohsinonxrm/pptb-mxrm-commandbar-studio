@@ -37,7 +37,7 @@ import {
 	removeMenuItem,
 } from "@/utils/ribbonMenu";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId } from "@/utils/locLabelRef";
-import { isPlatformText } from "@/utils/displayLabel";
+import { isPlatformText, resolveDisplayLabel } from "@/utils/displayLabel";
 import { isReadOnlyControlKind, renameCommandInXml } from "@/utils/controlKinds";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { canDeleteControl, canDeleteGroup, canDeleteTab } from "@/utils/ribbonProvenance";
@@ -396,7 +396,15 @@ export function ownContainerIds(
 	state: Pick<RibbonStoreState, "layers">,
 	location: RibbonLocation,
 ): string[] | undefined {
-	return state.layers[location === "Application" ? "application" : "entity"]?.containerIds;
+	return scopeLayer(state, location)?.containerIds;
+}
+
+/** The unmanaged layer of the scope a location belongs to (the table's, or the application ribbon's). */
+export function scopeLayer(
+	state: Pick<RibbonStoreState, "layers">,
+	location: RibbonLocation,
+): LayerSnapshot | null | undefined {
+	return state.layers[location === "Application" ? "application" : "entity"];
 }
 
 function cloneRibbons(
@@ -1330,7 +1338,9 @@ export const useRibbonStore = create<RibbonStore>()(
 						const copy: RibbonGroup = {
 							...JSON.parse(JSON.stringify(grp)),
 							id: `${grp.id}${stamp}`,
-							label: `${grp.label} (copy)`,
+							// The title's text (#33), as the canvas shows it: a `$LocLabels:` /
+							// `$Resources:` token never becomes part of the copy's title text.
+							label: `${resolveDisplayLabel(grp.label, state.locLabels, state.baseLanguageCode)} (copy)`,
 							// The copy must not reuse an imported group's Title label (#30), nor its Description (#42).
 							source: undefined,
 							description: undefined,
@@ -2101,6 +2111,8 @@ export const useRibbonStore = create<RibbonStore>()(
 								...snap,
 								containerIds: union(snap.containerIds, ownContainerIdsOf(parts)),
 								controlIds: union(snap.controlIds, ownControlIds(parts)),
+								// …and its labels: a published tab / group can be renamed (#33).
+								locLabelIds: union(snap.locLabelIds, new Set(parts.locLabels.keys())),
 							}
 						: layerSnapshotFromParts(parts);
 				}

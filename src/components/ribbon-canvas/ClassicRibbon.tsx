@@ -43,12 +43,17 @@ import {
 	type DragOverEvent,
 	closestCenter,
 } from "@dnd-kit/core";
-import { ownContainerIds, useRibbonStore } from "@/store/ribbonStore";
+import { ownContainerIds, scopeLayer, useRibbonStore } from "@/store/ribbonStore";
 import { CustomiseMenuItems } from "@/components/ribbon-canvas/CustomiseMenuItems";
 import { useSelectionStore } from "@/store/selectionStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { moveTargets } from "@/utils/moveTargets";
-import { canDeleteControl, canDeleteGroup } from "@/utils/ribbonProvenance";
+import {
+	canDeleteControl,
+	canDeleteGroup,
+	canRenameContainer,
+	RENAME_NOT_PUBLISHABLE,
+} from "@/utils/ribbonProvenance";
 import { useUIStore } from "@/store/uiStore";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import { RenameGroupDialog } from "@/components/modals/RenameGroupDialog";
@@ -791,15 +796,27 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 					</MenuTrigger>
 					<MenuPopover>
 						<MenuList>
-							<MenuItem
-								icon={<RenameRegular />}
-								onClick={() => {
-									setRenaming(grpMenu.group);
-									setGrpMenu(null);
-								}}
-							>
-								Rename…
-							</MenuItem>
+							{/* Only where the rename can be published (#33), like Delete. */}
+							{canRenameContainer("group", grpMenu.group.id, baseline[location], scopeLayer({ layers }, location)) ? (
+								<MenuItem
+									icon={<RenameRegular />}
+									onClick={() => {
+										setRenaming(grpMenu.group);
+										setGrpMenu(null);
+									}}
+								>
+									Rename…
+								</MenuItem>
+							) : (
+								<MenuItem
+									icon={<RenameRegular />}
+									disabled
+									title={RENAME_NOT_PUBLISHABLE}
+									subText="Only your own tabs and groups can be renamed"
+								>
+									Rename…
+								</MenuItem>
+							)}
 							<MenuItem
 								icon={<CopyRegular />}
 								onClick={() => {
