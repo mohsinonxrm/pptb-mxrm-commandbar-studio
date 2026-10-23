@@ -505,6 +505,10 @@ export const BulkPublishModal: React.FC = () => {
 		setCheckFindings([]);
 		setCheckError("");
 		setTarget({ confirmed: false });
+		// A new target block next time: the dialog's content can stay mounted after
+		// it closes (a closing animation that never ends in a background window),
+		// and the old block would neither report again nor forget a typed word.
+		setTargetRead((n) => n + 1);
 		closeBulkPublish();
 	};
 
