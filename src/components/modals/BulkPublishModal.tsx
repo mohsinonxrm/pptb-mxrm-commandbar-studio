@@ -479,11 +479,15 @@ export const BulkPublishModal: React.FC = () => {
 		markPublished(published, importedLayers);
 		// Re-read the layers that were published so ownership, labels and the
 		// "Hidden by customizations" list match the server (#47, #48).
+		// A failed read (null) keeps what markPublished recorded rather than
+		// forgetting the layer (which would block Rename and Delete, #33 review).
 		if (activeEntity && published.includes("HomepageGrid") && entityPlan?.hasChanges) {
-			setLayerSnapshot("entity", await fetchLayerSnapshot(activeEntity.logicalName));
+			const snapshot = await fetchLayerSnapshot(activeEntity.logicalName);
+			if (snapshot) setLayerSnapshot("entity", snapshot);
 		}
 		if (published.includes("Application") && includeApplicationRibbon) {
-			setLayerSnapshot("application", await fetchLayerSnapshot(null));
+			const snapshot = await fetchLayerSnapshot(null);
+			if (snapshot) setLayerSnapshot("application", snapshot);
 		}
 		if (!hadError) setProgressMessage("Done.");
 		setVerifications(verified);
@@ -725,7 +729,8 @@ export const BulkPublishModal: React.FC = () => {
 										appearance="subtle"
 										onClick={() => {
 											openXmlDrawer();
-											closeBulkPublish();
+											// The same close as Cancel: the next open starts afresh (#121).
+											handleClose();
 										}}
 									>
 										View RibbonDiffXml

@@ -144,13 +144,17 @@ export const RENAME_NOT_PUBLISHABLE =
  * group (#135). Unknown (no layer read) means no, for anything loaded.
  */
 export function canRenameContainer(
+	kind: "tab" | "group",
 	id: string,
 	baseline: RibbonDefinition,
 	layer: RenameLayer | null | undefined,
 ): boolean {
+	// Looked up as the plan does: a group by its last occurrence (an application
+	// ribbon group id can repeat across tabs).
 	const loaded =
-		baseline.tabs.find((t) => t.id === id) ??
-		baseline.tabs.flatMap((t) => t.groups).find((g) => g.id === id);
+		kind === "tab"
+			? baseline.tabs.find((t) => t.id === id)
+			: new Map(baseline.tabs.flatMap((t) => t.groups.map((g) => [g.id, g] as const))).get(id);
 	if (!loaded) return true;
 	if (!isOwnContainer(id, true, layer?.containerIds)) return false;
 	const labelId = /^\$LocLabels:(.+)$/.exec(loaded.label ?? "")?.[1];

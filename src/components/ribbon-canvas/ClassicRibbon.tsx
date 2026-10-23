@@ -797,7 +797,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 					<MenuPopover>
 						<MenuList>
 							{/* Only where the rename can be published (#33), like Delete. */}
-							{canRenameContainer(grpMenu.group.id, baseline[location], scopeLayer({ layers }, location)) ? (
+							{canRenameContainer("group", grpMenu.group.id, baseline[location], scopeLayer({ layers }, location)) ? (
 								<MenuItem
 									icon={<RenameRegular />}
 									onClick={() => {
@@ -808,7 +808,12 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 									Rename…
 								</MenuItem>
 							) : (
-								<MenuItem icon={<RenameRegular />} disabled title={RENAME_NOT_PUBLISHABLE}>
+								<MenuItem
+									icon={<RenameRegular />}
+									disabled
+									title={RENAME_NOT_PUBLISHABLE}
+									subText="Only your own tabs and groups can be renamed"
+								>
 									Rename…
 								</MenuItem>
 							)}

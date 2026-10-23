@@ -2111,6 +2111,8 @@ export const useRibbonStore = create<RibbonStore>()(
 								...snap,
 								containerIds: union(snap.containerIds, ownContainerIdsOf(parts)),
 								controlIds: union(snap.controlIds, ownControlIds(parts)),
+								// …and its labels: a published tab / group can be renamed (#33).
+								locLabelIds: union(snap.locLabelIds, new Set(parts.locLabels.keys())),
 							}
 						: layerSnapshotFromParts(parts);
 				}

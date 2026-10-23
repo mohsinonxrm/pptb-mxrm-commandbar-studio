@@ -7,6 +7,7 @@ import { describe, it, expect } from "vitest";
 import { canRenameContainer } from "@/utils/ribbonProvenance";
 import { planScope } from "@/services/publishPlan";
 import { generateRibbonDiffXml } from "@/services/xmlGenerator";
+import { parseRibbonDiffParts } from "@/services/ribbonDiffMerge";
 import { useRibbonStore } from "@/store/ribbonStore";
 import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
@@ -67,49 +68,127 @@ const layer = {
 
 describe("canRenameContainer (#33)", () => {
 	it("allows your own tabs and groups whose title is a label your layer defines", () => {
-		expect(canRenameContainer(OWN, ribbon(), layer)).toBe(true);
-		expect(canRenameContainer(OWN_TAB, ribbon(), layer)).toBe(true);
+		expect(canRenameContainer("group", OWN, ribbon(), layer)).toBe(true);
+		expect(canRenameContainer("tab", OWN_TAB, ribbon(), layer)).toBe(true);
 	});
 
 	it("refuses out-of-the-box and managed ones, and own ones with a literal title", () => {
-		expect(canRenameContainer(MAIN, ribbon(), layer)).toBe(false);
-		expect(canRenameContainer(MGMT, ribbon(), layer)).toBe(false);
-		expect(canRenameContainer("mxrm.contact.Literal.Group", ribbon(), layer)).toBe(false);
+		expect(canRenameContainer("tab", MAIN, ribbon(), layer)).toBe(false);
+		expect(canRenameContainer("group", MGMT, ribbon(), layer)).toBe(false);
+		expect(canRenameContainer("group", "mxrm.contact.Literal.Group", ribbon(), layer)).toBe(
+			false,
+		);
 	});
 
 	it("refuses an own one whose label the layer doesn't define, or when the layer wasn't read", () => {
-		expect(canRenameContainer(OWN, ribbon(), { containerIds: [OWN], locLabelIds: [] })).toBe(
-			false,
-		);
-		expect(canRenameContainer(OWN, ribbon(), null)).toBe(false);
+		expect(
+			canRenameContainer("group", OWN, ribbon(), { containerIds: [OWN], locLabelIds: [] }),
+		).toBe(false);
+		expect(canRenameContainer("group", OWN, ribbon(), null)).toBe(false);
 	});
 
 	it("allows any tab or group created this session", () => {
-		expect(canRenameContainer("mxrm.contact.New.Group", ribbon(), null)).toBe(true);
+		expect(canRenameContainer("group", "mxrm.contact.New.Group", ribbon(), null)).toBe(true);
+		expect(canRenameContainer("tab", "mxrm.contact.New.Tab", ribbon(), null)).toBe(true);
 	});
 
-	it("agrees with the publish plan: what it allows publishes, what it refuses is reported", () => {
-		const baseline = ribbon();
-		for (const id of [OWN, MGMT, "mxrm.contact.Literal.Group"]) {
-			const current = ribbon();
-			current.tabs[0].groups.find((g) => g.id === id)!.label = "Renamed";
+	it("agrees with the publish plan for tabs, groups, new ones and a shared label", () => {
+		const labels = [
+			{ id: "grp.Title", titles: [{ languageCode: 1033, description: "Mine" }] },
+			{ id: "tab.Title", titles: [{ languageCode: 1033, description: "My tab" }] },
+		];
+		// The own group's label is also another group's title: the plan gives the renamed one its own.
+		const shared = (r: RibbonDefinition) => {
+			r.tabs[1].groups.push({
+				id: "mxrm.contact.Shares.Group",
+				label: "$LocLabels:grp.Title",
+				sequence: 10,
+				template: "Flexible2",
+				buttons: [],
+			});
+			return r;
+		};
+		const cases: {
+			kind: "tab" | "group";
+			id: string;
+			baseline: RibbonDefinition;
+			rename: (r: RibbonDefinition) => void;
+		}[] = [
+			...[OWN, MGMT, "mxrm.contact.Literal.Group"].map((id) => ({
+				kind: "group" as const,
+				id,
+				baseline: ribbon(),
+				rename: (r: RibbonDefinition) =>
+					(r.tabs[0].groups.find((g) => g.id === id)!.label = "Renamed"),
+			})),
+			...[MAIN, OWN_TAB].map((id) => ({
+				kind: "tab" as const,
+				id,
+				baseline: ribbon(),
+				rename: (r: RibbonDefinition) =>
+					(r.tabs.find((t) => t.id === id)!.label = "Renamed"),
+			})),
+			{
+				kind: "group",
+				id: OWN,
+				baseline: shared(ribbon()),
+				rename: (r) => (r.tabs[0].groups.find((g) => g.id === OWN)!.label = "Renamed"),
+			},
+		];
+		for (const c of cases) {
+			const current = JSON.parse(JSON.stringify(c.baseline)) as RibbonDefinition;
+			c.rename(current);
 			const plan = planScope({
-				locations: [{ current, baseline }],
+				locations: [{ current, baseline: c.baseline }],
 				commands: [],
 				baselineCommands: [],
 				enableRules: [],
 				baselineEnableRules: [],
 				displayRules: [],
 				baselineDisplayRules: [],
-				locLabels: [
-					{ id: "grp.Title", titles: [{ languageCode: 1033, description: "Mine" }] },
-					{ id: "tab.Title", titles: [{ languageCode: 1033, description: "My tab" }] },
-				],
-				layer,
+				locLabels: labels,
+				layer: {
+					...layer,
+					containerIds: [...layer.containerIds, "mxrm.contact.Shares.Group"],
+				},
 			});
-			const refused = plan.unsupported.some((u) => u.includes(`Renaming group ${id}`));
-			expect(refused).toBe(!canRenameContainer(id, baseline, layer));
+			const refused = plan.unsupported.some((u) => u.includes(`Renaming ${c.kind} ${c.id}`));
+			const allowed = canRenameContainer(c.kind, c.id, c.baseline, {
+				...layer,
+				containerIds: [...layer.containerIds, "mxrm.contact.Shares.Group"],
+			});
+			expect([c.kind, c.id, refused]).toEqual([c.kind, c.id, !allowed]);
 		}
+	});
+
+	it("a tab or group published from CBS can be renamed without re-reading the layer", () => {
+		const empty = (location: RibbonLocation): RibbonDefinition => ({
+			location,
+			entityLogicalName: "contact",
+			tabs: [],
+		});
+		const loaded = ribbon();
+		useRibbonStore.getState().loadWorkspace({
+			ribbons: {
+				HomepageGrid: loaded,
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
+			commands: [],
+			displayRules: [],
+			enableRules: [],
+			locLabels: [],
+			layers: { entity: { controlIds: [], containerIds: [], locLabelIds: [], hides: [] } },
+		});
+		const NEW = "mxrm.contact.Published.Group";
+		const parts = parseRibbonDiffParts(`<RibbonDiffXml><CustomActions>
+			<CustomAction Id="${NEW}.CustomAction" Location="${MAIN}.Groups._children" Sequence="40"><CommandUIDefinition><Group Id="${NEW}" Title="$LocLabels:${NEW}.Title" Sequence="40" Template="Mscrm.Templates.Flexible2"><Controls Id="${NEW}.Controls"/></Group></CommandUIDefinition></CustomAction>
+		</CustomActions><LocLabels><LocLabel Id="${NEW}.Title"><Titles><Title languagecode="1033" description="Published"/></Titles></LocLabel></LocLabels></RibbonDiffXml>`);
+		useRibbonStore.getState().markPublished(undefined, { entity: parts });
+		const entityLayer = useRibbonStore.getState().layers.entity;
+		expect(entityLayer?.containerIds).toContain(NEW);
+		expect(entityLayer?.locLabelIds).toContain(`${NEW}.Title`);
 	});
 });
 

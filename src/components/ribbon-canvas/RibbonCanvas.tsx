@@ -31,6 +31,7 @@ import {
 } from "@/utils/ribbonProvenance";
 import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { useUIStore } from "@/store/uiStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type { RibbonLocation, RibbonTab } from "@/types/ribbon";
 import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ClassicRibbon } from "./ClassicRibbon";
@@ -269,7 +270,19 @@ export function RibbonCanvas({
 
 	/** Whether renaming the tab can be published (#33): new, or yours with a translatable title. */
 	function canRenameTab(tab: RibbonTab): boolean {
-		return canRenameContainer(tab.id, baseline[location], scopeLayer({ layers }, location));
+		return canRenameContainer("tab", tab.id, baseline[location], scopeLayer({ layers }, location));
+	}
+
+	/** The tab whose rename was just refused: it says why (#33), until another tab is picked. */
+	const [renameRefusedTabId, setRenameRefusedTabId] = useState<string | null>(null);
+	function startTabRename(tab: RibbonTab) {
+		if (!canRenameTab(tab)) {
+			setRenameRefusedTabId(tab.id);
+			useRuntimeLogStore.getState().logInfo("canvas", `Tab ${tab.id} can't be renamed: ${RENAME_NOT_PUBLISHABLE}.`);
+			return;
+		}
+		setEditingTabId(tab.id);
+		setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
 	}
 
 	// PointerSensor without an activation constraint starts a drag on every
@@ -432,19 +445,14 @@ export function RibbonCanvas({
 								inputRef={tab.id === editingTabId ? inputRef : undefined}
 								onSelect={() => {
 									if (editingTabId !== tab.id) setTabId(tab.id);
+									if (renameRefusedTabId !== tab.id) setRenameRefusedTabId(null);
 								}}
 								onDoubleClick={() => {
 									setTabId(tab.id);
-									if (!canRenameTab(tab)) return;
-									setEditingTabId(tab.id);
-									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
+									startTabRename(tab);
 								}}
-								onF2={() => {
-									if (!canRenameTab(tab)) return;
-									setEditingTabId(tab.id);
-									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
-								}}
-								renameBlocked={!canRenameTab(tab)}
+								onF2={() => startTabRename(tab)}
+								renameRefused={renameRefusedTabId === tab.id}
 								onDelete={
 									currentTab?.id === tab.id && canDeleteTab(tab)
 										? () => setDeletingTabId(tab.id)
@@ -576,8 +584,8 @@ interface SortableTabProps {
 	onEditCancel: () => void;
 	/** Set when the tab can be deleted (your own or new tab, and selected); asks to confirm first. */
 	onDelete?: () => void;
-	/** Renaming it can't be published (#33): double-click / F2 don't edit, and the tooltip says why. */
-	renameBlocked?: boolean;
+	/** A rename was just refused (#33): the tooltip says why. */
+	renameRefused?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	styles: Record<string, any>;
 }
@@ -595,7 +603,7 @@ function SortableTab({
 	onEditCommit,
 	onEditCancel,
 	onDelete,
-	renameBlocked,
+	renameRefused,
 	styles,
 }: SortableTabProps) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -626,7 +634,7 @@ function SortableTab({
 			tabIndex={isActive ? 0 : -1}
 			onClick={onSelect}
 			onDoubleClick={onDoubleClick}
-			title={renameBlocked ? `${tab.id}\n${RENAME_NOT_PUBLISHABLE}.` : undefined}
+			title={renameRefused ? `${RENAME_NOT_PUBLISHABLE}.` : undefined}
 			onKeyDown={(e) => {
 				if (e.key === "F2") onF2();
 			}}
