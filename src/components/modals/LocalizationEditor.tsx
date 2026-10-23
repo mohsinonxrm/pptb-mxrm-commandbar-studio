@@ -156,7 +156,8 @@ export const LocalizationEditor: React.FC = () => {
 				[tooltipBodyId, source?.tooltipBodyToken],
 			]
 				.filter(([id, token]) => id === null && token)
-				.map(([, token]) => token as string)
+				.map(([, token]) => (token as string).slice("$LocLabels:".length))
+				.filter((id, i, all) => all.indexOf(id) === i)
 		: [];
 
 	const getLcidEntries = useCallback((): LcidEntry[] => {
