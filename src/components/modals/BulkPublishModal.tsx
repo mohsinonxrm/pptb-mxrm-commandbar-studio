@@ -113,6 +113,7 @@ export const BulkPublishModal: React.FC = () => {
 	const customisedCommandIds = useRibbonStore((s) => s.customisedCommandIds);
 	const uncustomisedCommandIds = useRibbonStore((s) => s.uncustomisedCommandIds);
 	const baseLanguageCode = useRibbonStore((s) => s.baseLanguageCode);
+	const baseLanguageUnknown = useRibbonStore((s) => s.baseLanguageUnknown);
 	const setLayerSnapshot = useRibbonStore((s) => s.setLayerSnapshot);
 	const markPublished = useRibbonStore((s) => s.markPublished);
 	const mutationsSincePublish = useRibbonStore((s) => s.mutationsSincePublish);
@@ -329,7 +330,7 @@ export const BulkPublishModal: React.FC = () => {
 	// One close guard for the whole run (#10): it would otherwise drop between scopes.
 	const handlePublish = () =>
 		withCloseGuard(async () => {
-		if (!activeSolution || unsupported.length > 0 || scopes.length === 0 || checkBlocks || !targetConfirmed) return;
+		if (!activeSolution || unsupported.length > 0 || scopes.length === 0 || checkBlocks || !targetConfirmed || baseLanguageUnknown) return;
 		setPublishing(true);
 		// One guard for the whole run (#120): every scope writes to the connection
 		// the run started on. After a switch, nothing more is published or stored.
@@ -375,6 +376,9 @@ export const BulkPublishModal: React.FC = () => {
 			baselineEnableRules,
 			baselineDisplayRules,
 			publishCustomizations: true,
+			// The language the canvas resolved labels in (#106 review): a fresh read could
+			// differ and turn unchanged labels into edits.
+			languageCode: baseLanguageCode,
 			solution: {
 				uniqueName: activeSolution.uniqueName,
 				friendlyName: activeSolution.friendlyName,
@@ -528,6 +532,16 @@ export const BulkPublishModal: React.FC = () => {
 							{!activeSolution && (
 								<MessageBar intent="warning">
 									<MessageBarBody>No solution selected. Please select a solution first.</MessageBarBody>
+								</MessageBar>
+							)}
+
+							{baseLanguageUnknown && !done && (
+								<MessageBar intent="error" layout="multiline">
+									<MessageBarBody>
+										The organization&apos;s base language couldn&apos;t be read when the table loaded, so
+										labels are shown in English. Reload the table before publishing: publishing now could
+										write English texts as the base language&apos;s titles.
+									</MessageBarBody>
 								</MessageBar>
 							)}
 
@@ -808,7 +822,8 @@ export const BulkPublishModal: React.FC = () => {
 									scopes.length === 0 ||
 									unsupported.length > 0 ||
 									checkBlocks ||
-									!targetConfirmed
+									!targetConfirmed ||
+									baseLanguageUnknown
 								}
 							>
 								{publishing ? "Publishing..." : "Publish"}

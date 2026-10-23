@@ -284,6 +284,8 @@ export function App() {
 					locLabels: workspace.locLabels,
 					layers: workspace.layers,
 					baseLanguageCode: workspace.baseLanguageCode,
+					// Not read (#106): fetchRibbonWorkspace leaves it out when the read failed.
+					baseLanguageUnknown: workspace.baseLanguageCode === undefined,
 					// Right after a publish the ribbon can be the one from before it:
 					// what that publish wrote isn't offered for deletion (#64 review).
 					orphans: {

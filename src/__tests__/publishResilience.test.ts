@@ -634,6 +634,51 @@ describe("the solution manifest keeps the solution's and publisher's details (#1
 		expect(publisher.querySelectorAll("Addresses > Address")).toHaveLength(1);
 	});
 
+	it("keeps line breaks, special characters, number columns and address 2 as they are", async () => {
+		const env = fakeEnvironment();
+		const query = env.queryData.getMockImplementation()!;
+		env.queryData.mockImplementation((async (q: string) =>
+			q.startsWith("solutions")
+				? {
+						value: [
+							{
+								description: "Line 1\r\nLine 2\tend",
+								publisherid: {
+									description: "Pub",
+									emailaddress: "a&b@example.com",
+									supportingwebsiteurl: "https://example.com/?a=1&b=2",
+									customizationoptionvalueprefix: 31337,
+									address1_addresstypecode: 1,
+									address1_latitude: 47.6,
+									address1_line1: "1 \"Quoted\" Street",
+									address2_line1: "2 <Second> Road",
+									address2_city: "Otherton",
+								},
+							},
+						],
+					}
+				: query(q)) as never);
+		await publishUnhide(env);
+		const req = env.execute.mock.calls
+			.map(([r]) => r as { operationName: string; parameters?: Record<string, string> })
+			.find((r) => r.operationName === "ImportSolution")!;
+		const doc = manifestOf(req.parameters!.CustomizationFile);
+		expect(doc.querySelector("parsererror")).toBeNull();
+		expect(doc.querySelector("SolutionManifest > Descriptions > Description")?.getAttribute("description")).toBe(
+			"Line 1\r\nLine 2\tend",
+		);
+		const publisher = doc.querySelector("Publisher")!;
+		expect(publisher.querySelector("EMailAddress")?.textContent).toBe("a&b@example.com");
+		expect(publisher.querySelector("SupportingWebsiteUrl")?.textContent).toBe("https://example.com/?a=1&b=2");
+		const [one, two] = [...publisher.querySelectorAll("Addresses > Address")];
+		expect(one.querySelector("AddressTypeCode")?.textContent).toBe("1");
+		expect(one.querySelector("Latitude")?.textContent).toBe("47.6");
+		expect(one.querySelector("Line1")?.textContent).toBe('1 "Quoted" Street');
+		expect(two.querySelector("AddressNumber")?.textContent).toBe("2");
+		expect(two.querySelector("Line1")?.textContent).toBe("2 <Second> Road");
+		expect(two.querySelector("City")?.textContent).toBe("Otherton");
+	});
+
 	it("imports nothing when the solution and publisher can't be read", async () => {
 		const env = fakeEnvironment();
 		const query = env.queryData.getMockImplementation()!;

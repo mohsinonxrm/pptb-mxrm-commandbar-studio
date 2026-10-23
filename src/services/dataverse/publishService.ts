@@ -943,13 +943,13 @@ async function publishRibbonUnguarded(
 	// (with everything else pending for the table), so this adds no other effect.
 	// A publish the check refuses as loaded writes nothing: the check runs before.
 	const dryRun = input.publishCustomizations !== false ? await mergeAndCheck(false) : null;
-	// The solution's and publisher's own details go into the manifest as they are
-	// (#104): read after the check, before anything is written.
-	const manifestDetails = await fetchManifestDetails(input.solution);
 	// Don't start while another solution operation runs (#46): an import still
 	// running is finished, and published below, before the layer is read.
 	onProgress?.("Checking that no other solution operation is running…");
 	await waitForEnvironmentIdle(busy);
+	// The solution's and publisher's own details go into the manifest as they are
+	// (#104): read after the wait, just before anything is written.
+	const manifestDetails = await fetchManifestDetails(input.solution);
 	// After the publish first, a failure says so: other makers' pending changes
 	// for the table were published, though nothing of yours was imported.
 	let importedOnce = false;
@@ -1462,9 +1462,13 @@ export async function fetchManifestDetails(solution: PublishSolutionInfo): Promi
 	};
 }
 
+/** An attribute value keeping line breaks and tabs, which attribute normalisation turns into spaces. */
+const attributeXml = (value: string) =>
+	escapeXml(value).replace(/\r/g, "&#xD;").replace(/\n/g, "&#xA;").replace(/\t/g, "&#x9;");
+
 const descriptionsXml = (description: string, lang: number) =>
 	description
-		? `<Descriptions>\n        <Description description="${escapeXml(description)}" languagecode="${lang}"/>\n      </Descriptions>`
+		? `<Descriptions>\n        <Description description="${attributeXml(description)}" languagecode="${lang}"/>\n      </Descriptions>`
 		: "<Descriptions/>";
 
 const addressesXml = (addresses: Record<string, unknown>[]) =>
