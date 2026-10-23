@@ -773,8 +773,39 @@ function mergeMovedMenu(original: Element, imported: Element, elsewhere: (id: st
 }
 
 const LOC_LABEL_REF = /\$LocLabels:([^"'\s]+)/g;
-/** Rule references of a CommandDefinition, wherever they sit (also an `<EnableRule>` inside `<DisplayRules>`). */
-const RULE_REF = /<(EnableRule|DisplayRule)\b[^>]*?\sId="([^"]+)"/g;
+
+/** Commands any of the CustomActions references, by any command attribute (#108). */
+function commandsReferenced(customActions: Iterable<string>): Set<string> {
+	const out = new Set<string>();
+	for (const xml of customActions) for (const id of commandsWithin(elementOf(xml))) out.add(id);
+	return out;
+}
+
+/** `$LocLabels:` labels any attribute of the CustomActions uses, exactly (#108). */
+function labelsReferenced(customActions: Iterable<string>): Set<string> {
+	const out = new Set<string>();
+	for (const xml of customActions) {
+		const root = elementOf(xml);
+		for (const el of [root, ...Array.from(root.getElementsByTagName("*"))])
+			for (const attr of Array.from(el.attributes))
+				if (attr.value.startsWith("$LocLabels:")) out.add(attr.value.slice("$LocLabels:".length));
+	}
+	return out;
+}
+
+/** Rules the commands reference: `<EnableRule Id>` / `<DisplayRule Id>`, wherever `Id` sits (#108). */
+function rulesReferenced(commandDefinitions: Iterable<string>): Record<"EnableRule" | "DisplayRule", Set<string>> {
+	const out = { EnableRule: new Set<string>(), DisplayRule: new Set<string>() };
+	for (const xml of commandDefinitions) {
+		const el = elementOf(xml);
+		for (const kind of ["EnableRule", "DisplayRule"] as const)
+			for (const ref of Array.from(el.getElementsByTagName(kind))) {
+				const id = ref.getAttribute("Id");
+				if (id) out[kind].add(id);
+			}
+	}
+	return out;
+}
 
 /**
  * Merges this session's delta into the existing unmanaged layer:
@@ -1088,20 +1119,18 @@ export function mergeScopeChanges(
 	keepUnlessEdited("displayRules", editedDisplayRules);
 
 	// Drop a deleted control's command (and rules only it used) when nothing
-	// else uses it any more, so deletes don't leave orphans behind.
-	const remainingActions = Array.from(merged.customActions.values()).join("\n");
+	// else uses it any more, so deletes don't leave orphans behind. References
+	// are read from the elements, not matched as text (#108).
+	const commandsInUse = commandsReferenced(merged.customActions.values());
 	for (const commandId of removedCommands) {
 		if (retainedCommands.has(commandId) || !merged.commandDefinitions.has(commandId)) continue;
-		if (remainingActions.includes(`Command="${commandId}"`)) continue;
+		if (commandsInUse.has(commandId)) continue;
 		const cmdXml = merged.commandDefinitions.get(commandId)!;
 		merged.commandDefinitions.delete(commandId);
-		const otherCommands = Array.from(merged.commandDefinitions.values()).join("\n");
-		for (const m of cmdXml.matchAll(/<EnableRule\s+Id="([^"]+)"/g)) {
-			if (!otherCommands.includes(`Id="${m[1]}"`)) merged.enableRules.delete(m[1]);
-		}
-		for (const m of cmdXml.matchAll(/<DisplayRule\s+Id="([^"]+)"/g)) {
-			if (!otherCommands.includes(`Id="${m[1]}"`)) merged.displayRules.delete(m[1]);
-		}
+		const ownRules = rulesReferenced([cmdXml]);
+		const otherRules = rulesReferenced(merged.commandDefinitions.values());
+		for (const id of ownRules.EnableRule) if (!otherRules.EnableRule.has(id)) merged.enableRules.delete(id);
+		for (const id of ownRules.DisplayRule) if (!otherRules.DisplayRule.has(id)) merged.displayRules.delete(id);
 	}
 	// Uncustomised commands (#31): the layer's copy goes, and with it the
 	// layer's rules nothing else uses any more.
@@ -1116,15 +1145,15 @@ export function mergeScopeChanges(
 		// Your own command (no definition below the layer): never removed here.
 		if (!canUncustomiseCommand(commandId, layerRefs)) continue;
 		merged.commandDefinitions.delete(commandId);
-		const otherCommands = Array.from(merged.commandDefinitions.values()).join("\n");
-		for (const m of cmdXml.matchAll(RULE_REF)) {
-			const kind = m[1] as "EnableRule" | "DisplayRule";
-			const rules = kind === "EnableRule" ? merged.enableRules : merged.displayRules;
-			const fromDelta = (kind === "EnableRule" ? delta.enableRules : delta.displayRules).has(m[2]);
-			if (fromDelta || retainedRules[kind].has(m[2])) continue;
-			if (otherCommands.includes(`<${kind} Id="${m[2]}"`)) continue;
-			rules.delete(m[2]);
-		}
+		const otherRules = rulesReferenced(merged.commandDefinitions.values());
+		const ownRules = rulesReferenced([cmdXml]);
+		for (const kind of ["EnableRule", "DisplayRule"] as const)
+			for (const id of ownRules[kind]) {
+				const rules = kind === "EnableRule" ? merged.enableRules : merged.displayRules;
+				const fromDelta = (kind === "EnableRule" ? delta.enableRules : delta.displayRules).has(id);
+				if (fromDelta || retainedRules[kind].has(id) || otherRules[kind].has(id)) continue;
+				rules.delete(id);
+			}
 	}
 
 	for (const [id, xml] of delta.tabDisplayRules) merged.tabDisplayRules.set(id, xml);
@@ -1132,13 +1161,13 @@ export function mergeScopeChanges(
 
 	// Labels of removed controls / tabs / groups and tab display rules of
 	// removed tabs, unless still used.
-	const stillUsed = (needle: string) =>
-		Array.from(merged.customActions.values()).some((xml) => xml.includes(needle));
+	const labelsInUse = labelsReferenced(merged.customActions.values());
 	for (const id of removedLabels) {
-		if (!delta.locLabels.has(id) && !stillUsed(`$LocLabels:${id}"`)) merged.locLabels.delete(id);
+		if (!delta.locLabels.has(id) && !labelsInUse.has(id)) merged.locLabels.delete(id);
 	}
+	const tabCommandsInUse = commandsReferenced(merged.customActions.values());
 	for (const cmd of removedTabCommandCandidates) {
-		if (!delta.tabDisplayRules.has(cmd) && !stillUsed(`Command="${cmd}"`)) merged.tabDisplayRules.delete(cmd);
+		if (!delta.tabDisplayRules.has(cmd) && !tabCommandsInUse.has(cmd)) merged.tabDisplayRules.delete(cmd);
 	}
 	for (const cmd of options.removedTabCommands ?? []) {
 		if (!delta.tabDisplayRules.has(cmd)) merged.tabDisplayRules.delete(cmd);

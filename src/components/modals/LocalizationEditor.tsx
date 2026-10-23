@@ -19,7 +19,7 @@ import { DismissRegular, AddRegular, DeleteRegular, TextAddRegular } from "@flue
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { groupControls } from "@/utils/ribbonMenu";
-import { buttonLocLabelIds } from "@/utils/locLabelRef";
+import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId, textLabelId } from "@/utils/locLabelRef";
 
 const KNOWN_LCIDS: Record<number, { name: string; flag: string }> = {
 	1033: { name: "English (US)", flag: "🇺🇸" },
@@ -128,20 +128,37 @@ export const LocalizationEditor: React.FC = () => {
 
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const baseLcid = useRibbonStore((s) => s.baseLanguageCode);
-	// Edit the labels the button actually references (a Ribbon Workbench or
-	// solution label keeps its own id); the convention id otherwise (#49).
-	const source = React.useMemo(() => {
+	// Edit the labels the button's texts are published to: one it references
+	// keeps its own id (a Ribbon Workbench or solution label, #49), else the
+	// convention id. Another solution's label, shared and not loaded, isn't
+	// edited here (#137): its fields are read-only until the text changes.
+	const button = React.useMemo(() => {
 		if (!buttonId) return undefined;
 		for (const def of Object.values(ribbons))
 			for (const tab of def.tabs)
-				for (const group of tab.groups)
-					for (const b of groupControls(group)) if (b.id === buttonId) return b.source;
+				for (const group of tab.groups) for (const b of groupControls(group)) if (b.id === buttonId) return b;
 		return undefined;
 	}, [ribbons, buttonId]);
-	const ids = buttonId ? buttonLocLabelIds(buttonId, source) : null;
-	const labelId = ids?.label ?? null;
-	const tooltipTitleId = ids?.tooltipTitle ?? null;
-	const tooltipBodyId = ids?.tooltipBody ?? null;
+	const source = button?.source;
+	const labelId = button
+		? textLabelId(source?.labelToken, buttonLabelId(button.id), button.label, locLabels, baseLcid)
+		: null;
+	const tooltipTitleId = button
+		? textLabelId(source?.tooltipTitleToken, buttonTooltipTitleId(button.id), button.tooltipTitle, locLabels, baseLcid)
+		: null;
+	const tooltipBodyId = button
+		? textLabelId(source?.tooltipBodyToken, buttonTooltipBodyId(button.id), button.tooltipBody, locLabels, baseLcid)
+		: null;
+	const shared = button
+		? [
+				[labelId, source?.labelToken],
+				[tooltipTitleId, source?.tooltipTitleToken],
+				[tooltipBodyId, source?.tooltipBodyToken],
+			]
+				.filter(([id, token]) => id === null && token)
+				.map(([, token]) => (token as string).slice("$LocLabels:".length))
+				.filter((id, i, all) => all.indexOf(id) === i)
+		: [];
 
 	const getLcidEntries = useCallback((): LcidEntry[] => {
 		const labelRecord = locLabels.find((l) => l.id === labelId);
@@ -201,7 +218,7 @@ export const LocalizationEditor: React.FC = () => {
 	};
 
 	const handleSave = () => {
-		if (!labelId || !tooltipTitleId || !tooltipBodyId) return;
+		if (!button) return;
 
 		const toTitles = (field: keyof Omit<LcidEntry, "lcid">) =>
 			entries
@@ -210,13 +227,13 @@ export const LocalizationEditor: React.FC = () => {
 
 		// One undo step for the whole dialog (#34).
 		batch(() => {
-			if (toTitles("label").length > 0) {
+			if (labelId && toTitles("label").length > 0) {
 				upsertLocLabel({ id: labelId, titles: toTitles("label") });
 			}
-			if (toTitles("tooltipTitle").length > 0) {
+			if (tooltipTitleId && toTitles("tooltipTitle").length > 0) {
 				upsertLocLabel({ id: tooltipTitleId, titles: toTitles("tooltipTitle") });
 			}
-			if (toTitles("tooltipBody").length > 0) {
+			if (tooltipBodyId && toTitles("tooltipBody").length > 0) {
 				upsertLocLabel({ id: tooltipBodyId, titles: toTitles("tooltipBody") });
 			}
 		});
@@ -304,6 +321,14 @@ export const LocalizationEditor: React.FC = () => {
 							&#x200b;&#x200b;" to force a line break in long labels.
 						</div>
 
+						{shared.length > 0 && (
+							<div className={styles.noteBar}>
+								{shared.join(", ")} {shared.length === 1 ? "is a label" : "are labels"} of another solution, shared
+								with the controls that use {shared.length === 1 ? "it" : "them"}, so {shared.length === 1 ? "it isn't" : "they aren't"} edited
+								here. Change the text in Properties to give this button a label of its own, then add translations.
+							</div>
+						)}
+
 						{/* Table */}
 						<table className={styles.table}>
 							<thead>
@@ -334,6 +359,7 @@ export const LocalizationEditor: React.FC = () => {
 											<td className={styles.td}>
 												<LabelCellInput
 													value={entry.label}
+													disabled={!labelId}
 													onChange={(v) => updateEntry(entry.lcid, "label", v)}
 													onInsertBreak={(el) => insertBreak(entry.lcid, "label", el)}
 												/>
@@ -341,6 +367,7 @@ export const LocalizationEditor: React.FC = () => {
 											<td className={styles.td}>
 												<LabelCellInput
 													value={entry.tooltipTitle}
+													disabled={!tooltipTitleId}
 													onChange={(v) => updateEntry(entry.lcid, "tooltipTitle", v)}
 													onInsertBreak={(el) => insertBreak(entry.lcid, "tooltipTitle", el)}
 												/>
@@ -348,6 +375,7 @@ export const LocalizationEditor: React.FC = () => {
 											<td className={styles.td}>
 												<BodyCellInput
 													value={entry.tooltipBody}
+													disabled={!tooltipBodyId}
 													onChange={(v) => updateEntry(entry.lcid, "tooltipBody", v)}
 												/>
 											</td>
@@ -387,10 +415,12 @@ export const LocalizationEditor: React.FC = () => {
 
 function LabelCellInput({
 	value,
+	disabled,
 	onChange,
 	onInsertBreak,
 }: {
 	value: string;
+	disabled?: boolean;
 	onChange: (v: string) => void;
 	onInsertBreak: (el: HTMLInputElement | null) => void;
 }) {
@@ -409,11 +439,13 @@ function LabelCellInput({
 					boxSizing: "border-box",
 				}}
 				value={value}
+				disabled={disabled}
 				onChange={(e) => onChange(e.target.value)}
 			/>
 			<Tooltip content="Insert Dataverse line break (&#x200b;&#x200b;)" relationship="label">
 				<button
 					type="button"
+					disabled={disabled}
 					onClick={() => onInsertBreak(ref.current)}
 					style={{
 						fontSize: 11,
@@ -435,7 +467,15 @@ function LabelCellInput({
 	);
 }
 
-function BodyCellInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function BodyCellInput({
+	value,
+	disabled,
+	onChange,
+}: {
+	value: string;
+	disabled?: boolean;
+	onChange: (v: string) => void;
+}) {
 	return (
 		<textarea
 			style={{
@@ -450,6 +490,7 @@ function BodyCellInput({ value, onChange }: { value: string; onChange: (v: strin
 				minHeight: "42px",
 			}}
 			value={value}
+			disabled={disabled}
 			onChange={(e) => onChange(e.target.value)}
 			rows={2}
 		/>

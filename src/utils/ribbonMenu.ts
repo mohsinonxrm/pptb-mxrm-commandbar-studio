@@ -128,6 +128,7 @@ export function copyMenu(
 	menu: RibbonMenu | undefined,
 	oldId: string,
 	newId: string,
+	loadedLabelIds?: ReadonlySet<string>,
 ): RibbonMenu | undefined {
 	if (!menu) return undefined;
 	// Ids that don't start with the original's (an out-of-the-box menu's items)
@@ -157,7 +158,7 @@ export function copyMenu(
 			...s,
 			id: rebase(s.id),
 			controlsId: rebase(s.controlsId),
-			controls: s.controls.map((c) => copyControl(c, rebase(c.id))),
+			controls: s.controls.map((c) => copyControl(c, rebase(c.id), loadedLabelIds)),
 			...(s.rawControls
 				? { rawControls: s.rawControls.map((r) => ({ ...r, xml: rebaseXml(r.xml) })) }
 				: {}),
@@ -180,21 +181,35 @@ function rebaseIds(xml: string, oldId: string, newId: string): string {
 /** Attributes that make a menu populate itself at runtime; a copy keeps them (#62 review m6). */
 const DYNAMIC_MENU_ATTRIBUTES = ["PopulateDynamically", "PopulateOnlyOnce", "PopulateQueryCommand"];
 
-/** A copy of a control as a new, unmanaged control with id `newId` (menu included). */
-export function copyControl(control: RibbonButton, newId: string): RibbonButton {
+/**
+ * A `$LocLabels:` text whose label the session doesn't have: another solution
+ * defines it (often a managed one), so its text isn't known here (#137).
+ */
+export function isOtherSolutionLabel(token: string | undefined, loadedLabelIds?: ReadonlySet<string>): boolean {
+	return !!loadedLabelIds && !!token?.startsWith("$LocLabels:") && !loadedLabelIds.has(token.slice("$LocLabels:".length));
+}
+
+/**
+ * A copy of a control as a new, unmanaged control with id `newId` (menu included).
+ * `loadedLabelIds`: the session's LocLabels, to tell another solution's labels (#137).
+ */
+export function copyControl(control: RibbonButton, newId: string, loadedLabelIds?: ReadonlySet<string>): RibbonButton {
 	const dynamic = DYNAMIC_MENU_ATTRIBUTES.filter(
 		(a) => control.source?.attributes[a] !== undefined,
 	);
 	// The copy must not reuse the original's tokens / attributes — except its
 	// icon (#60), how its menu is populated (#62 review m6) and platform texts
 	// (`$Resources:`), which aren't the original's to own: without them the copy
-	// got new labels reading the raw resource key (#86).
+	// got new labels reading the raw resource key (#86). Another solution's
+	// labels are kept the same way: their text isn't loaded, so a label of the
+	// copy's own would read the label's id (#137).
 	const icon = sourceForCopy(control.source);
 	const attributes = {
 		...(icon?.attributes ?? {}),
 		...Object.fromEntries(dynamic.map((a) => [a, control.source!.attributes[a]])),
 	};
-	const platform = (token?: string) => (isPlatformText(token) ? token : undefined);
+	const platform = (token?: string) =>
+		isPlatformText(token) || isOtherSolutionLabel(token, loadedLabelIds) ? token : undefined;
 	const texts = {
 		labelToken: platform(control.source?.labelToken),
 		tooltipTitleToken: platform(control.source?.tooltipTitleToken),
@@ -221,6 +236,6 @@ export function copyControl(control: RibbonButton, newId: string): RibbonButton 
 		origin: "unmanaged",
 		solutionName: undefined,
 		publisherName: undefined,
-		menu: copyMenu(control.menu, control.id, newId),
+		menu: copyMenu(control.menu, control.id, newId, loadedLabelIds),
 	};
 }

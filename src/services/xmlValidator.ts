@@ -757,7 +757,11 @@ export function validatePublishRibbonDiff(
 	// `$LocLabels:` references without a <LocLabel> in the same RibbonDiffXml.
 	// A warning: the generator deliberately keeps the token of a managed / ISV
 	// control whose label lives in its own solution; and a token written back
-	// exactly as loaded isn't reported at all.
+	// exactly as loaded isn't reported at all, nor is a label some loaded control
+	// already uses — a copy keeps another solution's label (#137).
+	const loadedLabelRefs = new Set<string>();
+	for (const attrs of Object.values(context.loadedAttributes ?? {}))
+		for (const value of Object.values(attrs)) if (LOC_LABEL_REF.test(value)) loadedLabelRefs.add(value);
 	for (const { key, el } of elements) {
 		if (el.tagName === "LocLabel") continue;
 		for (const node of selfAndDescendants(el)) {
@@ -766,6 +770,7 @@ export function validatePublishRibbonDiff(
 				if (!labelId || parts.locLabels.has(labelId)) continue;
 				const id = node.getAttribute("Id") ?? undefined;
 				if (id && context.loadedAttributes?.[id]?.[attr.name] === attr.value) continue;
+				if (loadedLabelRefs.has(attr.value)) continue;
 				add(
 					"loclabel-missing",
 					key,
