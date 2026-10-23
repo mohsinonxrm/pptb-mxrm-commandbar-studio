@@ -38,6 +38,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Translations editor follows the same rule: another solution's label is read-only there, so it
   is never overwritten in your layer for every control that uses it. While a layer can't be read
   (#110), copies keep no label references, since they could be your own labels.
+- **The XML drawer's Copy and Download work in PPTB and report what happened (#122).** They go
+  through the host's clipboard and Save dialog (the browser's as a fallback) and say whether the
+  XML was copied, where it was saved, or why it couldn't be. The console's Copy log falls back to
+  the browser outside PPTB too, and Import XML from the command palette says when it couldn't
+  read the clipboard.
+- **Keyboard shortcuts work with Shift and Caps Lock (#123).** Ctrl+Shift+Z / Cmd+Shift+Z redoes,
+  and Ctrl+Z / Y / K / S / D work with Caps Lock on and on non-Latin keyboard layouts. AltGr
+  letters (Polish "ś" is AltGr+S) are typed, never taken as shortcuts.
+- **A restored draft that was undone isn't offered again after a publish (#129).** A redo of the
+  restore saves it again.
+- **The whole row of a table in the Tables list is clickable (#5)**, not just its name.
 
 ## [0.7.0-beta.1] - 2026-10-23
 

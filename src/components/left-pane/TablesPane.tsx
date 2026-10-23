@@ -47,7 +47,15 @@ const useStyles = makeStyles({
 	gridWrap: {
 		height: "100%",
 	},
+	// The row's whole cell is its click target, not just the text (#5).
+	cell: {
+		padding: 0,
+		minWidth: 0,
+		alignSelf: "stretch",
+	},
 	sectionHeader: {
+		flex: 1,
+		alignSelf: "stretch",
 		padding: `${tokens.spacingHorizontalXS} ${tokens.spacingHorizontalS}`,
 		display: "flex",
 		alignItems: "center",
@@ -57,6 +65,9 @@ const useStyles = makeStyles({
 		":hover": { backgroundColor: tokens.colorNeutralBackground3 },
 	},
 	entityRow: {
+		flex: 1,
+		alignSelf: "stretch",
+		minWidth: 0,
 		display: "flex",
 		alignItems: "center",
 		gap: tokens.spacingHorizontalS,
@@ -152,7 +163,14 @@ export function TablesPane() {
 								row.label === "CUSTOM" ? setCustomExpanded((v) => !v) : setStdExpanded((v) => !v)
 							}
 							role="button"
+							tabIndex={0}
 							aria-expanded={expanded}
+							onKeyDown={(e) => {
+								if (e.key !== "Enter" && e.key !== " ") return;
+								e.preventDefault();
+								if (row.label === "CUSTOM") setCustomExpanded((v) => !v);
+								else setStdExpanded((v) => !v);
+							}}
 						>
 							<Text size={100} weight="semibold" style={{ color: tokens.colorNeutralForeground3 }}>
 								{expanded ? "▾" : "▸"} {row.label} ({row.count})
@@ -232,7 +250,7 @@ export function TablesPane() {
 						<DataGridBody<TableRowItem> itemSize={52} height={420} listProps={{ width: "100%" }}>
 							{({ item, rowId }, style) => (
 								<DataGridRow<TableRowItem> key={rowId} style={style}>
-									{({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
+									{({ renderCell }) => <DataGridCell className={styles.cell}>{renderCell(item)}</DataGridCell>}
 								</DataGridRow>
 							)}
 						</DataGridBody>
@@ -260,7 +278,11 @@ function EntityRowItem({
 			role="button"
 			tabIndex={0}
 			aria-pressed={isActive}
-			onKeyDown={(e) => e.key === "Enter" && onClick()}
+			onKeyDown={(e) => {
+				if (e.key !== "Enter" && e.key !== " ") return;
+				e.preventDefault();
+				onClick();
+			}}
 		>
 			<div className={styles.entityName}>
 				<Text size={200} weight={isActive ? "semibold" : "regular"}>

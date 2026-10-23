@@ -59,6 +59,7 @@ const ReportList: React.FC<{ items: string[] }> = ({ items }) => (
 export const ImportXmlModal: React.FC = () => {
 	const importXmlOpen = useUIStore((s) => s.importXmlOpen);
 	const importXmlSeed = useUIStore((s) => s.importXmlSeed);
+	const importXmlNote = useUIStore((s) => s.importXmlNote);
 	const closeImportXml = useUIStore((s) => s.closeImportXml);
 
 	const [xmlText, setXmlText] = useState("");
@@ -129,6 +130,12 @@ export const ImportXmlModal: React.FC = () => {
 							the existing controls. Everything imported becomes one unpublished
 							change, which Undo takes back as a whole.
 						</Text>
+
+						{importXmlNote && !xmlText && (
+							<MessageBar intent="info">
+								<MessageBarBody>{importXmlNote}</MessageBarBody>
+							</MessageBar>
+						)}
 
 						<div style={{ flex: 1, minHeight: 0 }}>
 							<MonacoEditor

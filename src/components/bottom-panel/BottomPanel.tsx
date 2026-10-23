@@ -26,6 +26,7 @@ import {
 } from "@fluentui/react-icons";
 import { useMemo, useState } from "react";
 import { groupControls } from "@/utils/ribbonMenu";
+import { copyText } from "@/utils/hostIO";
 
 const useStyles = makeStyles({
 	root: {
@@ -145,6 +146,7 @@ export function BottomPanel() {
 	const currentUserName = useSessionStore((s) => s.currentUserName);
 	const runtimeEntries = useRuntimeLogStore((s) => s.entries);
 	const clearRuntimeLogs = useRuntimeLogStore((s) => s.clear);
+	const logWarn = useRuntimeLogStore((s) => s.logWarn);
 
 	const openCommandEditor = useUIStore((s) => s.openCommandEditor);
 	const openRuleEditor = useUIStore((s) => s.openRuleEditor);
@@ -594,12 +596,10 @@ export function BottomPanel() {
 												return `${entry.scope} ${time}\n[${entry.level.toUpperCase()}]\n${entry.message}`;
 											})
 											.join("\n\n");
-										void window.toolboxAPI?.utils
-											.copyToClipboard(text)
-											.catch(() => {
-												// Browser fallback when not running inside PPTB host.
-												void navigator.clipboard?.writeText(text);
-											});
+										// Host first, browser fallback; a failure is logged (#122).
+										void copyText(text).then((r) => {
+											if (!r.ok) logWarn("ui", `Couldn't copy the log: ${r.error}.`);
+										});
 									}}
 									title="Copy all log entries to clipboard"
 								>
