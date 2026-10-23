@@ -19,6 +19,8 @@ import { layerSnapshotFromParts } from "@/services/dataverse/ribbonLayerService"
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { commandProvenance } from "@/utils/commandProvenance";
+import { copyControl } from "@/utils/ribbonMenu";
+import { buttonLabelId, textLabelId } from "@/utils/locLabelRef";
 import type { RibbonButton, RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -1009,7 +1011,8 @@ describe("#26 / #31 — Customise Button", () => {
 		const thing: RibbonButton = {
 			id: THING,
 			label: "Thing",
-			tooltipTitle: "Thing tip",
+			// Its label isn't loaded (below), so the canvas shows the id, as a load does.
+			tooltipTitle: "msdyn.Thing.Tip",
 			kind: "button",
 			sequence: 30,
 			templateAlias: "o1",
@@ -1060,11 +1063,15 @@ describe("#26 / #31 — Customise Button", () => {
 			{ languageCode: 1033, description: "Thing" },
 			{ languageCode: 1031, description: "Ding" },
 		]);
-		// The tooltip's label isn't loaded: the copy gets the base language, with a warning.
+		// The tooltip's label isn't loaded — another solution defines it: the copy
+		// keeps using it, not a label of its own reading the id (#137).
 		expect(useRuntimeLogStore.getState().entries.at(-1)?.message).toContain(
-			"$LocLabels:msdyn.Thing.Tip",
+			"$LocLabels:msdyn.Thing.Tip is defined by another solution",
 		);
-		expect(s.past.at(-1)?.detail).toContain("translations not loaded");
+		expect(s.past.at(-1)?.detail).toContain("keeps another solution's labels");
+		const copied = s.ribbons.HomepageGrid.tabs[0].groups.find((g) => g.id === MGMT)!.buttons.find((b) => b.id === id)!;
+		expect(copied.source?.tooltipTitleToken).toBe("$LocLabels:msdyn.Thing.Tip");
+		expect(copied.source?.labelToken).toBeUndefined();
 
 		const p = storePlan();
 		expect(p.unsupported).toEqual([]);
@@ -1090,7 +1097,180 @@ describe("#26 / #31 — Customise Button", () => {
 				.querySelectorAll("Title"),
 		).map((t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`);
 		expect(titles.sort()).toEqual(["1031=Ding", "1033=Thing"]);
-		// The original's label isn't touched.
+		expect(btn.getAttribute("ToolTipTitle")).toBe("$LocLabels:msdyn.Thing.Tip");
+		// The original's labels aren't touched.
 		expect(ids(doc, "LocLabels > LocLabel")).not.toContain("msdyn.Thing.LabelText");
+		expect(ids(doc, "LocLabels > LocLabel")).not.toContain("msdyn.Thing.Tip");
+	});
+});
+
+describe("#137 — copies of controls whose labels another solution defines", () => {
+	const OTHER = "msdyn.HomepageGrid.Other";
+	// What a load shows for a label the session doesn't have: its id (#137).
+	const other: RibbonButton = {
+		id: OTHER,
+		label: "msdyn.Other.LabelText",
+		tooltipTitle: "msdyn.Other.Tip",
+		kind: "button",
+		sequence: 30,
+		templateAlias: "o1",
+		commandId: "Mscrm.ShareSelectedRecord",
+		hidden: false,
+		oob: false,
+		custom: false,
+		managed: true,
+		origin: "managed",
+		source: {
+			labelToken: "$LocLabels:msdyn.Other.LabelText",
+			tooltipTitleToken: "$LocLabels:msdyn.Other.Tip",
+			attributes: {
+				Id: OTHER,
+				Command: "Mscrm.ShareSelectedRecord",
+				LabelText: "$LocLabels:msdyn.Other.LabelText",
+				ToolTipTitle: "$LocLabels:msdyn.Other.Tip",
+				Sequence: "30",
+				TemplateAlias: "o1",
+			},
+		},
+	};
+
+	function loadWithOther() {
+		loadStore();
+		useRibbonStore.setState((s) => {
+			const ribbons = JSON.parse(JSON.stringify(s.ribbons)) as typeof s.ribbons;
+			ribbons.HomepageGrid.tabs[0].groups.find((g) => g.id === MGMT)!.buttons.push(other);
+			return { ribbons, baseline: JSON.parse(JSON.stringify(ribbons)) as typeof s.ribbons };
+		});
+	}
+
+	async function published() {
+		const s = useRibbonStore.getState();
+		const { buildMergedRibbonDiffXml } = await import("@/services/dataverse/publishService");
+		const result = await buildMergedRibbonDiffXml({
+			entity: { logicalName: T, schemaName: T },
+			locations: [{ current: s.ribbons.HomepageGrid, baseline: s.baseline.HomepageGrid }],
+			commands: s.commands,
+			enableRules: s.enableRules,
+			displayRules: s.displayRules,
+			locLabels: s.locLabels,
+			plan: storePlan(),
+			languageCode: 1033,
+		});
+		return new DOMParser().parseFromString(result.xml, "application/xml");
+	}
+	const buttonIn = (doc: Document, id: string) =>
+		Array.from(doc.querySelectorAll("CustomAction Button")).find((b) => b.getAttribute("Id") === id)!;
+	const copies = (prefix: string) =>
+		useRibbonStore
+			.getState()
+			.ribbons.HomepageGrid.tabs[0].groups.flatMap((g) => g.buttons)
+			.filter((b) => b.id.startsWith(prefix));
+
+	it("Duplicate button keeps the labels and their text, with no label of its own", async () => {
+		loadWithOther();
+		useRibbonStore.getState().duplicateButton("HomepageGrid", MAIN, MGMT, OTHER);
+		const [copy] = copies(`${OTHER}_copy_`);
+		expect(copy.source?.labelToken).toBe("$LocLabels:msdyn.Other.LabelText");
+		expect(copy.source?.tooltipTitleToken).toBe("$LocLabels:msdyn.Other.Tip");
+		// No " (copy)" suffix: it would become a label of the copy's own reading the id.
+		expect(copy.label).toBe("msdyn.Other.LabelText");
+
+		const doc = await published();
+		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe("$LocLabels:msdyn.Other.LabelText");
+		expect(buttonIn(doc, copy.id).getAttribute("ToolTipTitle")).toBe("$LocLabels:msdyn.Other.Tip");
+		// Neither the other solution's labels nor new ones reading their ids.
+		expect(ids(doc, "LocLabels > LocLabel").filter((id) => id?.includes("Other"))).toEqual([]);
+	});
+
+	it("Duplicate group keeps them on the copied buttons", async () => {
+		loadWithOther();
+		useRibbonStore.getState().duplicateGroup("HomepageGrid", MAIN, MGMT);
+		const copy = copies(`${OTHER}_copy_`)[0];
+		expect(copy.source?.labelToken).toBe("$LocLabels:msdyn.Other.LabelText");
+		const doc = await published();
+		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe("$LocLabels:msdyn.Other.LabelText");
+		expect(ids(doc, "LocLabels > LocLabel").filter((id) => id?.includes("Other"))).toEqual([]);
+	});
+
+	it("an edited text gets a label of the copy's own; the shared one is never written", async () => {
+		loadWithOther();
+		useRibbonStore.getState().duplicateButton("HomepageGrid", MAIN, MGMT, OTHER);
+		const [copy] = copies(`${OTHER}_copy_`);
+		useRibbonStore.getState().setButtonProp("HomepageGrid", MAIN, MGMT, copy.id, { label: "Book it" });
+		const doc = await published();
+		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe(`$LocLabels:${copy.id}.LabelText`);
+		expect(buttonIn(doc, copy.id).getAttribute("ToolTipTitle")).toBe("$LocLabels:msdyn.Other.Tip");
+		const labels = ids(doc, "LocLabels > LocLabel");
+		expect(labels).toContain(`${copy.id}.LabelText`);
+		expect(labels).not.toContain("msdyn.Other.LabelText");
+	});
+
+	it("Translations target the label the copy publishes to, never the shared one (#137 review)", async () => {
+		loadWithOther();
+		useRibbonStore.getState().duplicateButton("HomepageGrid", MAIN, MGMT, OTHER);
+		const [copy] = copies(`${OTHER}_copy_`);
+		const target = () => {
+			const c = copies(`${OTHER}_copy_`)[0];
+			const s = useRibbonStore.getState();
+			return textLabelId(c.source?.labelToken, buttonLabelId(c.id), c.label, s.locLabels, s.baseLanguageCode);
+		};
+		// Unchanged: the shared label isn't edited.
+		expect(target()).toBeNull();
+		// Its text edited: the copy's own label, which the translation joins.
+		useRibbonStore.getState().setButtonProp("HomepageGrid", MAIN, MGMT, copy.id, { label: "Book it" });
+		expect(target()).toBe(`${copy.id}.LabelText`);
+		useRibbonStore.getState().upsertLocLabel({ id: target()!, titles: [{ languageCode: 1036, description: "Réserver" }] });
+		const doc = await published();
+		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe(`$LocLabels:${copy.id}.LabelText`);
+		const titles = Array.from(
+			Array.from(doc.querySelectorAll("LocLabels > LocLabel"))
+				.find((l) => l.getAttribute("Id") === `${copy.id}.LabelText`)!
+				.querySelectorAll("Title"),
+		).map((t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`);
+		expect(titles.sort()).toEqual(["1033=Book it", "1036=Réserver"]);
+		expect(ids(doc, "LocLabels > LocLabel")).not.toContain("msdyn.Other.LabelText");
+	});
+
+	it("while a layer is unread, copies keep no label token: it could be one of yours (#137 review)", () => {
+		loadWithOther();
+		useRibbonStore.setState({ labelsUnknown: true });
+		useRibbonStore.getState().duplicateButton("HomepageGrid", MAIN, MGMT, OTHER);
+		const [copy] = copies(`${OTHER}_copy_`);
+		expect(copy.source?.labelToken).toBeUndefined();
+		expect(copy.label).toBe("msdyn.Other.LabelText (copy)");
+		const id = useRibbonStore.getState().customiseButton("HomepageGrid", MAIN, MGMT, OTHER, "cbs")!;
+		const customised = copies(id)[0];
+		expect(customised.source?.tooltipTitleToken).toBeUndefined();
+	});
+
+	it("a menu item's label from another solution is kept too; a loaded one isn't", () => {
+		const item = (id: string, token: string): RibbonButton => ({
+			...other,
+			id,
+			label: token.slice("$LocLabels:".length),
+			source: { labelToken: token, attributes: { Id: id, LabelText: token } },
+		});
+		const flyout: RibbonButton = {
+			...other,
+			id: "msdyn.Fly",
+			kind: "flyout",
+			menu: {
+				id: "msdyn.Fly.Menu",
+				sections: [
+					{
+						id: "msdyn.Fly.Menu.S",
+						sequence: 10,
+						controlsId: "msdyn.Fly.Menu.S.Controls",
+						controls: [item("msdyn.Fly.A", "$LocLabels:msdyn.A.LabelText"), item("msdyn.Fly.B", "$LocLabels:mine.B.LabelText")],
+					},
+				],
+			},
+		};
+		const copy = copyControl(flyout, "cbs.Fly2", new Set(["mine.B.LabelText"]));
+		const [a, b] = copy.menu!.sections[0].controls;
+		expect(a.source?.labelToken).toBe("$LocLabels:msdyn.A.LabelText");
+		expect(b.source?.labelToken).toBeUndefined();
+		// Without the session's labels (as before #137), none is kept.
+		expect(copyControl(flyout, "cbs.Fly3").source?.labelToken).toBeUndefined();
 	});
 });

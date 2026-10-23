@@ -947,6 +947,9 @@ async function publishRibbonUnguarded(
 	// running is finished, and published below, before the layer is read.
 	onProgress?.("Checking that no other solution operation is running…");
 	await waitForEnvironmentIdle(busy);
+	// The solution's and publisher's own details go into the manifest as they are
+	// (#104): read after the wait, just before anything is written.
+	const manifestDetails = await fetchManifestDetails(input.solution);
 	// After the publish first, a failure says so: other makers' pending changes
 	// for the table were published, though nothing of yours was imported.
 	let importedOnce = false;
@@ -1019,6 +1022,7 @@ async function publishRibbonUnguarded(
 		...input.solution,
 		languageCode,
 		rootComponents,
+		details: manifestDetails,
 	});
 
 	onProgress?.("Packaging solution ZIP…");
@@ -1362,7 +1366,124 @@ interface SolutionXmlInput extends PublishSolutionInfo {
 	/** Organization base language. The solution manifest must match it. */
 	languageCode: number;
 	rootComponents: RootComponentSpec[];
+	/** The solution's and publisher's details as they are in Dataverse (#104). */
+	details: ManifestDetails;
 }
+
+/**
+ * What an import of the manifest would otherwise change on the solution and its
+ * publisher (#104, verified live): an empty or missing `<EMailAddress>`,
+ * `<SupportingWebsiteUrl>` or `<Addresses>` clears the publisher's e-mail,
+ * website and addresses, so they are written as they are, as an export does.
+ */
+export interface ManifestDetails {
+	solutionDescription: string;
+	publisherDescription: string;
+	publisherEmail: string;
+	publisherWebsite: string;
+	publisherOptionValuePrefix: number;
+	/** The publisher's address 1 and 2, `address{n}_<field>` columns. */
+	publisherAddresses: Record<string, unknown>[];
+}
+
+/** Address child elements of a solution manifest, with their `address{n}_` column. */
+const ADDRESS_ELEMENTS: [string, string][] = [
+	["AddressTypeCode", "addresstypecode"],
+	["City", "city"],
+	["County", "county"],
+	["Country", "country"],
+	["Fax", "fax"],
+	["FreightTermsCode", "freighttermscode"],
+	["Latitude", "latitude"],
+	["Line1", "line1"],
+	["Line2", "line2"],
+	["Line3", "line3"],
+	["Longitude", "longitude"],
+	["Name", "name"],
+	["PostalCode", "postalcode"],
+	["PostOfficeBox", "postofficebox"],
+	["PrimaryContactName", "primarycontactname"],
+	["ShippingMethodCode", "shippingmethodcode"],
+	["StateOrProvince", "stateorprovince"],
+	["Telephone1", "telephone1"],
+	["Telephone2", "telephone2"],
+	["Telephone3", "telephone3"],
+	["UPSZone", "upszone"],
+	["UTCOffset", "utcoffset"],
+	["UTCConversionTimeZoneCode", "utcconversiontimezonecode"],
+];
+
+/**
+ * Reads the solution's description and its publisher (every column: an unknown
+ * one in `$select` would fail the request) for the manifest (#104). Throws when
+ * they can't be read: importing without them would clear the publisher's details.
+ */
+export async function fetchManifestDetails(solution: PublishSolutionInfo): Promise<ManifestDetails> {
+	let record: Record<string, unknown> | undefined;
+	try {
+		const res = (await dataverseAPI.queryData(
+			`solutions?$select=description&$expand=publisherid&$filter=uniquename eq '${solution.uniqueName.replace(/'/g, "''")}'`,
+		)) as { value?: Record<string, unknown>[] };
+		record = res.value?.[0];
+	} catch (err) {
+		throw new Error(
+			`Couldn't read solution ${solution.uniqueName} and its publisher (${err instanceof Error ? err.message : String(err)}), so nothing was imported: an import without them would clear the publisher's details.`,
+		);
+	}
+	const publisher = record?.["publisherid"] as Record<string, unknown> | undefined;
+	if (!record || !publisher) {
+		throw new Error(
+			`Couldn't read solution ${solution.uniqueName} and its publisher, so nothing was imported: an import without them would clear the publisher's details.`,
+		);
+	}
+	const prefix = publisher["customizationoptionvalueprefix"];
+	if (typeof prefix !== "number") {
+		throw new Error(
+			`Couldn't read the option-value prefix of publisher ${solution.publisherUniqueName}, so nothing was imported: a wrong one would change the publisher.`,
+		);
+	}
+	const text = (v: unknown) => (typeof v === "string" ? v : "");
+	const addresses = [1, 2]
+		.map((n) =>
+			Object.fromEntries(
+				ADDRESS_ELEMENTS.map(([, column]) => [column, publisher[`address${n}_${column}`]] as const).filter(
+					([, v]) => v !== null && v !== undefined && v !== "",
+				),
+			),
+		)
+		.map((fields, i) => ({ number: i + 1, ...fields }));
+	return {
+		solutionDescription: text(record["description"]),
+		publisherDescription: text(publisher["description"]),
+		publisherEmail: text(publisher["emailaddress"]),
+		publisherWebsite: text(publisher["supportingwebsiteurl"]),
+		publisherOptionValuePrefix: prefix,
+		publisherAddresses: addresses.filter((a) => Object.keys(a).length > 1),
+	};
+}
+
+/** An attribute value keeping line breaks and tabs, which attribute normalisation turns into spaces. */
+const attributeXml = (value: string) =>
+	escapeXml(value).replace(/\r/g, "&#xD;").replace(/\n/g, "&#xA;").replace(/\t/g, "&#x9;");
+
+const descriptionsXml = (description: string, lang: number) =>
+	description
+		? `<Descriptions>\n        <Description description="${attributeXml(description)}" languagecode="${lang}"/>\n      </Descriptions>`
+		: "<Descriptions/>";
+
+const addressesXml = (addresses: Record<string, unknown>[]) =>
+	addresses.length === 0
+		? "<Addresses/>"
+		: `<Addresses>${addresses
+				.map(
+					(a) =>
+						`\n        <Address>\n          <AddressNumber>${a["number"]}</AddressNumber>${ADDRESS_ELEMENTS.filter(
+							([, column]) => column in a,
+						)
+							.map(([element, column]) => `\n          <${element}>${escapeXml(String(a[column]))}</${element}>`)
+							.join("")}\n        </Address>`,
+				)
+				.join("")}\n      </Addresses>`;
 
 function generateSolutionXml(input: SolutionXmlInput): string {
 	// Fall back to safe placeholders if the publisher fields are missing —
@@ -1398,7 +1519,7 @@ function generateSolutionXml(input: SolutionXmlInput): string {
     <LocalizedNames>
       <LocalizedName description="${escapeXml(friendly)}" languagecode="${lang}"/>
     </LocalizedNames>
-    <Descriptions/>
+    ${descriptionsXml(input.details.solutionDescription, lang)}
     <Version>${escapeXml(input.version)}</Version>
     <Managed>0</Managed>
     <Publisher>
@@ -1406,12 +1527,12 @@ function generateSolutionXml(input: SolutionXmlInput): string {
       <LocalizedNames>
         <LocalizedName description="${escapeXml(pubName)}" languagecode="${lang}"/>
       </LocalizedNames>
-      <Descriptions/>
-      <EMailAddress/>
-      <SupportingWebsiteUrl/>
+      ${descriptionsXml(input.details.publisherDescription, lang)}
+      <EMailAddress>${escapeXml(input.details.publisherEmail)}</EMailAddress>
+      <SupportingWebsiteUrl>${escapeXml(input.details.publisherWebsite)}</SupportingWebsiteUrl>
       <CustomizationPrefix>${escapeXml(pubPrefix)}</CustomizationPrefix>
-      <CustomizationOptionValuePrefix>${input.publisherOptionValuePrefix ?? 10000}</CustomizationOptionValuePrefix>
-      <Addresses/>
+      <CustomizationOptionValuePrefix>${input.details.publisherOptionValuePrefix}</CustomizationOptionValuePrefix>
+      ${addressesXml(input.details.publisherAddresses)}
     </Publisher>
     ${rootComponentsXml}
     <MissingDependencies/>

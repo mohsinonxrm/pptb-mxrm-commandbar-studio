@@ -37,6 +37,11 @@ export interface RibbonWorkspaceData {
 	layers?: { entity: LayerSnapshot | null; application: LayerSnapshot | null };
 	/** Organisation base language (`organizations.languagecode`). */
 	baseLanguageCode?: number;
+	/**
+	 * Why the table's or the application's unmanaged layer couldn't be read (#110):
+	 * labels may show as ids and ownership is unknown until a reload succeeds.
+	 */
+	layerReadError?: string;
 	/** What the table's layer adds that isn't on the canvas (#64). */
 	orphans?: LayerOrphan[];
 }
@@ -174,7 +179,10 @@ export async function fetchEntityRibbonAllLocations(
 		CompressedEntityXml?: string;
 	};
 
-	const xml = await decompressRibbonZip(result.CompressedEntityXml as string);
+	if (typeof result?.CompressedEntityXml !== "string" || !result.CompressedEntityXml) {
+		throw new Error(`Dataverse returned no ribbon for ${entityLogicalName} (RetrieveEntityRibbon had no CompressedEntityXml).`);
+	}
+	const xml = await decompressRibbonZip(result.CompressedEntityXml);
 	// Parse once with a neutral location; we'll bucket the tabs ourselves below.
 	const parsed = parseRibbonXml(xml, "HomepageGrid", entityLogicalName, layerLocLabels);
 	const ribbons = splitTabsByLocation(parsed.ribbon.tabs, entityLogicalName, parsed.ribbon.scalingByTab);
@@ -213,7 +221,11 @@ export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
 		operationType: "function",
 	});
 
-	const xml = await decompressRibbonZip(result.CompressedApplicationRibbonXml as string);
+	const compressed = (result as { CompressedApplicationRibbonXml?: unknown } | undefined)?.CompressedApplicationRibbonXml;
+	if (typeof compressed !== "string" || !compressed) {
+		throw new Error("Dataverse returned no application ribbon (RetrieveApplicationRibbon had no CompressedApplicationRibbonXml).");
+	}
+	const xml = await decompressRibbonZip(compressed);
 	useRuntimeLogStore.getState().logInfo("dataverse", "RetrieveApplicationRibbon succeeded");
 	return parseRibbonXml(xml, "Application", "{!EntityLogicalName}", layerLocLabels);
 }
@@ -455,10 +467,24 @@ export async function fetchRibbonWorkspace(
 	// The merged ribbon carries no LocLabels, so read the unmanaged layers'
 	// labels first; otherwise every `$LocLabels:` caption shows (and would be
 	// republished) as its id (#12).
+	// A layer that can't be read leaves the canvas without labels and ownership:
+	// the load goes on, and says so (#110).
+	const layerErrors: string[] = [];
+	const unreadable = (which: string) => (err: unknown) => {
+		layerErrors.push(`${which}: ${err instanceof Error ? err.message : String(err)}`);
+		return null;
+	};
 	const [entityLayer, appLayer, baseLanguageCode] = await Promise.all([
-		fetchUnmanagedRibbonParts(entityLogicalName).catch(() => null),
-		fetchUnmanagedRibbonParts(null).catch(() => null),
-		fetchOrganizationLanguageCode(),
+		fetchUnmanagedRibbonParts(entityLogicalName).catch(unreadable(`the ${entityLogicalName} table's customizations`)),
+		fetchUnmanagedRibbonParts(null).catch(unreadable("the application ribbon's customizations")),
+		// Unknown, not 1033 (#106): labels show in English, and a publish reads it again.
+		fetchOrganizationLanguageCode().catch((err: unknown) => {
+			logs.logWarn(
+				"dataverse",
+				`${err instanceof Error ? err.message : String(err)} Labels are shown in English; publishing reads it again and stops if it still can't.`,
+			);
+			return undefined;
+		}),
 	]);
 	const entityLabels = entityLayer ? locLabelsFromParts(entityLayer) : [];
 	const appLabels = appLayer ? locLabelsFromParts(appLayer) : [];
@@ -489,7 +515,9 @@ export async function fetchRibbonWorkspace(
 	}
 
 	const locLabels = dedupeById([...entity.locLabels, ...application.locLabels]);
-	resolveLabelsIn([...Object.values(entity.ribbons), application.ribbon], locLabels, baseLanguageCode);
+	// For showing labels only: a publish reads the base language itself (#106).
+	const displayLanguage = baseLanguageCode ?? 1033;
+	resolveLabelsIn([...Object.values(entity.ribbons), application.ribbon], locLabels, displayLanguage);
 
 	// The table's CustomActions the ribbon doesn't return anywhere (#64), listed
 	// so they can be deleted. Not the application ribbon's: its CustomActions
@@ -498,7 +526,7 @@ export async function fetchRibbonWorkspace(
 	const orphans = entityLayer
 		? findLayerOrphans(entityLayer, Object.values(entity.ribbons), entityLogicalName, {
 				locLabels,
-				languageCode: baseLanguageCode,
+				languageCode: displayLanguage,
 				otherHides: appLayer ? hideActionsOf(appLayer).map((h) => h.location) : [],
 			})
 		: [];
@@ -527,5 +555,6 @@ export async function fetchRibbonWorkspace(
 		},
 		baseLanguageCode,
 		orphans,
+		...(layerErrors.length > 0 ? { layerReadError: layerErrors.join("; ") } : {}),
 	};
 }

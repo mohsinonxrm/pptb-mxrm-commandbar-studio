@@ -177,12 +177,17 @@ export const CommandPalette: React.FC = () => {
 				kind: "action",
 				action: () => {
 					close();
-					// Opens with the clipboard's XML; empty when it can't be read.
+					// Opens with the clipboard's XML; empty, and saying why, when it
+					// can't be read (PPTB has no clipboard read, #122).
+					const refused = "Couldn't read the clipboard here: paste the XML into the editor (Ctrl+V).";
 					const read = navigator.clipboard?.readText?.();
-					if (!read) return openImportXml();
+					if (!read) return openImportXml("", refused);
 					read.then(
-						(t) => openImportXml(t.trim().startsWith("<") ? t : ""),
-						() => openImportXml(),
+						(t) =>
+							t.trim().startsWith("<")
+								? openImportXml(t)
+								: openImportXml("", "The clipboard doesn't hold XML: paste the XML into the editor."),
+						() => openImportXml("", refused),
 					);
 				},
 			},

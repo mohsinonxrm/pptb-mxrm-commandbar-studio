@@ -150,6 +150,9 @@ const WATCHED: (keyof RibbonStoreState)[] = [
 /** Saves the draft on every change of the workspace. Returns the unsubscribe. */
 export function installDraftAutosave(): () => void {
 	return useRibbonStore.subscribe((state, prev) => {
+		// A publish (a new baseline) ends the undone restore's claim on the
+		// draft: what it held is published or undone; a redo saves it again (#129).
+		if (state.baseline !== prev.baseline) restoredAt = null;
 		if (WATCHED.every((k) => state[k] === prev[k])) return;
 		saveOrClear(state);
 	});

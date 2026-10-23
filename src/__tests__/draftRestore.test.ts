@@ -596,6 +596,21 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 		expect(savedWorkspace()).toEqual(JSON.parse(JSON.stringify(workspaceOf(store()))));
 	});
 
+	it("a publish after undoing a restore deletes the draft; a redo saves it again (#129)", () => {
+		freshLoad();
+		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
+		freshLoad();
+		drafts().restoreDraft();
+		store().undo();
+		expect(readDraft(KEY)).not.toBeNull();
+		store().markPublished();
+		expect(readDraft(KEY)).toBeNull();
+		// The undone restore is still redoable, and its changes are a draft again.
+		store().redo();
+		expect(store().mutationsSincePublish).toBeGreaterThan(0);
+		expect(readDraft(KEY)).not.toBeNull();
+	});
+
 	it("drafts older than 30 days are discarded", () => {
 		freshLoad();
 		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");

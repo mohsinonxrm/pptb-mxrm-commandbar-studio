@@ -39,6 +39,7 @@ import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
 import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
+import { hasUnpublishedChanges } from "@/store/draftStore";
 import { ModernAppFilter } from "./modern/ModernAppFilter";
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
@@ -199,12 +200,15 @@ const LOCATIONS: { value: RibbonLocation; label: string; icon: React.ReactNode; 
 interface RibbonCanvasProps {
 	isLoadingRibbon?: boolean;
 	ribbonLoadError?: string | null;
+	/** The ribbon loaded, but an unmanaged layer couldn't be read (#110). */
+	layerReadError?: string | null;
 	onRetryRibbonLoad?: () => void;
 }
 
 export function RibbonCanvas({
 	isLoadingRibbon = false,
 	ribbonLoadError = null,
+	layerReadError = null,
 	onRetryRibbonLoad,
 }: RibbonCanvasProps) {
 	const styles = useStyles();
@@ -243,6 +247,8 @@ export function RibbonCanvas({
 	const inputRef = useRef<HTMLInputElement>(null);
 	// Tab awaiting delete confirmation (#18: window.confirm doesn't work in PPTB).
 	const [deletingTabId, setDeletingTabId] = useState<string | null>(null);
+	// Retry of an unread layer replaces the canvas: unpublished changes are asked about first (#110).
+	const [confirmingReload, setConfirmingReload] = useState(false);
 	const deletingTab = deletingTabId ? ribbons[location].tabs.find((t) => t.id === deletingTabId) : undefined;
 
 	useEffect(() => {
@@ -364,6 +370,26 @@ export function RibbonCanvas({
 					</Button>
 				</div>
 			</div>
+
+			{layerReadError && !isLoadingRibbon && !ribbonLoadError && (
+				<MessageBar intent="warning" layout="multiline" style={{ flexShrink: 0 }}>
+					<MessageBarBody>
+						Couldn&apos;t read your unmanaged ribbon customizations, so labels may show as ids and
+						ownership (what you can edit or delete) is unknown. Reload before editing. Details:{" "}
+						{layerReadError}
+					</MessageBarBody>
+					{onRetryRibbonLoad && (
+						<MessageBarActions>
+							<Button
+								size="small"
+								onClick={() => (hasUnpublishedChanges() ? setConfirmingReload(true) : onRetryRibbonLoad())}
+							>
+								Retry
+							</Button>
+						</MessageBarActions>
+					)}
+				</MessageBar>
+			)}
 
 			{/* Location-specific info banners */}
 			{location === "Form" && (
@@ -534,6 +560,22 @@ export function RibbonCanvas({
 					</>
 				)}
 			</div>
+			{confirmingReload && onRetryRibbonLoad && (
+				<ConfirmDialog
+					open
+					title="Reload the ribbon"
+					confirmLabel="Reload"
+					onConfirm={() => {
+						setConfirmingReload(false);
+						onRetryRibbonLoad();
+					}}
+					onCancel={() => setConfirmingReload(false)}
+				>
+					You have unpublished changes. Reloading replaces the canvas; your changes are kept in a draft that
+					is offered after the reload. They were made while your labels weren&apos;t loaded, so check their
+					texts before you publish: a text can read a label&apos;s id.
+				</ConfirmDialog>
+			)}
 			{deletingTab && (
 				<ConfirmDialog
 					open

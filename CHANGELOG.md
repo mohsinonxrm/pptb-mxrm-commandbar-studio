@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0-beta.2] - 2026-10-23
+
+The second beta of 0.7.0 (npm `beta`): correctness. A publish keeps the publisher's details and
+never assumes the base language; deletes clean up exactly what they leave unused; copies keep
+other solutions' labels; an unreadable layer is reported; and the XML drawer, shortcuts, drafts
+and the Tables list are fixed. Requires Power Platform ToolBox 1.2.7 or later.
+
+### 🔧 Fixed
+
+- **A publish no longer clears the publisher's contact details (#104).** The solution package
+  CBS imports had empty publisher `<EMailAddress>`, `<SupportingWebsiteUrl>` and `<Addresses>`,
+  and an import clears what they leave empty (verified live: e-mail, website and address were
+  wiped). CBS now reads the solution and its publisher before importing and writes their
+  descriptions, e-mail, website, addresses and option-value prefix as they are; if it can't read
+  them, nothing is imported (the prefix no longer defaults to 10000).
+- **The system Default solution isn't offered as a publish target (#105)**; the Common Data
+  Services Default Solution still is.
+- **The organization's base language is never assumed (#106).** A failed read of
+  `organizations.languagecode` was taken as English (1033), so a package could be written in the
+  wrong language. It is read twice; a publish that still can't read it stops before writing
+  anything, and on load a warning says labels are shown in English.
+- **Deleting a control cleans up exactly what it leaves unused (#108).** Whether its command,
+  rules and labels are still used is read from the elements, not matched as text: a rule
+  referenced with `Id` after another attribute is now removed with its command, and a rule is
+  no longer kept by a rule of the other kind with the same id.
+- **An unmanaged layer that can't be read is reported (#110).** The ribbon still loads, but a
+  warning on the canvas says labels may show as ids and ownership is unknown, with Retry (which
+  asks first when you have unpublished changes). A ribbon response without its compressed XML
+  now fails with a clear error.
+- **Copies keep labels another solution defines (#137).** Duplicate button, Duplicate group and
+  Customise button published a copy of, say, an msdyn button with a new label reading the
+  original label's id. The copy now references the same label, as it does platform texts; if
+  you edit its text, it gets a label of its own and the shared one is left alone. The
+  Translations editor follows the same rule: another solution's label is read-only there, so it
+  is never overwritten in your layer for every control that uses it. While a layer can't be read
+  (#110), copies keep no label references, since they could be your own labels.
+- **The XML drawer's Copy and Download work in PPTB and report what happened (#122).** They go
+  through the host's clipboard and Save dialog (the browser's as a fallback) and say whether the
+  XML was copied, where it was saved, or why it couldn't be. The console's Copy log falls back to
+  the browser outside PPTB too, and Import XML from the command palette says when it couldn't
+  read the clipboard.
+- **Keyboard shortcuts work with Shift and Caps Lock (#123).** Ctrl+Shift+Z / Cmd+Shift+Z redoes,
+  and Ctrl+Z / Y / K / S / D work with Caps Lock on and on non-Latin keyboard layouts. AltGr
+  letters (Polish "ś" is AltGr+S) are typed, never taken as shortcuts.
+- **A restored draft that was undone isn't offered again after a publish (#129).** A redo of the
+  restore saves it again.
+- **The whole row of a table in the Tables list is clickable (#5)**, not just its name.
+
 ## [0.7.0-beta.1] - 2026-10-23
 
 The first beta of 0.7.0 (npm `beta`): publish safety. A connection change, a Production target,

@@ -43,6 +43,8 @@ export interface UIStore {
 	importXmlOpen: boolean;
 	/** XML the import dialog opens with (the XML drawer's, or the clipboard's). */
 	importXmlSeed: string;
+	/** Why the import dialog opened empty, e.g. the clipboard couldn't be read (#122). */
+	importXmlNote: string;
 	conflictDrawerOpen: boolean;
 	conflictElementId: string | null;
 	webResourceBrowserOpen: boolean;
@@ -82,7 +84,7 @@ export interface UIStore {
 	closeNewGroup(): void;
 	openNewButton(groupId: string): void;
 	closeNewButton(): void;
-	openImportXml(seed?: string): void;
+	openImportXml(seed?: string, note?: string): void;
 	closeImportXml(): void;
 	openConflictDrawer(elementId: string): void;
 	closeConflictDrawer(): void;
@@ -133,6 +135,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	newButtonGroupId: null,
 	importXmlOpen: false,
 	importXmlSeed: "",
+	importXmlNote: "",
 	conflictDrawerOpen: false,
 	conflictElementId: null,
 	webResourceBrowserOpen: false,
@@ -176,8 +179,12 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	closeNewGroup: () => set({ newGroupOpen: false }),
 	openNewButton: (groupId) => set({ newButtonGroupId: groupId }),
 	closeNewButton: () => set({ newButtonGroupId: null }),
-	openImportXml: (seed) =>
-		set({ importXmlOpen: true, importXmlSeed: typeof seed === "string" ? seed : "" }),
+	openImportXml: (seed, note) =>
+		set({
+			importXmlOpen: true,
+			importXmlSeed: typeof seed === "string" ? seed : "",
+			importXmlNote: typeof note === "string" ? note : "",
+		}),
 	closeImportXml: () => set({ importXmlOpen: false }),
 	openConflictDrawer: (elementId) =>
 		set({ conflictDrawerOpen: true, conflictElementId: elementId }),
