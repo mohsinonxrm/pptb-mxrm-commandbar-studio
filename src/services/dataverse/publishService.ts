@@ -1,4 +1,5 @@
 import { zipSync, strToU8 } from "fflate";
+import { invalidateApplicationRibbonCache } from "@/services/dataverse/ribbonService";
 import {
 	generateRibbonDiffXml,
 	buildCustomizationsXml,
@@ -862,7 +863,10 @@ export function publishRibbon(
 	input: PublishRibbonInput,
 	onProgress?: (msg: string) => void,
 ): Promise<PublishRibbonResult> {
-	return withCloseGuard(() => publishRibbonUnguarded(input, onProgress));
+	// What the publish imported changes the application ribbon too (#4).
+	return withCloseGuard(() => publishRibbonUnguarded(input, onProgress)).finally(() =>
+		invalidateApplicationRibbonCache({ afterPublish: true }),
+	);
 }
 
 async function publishRibbonUnguarded(
@@ -1276,7 +1280,9 @@ export function publishAllAsync(
 	onProgress?: (msg: string) => void,
 	options?: { pollIntervalMs?: number; timeoutMs?: number; guard?: WriteGuard },
 ): Promise<PublishAllAsyncResult> {
-	return withCloseGuard(() => publishAllAsyncUnguarded(onProgress, options));
+	return withCloseGuard(() => publishAllAsyncUnguarded(onProgress, options)).finally(() =>
+		invalidateApplicationRibbonCache({ afterPublish: true }),
+	);
 }
 
 async function publishAllAsyncUnguarded(

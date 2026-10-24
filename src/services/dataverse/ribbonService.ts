@@ -3,6 +3,7 @@ import { parseRibbonXml } from "@/services/xmlParser";
 import { canonicalXml } from "@/services/ribbonXmlCanonical";
 import type { LocLabel, RibbonDefinition, RibbonLocation, RibbonTab, ScalingDefinition } from "@/types/ribbon";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
+import { useSessionStore } from "@/store/sessionStore";
 import {
 	definitionsFromParts,
 	fetchUnmanagedRibbonParts,
@@ -214,19 +215,55 @@ export async function fetchEntityRibbonAllLocations(
 /**
  * Retrieves and parses the application ribbon (cross-entity + global tabs).
  */
-export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
-	useRuntimeLogStore.getState().logInfo("dataverse", "RetrieveApplicationRibbon()");
-	const result = await dataverseAPI.execute({
-		operationName: "RetrieveApplicationRibbon",
-		operationType: "function",
-	});
+/** How long RetrieveApplicationRibbon's XML is reused for the same environment (#4). */
+export const APPLICATION_RIBBON_CACHE_MS = 5 * 60_000;
 
-	const compressed = (result as { CompressedApplicationRibbonXml?: unknown } | undefined)?.CompressedApplicationRibbonXml;
-	if (typeof compressed !== "string" || !compressed) {
-		throw new Error("Dataverse returned no application ribbon (RetrieveApplicationRibbon had no CompressedApplicationRibbonXml).");
+let applicationRibbonCache: { environment: string; at: number; xml: string } | null = null;
+/** Bumped on every clear, so a read that started before it isn't kept. */
+let cacheGeneration = 0;
+/** Reads before this time aren't kept: the application ribbon can lag a publish by a few minutes (#64). */
+let keepReadsAfter = 0;
+
+/**
+ * The next load reads the application ribbon again: on Retry, or after a
+ * publish (then the next few minutes' reads aren't kept either, since they
+ * may still return the ribbon from before it).
+ */
+export function invalidateApplicationRibbonCache(options: { afterPublish?: boolean } = {}): void {
+	applicationRibbonCache = null;
+	cacheGeneration++;
+	if (options.afterPublish) keepReadsAfter = Date.now() + APPLICATION_RIBBON_CACHE_MS;
+}
+
+export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
+	const logs = useRuntimeLogStore.getState();
+	// The same for every table, so a table switch reuses it for a few minutes
+	// instead of downloading it again (#4). Parsed every time: the layer's
+	// labels and the reconcile step are per load.
+	const environment = useSessionStore.getState().connectionUrl;
+	const cached = applicationRibbonCache;
+	let xml: string;
+	if (cached && cached.environment === environment && Date.now() - cached.at < APPLICATION_RIBBON_CACHE_MS) {
+		xml = cached.xml;
+		logs.logInfo("dataverse", "RetrieveApplicationRibbon (reused from this session)");
+	} else {
+		const generation = cacheGeneration;
+		logs.logInfo("dataverse", "RetrieveApplicationRibbon()");
+		const result = await dataverseAPI.execute({
+			operationName: "RetrieveApplicationRibbon",
+			operationType: "function",
+		});
+
+		const compressed = (result as { CompressedApplicationRibbonXml?: unknown } | undefined)?.CompressedApplicationRibbonXml;
+		if (typeof compressed !== "string" || !compressed) {
+			throw new Error("Dataverse returned no application ribbon (RetrieveApplicationRibbon had no CompressedApplicationRibbonXml).");
+		}
+		xml = await decompressRibbonZip(compressed);
+		if (generation === cacheGeneration && Date.now() >= keepReadsAfter) {
+			applicationRibbonCache = { environment, at: Date.now(), xml };
+		}
+		logs.logInfo("dataverse", "RetrieveApplicationRibbon succeeded");
 	}
-	const xml = await decompressRibbonZip(compressed);
-	useRuntimeLogStore.getState().logInfo("dataverse", "RetrieveApplicationRibbon succeeded");
 	return parseRibbonXml(xml, "Application", "{!EntityLogicalName}", layerLocLabels);
 }
 
@@ -462,8 +499,11 @@ function logReconciled(source: string, r: { added: string[]; replaced: string[] 
 
 export async function fetchRibbonWorkspace(
 	entityLogicalName: string,
+	/** The step the load is on, for the canvas (#4). */
+	onStep?: (step: string) => void,
 ): Promise<RibbonWorkspaceData> {
 	const logs = useRuntimeLogStore.getState();
+	onStep?.("Reading your customizations…");
 	// The merged ribbon carries no LocLabels, so read the unmanaged layers'
 	// labels first; otherwise every `$LocLabels:` caption shows (and would be
 	// republished) as its id (#12).
@@ -488,6 +528,7 @@ export async function fetchRibbonWorkspace(
 	]);
 	const entityLabels = entityLayer ? locLabelsFromParts(entityLayer) : [];
 	const appLabels = appLayer ? locLabelsFromParts(appLayer) : [];
+	onStep?.("Reading the table's ribbon and the application ribbon…");
 	const [entity, application] = await Promise.all([
 		fetchEntityRibbonAllLocations(entityLogicalName, [...entityLabels, ...appLabels]),
 		fetchApplicationRibbon(appLabels),
@@ -517,6 +558,7 @@ export async function fetchRibbonWorkspace(
 	const locLabels = dedupeById([...entity.locLabels, ...application.locLabels]);
 	// For showing labels only: a publish reads the base language itself (#106).
 	const displayLanguage = baseLanguageCode ?? 1033;
+	onStep?.("Matching labels and ownership…");
 	resolveLabelsIn([...Object.values(entity.ribbons), application.ribbon], locLabels, displayLanguage);
 
 	// The table's CustomActions the ribbon doesn't return anywhere (#64), listed

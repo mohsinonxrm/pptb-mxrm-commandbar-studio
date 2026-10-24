@@ -414,6 +414,13 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			expect(tabs()).not.toContain("mxrm.contact.NewTab");
 		});
 
+		it("the loading spinner names the table and the step (#4)", () => {
+			render(<RibbonCanvas isLoadingRibbon loadingTable="Account" loadingStep="Reading your customizations…" />);
+			const spinner = container.querySelector(".fui-Spinner")!;
+			expect(spinner.textContent).toContain("Loading Account");
+			expect(spinner.textContent).toContain("Reading your customizations…");
+		});
+
 		it("an unread unmanaged layer is said on the canvas, with Retry (#110)", () => {
 			const retry = vi.fn();
 			render(<RibbonCanvas layerReadError="the contact table's customizations: 503" onRetryRibbonLoad={retry} />);

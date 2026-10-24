@@ -199,6 +199,9 @@ const LOCATIONS: { value: RibbonLocation; label: string; icon: React.ReactNode; 
 
 interface RibbonCanvasProps {
 	isLoadingRibbon?: boolean;
+	/** The table being loaded and the step the load is on (#4). */
+	loadingTable?: string;
+	loadingStep?: string | null;
 	ribbonLoadError?: string | null;
 	/** The ribbon loaded, but an unmanaged layer couldn't be read (#110). */
 	layerReadError?: string | null;
@@ -207,6 +210,8 @@ interface RibbonCanvasProps {
 
 export function RibbonCanvas({
 	isLoadingRibbon = false,
+	loadingTable,
+	loadingStep = null,
 	ribbonLoadError = null,
 	layerReadError = null,
 	onRetryRibbonLoad,
@@ -529,7 +534,19 @@ export function RibbonCanvas({
 							height: "100%",
 						}}
 					>
-						<Spinner label="Loading ribbon definition..." />
+						<Spinner
+							label={
+								<>
+									{loadingTable ? `Loading ${loadingTable}` : "Loading the ribbon"}
+									{loadingStep && (
+										<>
+											<br />
+											<span style={{ fontSize: "12px", opacity: 0.8 }}>{loadingStep}</span>
+										</>
+									)}
+								</>
+							}
+						/>
 					</div>
 				) : ribbonLoadError ? (
 					<MessageBar intent="error">

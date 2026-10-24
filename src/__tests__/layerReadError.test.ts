@@ -5,7 +5,13 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { strToU8, zipSync } from "fflate";
-import { fetchRibbonWorkspace } from "@/services/dataverse/ribbonService";
+import {
+	APPLICATION_RIBBON_CACHE_MS,
+	fetchRibbonWorkspace,
+	invalidateApplicationRibbonCache,
+} from "@/services/dataverse/ribbonService";
+import { publishAllAsync } from "@/services/dataverse/publishService";
+import { useSessionStore } from "@/store/sessionStore";
 import { emptyRibbonDiffParts, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
 
 // ribbonService reads window.dataverseAPI when it loads: install one that
@@ -58,6 +64,8 @@ let entityResponse: unknown;
 let appResponse: unknown;
 
 beforeEach(() => {
+	invalidateApplicationRibbonCache();
+	useSessionStore.setState({ connectionUrl: "https://org-a.crm.dynamics.com" });
 	layerResult.entity = emptyRibbonDiffParts();
 	layerResult.app = emptyRibbonDiffParts();
 	entityResponse = { CompressedEntityXml: zipped(MERGED) };
@@ -104,5 +112,99 @@ describe("#110 layer read errors", () => {
 		await expect(fetchRibbonWorkspace(T)).rejects.toThrow(
 			"Dataverse returned no application ribbon",
 		);
+	});
+});
+
+describe("#4 the application ribbon is reused for a few minutes", () => {
+	it("a table switch reuses it; a different environment, a clear or the time limit reads it again", async () => {
+		let calls = 0;
+		api.execute = async () => {
+			calls++;
+			return appResponse;
+		};
+		await fetchRibbonWorkspace(T);
+		await fetchRibbonWorkspace(T);
+		expect(calls).toBe(1);
+
+		useSessionStore.setState({ connectionUrl: "https://org-b.crm.dynamics.com" });
+		await fetchRibbonWorkspace(T);
+		expect(calls).toBe(2);
+
+		invalidateApplicationRibbonCache();
+		await fetchRibbonWorkspace(T);
+		expect(calls).toBe(3);
+
+		const now = Date.now();
+		const spy = vi.spyOn(Date, "now").mockReturnValue(now + APPLICATION_RIBBON_CACHE_MS + 1);
+		await fetchRibbonWorkspace(T);
+		expect(calls).toBe(4);
+		spy.mockRestore();
+	});
+});
+
+describe("#4 the cache after a publish, and reads that overlap a clear", () => {
+	// A fixed clock long in the past, so the post-publish window closes before other tests run.
+	const T0 = 1_000_000;
+
+	it("a publish clears it, and reads in the next few minutes aren't kept (the ribbon can lag)", async () => {
+		const spy = vi.spyOn(Date, "now").mockReturnValue(T0);
+		try {
+			let calls = 0;
+			api.execute = async () => {
+				calls++;
+				return appResponse;
+			};
+			await fetchRibbonWorkspace(T);
+			expect(calls).toBe(1);
+
+			// A Publish All that fails still clears it.
+			api.execute = async () => {
+				throw new Error("publish failed");
+			};
+			await expect(publishAllAsync(undefined, { pollIntervalMs: 1, timeoutMs: 5 })).rejects.toThrow();
+			api.execute = async () => {
+				calls++;
+				return appResponse;
+			};
+			await fetchRibbonWorkspace(T);
+			await fetchRibbonWorkspace(T);
+			expect(calls).toBe(3);
+
+			spy.mockReturnValue(T0 + APPLICATION_RIBBON_CACHE_MS + 1);
+			await fetchRibbonWorkspace(T);
+			await fetchRibbonWorkspace(T);
+			expect(calls).toBe(4);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it("a read that started before a clear isn't kept", async () => {
+		let calls = 0;
+		let release!: () => void;
+		api.execute = async () => {
+			calls++;
+			if (calls === 1) await new Promise<void>((r) => (release = r));
+			return appResponse;
+		};
+		const first = fetchRibbonWorkspace(T);
+		await vi.waitFor(() => expect(calls).toBe(1));
+		invalidateApplicationRibbonCache();
+		release();
+		await first;
+		await fetchRibbonWorkspace(T);
+		expect(calls).toBe(2);
+	});
+});
+
+describe("#4 the load reports its steps", () => {
+	it("in order", async () => {
+		const steps: string[] = [];
+		await fetchRibbonWorkspace(T, (s) => steps.push(s));
+		expect(steps).toEqual([
+			"Reading your customizations…",
+			"Reading the table's ribbon and the application ribbon…",
+			"Matching labels and ownership…",
+		]);
 	});
 });

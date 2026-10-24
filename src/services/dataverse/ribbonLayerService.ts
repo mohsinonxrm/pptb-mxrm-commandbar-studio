@@ -77,7 +77,7 @@ function getDataverseAPI() {
 }
 
 /** queryData that follows `@odata.nextLink` so large unmanaged layers are read completely. */
-async function queryAll(query: string): Promise<Array<Record<string, unknown>>> {
+export async function queryAll(query: string): Promise<Array<Record<string, unknown>>> {
 	const rows: Array<Record<string, unknown>> = [];
 	let next: string | undefined = query;
 	while (next) {

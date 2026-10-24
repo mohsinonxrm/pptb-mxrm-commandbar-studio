@@ -107,7 +107,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - `Mscrm.OpenRecordItem` override support — emitted as a system-command override when the user defines a JS action on it
 
 ### 🧩 Solution Conflict Drawer
-- Provenance detection via `msdyn_componentlayer` (falls back to namespace heuristic when unavailable)
+- Provenance: which managed solution adds a control, read from the managed ribbon layers (`ribbondiffs`) in one query (falls back to the namespace heuristic when unavailable)
 - Banner in properties pane for managed-solution buttons
 - Live solution-layer fetch in the drawer
 
@@ -301,7 +301,7 @@ src/
     dataverse/
       ribbonService.ts         — RetrieveEntityRibbon / RetrieveApplicationRibbon
       publishService.ts        — Layer merge, solution ZIP packaging, import, publish and verification
-      ribbonProvenanceService.ts — msdyn_componentlayer solution-layer provenance
+      ribbonProvenanceService.ts — managed-solution provenance from the managed ribbondiffs
       conflictService.ts       — fetchConflictLayersForElement
       webResourceService.ts    — loadWebResources / loadWebResourceByName / loadWebResourceContent
   store/
