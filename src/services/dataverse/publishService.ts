@@ -864,7 +864,9 @@ export function publishRibbon(
 	onProgress?: (msg: string) => void,
 ): Promise<PublishRibbonResult> {
 	// What the publish imported changes the application ribbon too (#4).
-	return withCloseGuard(() => publishRibbonUnguarded(input, onProgress)).finally(invalidateApplicationRibbonCache);
+	return withCloseGuard(() => publishRibbonUnguarded(input, onProgress)).finally(() =>
+		invalidateApplicationRibbonCache({ afterPublish: true }),
+	);
 }
 
 async function publishRibbonUnguarded(
@@ -1278,7 +1280,9 @@ export function publishAllAsync(
 	onProgress?: (msg: string) => void,
 	options?: { pollIntervalMs?: number; timeoutMs?: number; guard?: WriteGuard },
 ): Promise<PublishAllAsyncResult> {
-	return withCloseGuard(() => publishAllAsyncUnguarded(onProgress, options)).finally(invalidateApplicationRibbonCache);
+	return withCloseGuard(() => publishAllAsyncUnguarded(onProgress, options)).finally(() =>
+		invalidateApplicationRibbonCache({ afterPublish: true }),
+	);
 }
 
 async function publishAllAsyncUnguarded(

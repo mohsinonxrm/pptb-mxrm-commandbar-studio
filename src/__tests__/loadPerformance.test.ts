@@ -70,7 +70,7 @@ describe("#151 provenance from the managed ribbondiffs", () => {
 		expect(queries).toHaveLength(2);
 		expect(queries[0]).toContain("ribbondiffs?$select=rdx,solutionid");
 		expect(queries[0]).toContain(
-			"(entity eq 'account' or entity eq null) and ismanaged eq true and difftype eq 0",
+			"(entity eq 'account' or entity eq null) and ismanaged eq true and difftype le 1",
 		);
 		expect(queries.some((q) => q.startsWith("msdyn_componentlayers"))).toBe(false);
 		expect(map.get("msdyn.Fly")).toEqual({
@@ -81,6 +81,45 @@ describe("#151 provenance from the managed ribbondiffs", () => {
 		// Controls written inside it are named too.
 		expect(map.get("msdyn.Fly.Item")?.solutionName).toBe("msdynce_Sales");
 		expect(map.has("Mscrm.Platform")).toBe(false);
+	});
+
+	it("application-ribbon ids with {!EntityLogicalName} match the table's resolved ids", async () => {
+		handler = (q) => {
+			if (q.startsWith("ribbondiffs")) {
+				return {
+					value: [
+						{
+							solutionid: SALES,
+							rdx: ca('<FlyoutAnchor Id="AIBuilder.{!EntityLogicalName}.Flyout"/>'),
+						},
+					],
+				};
+			}
+			if (q.startsWith("solutions")) return { value: [{ solutionid: SALES, uniquename: "msdynce_Sales" }] };
+			throw new Error(`unexpected ${q}`);
+		};
+		const map = await fetchRibbonProvenance("account");
+		expect(map.get("AIBuilder.account.Flyout")?.solutionName).toBe("msdynce_Sales");
+		// The application ribbon keeps the token.
+		expect(map.get("AIBuilder.{!EntityLogicalName}.Flyout")?.solutionName).toBe("msdynce_Sales");
+	});
+
+	it("a control System adds and another managed solution redefines is that solution's", async () => {
+		handler = (q) => {
+			if (q.startsWith("ribbondiffs")) {
+				return {
+					value: [
+						{ solutionid: SYSTEM, rdx: ca('<Button Id="Shared.Btn"/>') },
+						{ solutionid: SALES, rdx: ca('<Button Id="Shared.Btn"/>') },
+					],
+				};
+			}
+			if (q.startsWith("solutions")) return { value: [] };
+			throw new Error(`unexpected ${q}`);
+		};
+		// Both solutions were looked up by the first test.
+		const map = await fetchRibbonProvenance("account");
+		expect(map.get("Shared.Btn")?.solutionName).toBe("msdynce_Sales");
 	});
 
 	it("a failed read leaves the classification as it was", async () => {
@@ -188,8 +227,20 @@ describe("#4 a solution's tables are read 40 per request", () => {
 			const m = ids.find((x) => q.includes(x))!;
 			return row(m, ids.indexOf(m));
 		};
+		let inFlight = 0;
+		let most = 0;
+		const inner = handler;
+		handler = async (q) => {
+			inFlight++;
+			most = Math.max(most, inFlight);
+			await Promise.resolve();
+			inFlight--;
+			return inner(q);
+		};
 		const tables = await fetchEntitiesByMetadataIds(ids);
 		expect(tables.map((t) => t.metadataId)).toEqual(ids);
+		// One at a time, in case the chunk failed because of throttling.
+		expect(most).toBe(1);
 		expect(queries.filter((q) => q.startsWith("EntityDefinitions("))).toHaveLength(2);
 	});
 });

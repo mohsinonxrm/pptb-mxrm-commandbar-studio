@@ -219,10 +219,20 @@ export async function fetchEntityRibbonAllLocations(
 export const APPLICATION_RIBBON_CACHE_MS = 5 * 60_000;
 
 let applicationRibbonCache: { environment: string; at: number; xml: string } | null = null;
+/** Bumped on every clear, so a read that started before it isn't kept. */
+let cacheGeneration = 0;
+/** Reads before this time aren't kept: the application ribbon can lag a publish by a few minutes (#64). */
+let keepReadsAfter = 0;
 
-/** The next load reads the application ribbon again: after a publish or import, or on Retry. */
-export function invalidateApplicationRibbonCache(): void {
+/**
+ * The next load reads the application ribbon again: on Retry, or after a
+ * publish (then the next few minutes' reads aren't kept either, since they
+ * may still return the ribbon from before it).
+ */
+export function invalidateApplicationRibbonCache(options: { afterPublish?: boolean } = {}): void {
 	applicationRibbonCache = null;
+	cacheGeneration++;
+	if (options.afterPublish) keepReadsAfter = Date.now() + APPLICATION_RIBBON_CACHE_MS;
 }
 
 export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
@@ -237,6 +247,7 @@ export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
 		xml = cached.xml;
 		logs.logInfo("dataverse", "RetrieveApplicationRibbon (reused from this session)");
 	} else {
+		const generation = cacheGeneration;
 		logs.logInfo("dataverse", "RetrieveApplicationRibbon()");
 		const result = await dataverseAPI.execute({
 			operationName: "RetrieveApplicationRibbon",
@@ -248,7 +259,9 @@ export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
 			throw new Error("Dataverse returned no application ribbon (RetrieveApplicationRibbon had no CompressedApplicationRibbonXml).");
 		}
 		xml = await decompressRibbonZip(compressed);
-		applicationRibbonCache = { environment, at: Date.now(), xml };
+		if (generation === cacheGeneration && Date.now() >= keepReadsAfter) {
+			applicationRibbonCache = { environment, at: Date.now(), xml };
+		}
 		logs.logInfo("dataverse", "RetrieveApplicationRibbon succeeded");
 	}
 	return parseRibbonXml(xml, "Application", "{!EntityLogicalName}", layerLocLabels);

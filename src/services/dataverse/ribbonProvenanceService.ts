@@ -5,6 +5,8 @@ import { queryAll } from "@/services/dataverse/ribbonLayerService";
 /** The platform's own layer: its controls are out-of-the-box, not a managed solution's. */
 const SYSTEM_SOLUTION = "System";
 
+const ENTITY_TOKEN = "{!EntityLogicalName}";
+
 /** Solutions looked up this session, by id (names and publishers don't change). */
 const solutionCache = new Map<string, { uniqueName: string; publisherName?: string } | null>();
 
@@ -66,27 +68,41 @@ export async function fetchRibbonProvenance(
 ): Promise<Map<string, ButtonProvenance>> {
 	const logs = useRuntimeLogStore.getState();
 	const result = new Map<string, ButtonProvenance>();
-	if (!entityLogicalName || entityLogicalName === "{!EntityLogicalName}") return result;
+	if (!entityLogicalName || entityLogicalName === ENTITY_TOKEN) return result;
 
 	try {
 		const safeEntity = entityLogicalName.replace(/'/g, "''");
+		// difftype 0 (Standard) and 1 (Tab) rows hold CustomActions; ordered so the
+		// same solution names a shared control on every load.
 		const rows = await queryAll(
 			`ribbondiffs?$select=rdx,solutionid` +
-				`&$filter=(entity eq '${safeEntity}' or entity eq null) and ismanaged eq true and difftype eq 0`,
+				`&$filter=(entity eq '${safeEntity}' or entity eq null) and ismanaged eq true and difftype le 1` +
+				`&$orderby=solutionid`,
 		);
-		// The first managed solution that adds a control names it.
-		const solutionOf = new Map<string, string>();
+		// Every managed solution that adds each control. Application-ribbon
+		// CustomActions write `{!EntityLogicalName}` in their ids, which the table's
+		// ribbon resolves (AIBuilder.{!EntityLogicalName}.Flyout → AIBuilder.account.Flyout),
+		// so both spellings are listed.
+		const solutionsOf = new Map<string, Set<string>>();
 		for (const row of rows) {
 			const solutionId = String(row["solutionid"] ?? "");
 			if (!solutionId) continue;
 			for (const id of customActionControlIds(String(row["rdx"] ?? ""))) {
-				if (!solutionOf.has(id)) solutionOf.set(id, solutionId);
+				const resolved = id.split(ENTITY_TOKEN).join(entityLogicalName);
+				for (const key of resolved === id ? [id] : [id, resolved]) {
+					if (!solutionsOf.has(key)) solutionsOf.set(key, new Set());
+					solutionsOf.get(key)!.add(solutionId);
+				}
 			}
 		}
-		await solutionsById([...new Set(solutionOf.values())]);
-		for (const [id, solutionId] of solutionOf) {
-			const solution = solutionCache.get(solutionId);
-			if (!solution || solution.uniqueName === SYSTEM_SOLUTION) continue;
+		await solutionsById([...new Set([...solutionsOf.values()].flatMap((ids) => [...ids]))]);
+		// The first solution other than System names it: a control System adds and
+		// another managed solution redefines is that solution's.
+		for (const [id, solutionIds] of solutionsOf) {
+			const solution = [...solutionIds]
+				.map((solutionId) => solutionCache.get(solutionId))
+				.find((s) => s && s.uniqueName !== SYSTEM_SOLUTION);
+			if (!solution) continue;
 			result.set(id, { origin: "managed", solutionName: solution.uniqueName, publisherName: solution.publisherName });
 		}
 		logs.logInfo(

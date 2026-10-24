@@ -58,7 +58,7 @@ export async function fetchEntitiesByMetadataIds(
 
 	// 40 tables per request rather than one request each (#4): a solution with
 	// hundreds of tables sent hundreds of parallel requests through the host,
-	// slower and open to throttling. A chunk that fails is retried per table.
+	// slower and open to throttling. A chunk that fails is read table by table.
 	const chunks: string[][] = [];
 	for (let i = 0; i < metadataIds.length; i += 40) chunks.push(metadataIds.slice(i, i + 40));
 	const results: Array<EntityMetadata | null> = (
@@ -74,8 +74,17 @@ export async function fetchEntitiesByMetadataIds(
 						if (!foundIds.has(id.toLowerCase()))
 							logs.logWarn("dataverse", `Could not resolve entity for component ${id}: not found.`);
 					return found;
-				} catch {
-					return Promise.all(chunk.map(one));
+				} catch (e) {
+					// One at a time: if the chunk was throttled, 40 parallel reads would be too.
+					logs.logWarn(
+						"dataverse",
+						`Couldn't read ${chunk.length} tables in one request (${
+							e instanceof Error ? e.message : String(e)
+						}); reading them one at a time.`,
+					);
+					const each: Array<EntityMetadata | null> = [];
+					for (const id of chunk) each.push(await one(id));
+					return each;
 				}
 			}),
 		)

@@ -10,6 +10,7 @@ import {
 	fetchRibbonWorkspace,
 	invalidateApplicationRibbonCache,
 } from "@/services/dataverse/ribbonService";
+import { publishAllAsync } from "@/services/dataverse/publishService";
 import { useSessionStore } from "@/store/sessionStore";
 import { emptyRibbonDiffParts, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
 
@@ -138,6 +139,61 @@ describe("#4 the application ribbon is reused for a few minutes", () => {
 		await fetchRibbonWorkspace(T);
 		expect(calls).toBe(4);
 		spy.mockRestore();
+	});
+});
+
+describe("#4 the cache after a publish, and reads that overlap a clear", () => {
+	// A fixed clock long in the past, so the post-publish window closes before other tests run.
+	const T0 = 1_000_000;
+
+	it("a publish clears it, and reads in the next few minutes aren't kept (the ribbon can lag)", async () => {
+		const spy = vi.spyOn(Date, "now").mockReturnValue(T0);
+		try {
+			let calls = 0;
+			api.execute = async () => {
+				calls++;
+				return appResponse;
+			};
+			await fetchRibbonWorkspace(T);
+			expect(calls).toBe(1);
+
+			// A Publish All that fails still clears it.
+			api.execute = async () => {
+				throw new Error("publish failed");
+			};
+			await expect(publishAllAsync(undefined, { pollIntervalMs: 1, timeoutMs: 5 })).rejects.toThrow();
+			api.execute = async () => {
+				calls++;
+				return appResponse;
+			};
+			await fetchRibbonWorkspace(T);
+			await fetchRibbonWorkspace(T);
+			expect(calls).toBe(3);
+
+			spy.mockReturnValue(T0 + APPLICATION_RIBBON_CACHE_MS + 1);
+			await fetchRibbonWorkspace(T);
+			await fetchRibbonWorkspace(T);
+			expect(calls).toBe(4);
+		} finally {
+			spy.mockRestore();
+		}
+	});
+
+	it("a read that started before a clear isn't kept", async () => {
+		let calls = 0;
+		let release!: () => void;
+		api.execute = async () => {
+			calls++;
+			if (calls === 1) await new Promise<void>((r) => (release = r));
+			return appResponse;
+		};
+		const first = fetchRibbonWorkspace(T);
+		await vi.waitFor(() => expect(calls).toBe(1));
+		invalidateApplicationRibbonCache();
+		release();
+		await first;
+		await fetchRibbonWorkspace(T);
+		expect(calls).toBe(2);
 	});
 });
 

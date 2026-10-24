@@ -17,11 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (3.6–5.3 s) for account or contact, more on orgs with more apps, and the canvas waited for
     it. Those queries also always came back empty. It's now one query of the managed ribbon
     layers plus one for the solution names (~0.2 s), and managed buttons show their real
-    solution and publisher.
+    solution and publisher. That includes buttons in managed tabs, and application-ribbon
+    buttons on the table's own command bars (such as AI Builder's flyout).
   - **Metadata:** opening a solution reads its tables' metadata 40 per request, instead of one
     request per table (0.15 s instead of 0.8–1.7 s for 50–400 tables, and no throttling).
   - **Application ribbon:** it's reused for 5 minutes when you switch tables in the same
-    environment. A publish, Retry or another environment reads it again.
+    environment. Retry or another environment reads it again. After a publish it's read on
+    every load for 5 minutes, because Dataverse can take that long to return the new version.
   - **Progress:** the loading spinner names the table and the step it's on.
 
 ## [0.7.0-beta.3] - 2026-10-24
