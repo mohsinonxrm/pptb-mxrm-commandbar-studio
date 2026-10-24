@@ -25,7 +25,7 @@ import {
 	fetchSolutionRibbonComponentIds,
 } from "@/services/dataverse/solutionService";
 import { fetchEntitiesByMetadataIds } from "@/services/dataverse/entityService";
-import { fetchRibbonWorkspace } from "@/services/dataverse/ribbonService";
+import { fetchRibbonWorkspace, invalidateApplicationRibbonCache } from "@/services/dataverse/ribbonService";
 import { fetchRibbonProvenance } from "@/services/dataverse/ribbonProvenanceService";
 import { applyProvenanceToRibbons, type ButtonProvenance } from "@/utils/ribbonProvenance";
 import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
@@ -107,6 +107,8 @@ export function App() {
 
 	const [ribbonLoadState, setRibbonLoadState] = useState<"idle" | "loading" | "error">("idle");
 	const [ribbonLoadError, setRibbonLoadError] = useState<string | null>(null);
+	// What the load is doing, under the canvas spinner (#4).
+	const [ribbonLoadStep, setRibbonLoadStep] = useState<string | null>(null);
 	// The ribbon loaded, but an unmanaged layer couldn't be read (#110).
 	const [layerReadError, setLayerReadError] = useState<string | null>(null);
 	const [reloadVersion, setReloadVersion] = useState(0);
@@ -229,21 +231,28 @@ export function App() {
 		setRibbonLoadState("loading");
 		setRibbonLoadError(null);
 		setLayerReadError(null);
+		setRibbonLoadStep(null);
 		logInfo("ribbon", `Loading ribbon workspace for ${activeEntity.logicalName}...`);
 
-		// Load the ribbon and its solution-layer provenance in parallel, then
-		// overlay accurate OOB/managed/unmanaged origin onto each button before
-		// seeding the store. Provenance is best-effort — if the layer API is
-		// unavailable we keep the parser's heuristic (so this never blocks load).
+		// Load the ribbon and which managed solutions add its controls in
+		// parallel, then name the owners before seeding the store. Provenance is
+		// one query plus the solution names (#151), so it finishes before the
+		// ribbon does; if it fails the parser's classification stays.
 		void Promise.all([
-			fetchRibbonWorkspace(activeEntity.logicalName),
+			fetchRibbonWorkspace(activeEntity.logicalName, (step) => {
+				if (!cancelled) setRibbonLoadStep(step);
+			}),
 			fetchRibbonProvenance(activeEntity.logicalName).catch(
 				() => new Map<string, ButtonProvenance>(),
 			),
 		])
 			.then(([workspace, provenance]) => {
 				if (cancelled) return;
-				applyProvenanceToRibbons(workspace.ribbons, provenance);
+				const own = new Set([
+					...(workspace.layers?.entity?.controlIds ?? []),
+					...(workspace.layers?.application?.controlIds ?? []),
+				]);
+				applyProvenanceToRibbons(workspace.ribbons, provenance, own);
 
 				// Build ConflictEntry records for buttons whose provenance resolved
 				// to "managed" — i.e. they belong to a managed solution layer.
@@ -340,6 +349,8 @@ export function App() {
 	}, [activeEntity?.logicalName, loadWorkspace, reloadVersion, setTabId, logInfo, logWarn, logError]);
 
 	function handleRetryRibbonLoad() {
+		// Read everything again, the application ribbon too (#4).
+		invalidateApplicationRibbonCache();
 		setReloadVersion((v) => v + 1);
 	}
 
@@ -350,6 +361,8 @@ export function App() {
 				<ConnectionChangedNotice />
 				<RibbonCanvas
 					isLoadingRibbon={ribbonLoadState === "loading"}
+					loadingTable={activeEntity?.displayName ?? activeEntity?.logicalName}
+					loadingStep={ribbonLoadStep}
 					ribbonLoadError={ribbonLoadError}
 					layerReadError={layerReadError}
 					onRetryRibbonLoad={handleRetryRibbonLoad}

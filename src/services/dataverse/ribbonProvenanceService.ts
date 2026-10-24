@@ -1,58 +1,65 @@
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type { ButtonProvenance } from "@/utils/ribbonProvenance";
+import { queryAll } from "@/services/dataverse/ribbonLayerService";
 
-const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
+/** The platform's own layer: its controls are out-of-the-box, not a managed solution's. */
+const SYSTEM_SOLUTION = "System";
 
-/**
- * The unmanaged "Active" layer — where all unmanaged customizations live. Any
- * other named layer in the stack is a managed solution (first-party app or ISV).
- */
-const ACTIVE_LAYER = "Active";
-
-interface ComponentLayerRow {
-	msdyn_componentjson?: string;
-	msdyn_changes?: string;
-	msdyn_solutionname?: string;
-	msdyn_publishername?: string;
-	msdyn_order?: number;
-}
+/** Solutions looked up this session, by id (names and publishers don't change). */
+const solutionCache = new Map<string, { uniqueName: string; publisherName?: string } | null>();
 
 /**
- * Extracts the control ids declared by `<CustomAction>` elements in a layer's
- * RibbonDiffXml (the `<Button>`/`<FlyoutAnchor>`/… inside `<CommandUIDefinition>`).
+ * Every control id a CustomAction defines, its own and any written inside it
+ * (a tab's groups, a group's controls, a flyout's menu items).
  */
-function extractCustomActionButtonIds(xml: string): string[] {
-	if (!xml || !xml.includes("<")) return [];
+function customActionControlIds(rdx: string): string[] {
+	if (!rdx || !rdx.includes("<")) return [];
 	try {
-		const doc = new DOMParser().parseFromString(xml, "application/xml");
+		const doc = new DOMParser().parseFromString(rdx, "application/xml");
 		if (doc.querySelector("parsererror")) return [];
-		const ids = new Set<string>();
-		doc.querySelectorAll("CustomAction").forEach((ca) => {
-			const def = ca.querySelector("CommandUIDefinition");
-			const id = def?.firstElementChild?.getAttribute("Id");
-			if (id) ids.add(id);
-		});
-		return [...ids];
+		const def = doc.getElementsByTagName("CommandUIDefinition")[0];
+		if (!def) return [];
+		const ids: string[] = [];
+		for (const el of Array.from(def.getElementsByTagName("*"))) {
+			const id = el.getAttribute("Id");
+			if (id) ids.push(id);
+		}
+		return ids;
 	} catch {
 		return [];
 	}
 }
 
+async function solutionsById(ids: string[]): Promise<void> {
+	const missing = ids.filter((id) => !solutionCache.has(id));
+	for (let i = 0; i < missing.length; i += 40) {
+		const chunk = missing.slice(i, i + 40);
+		const rows = await queryAll(
+			`solutions?$select=solutionid,uniquename&$expand=publisherid($select=friendlyname)` +
+				`&$filter=${chunk.map((id) => `solutionid eq ${id}`).join(" or ")}`,
+		);
+		for (const id of chunk) solutionCache.set(id, null);
+		for (const row of rows) {
+			const publisher = row["publisherid"] as { friendlyname?: string } | undefined;
+			solutionCache.set(String(row["solutionid"]), {
+				uniqueName: String(row["uniquename"] ?? ""),
+				publisherName: publisher?.friendlyname,
+			});
+		}
+	}
+}
+
 /**
- * Resolves, per ribbon button id, whether it comes from the OOB platform, a
- * managed solution (with solution + publisher), or your unmanaged Active layer —
- * using the `msdyn_componentlayer` virtual table (the same source the maker
- * "Solution layers" panel uses). Prefix-free and works for any first-party app
- * or ISV.
+ * Which managed solution adds each control of a table's ribbon (and of the
+ * application ribbon, whose controls appear on every table): read from the
+ * managed `ribbondiffs` rows, which hold each solution's CustomActions with its
+ * `solutionid` (#151). One query for the CustomActions, one for the solution
+ * names, instead of an `msdyn_componentlayers` query per component; those
+ * returned no rows, and their component JSON holds no ribbon XML anyway.
  *
- * Returns an empty map (→ caller falls back to the parser heuristic) when the
- * entity has no ribbon customization component, or if the layer API is
- * unavailable. All steps log to the Console tab so the exact shape can be
- * validated against a live org.
- *
- * VERIFY-ON-ORG: the two queries below (RibbonCustomization component id, and
- * the componentlayer filter/`msdyn_componentjson` payload format) are the parts
- * to confirm against a real environment — see docs note.
+ * Only managed solutions other than System are listed. The caller decides
+ * which controls the result may relabel. An empty map (no managed
+ * customizations, or the read failed) leaves the parser's classification.
  */
 export async function fetchRibbonProvenance(
 	entityLogicalName: string,
@@ -62,78 +69,36 @@ export async function fetchRibbonProvenance(
 	if (!entityLogicalName || entityLogicalName === "{!EntityLogicalName}") return result;
 
 	try {
-		// 1. Find the entity's RibbonCustomization component id(s). The
-		//    solution-layer stack is keyed on this component.
 		const safeEntity = entityLogicalName.replace(/'/g, "''");
-		const rcRes = await dataverseAPI.queryData(
-			`ribboncustomizations?$select=ribboncustomizationid&$filter=entity eq '${safeEntity}'`,
+		const rows = await queryAll(
+			`ribbondiffs?$select=rdx,solutionid` +
+				`&$filter=(entity eq '${safeEntity}' or entity eq null) and ismanaged eq true and difftype eq 0`,
 		);
-		const componentIds = ((rcRes.value as Array<{ ribboncustomizationid?: string }>) ?? [])
-			.map((r) => r.ribboncustomizationid)
-			.filter((id): id is string => !!id);
-
-		if (componentIds.length === 0) {
-			logs.logInfo(
-				"provenance",
-				`No RibbonCustomization for ${entityLogicalName} — buttons resolve via heuristic (OOB vs custom).`,
-			);
-			return result;
-		}
-
-		// 2. Read each component's solution layers and bucket button ids by the
-		//    owning layer. Active layer = unmanaged (yours); any other = managed.
-		const managed = new Map<string, ButtonProvenance>();
-		const unmanaged = new Set<string>();
-
-		for (const componentId of componentIds) {
-			const layerRes = await dataverseAPI.queryData(
-				`msdyn_componentlayers` +
-					`?$select=msdyn_componentjson,msdyn_changes,msdyn_solutionname,msdyn_publishername,msdyn_order` +
-					`&$filter=msdyn_componentid eq '${componentId}'` +
-					`&$orderby=msdyn_order asc`,
-			);
-			const rows = (layerRes.value as ComponentLayerRow[]) ?? [];
-			logs.logInfo(
-				"provenance",
-				`RibbonCustomization ${componentId}: ${rows.length} solution layer(s).`,
-			);
-
-			for (const row of rows) {
-				const xml = row.msdyn_componentjson || row.msdyn_changes || "";
-				const ids = extractCustomActionButtonIds(xml);
-				const isUnmanaged = (row.msdyn_solutionname ?? "") === ACTIVE_LAYER;
-				for (const id of ids) {
-					if (isUnmanaged) {
-						unmanaged.add(id);
-					} else if (!managed.has(id)) {
-						managed.set(id, {
-							origin: "managed",
-							solutionName: row.msdyn_solutionname,
-							publisherName: row.msdyn_publishername,
-						});
-					}
-				}
+		// The first managed solution that adds a control names it.
+		const solutionOf = new Map<string, string>();
+		for (const row of rows) {
+			const solutionId = String(row["solutionid"] ?? "");
+			if (!solutionId) continue;
+			for (const id of customActionControlIds(String(row["rdx"] ?? ""))) {
+				if (!solutionOf.has(id)) solutionOf.set(id, solutionId);
 			}
 		}
-
-		// Active (unmanaged) layer wins over managed layers below it.
-		for (const [id, p] of managed) {
-			if (!unmanaged.has(id)) result.set(id, p);
+		await solutionsById([...new Set(solutionOf.values())]);
+		for (const [id, solutionId] of solutionOf) {
+			const solution = solutionCache.get(solutionId);
+			if (!solution || solution.uniqueName === SYSTEM_SOLUTION) continue;
+			result.set(id, { origin: "managed", solutionName: solution.uniqueName, publisherName: solution.publisherName });
 		}
-		for (const id of unmanaged) {
-			result.set(id, { origin: "unmanaged", solutionName: ACTIVE_LAYER });
-		}
-
 		logs.logInfo(
 			"provenance",
-			`Resolved solution-layer provenance for ${result.size} button(s) of ${entityLogicalName}.`,
+			`${rows.length} managed CustomAction(s) for ${entityLogicalName}: ${result.size} control(s) from managed solutions.`,
 		);
 	} catch (e) {
 		logs.logWarn(
 			"provenance",
-			`Solution-layer provenance unavailable for ${entityLogicalName} (${
+			`Couldn't read which managed solutions add ${entityLogicalName}'s controls (${
 				e instanceof Error ? e.message : String(e)
-			}); using heuristic. This is non-fatal.`,
+			}); their owners aren't shown. This is non-fatal.`,
 		);
 	}
 

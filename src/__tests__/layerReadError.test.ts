@@ -5,7 +5,12 @@
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { strToU8, zipSync } from "fflate";
-import { fetchRibbonWorkspace } from "@/services/dataverse/ribbonService";
+import {
+	APPLICATION_RIBBON_CACHE_MS,
+	fetchRibbonWorkspace,
+	invalidateApplicationRibbonCache,
+} from "@/services/dataverse/ribbonService";
+import { useSessionStore } from "@/store/sessionStore";
 import { emptyRibbonDiffParts, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
 
 // ribbonService reads window.dataverseAPI when it loads: install one that
@@ -58,6 +63,8 @@ let entityResponse: unknown;
 let appResponse: unknown;
 
 beforeEach(() => {
+	invalidateApplicationRibbonCache();
+	useSessionStore.setState({ connectionUrl: "https://org-a.crm.dynamics.com" });
 	layerResult.entity = emptyRibbonDiffParts();
 	layerResult.app = emptyRibbonDiffParts();
 	entityResponse = { CompressedEntityXml: zipped(MERGED) };
@@ -104,5 +111,44 @@ describe("#110 layer read errors", () => {
 		await expect(fetchRibbonWorkspace(T)).rejects.toThrow(
 			"Dataverse returned no application ribbon",
 		);
+	});
+});
+
+describe("#4 the application ribbon is reused for a few minutes", () => {
+	it("a table switch reuses it; a different environment, a clear or the time limit reads it again", async () => {
+		let calls = 0;
+		api.execute = async () => {
+			calls++;
+			return appResponse;
+		};
+		await fetchRibbonWorkspace(T);
+		await fetchRibbonWorkspace(T);
+		expect(calls).toBe(1);
+
+		useSessionStore.setState({ connectionUrl: "https://org-b.crm.dynamics.com" });
+		await fetchRibbonWorkspace(T);
+		expect(calls).toBe(2);
+
+		invalidateApplicationRibbonCache();
+		await fetchRibbonWorkspace(T);
+		expect(calls).toBe(3);
+
+		const now = Date.now();
+		const spy = vi.spyOn(Date, "now").mockReturnValue(now + APPLICATION_RIBBON_CACHE_MS + 1);
+		await fetchRibbonWorkspace(T);
+		expect(calls).toBe(4);
+		spy.mockRestore();
+	});
+});
+
+describe("#4 the load reports its steps", () => {
+	it("in order", async () => {
+		const steps: string[] = [];
+		await fetchRibbonWorkspace(T, (s) => steps.push(s));
+		expect(steps).toEqual([
+			"Reading your customizations…",
+			"Reading the table's ribbon and the application ribbon…",
+			"Matching labels and ownership…",
+		]);
 	});
 });

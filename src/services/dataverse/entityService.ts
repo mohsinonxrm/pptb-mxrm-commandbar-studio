@@ -17,9 +17,7 @@ function getDataverseAPI() {
  * payload, and matches Ribbon Workbench's behavior (it only ever loads the
  * entities that are components of the user's selected solution).
  *
- * The requests run in parallel; for ribbon solutions with hundreds of entities
- * this should still complete in under a second over a normal connection. If
- * very large solutions become a concern we can batch with `$filter=MetadataId eq @a or ...`.
+ * Batched, 40 tables per `$filter=MetadataId eq … or …` request (#4).
  */
 export async function fetchEntitiesByMetadataIds(
 	metadataIds: string[],
@@ -35,35 +33,53 @@ export async function fetchEntitiesByMetadataIds(
 
 	const select = "MetadataId,LogicalName,SchemaName,DisplayName,IsCustomEntity,IsIntersect";
 
-	const results: Array<EntityMetadata | null> = await Promise.all(
-		metadataIds.map(async (id): Promise<EntityMetadata | null> => {
-			try {
-				const r = (await dataverseAPI.queryData(
-					`EntityDefinitions(${id})?$select=${select}`,
-				)) as Record<string, unknown>;
-				const entity: EntityMetadata = {
-					metadataId: String(r["MetadataId"] ?? ""),
-					logicalName: String(r["LogicalName"] ?? ""),
-					schemaName: r["SchemaName"] ? String(r["SchemaName"]) : undefined,
-					displayName:
-						(r["DisplayName"] as { UserLocalizedLabel?: { Label?: string } })?.UserLocalizedLabel
-							?.Label ?? String(r["LogicalName"] ?? ""),
-					isCustomEntity: Boolean(r["IsCustomEntity"]),
-					isManaged: false,
-					isIntersect: Boolean(r["IsIntersect"]),
-				};
-				return entity;
-			} catch (err) {
-				logs.logWarn(
-					"dataverse",
-					`Could not resolve entity for component ${id}: ${
-						err instanceof Error ? err.message : String(err)
-					}`,
-				);
-				return null;
-			}
-		}),
-	);
+	const toEntity = (r: Record<string, unknown>): EntityMetadata => ({
+		metadataId: String(r["MetadataId"] ?? ""),
+		logicalName: String(r["LogicalName"] ?? ""),
+		schemaName: r["SchemaName"] ? String(r["SchemaName"]) : undefined,
+		displayName:
+			(r["DisplayName"] as { UserLocalizedLabel?: { Label?: string } })?.UserLocalizedLabel?.Label ??
+			String(r["LogicalName"] ?? ""),
+		isCustomEntity: Boolean(r["IsCustomEntity"]),
+		isManaged: false,
+		isIntersect: Boolean(r["IsIntersect"]),
+	});
+	const one = async (id: string): Promise<EntityMetadata | null> => {
+		try {
+			return toEntity((await dataverseAPI.queryData(`EntityDefinitions(${id})?$select=${select}`)) as Record<string, unknown>);
+		} catch (err) {
+			logs.logWarn(
+				"dataverse",
+				`Could not resolve entity for component ${id}: ${err instanceof Error ? err.message : String(err)}`,
+			);
+			return null;
+		}
+	};
+
+	// 40 tables per request rather than one request each (#4): a solution with
+	// hundreds of tables sent hundreds of parallel requests through the host,
+	// slower and open to throttling. A chunk that fails is retried per table.
+	const chunks: string[][] = [];
+	for (let i = 0; i < metadataIds.length; i += 40) chunks.push(metadataIds.slice(i, i + 40));
+	const results: Array<EntityMetadata | null> = (
+		await Promise.all(
+			chunks.map(async (chunk): Promise<Array<EntityMetadata | null>> => {
+				try {
+					const r = (await dataverseAPI.queryData(
+						`EntityDefinitions?$select=${select}&$filter=${chunk.map((id) => `MetadataId eq ${id}`).join(" or ")}`,
+					)) as { value?: Array<Record<string, unknown>> };
+					const found = (r.value ?? []).map(toEntity);
+					const foundIds = new Set(found.map((e) => e.metadataId.toLowerCase()));
+					for (const id of chunk)
+						if (!foundIds.has(id.toLowerCase()))
+							logs.logWarn("dataverse", `Could not resolve entity for component ${id}: not found.`);
+					return found;
+				} catch {
+					return Promise.all(chunk.map(one));
+				}
+			}),
+		)
+	).flat();
 
 	const mapped: EntityMetadata[] = results
 		.filter((e): e is EntityMetadata => e !== null && !e.isIntersect)
