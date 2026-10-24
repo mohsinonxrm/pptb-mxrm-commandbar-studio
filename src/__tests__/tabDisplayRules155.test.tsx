@@ -32,7 +32,12 @@ const T = "account";
 const TAB = "cbs.account.HomepageGrid.Tools.Tab";
 const CMD = `${TAB}.Command`;
 
-const homeGrid = { kind: "EntityRule", entityName: T, context: "HomePageGrid", appliesTo: "PrimaryEntity" } as const;
+const homeGrid = {
+	kind: "EntityRule",
+	entityName: T,
+	context: "HomePageGrid",
+	appliesTo: "PrimaryEntity",
+} as const;
 const form = { kind: "EntityRule", context: "Form" } as const;
 
 const tab = (tabDisplayRules: TabDisplayRule[]): RibbonTab => ({
@@ -82,14 +87,22 @@ describe("#155 several rules for one tab are one rule", () => {
 });
 
 describe("#155 the Tab rules panel", () => {
-	const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: T, tabs: [] });
+	const empty = (location: RibbonLocation): RibbonDefinition => ({
+		location,
+		entityLogicalName: T,
+		tabs: [],
+	});
 	let container: HTMLDivElement;
 	let root: Root;
 
 	function load(rules: TabDisplayRule[], options: { layerTabs?: string[] } = {}) {
 		useRibbonStore.getState().loadWorkspace({
 			ribbons: {
-				HomepageGrid: { location: "HomepageGrid", entityLogicalName: T, tabs: [tab(rules)] },
+				HomepageGrid: {
+					location: "HomepageGrid",
+					entityLogicalName: T,
+					tabs: [tab(rules)],
+				},
 				SubGrid: empty("SubGrid"),
 				Form: empty("Form"),
 				Application: empty("Application"),

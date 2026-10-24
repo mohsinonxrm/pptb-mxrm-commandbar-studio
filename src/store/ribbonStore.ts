@@ -32,6 +32,7 @@ import {
 	isOtherSolutionLabel,
 	groupControls,
 	isMenuKind,
+	MENU_ITEM_KINDS,
 	menuItemPlace,
 	newMenu,
 	newMenuSection,
@@ -631,6 +632,18 @@ function controlAt(
 	return group && button ? { group, button } : undefined;
 }
 
+/**
+ * Whether a control is in the location's baseline (loaded, or published this
+ * session): the publish can't change its kind (#154).
+ */
+export function isLoadedControl(
+	state: Pick<RibbonStoreState, "baseline">,
+	location: RibbonLocation,
+	id: string,
+): boolean {
+	return (state.baseline[location]?.tabs ?? []).some((t) => t.groups.some((g) => groupControls(g).some((b) => b.id === id)));
+}
+
 function isReadOnlyGlobalOobButton(
 	location: RibbonLocation,
 	tabId: string,
@@ -1035,10 +1048,20 @@ export const useRibbonStore = create<RibbonStore>()(
 				commitMutation(
 					state,
 					(ribbons) => {
-						const button = controlAt(ribbons, location, tabId, groupId, buttonId)?.button;
+						const at = controlAt(ribbons, location, tabId, groupId, buttonId);
+						const button = at?.button;
 						if (!button) return;
 						if (isReadOnlyGlobalOobButton(location, tabId, button)) return;
+						// A loaded control keeps its kind (the publish can't change it), and a
+						// menu item can only be a button or a flyout (#154).
+						const before = button.kind;
+						const kindAllowed =
+							patch.kind === undefined ||
+							patch.kind === button.kind ||
+							(!isLoadedControl(state, location, buttonId) &&
+								(at.group.buttons.includes(button) || MENU_ITEM_KINDS.includes(patch.kind)));
 						Object.assign(button, patch);
+						if (!kindAllowed) button.kind = before;
 						// A button turned into a flyout / split button gets an (empty) menu.
 						if (isMenuKind(button.kind) && !button.menu) button.menu = newMenu(button.id);
 					},
