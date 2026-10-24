@@ -608,7 +608,8 @@ export function validatePublishRibbonDiff(
 			.filter((c) => c.tagName === "DisplayRules")
 			.flatMap((c) => childElements(c).map((r) => r.getAttribute("Id") ?? r.tagName));
 		if (rules.length === 0) continue;
-		const hides = HIDE_DISPLAY_RULE_IDS.filter((id) => rules.includes(id));
+		// Mscrm.HideOnModern hides in Unified Interface; Mscrm.ShowOnlyOnModern alone shows it there (#152).
+		const hides = rules.includes("Mscrm.HideOnModern") ? HIDE_DISPLAY_RULE_IDS.filter((id) => rules.includes(id)) : [];
 		add(
 			"open-record-hidden",
 			key,

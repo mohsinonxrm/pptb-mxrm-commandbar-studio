@@ -39,10 +39,14 @@ const useStyles = makeStyles({
 	},
 });
 
+// Unified Interface evaluates CommandClientTypeRule as "Modern", on the web
+// and in the mobile apps: Microsoft's Mscrm.HideOnModern (Type="Modern",
+// InvertResult) hides buttons there. "Refresh" is the legacy updated web
+// client (#152).
 const CLIENT_TYPE_RULES = [
-	{ label: "Show on Unified Interface (Refresh)", value: "Refresh" },
-	{ label: "Show on Classic ribbon (Legacy)", value: "Legacy" },
-	{ label: "Show on Tablets (Modern)", value: "Modern" },
+	{ label: "Show on Unified Interface (Modern)", value: "Modern" },
+	{ label: "Show on legacy web client (Refresh)", value: "Refresh" },
+	{ label: "Show on classic ribbon (Legacy)", value: "Legacy" },
 ];
 
 export const AdvancedSection: React.FC = () => {
@@ -102,11 +106,15 @@ export const AdvancedSection: React.FC = () => {
 		const selectedCommand = getSelectedCommand();
 		if (!selectedCommand) return;
 
+		// Only a plain rule of this type: Mscrm.HideOnModern is Type="Modern"
+		// with InvertResult, the opposite filter (#152).
 		const existingRule = displayRules.find(
 			(r) =>
 				r.steps.length === 1 &&
 				r.steps[0].kind === "CommandClientTypeRule" &&
-				r.steps[0].type === type,
+				r.steps[0].type === type &&
+				!r.steps[0].invertResult &&
+				r.steps[0].default === undefined,
 		);
 
 		let ruleId = existingRule?.id;
@@ -130,14 +138,24 @@ export const AdvancedSection: React.FC = () => {
 			};
 		}
 
+		// The filters are alternatives: display rules are ANDed, so another
+		// client-type filter left on the command (e.g. one the old "Refresh"
+		// filter added, #152) would hide the button everywhere. It's unbound,
+		// not deleted.
+		const isOtherFilter = (id: string) => {
+			const r = displayRules.find((d) => d.id === id);
+			const s = r?.steps.length === 1 ? r.steps[0] : undefined;
+			return s?.kind === "CommandClientTypeRule" && s.type !== type && !s.invertResult && s.default === undefined;
+		};
 		// The new rule and its binding are one undo step (#34).
 		const boundRuleId = ruleId;
+		const kept = selectedCommand.displayRules.filter((id) => !isOtherFilter(id));
 		batch(() => {
 			if (rule) upsertDisplayRule(rule);
-			if (!selectedCommand.displayRules.includes(boundRuleId)) {
+			if (!kept.includes(boundRuleId) || kept.length !== selectedCommand.displayRules.length) {
 				upsertCommand({
 					...selectedCommand,
-					displayRules: [...selectedCommand.displayRules, boundRuleId],
+					displayRules: kept.includes(boundRuleId) ? kept : [...kept, boundRuleId],
 				});
 			}
 		});
@@ -218,8 +236,9 @@ export const AdvancedSection: React.FC = () => {
 					Client type filter (adds a CommandClientTypeRule):
 				</Text>
 				<Text size={100} className={styles.note}>
-					<strong>Refresh</strong> = Unified Interface web client | <strong>Legacy</strong> =
-					Classic ribbon / Outlook | <strong>Modern</strong> = Dynamics 365 for tablets
+					<strong>Modern</strong> = Unified Interface (web, tablets and phones) |{" "}
+					<strong>Refresh</strong> = legacy updated web client | <strong>Legacy</strong> = classic
+					ribbon / Outlook
 				</Text>
 				<div className={styles.row} style={{ marginTop: "4px" }}>
 					{CLIENT_TYPE_RULES.map((rule) => (

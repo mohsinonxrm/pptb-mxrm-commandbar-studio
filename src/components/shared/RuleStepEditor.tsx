@@ -151,8 +151,8 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							value={step.type}
 							onChange={(_, d) => setField({ type: d.value as "Modern" | "Refresh" | "Legacy" })}
 						>
-							<option value="Refresh">Refresh (Unified Interface / modern web)</option>
-							<option value="Modern">Modern (Dynamics 365 for tablets)</option>
+							<option value="Modern">Modern (Unified Interface: web, tablets and phones)</option>
+							<option value="Refresh">Refresh (legacy updated web client)</option>
 							<option value="Legacy">Legacy (classic ribbon + Outlook list views)</option>
 						</Select>
 					</Field>
