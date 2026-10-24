@@ -217,8 +217,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 					<div className={styles.row}>
 						<Field label="Minimum">
 							<Input
+								type="number"
 								value={String(step.minimum ?? "")}
-								onChange={(_, d) => setField({ minimum: d.value ? parseInt(d.value) : undefined })}
+								onChange={(_, d) => setField({ minimum: toInt(d.value) })}
 								style={{ width: "80px" }}
 							/>
 						</Field>
@@ -226,7 +227,7 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							<Input
 								type="number"
 								value={String(step.maximum ?? "")}
-								onChange={(_, d) => setField({ maximum: d.value ? parseInt(d.value) : undefined })}
+								onChange={(_, d) => setField({ maximum: toInt(d.value) })}
 								style={{ width: "80px" }}
 							/>
 						</Field>

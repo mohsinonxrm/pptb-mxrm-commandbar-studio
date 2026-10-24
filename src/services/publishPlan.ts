@@ -17,7 +17,7 @@ import type {
 } from "@/types/ribbon";
 import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
 import type { LayerOrphan } from "@/services/layerOrphans";
-import { groupControls, isDynamicMenuValue, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
+import { MENU_ITEM_KINDS, groupControls, isDynamicMenuValue, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 import { CONTROL_TAG_BY_KIND, controlCommandIds, isReadOnlyControlKind } from "@/utils/controlKinds";
 import { isOwnControl } from "@/utils/ribbonProvenance";
 import { OPEN_RECORD_ITEM_COMMAND_ID, openRecordCommandProblem } from "@/utils/openRecordItem";
@@ -307,11 +307,17 @@ export function planScope(input: PlanInput): ScopePlan {
 		// Every command a control uses: a verbatim control's QueryCommand, … too (#42).
 		for (const { button } of cur.values()) for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
 
-		for (const [key, { button }] of cur) {
+		for (const [key, { button, menu }] of cur) {
 			const refs = buttonLabelRefs(button);
 			refs.forEach((id) => referencedLabels.add(id));
 			const b = base.get(key)?.button;
 			const emitted = !b || hasOobOverrideChanges(b, button);
+			// Only an item this publish writes: a loaded one is left as it is (#154).
+			if (emitted && menu && !MENU_ITEM_KINDS.includes(button.kind ?? "button")) {
+				unsupported.push(
+					`Menu item "${button.label}" (${button.id}) is a ${CONTROL_TAG_BY_KIND[button.kind] ?? button.kind} — a menu can hold buttons and flyouts only; change its Kind`,
+				);
+			}
 			for (const id of [buttonLabelId(button.id), buttonTooltipTitleId(button.id), buttonTooltipBodyId(button.id)]) {
 				if (emitted) generatorLabels.add(id);
 				else if (!refs.includes(id)) unreferencedConventionLabels.set(id, button);

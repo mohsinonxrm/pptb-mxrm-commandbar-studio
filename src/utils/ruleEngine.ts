@@ -22,7 +22,7 @@ export interface RuleContext {
  * Produces a human-readable English summary of a rule (all steps joined with AND).
  */
 export function summarizeRule(steps: RuleStep[]): string {
-	if (steps.length === 0) return "No steps defined — rule always passes.";
+	if (steps.length === 0) return "No steps defined — a rule needs at least one before it can be published.";
 	return steps.map(summarizeStep).join(" AND ");
 }
 

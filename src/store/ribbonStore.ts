@@ -32,6 +32,7 @@ import {
 	isOtherSolutionLabel,
 	groupControls,
 	isMenuKind,
+	MENU_ITEM_KINDS,
 	menuItemPlace,
 	newMenu,
 	newMenuSection,
@@ -631,6 +632,18 @@ function controlAt(
 	return group && button ? { group, button } : undefined;
 }
 
+/**
+ * Whether a control is in the location's baseline (loaded, or published this
+ * session): the publish can't change its kind (#154).
+ */
+export function isLoadedControl(
+	state: Pick<RibbonStoreState, "baseline">,
+	location: RibbonLocation,
+	id: string,
+): boolean {
+	return (state.baseline[location]?.tabs ?? []).some((t) => t.groups.some((g) => groupControls(g).some((b) => b.id === id)));
+}
+
 function isReadOnlyGlobalOobButton(
 	location: RibbonLocation,
 	tabId: string,
@@ -1031,14 +1044,30 @@ export const useRibbonStore = create<RibbonStore>()(
 			const coalesceKey = typed
 				? `button:${location}:${buttonId}:${Object.keys(patch).sort().join(",")}`
 				: undefined;
-			set((state) =>
-				commitMutation(
+			set((state) => {
+				// A loaded control keeps its kind, and a menu item can only be a
+				// button or a flyout (#154). A refused kind-only edit isn't recorded.
+				const kindAllowed = (ribbons: Record<RibbonLocation, RibbonDefinition>) => {
+					const at = controlAt(ribbons, location, tabId, groupId, buttonId);
+					return (
+						!at ||
+						patch.kind === undefined ||
+						patch.kind === at.button.kind ||
+						(!isLoadedControl(state, location, buttonId) &&
+							(at.group.buttons.includes(at.button) || MENU_ITEM_KINDS.includes(patch.kind)))
+					);
+				};
+				if (Object.keys(patch).length === 1 && !kindAllowed(state.ribbons)) return {};
+				return commitMutation(
 					state,
 					(ribbons) => {
 						const button = controlAt(ribbons, location, tabId, groupId, buttonId)?.button;
 						if (!button) return;
 						if (isReadOnlyGlobalOobButton(location, tabId, button)) return;
+						const before = button.kind;
+						const allowed = kindAllowed(ribbons);
 						Object.assign(button, patch);
+						if (!allowed) button.kind = before;
 						// A button turned into a flyout / split button gets an (empty) menu.
 						if (isMenuKind(button.kind) && !button.menu) button.menu = newMenu(button.id);
 					},
@@ -1053,8 +1082,8 @@ export const useRibbonStore = create<RibbonStore>()(
 						color: "info",
 					},
 					coalesceKey,
-				),
-			);
+				);
+			});
 		},
 
 		deleteButton(location, tabId, groupId, buttonId) {

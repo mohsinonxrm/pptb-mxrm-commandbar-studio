@@ -11,6 +11,7 @@ import { groupControls, isDynamicMenuValue } from "@/utils/ribbonMenu";
 import { isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { MAX_LOC_LABEL_ID_LENGTH } from "@/utils/locLabelRef";
 import { OPEN_RECORD_ITEM_COMMAND_ID, isOpenRecordCarrier } from "@/utils/openRecordItem";
+import { schemaProblems } from "@/services/ribbonSchemaChecks";
 
 /** The display-rule pair "Hide with display rules" adds (ribbonStore.HIDE_DISPLAY_RULES): never both true. */
 const HIDE_DISPLAY_RULE_IDS = ["Mscrm.HideOnModern", "Mscrm.ShowOnlyOnModern"] as const;
@@ -327,7 +328,8 @@ export type PublishCheckCode =
 	| "duplicate-id"
 	| "orphan-location"
 	| "label-id-length"
-	| "open-record-hidden";
+	| "open-record-hidden"
+	| "schema";
 
 /** One pre-publish finding. Errors block the publish; warnings don't. */
 export interface PublishFinding {
@@ -560,6 +562,14 @@ export function validatePublishRibbonDiff(
 
 	const customActions = elements.filter((e) => e.part === "customActions");
 	const commandDefs = elements.filter((e) => e.part === "commandDefinitions");
+
+	// What the import's schema check would reject (#153): an empty rule, an
+	// OrRule with one alternative, a JavaScript action with no function, a
+	// cleared number, … Found here, before anything is written.
+	for (const { part, key, el } of elements) {
+		if (part !== "commandDefinitions" && part !== "enableRules" && part !== "displayRules") continue;
+		for (const message of schemaProblems(el)) add("schema", key, message, el.getAttribute("Id") ?? undefined);
+	}
 
 	// Dropped action kinds (#28): the command would be written without them.
 	// In the publish dialog the plan (publishPlan.planScope) already blocks
