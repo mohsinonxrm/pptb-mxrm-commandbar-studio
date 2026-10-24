@@ -252,7 +252,7 @@ export function TopBar() {
 									appearance="tint"
 									color={activeSolution.isManaged ? "informative" : "success"}
 									size="small"
-									style={{ marginLeft: tokens.spacingHorizontalXS }}
+									style={{ marginLeft: tokens.spacingHorizontalXS, flexShrink: 0 }}
 								>
 									{activeSolution.isManaged ? "Managed" : "Unmanaged"}
 								</Badge>
@@ -277,7 +277,7 @@ export function TopBar() {
 													? `Imports will land under the org's default publisher "${prefix}". To use your own publisher, create a new solution in maker.powerapps.com bound to it.`
 													: `Publisher: ${activeSolution.publisherName || activeSolution.publisherUniqueName || prefix}`
 											}
-											style={{ marginLeft: tokens.spacingHorizontalXS }}
+											style={{ marginLeft: tokens.spacingHorizontalXS, flexShrink: 0 }}
 										>
 											{prefix}_
 										</Badge>
