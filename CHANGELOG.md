@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 Fixed
+
+- **Client-type filters target the right client (#152).** Unified Interface evaluates
+  `CommandClientTypeRule` as **`Modern`** (Microsoft's `Mscrm.HideOnModern`, `Type="Modern"`,
+  hides buttons there). CBS labelled `Refresh` as Unified Interface, so **Show on Unified
+  Interface (Refresh)** added a rule that *hid* the button in Unified Interface. The quick filter
+  is now **Show on Unified Interface (Modern)**, `Refresh` is labelled as the legacy web client,
+  new client-type steps default to `Modern`, and a filter never reuses an inverted rule such as
+  `Mscrm.HideOnModern`. A command that already has a `Type="Refresh"` display rule from the old
+  filter shows only in the legacy web client: remove that rule and add the Unified Interface
+  filter.
+
 ## [0.7.0-beta.2] - 2026-10-23
 
 The second beta of 0.7.0 (npm `beta`): correctness. A publish keeps the publisher's details and

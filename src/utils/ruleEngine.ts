@@ -184,9 +184,9 @@ function summarizeStep(step: RuleStep): string {
 function clientTypeDesc(type: string): string {
 	switch (type) {
 		case "Modern":
-			return "Dynamics 365 tablets";
+			return "Unified Interface";
 		case "Refresh":
-			return "Unified Interface / modern web";
+			return "legacy updated web client";
 		case "Legacy":
 			return "Classic ribbon / Outlook list views";
 		default:

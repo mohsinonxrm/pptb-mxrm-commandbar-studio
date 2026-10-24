@@ -43,7 +43,8 @@ interface RuleStepPickerProps {
 function createDefaultStep(kind: RuleStep["kind"]): RuleStep {
 	switch (kind) {
 		case "CommandClientTypeRule":
-			return { kind, type: "Refresh" };
+			// Unified Interface (#152).
+			return { kind, type: "Modern" };
 		case "CrmClientTypeRule":
 			return { kind, type: "Web" };
 		case "FormStateRule":

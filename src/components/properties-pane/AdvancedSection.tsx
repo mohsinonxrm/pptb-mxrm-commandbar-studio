@@ -39,10 +39,14 @@ const useStyles = makeStyles({
 	},
 });
 
+// Unified Interface evaluates CommandClientTypeRule as "Modern", on the web
+// and in the mobile apps: Microsoft's Mscrm.HideOnModern (Type="Modern",
+// InvertResult) hides buttons there. "Refresh" is the legacy updated web
+// client (#152).
 const CLIENT_TYPE_RULES = [
-	{ label: "Show on Unified Interface (Refresh)", value: "Refresh" },
-	{ label: "Show on Classic ribbon (Legacy)", value: "Legacy" },
-	{ label: "Show on Tablets (Modern)", value: "Modern" },
+	{ label: "Show on Unified Interface (Modern)", value: "Modern" },
+	{ label: "Show on legacy web client (Refresh)", value: "Refresh" },
+	{ label: "Show on classic ribbon (Legacy)", value: "Legacy" },
 ];
 
 export const AdvancedSection: React.FC = () => {
@@ -102,11 +106,15 @@ export const AdvancedSection: React.FC = () => {
 		const selectedCommand = getSelectedCommand();
 		if (!selectedCommand) return;
 
+		// Only a plain rule of this type: Mscrm.HideOnModern is Type="Modern"
+		// with InvertResult, the opposite filter (#152).
 		const existingRule = displayRules.find(
 			(r) =>
 				r.steps.length === 1 &&
 				r.steps[0].kind === "CommandClientTypeRule" &&
-				r.steps[0].type === type,
+				r.steps[0].type === type &&
+				!r.steps[0].invertResult &&
+				r.steps[0].default === undefined,
 		);
 
 		let ruleId = existingRule?.id;
@@ -218,8 +226,9 @@ export const AdvancedSection: React.FC = () => {
 					Client type filter (adds a CommandClientTypeRule):
 				</Text>
 				<Text size={100} className={styles.note}>
-					<strong>Refresh</strong> = Unified Interface web client | <strong>Legacy</strong> =
-					Classic ribbon / Outlook | <strong>Modern</strong> = Dynamics 365 for tablets
+					<strong>Modern</strong> = Unified Interface (web, tablets and phones) |{" "}
+					<strong>Refresh</strong> = legacy updated web client | <strong>Legacy</strong> = classic
+					ribbon / Outlook
 				</Text>
 				<div className={styles.row} style={{ marginTop: "4px" }}>
 					{CLIENT_TYPE_RULES.map((rule) => (
