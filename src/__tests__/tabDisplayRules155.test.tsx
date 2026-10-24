@@ -192,4 +192,11 @@ describe("#155 the Tab rules panel", () => {
 		expect(button("Save rules")!.disabled).toBe(true);
 		expect(button("Add step")!.disabled).toBe(true);
 	});
+
+	it("an out-of-the-box tab without a rule isn't said to be hidden", () => {
+		load([], { layerTabs: [] });
+		open();
+		expect(document.body.textContent).toContain("This tab has no display rule of its own.");
+		expect(document.body.textContent).not.toContain("this tab will be hidden");
+	});
 });

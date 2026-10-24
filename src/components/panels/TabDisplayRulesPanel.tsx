@@ -218,9 +218,11 @@ export const TabDisplayRulesPanel: React.FC = () => {
 
 					{steps.length === 0 && (
 						<Text style={{ color: tokens.colorNeutralForeground3, textAlign: "center" }}>
-							{isNewTab && !isApplication
-								? "No steps: when you publish, this new tab gets the default rule for its location (this table, where the tab is)."
-								: "No steps: this tab will be hidden."}
+							{readOnly
+								? "This tab has no display rule of its own."
+								: isNewTab && !isApplication
+									? "No steps: when you publish, this new tab gets the default rule for its location (this table, where the tab is)."
+									: "No steps: this tab will be hidden."}
 						</Text>
 					)}
 
