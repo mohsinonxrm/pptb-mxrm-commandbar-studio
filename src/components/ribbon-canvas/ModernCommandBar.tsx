@@ -179,7 +179,8 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 	const captionOf = useDisplayText();
 	// Group titles resolve like the classic canvas shows them (#75).
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
-	const groupText = (label: string, id: string) => captionOf(label, locLabels, lang) || id;
+	const groupText = (label: string, id: string, titleToken?: string) =>
+		captionOf(label, locLabels, lang, titleToken) || id;
 	const openIconPicker = useUIStore((s) => s.openIconPicker);
 	const openLocalizationEditor = useUIStore((s) => s.openLocalizationEditor);
 	const openNewButton = useUIStore((s) => s.openNewButton);
@@ -414,7 +415,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 						}
 						return (
 							<Tooltip
-								content={`Add a new button to "${groupText(firstGroup.label, firstGroup.id)}"`}
+								content={`Add a new button to "${groupText(firstGroup.label, firstGroup.id, firstGroup.source?.titleToken)}"`}
 								relationship="label"
 							>
 								<button

@@ -102,7 +102,7 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 			button: b,
 			label: captionOf(b.label, locLabels, undefined, b.source?.labelToken),
 			groupId: g.id,
-			groupLabel: captionOf(g.label, locLabels, lang),
+			groupLabel: captionOf(g.label, locLabels, lang, g.source?.titleToken),
 		})),
 	);
 

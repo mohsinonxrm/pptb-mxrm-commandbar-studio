@@ -278,3 +278,37 @@ describe("#6 review: the org's base language", () => {
 		useLabelTextStore.getState().setManaged([]);
 	});
 });
+
+describe("#6: an imported group's caption comes from its Title token", () => {
+	it("Move to names it by the caption", async () => {
+		const { moveTargets } = await import("@/utils/moveTargets");
+		const group = (id: string, label: string, titleToken?: string) => ({
+			id,
+			label,
+			sequence: 10,
+			template: "Mscrm.Templates.Flexible2",
+			buttons: [],
+			...(titleToken ? { source: { titleToken, attributes: {} } } : {}),
+		});
+		const tab = {
+			id: "T",
+			label: "T",
+			sequence: 10,
+			tabDisplayRules: [],
+			groups: [
+				group("A", "A"),
+				// Imported (#30): the label is the token's resolution, the token is kept in source.
+				group(
+					"B",
+					"Ribbon.HomepageGrid.MainTab.Management",
+					"$Resources:Ribbon.HomepageGrid.MainTab.Management",
+				),
+			],
+		};
+		const caption = (label: string, locLabels: LocLabel[], lang?: number, token?: string) =>
+			displayText(label, locLabels, lang ?? 1033, {}, token);
+		expect(moveTargets(tab, "A", undefined, [], 1033, caption).map((t) => t.text)).toEqual([
+			"Management",
+		]);
+	});
+});

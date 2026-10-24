@@ -276,7 +276,7 @@ export const CommandPalette: React.FC = () => {
 							id: `btn-${b.id}`,
 							// As the canvas shows them (#6); the loaded label and id are searched too.
 							label: captionOf(b.label, paletteLocLabels, undefined, b.source?.labelToken) || b.id,
-							subtitle: `${loc} → ${captionOf(t.label, paletteLocLabels)} → ${captionOf(g.label, paletteLocLabels)}`,
+							subtitle: `${loc} → ${captionOf(t.label, paletteLocLabels, undefined, t.source?.titleToken)} → ${captionOf(g.label, paletteLocLabels, undefined, g.source?.titleToken)}`,
 							keywords: `${b.label} ${b.id}`,
 							kind: "button" as const,
 							action: () => {

@@ -325,7 +325,9 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
 	// Accessible names and tooltips use the same resolved text as the canvas (#75);
 	// a group without a title reads as its id.
-	const groupText = (group: RibbonGroup) => captionOf(group.label, locLabels, lang) || group.id;
+	// An imported group keeps its Title token in source (#30): it's the reference to caption.
+	const groupText = (group: RibbonGroup) =>
+		captionOf(group.label, locLabels, lang, group.source?.titleToken) || group.id;
 	const baseline = useRibbonStore((s) => s.baseline);
 	const customTemplates = useRibbonStore((s) => s.templates);
 	const moveButton = useRibbonStore((s) => s.moveButton);

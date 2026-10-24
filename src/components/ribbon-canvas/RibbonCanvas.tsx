@@ -607,7 +607,7 @@ export function RibbonCanvas({
 					}}
 					onCancel={() => setDeletingTabId(null)}
 				>
-					Delete the tab &ldquo;{captionOf(deletingTab.label, locLabels, lang)}&rdquo; and its
+					Delete the tab &ldquo;{captionOf(deletingTab.label, locLabels, lang, deletingTab.source?.titleToken)}&rdquo; and its
 					groups and buttons?
 				</ConfirmDialog>
 			)}
@@ -675,7 +675,7 @@ function SortableTab({
 	// Tab titles in the organisation's base language: a rename replaces that
 	// language's title (#66 review m3).
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
-	const displayLabel = captionOf(tab.label, locLabels, lang);
+	const displayLabel = captionOf(tab.label, locLabels, lang, tab.source?.titleToken);
 
 	const style: React.CSSProperties = {
 		transform: CSS.Transform.toString(transform),
