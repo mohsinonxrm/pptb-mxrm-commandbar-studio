@@ -235,6 +235,13 @@ export function App() {
 		setRibbonLoadStep(null);
 		logInfo("ribbon", `Loading ribbon workspace for ${activeEntity.logicalName}...`);
 
+		// The managed solutions' label texts, for the canvas only (#6): the load
+		// doesn't wait for them; the captions update when they arrive.
+		useLabelTextStore.getState().setManaged([]);
+		void fetchManagedLocLabels(activeEntity.logicalName).then((labels) => {
+			if (!cancelled) useLabelTextStore.getState().setManaged(labels);
+		});
+
 		// Load the ribbon and which managed solutions add its controls in
 		// parallel, then name the owners before seeding the store. Provenance is
 		// one query plus the solution names (#151), so it finishes before the
@@ -246,12 +253,9 @@ export function App() {
 			fetchRibbonProvenance(activeEntity.logicalName).catch(
 				() => new Map<string, ButtonProvenance>(),
 			),
-			// The managed solutions' label texts, for the canvas only (#6).
-			fetchManagedLocLabels(activeEntity.logicalName).catch(() => []),
 		])
-			.then(([workspace, provenance, managedLabels]) => {
+			.then(([workspace, provenance]) => {
 				if (cancelled) return;
-				useLabelTextStore.getState().setManaged(managedLabels);
 				const own = new Set([
 					...(workspace.layers?.entity?.controlIds ?? []),
 					...(workspace.layers?.application?.controlIds ?? []),

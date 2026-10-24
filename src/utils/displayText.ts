@@ -55,20 +55,30 @@ function titleIn(label: LocLabel, languageCode: number): string | undefined {
 	);
 }
 
+/** A `$Resources:` (parameterised too) or `$LocLabels:` reference. */
+const REFERENCE = /^\$(Resources(\([^)]*\))?|LocLabels):/;
+
 /**
  * What the canvas shows for a label (#6): the workspace's own resolution
- * (literal text, your layer's LocLabels); else a managed solution's LocLabel
- * text; else a caption made from the key. For display only — editing and
- * publishing use the label as loaded.
+ * (literal text, your layer's LocLabels); else, for a reference CBS couldn't
+ * resolve, a managed solution's LocLabel text or a caption made from the key.
+ * `token` is a control's label as loaded (`source.labelToken`): the parser
+ * resolves `value`, so only a label still equal to its token's resolution is
+ * a reference — like the generator's "unchanged" rule. A literal label, or a
+ * control with no label (shown by its id), is left as it is. For display
+ * only — editing and publishing use the label as loaded.
  */
 export function displayText(
 	value: string | undefined | null,
 	locLabels: LocLabel[],
 	languageCode: number,
 	managed: Record<string, LocLabel>,
+	token?: string,
 ): string {
 	const resolved = resolveDisplayLabel(value, locLabels, languageCode);
 	if (!resolved) return resolved;
+	const unchanged = token !== undefined && resolveDisplayLabel(token, locLabels, languageCode) === (value ?? "");
+	if (!REFERENCE.test(unchanged ? token : (value ?? ""))) return resolved;
 	const fromManaged = managed[resolved];
 	if (fromManaged) return titleIn(fromManaged, languageCode) ?? resolved;
 	return captionFromKey(resolved) ?? resolved;

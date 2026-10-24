@@ -136,8 +136,10 @@ export async function fetchManagedLocLabels(entityLogicalName: string): Promise<
 		const safeEntity = entityLogicalName.replace(/'/g, "''");
 		const rows = await queryAll(
 			`ribbondiffs?$select=rdx` +
-				`&$filter=(entity eq '${safeEntity}' or entity eq null) and ismanaged eq true and difftype eq 3`,
+				`&$filter=(entity eq '${safeEntity}' or entity eq null) and ismanaged eq true and difftype eq 3` +
+				`&$orderby=solutionid`,
 		);
+		// Ordered, so the same solution's text wins on every load when two define one id.
 		const labels: LocLabel[] = [];
 		const parser = new DOMParser();
 		for (const row of rows) {

@@ -1,13 +1,42 @@
 import React, { useEffect, useState } from "react";
-import FluentIcon, { hasFluentIcon } from "@/components/shared/FluentIcon";
+import FluentIcon from "@/components/shared/FluentIcon";
 import { loadWebResourceImage } from "@/services/dataverse/webResourceService";
 import { useSessionStore } from "@/store/sessionStore";
 import type { RibbonButton } from "@/types/ribbon";
 
 const WEB_RESOURCE = "$webresource:";
 
-/** Images loaded this session, by environment and web resource name. */
+/** Images loaded this session, by environment and web resource name. A failed load isn't kept. */
 const images = new Map<string, Promise<string | null>>();
+
+/** At most this many image reads at once: a tab can name dozens (#6 review). */
+const MAX_LOADS = 6;
+let active = 0;
+const waiting: (() => void)[] = [];
+
+async function limited<T>(load: () => Promise<T>): Promise<T> {
+	if (active >= MAX_LOADS) await new Promise<void>((resolve) => waiting.push(resolve));
+	active++;
+	try {
+		return await load();
+	} finally {
+		active--;
+		waiting.shift()?.();
+	}
+}
+
+function imageFor(key: string, resource: string): Promise<string | null> {
+	let image = images.get(key);
+	if (!image) {
+		image = limited(() => loadWebResourceImage(resource)).catch(() => {
+			// A throttled or failed read is tried again the next time the icon shows.
+			images.delete(key);
+			return null;
+		});
+		images.set(key, image);
+	}
+	return image;
+}
 
 /** The `$webresource:` image a control names (its 32 px image first), without the prefix. */
 function webResourceImageOf(button: RibbonButton): string | undefined {
@@ -18,9 +47,10 @@ function webResourceImageOf(button: RibbonButton): string | undefined {
 }
 
 /**
- * A control's icon on the canvas: its Fluent or out-of-the-box ModernImage
- * icon, else the `$webresource:` image it names, loaded once per session (#6).
- * The placeholder shows while it loads, or when it can't be loaded.
+ * A control's icon on the canvas: the `$webresource:` image it names, loaded
+ * once per session (#6) — it's what publishes, so it wins over an icon matched
+ * by name (a picked `report.png` isn't the Report icon); else, and while it
+ * loads or when it can't be loaded, its Fluent or out-of-the-box ModernImage icon.
  */
 export function RibbonButtonIcon({
 	button,
@@ -32,7 +62,7 @@ export function RibbonButtonIcon({
 	style?: React.CSSProperties;
 }) {
 	const environment = useSessionStore((s) => s.connectionUrl);
-	const resource = hasFluentIcon(button.icon) ? undefined : webResourceImageOf(button);
+	const resource = webResourceImageOf(button);
 	const key = resource ? `${environment}|${resource}` : "";
 	const [loaded, setLoaded] = useState<{ key: string; src: string | null }>({
 		key: "",
@@ -42,12 +72,7 @@ export function RibbonButtonIcon({
 	useEffect(() => {
 		if (!key || !resource) return;
 		let current = true;
-		if (!images.has(key))
-			images.set(
-				key,
-				loadWebResourceImage(resource).catch(() => null),
-			);
-		void images.get(key)!.then((src) => {
+		void imageFor(key, resource).then((src) => {
 			if (current) setLoaded({ key, src });
 		});
 		return () => {

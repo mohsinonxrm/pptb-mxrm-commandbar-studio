@@ -205,7 +205,7 @@ interface GroupMenuState {
 function DragGhostTile({ button }: { button: RibbonButton }) {
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const captionOf = useDisplayText();
-	const displayLabel = captionOf(button.label, locLabels);
+	const displayLabel = captionOf(button.label, locLabels, undefined, button.source?.labelToken);
 	return (
 		<div
 			style={{
@@ -905,7 +905,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 			{hideWarning && (
 				<HideOobWarningModal
 					open
-					buttonLabel={captionOf(hideWarning.button.label, locLabels)}
+					buttonLabel={captionOf(hideWarning.button.label, locLabels, undefined, hideWarning.button.source?.labelToken)}
 					onConfirmHide={() => {
 						hideOobButton(location, tab.id, hideWarning.groupId, hideWarning.button.id);
 						setHideWarning(null);
@@ -953,7 +953,7 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 	const isSelected = selectedButtonId === button.id;
 	const isGlobalOobReadOnly =
 		location === "Application" && tabId === "Mscrm.GlobalTab" && button.oob && !button.custom;
-	const displayLabel = captionOf(button.label, locLabels);
+	const displayLabel = captionOf(button.label, locLabels, undefined, button.source?.labelToken);
 	// A kind CBS shows read-only (#42) says what it is: "Toggle button", "Spinner", …
 	const readOnlyKind = isReadOnlyControlKind(button.kind) ? CONTROL_KIND_LABELS[button.kind] : undefined;
 	const kindNote = readOnlyKind ? ` (${readOnlyKind}, read-only)` : "";

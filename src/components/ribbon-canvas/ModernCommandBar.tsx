@@ -329,7 +329,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							content={
 								isGlobalOobReadOnly(button)
 									? "OOB global command bar buttons cannot be customized."
-									: `${captionOf(button.label, locLabels)}${kindNote(button)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`
+									: `${captionOf(button.label, locLabels, undefined, button.source?.labelToken)}${kindNote(button)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`
 							}
 							relationship="label"
 						>
@@ -344,7 +344,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									.filter(Boolean)
 									.join(" ")}
 								aria-selected={selectedButtonId === button.id}
-								aria-label={`${captionOf(button.label, locLabels)}${kindNote(button)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`}
+								aria-label={`${captionOf(button.label, locLabels, undefined, button.source?.labelToken)}${kindNote(button)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`}
 								onClick={() => selectButtonInContext(location, tab.id, groupId, button.id)}
 								onContextMenu={(e) => {
 									e.preventDefault();
@@ -359,7 +359,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 								style={{ opacity: dragging === button.id ? 0.3 : undefined }}
 							>
 								<RibbonButtonIcon button={button} size={16} />
-								<Text size={200}>{captionOf(button.label, locLabels)}</Text>
+								<Text size={200}>{captionOf(button.label, locLabels, undefined, button.source?.labelToken)}</Text>
 								{isReadOnlyKind(button) && (
 									<Badge size="extra-small" appearance="outline" color="informative">
 										{CONTROL_KIND_LABELS[button.kind]}
@@ -599,7 +599,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 			{hideWarning && (
 				<HideOobWarningModal
 					open
-					buttonLabel={captionOf(hideWarning.button.label, locLabels)}
+					buttonLabel={captionOf(hideWarning.button.label, locLabels, undefined, hideWarning.button.source?.labelToken)}
 					onConfirmHide={() => {
 						hideOobButton(location, tab.id, hideWarning.groupId, hideWarning.button.id);
 						setHideWarning(null);

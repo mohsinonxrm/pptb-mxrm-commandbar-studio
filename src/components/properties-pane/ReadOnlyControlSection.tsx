@@ -87,7 +87,7 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 				Command Bar Studio shows this &lt;{CONTROL_TAG_BY_KIND[button.kind]}&gt; but doesn&apos;t edit it. You can hide it,
 				and move or delete it when your customizations add it; its XML is published as it was loaded.
 			</Caption1>
-			{field("Label", captionOf(button.label, locLabels))}
+			{field("Label", captionOf(button.label, locLabels, undefined, button.source?.labelToken))}
 			{field("Id", button.id)}
 			{field("Command", button.commandId || undefined)}
 			<div>
@@ -107,7 +107,7 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 			{hideWarning && (
 				<HideOobWarningModal
 					open
-					buttonLabel={button.label}
+					buttonLabel={captionOf(button.label, locLabels, undefined, button.source?.labelToken)}
 					commandId={button.commandId}
 					onConfirmHide={() => {
 						hideOobButton(location, tabId, groupId, button.id);

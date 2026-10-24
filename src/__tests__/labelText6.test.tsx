@@ -49,11 +49,43 @@ describe("#6 captions", () => {
 			"cbs.Mine.LabelText": label("cbs.Mine.LabelText", [1033, "Not this"]),
 		};
 		expect(displayText("$LocLabels:cbs.Mine.LabelText", own, 1033, managed)).toBe("Mine");
-		// The parser leaves an unresolved label as its id: a managed solution's text, in the language asked for.
-		expect(displayText("GuidedHelp.LabelText", own, 1033, managed)).toBe("Learning Path");
-		expect(displayText("GuidedHelp.LabelText", own, 1031, managed)).toBe("Lernpfad");
-		expect(displayText("Ribbon.HomepageGrid.MainTab.New", own, 1033, managed)).toBe("New");
+		// The parser leaves an unresolved label as its id; the control's loaded token says it's a reference.
+		const ref = "$LocLabels:GuidedHelp.LabelText";
+		expect(displayText("GuidedHelp.LabelText", own, 1033, managed, ref)).toBe("Learning Path");
+		expect(displayText("GuidedHelp.LabelText", own, 1031, managed, ref)).toBe("Lernpfad");
+		// A tab or group label is the raw token itself.
+		expect(displayText("$Resources:Ribbon.HomepageGrid.MainTab.New", own, 1033, managed)).toBe(
+			"New",
+		);
+		expect(
+			displayText(
+				"Ribbon.HomepageGrid.MainTab.New",
+				own,
+				1033,
+				managed,
+				"$Resources:Ribbon.HomepageGrid.MainTab.New",
+			),
+		).toBe("New");
 		expect(displayText("Send", own, 1033, managed)).toBe("Send");
+	});
+
+	it("only a reference CBS couldn't resolve gets a caption (#6 review)", () => {
+		// Literal text with dots, and a control without a label (shown by its id), stay as they are.
+		expect(displayText("www.contoso.com", [], 1033, {}, "www.contoso.com")).toBe(
+			"www.contoso.com",
+		);
+		const id = "cbs.account.HomepageGrid.MyButton.Button";
+		expect(displayText(id, [], 1033, {}, undefined)).toBe(id);
+		// A label edited away from its token is literal text now.
+		expect(
+			displayText(
+				"Ribbon.Mine.Edited.Text",
+				[],
+				1033,
+				{},
+				"$Resources:Ribbon.HomepageGrid.MainTab.New",
+			),
+		).toBe("Ribbon.Mine.Edited.Text");
 	});
 });
 
@@ -170,13 +202,79 @@ describe("#6 icons", () => {
 		expect(queryData).toHaveBeenCalledTimes(1);
 	});
 
-	it("a control with a Fluent icon doesn't load its image", async () => {
-		const queryData = vi.fn();
+	it("an out-of-the-box icon name loads nothing; a named image wins over a matching icon name", async () => {
+		const queryData = vi.fn(async () => ({
+			value: [{ content: "iVBOR", webresourcetype: 5 }],
+		}));
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = { queryData };
-		const button = control({ icon: "new", image32: "$webresource:cbs_/new.svg" });
-		await act(async () => root.render(<RibbonButtonIcon button={button} size={24} />));
+		await act(async () =>
+			root.render(<RibbonButtonIcon button={control({ icon: "new" })} size={24} />),
+		);
 		expect(container.querySelector("img")).toBeNull();
 		expect(container.querySelector("svg")).not.toBeNull();
 		expect(queryData).not.toHaveBeenCalled();
+		// A picked contoso_/icons/report.png is that image, not the Report icon.
+		const picked = control({
+			icon: "report",
+			image32: "$webresource:contoso_/icons/report.png",
+		});
+		await act(async () => root.render(<RibbonButtonIcon button={picked} size={24} />));
+		await act(async () => new Promise((r) => setTimeout(r, 0)));
+		expect(container.querySelector("img")?.getAttribute("src")).toBe(
+			"data:image/png;base64,iVBOR",
+		);
+	});
+
+	it("a failed image load is tried again the next time the icon shows", async () => {
+		let fail = true;
+		const queryData = vi.fn(async () => {
+			if (fail) throw new Error("429");
+			return { value: [{ content: "R0lG", webresourcetype: 7 }] };
+		});
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = { queryData };
+		const button = control({ image32: "$webresource:cbs_/retry.gif" });
+		await act(async () => root.render(<RibbonButtonIcon button={button} size={24} />));
+		await act(async () => new Promise((r) => setTimeout(r, 0)));
+		expect(container.querySelector("img")).toBeNull();
+		fail = false;
+		act(() => root.unmount());
+		root = createRoot(container);
+		await act(async () => root.render(<RibbonButtonIcon button={button} size={24} />));
+		await act(async () => new Promise((r) => setTimeout(r, 0)));
+		expect(container.querySelector("img")?.getAttribute("src")).toBe(
+			"data:image/gif;base64,R0lG",
+		);
+		expect(queryData).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("#6 review: the org's base language", () => {
+	it("captions use the base language when no language is given", async () => {
+		const { useDisplayText } = await import("@/hooks/useDisplayText");
+		const { useLabelTextStore } = await import("@/store/labelTextStore");
+		const { useRibbonStore } = await import("@/store/ribbonStore");
+		useLabelTextStore
+			.getState()
+			.setManaged([
+				label("GuidedHelp.LabelText", [1033, "Learning Path"], [1031, "Lernpfad"]),
+			]);
+		useRibbonStore.setState({ baseLanguageCode: 1031 });
+		let shown = "";
+		function Probe() {
+			shown = useDisplayText()(
+				"GuidedHelp.LabelText",
+				[],
+				undefined,
+				"$LocLabels:GuidedHelp.LabelText",
+			);
+			return null;
+		}
+		const container = document.createElement("div");
+		const root = createRoot(container);
+		act(() => root.render(<Probe />));
+		expect(shown).toBe("Lernpfad");
+		act(() => root.unmount());
+		useRibbonStore.setState({ baseLanguageCode: 1033 });
+		useLabelTextStore.getState().setManaged([]);
 	});
 });

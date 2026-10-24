@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useDisplayText } from "@/hooks/useDisplayText";
 import { makeStyles, tokens, Text, Badge } from "@fluentui/react-components";
 import { SearchRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
@@ -91,6 +92,8 @@ interface PaletteItem {
 	id: string;
 	label: string;
 	subtitle?: string;
+	/** Also searched: what the label is as loaded, when the canvas shows a caption for it (#6). */
+	keywords?: string;
 	kind: "button" | "command" | "rule" | "entity" | "action";
 	action: () => void;
 }
@@ -115,6 +118,8 @@ export const CommandPalette: React.FC = () => {
 	const displayRules = useRibbonStore((s) => s.displayRules);
 	const enableRules = useRibbonStore((s) => s.enableRules);
 	const ribbons = useRibbonStore((s) => s.ribbons);
+	const paletteLocLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	const entities = useSessionStore((s) => s.entities);
 	const requestEntitySwitch = useDraftStore((s) => s.requestEntitySwitch);
 	const location = useSelectionStore((s) => s.location);
@@ -269,8 +274,10 @@ export const CommandPalette: React.FC = () => {
 					t.groups.flatMap((g) =>
 						groupControls(g).map((b) => ({
 							id: `btn-${b.id}`,
-							label: b.label || b.id,
-							subtitle: `${loc} → ${t.label} → ${g.label}`,
+							// As the canvas shows them (#6); the loaded label and id are searched too.
+							label: captionOf(b.label, paletteLocLabels, undefined, b.source?.labelToken) || b.id,
+							subtitle: `${loc} → ${captionOf(t.label, paletteLocLabels)} → ${captionOf(g.label, paletteLocLabels)}`,
+							keywords: `${b.label} ${b.id}`,
 							kind: "button" as const,
 							action: () => {
 								close();
@@ -351,7 +358,8 @@ export const CommandPalette: React.FC = () => {
 		? allItems.filter(
 				(item) =>
 					item.label.toLowerCase().includes(rawQuery.toLowerCase()) ||
-					(item.subtitle ?? "").toLowerCase().includes(rawQuery.toLowerCase()),
+					(item.subtitle ?? "").toLowerCase().includes(rawQuery.toLowerCase()) ||
+					(item.keywords ?? "").toLowerCase().includes(rawQuery.toLowerCase()),
 			)
 		: allItems;
 

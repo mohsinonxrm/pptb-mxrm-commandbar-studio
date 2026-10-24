@@ -133,7 +133,7 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 
 	if (!group || !root || (!root.menu && !isMenuKind(root.kind))) return null;
 	const groupId = group.id;
-	const label = (b: RibbonButton) => captionOf(b.label, locLabels);
+	const label = (b: RibbonButton) => captionOf(b.label, locLabels, undefined, b.source?.labelToken);
 	const dynamicQuery = (b: RibbonButton) =>
 		isDynamicMenuValue(b.source?.attributes["PopulateDynamically"])
 			? (b.source?.attributes["PopulateQueryCommand"] ?? "a command")
@@ -313,7 +313,7 @@ function MenuSectionView({
 					</>
 				) : (
 					// A loaded section's Title can be a `$LocLabels:` / `$Resources:` token (#75).
-					<Caption1>{captionOf(section.title, locLabels) || section.id}</Caption1>
+					<Caption1>{captionOf(section.title, locLabels, undefined, section.attributes?.["Title"]) || section.id}</Caption1>
 				)}
 			</div>
 			{items.map((item) => renderItem(item))}
