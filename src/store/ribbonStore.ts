@@ -1044,24 +1044,30 @@ export const useRibbonStore = create<RibbonStore>()(
 			const coalesceKey = typed
 				? `button:${location}:${buttonId}:${Object.keys(patch).sort().join(",")}`
 				: undefined;
-			set((state) =>
-				commitMutation(
+			set((state) => {
+				// A loaded control keeps its kind, and a menu item can only be a
+				// button or a flyout (#154). A refused kind-only edit isn't recorded.
+				const kindAllowed = (ribbons: Record<RibbonLocation, RibbonDefinition>) => {
+					const at = controlAt(ribbons, location, tabId, groupId, buttonId);
+					return (
+						!at ||
+						patch.kind === undefined ||
+						patch.kind === at.button.kind ||
+						(!isLoadedControl(state, location, buttonId) &&
+							(at.group.buttons.includes(at.button) || MENU_ITEM_KINDS.includes(patch.kind)))
+					);
+				};
+				if (Object.keys(patch).length === 1 && !kindAllowed(state.ribbons)) return {};
+				return commitMutation(
 					state,
 					(ribbons) => {
-						const at = controlAt(ribbons, location, tabId, groupId, buttonId);
-						const button = at?.button;
+						const button = controlAt(ribbons, location, tabId, groupId, buttonId)?.button;
 						if (!button) return;
 						if (isReadOnlyGlobalOobButton(location, tabId, button)) return;
-						// A loaded control keeps its kind (the publish can't change it), and a
-						// menu item can only be a button or a flyout (#154).
 						const before = button.kind;
-						const kindAllowed =
-							patch.kind === undefined ||
-							patch.kind === button.kind ||
-							(!isLoadedControl(state, location, buttonId) &&
-								(at.group.buttons.includes(button) || MENU_ITEM_KINDS.includes(patch.kind)));
+						const allowed = kindAllowed(ribbons);
 						Object.assign(button, patch);
-						if (!kindAllowed) button.kind = before;
+						if (!allowed) button.kind = before;
 						// A button turned into a flyout / split button gets an (empty) menu.
 						if (isMenuKind(button.kind) && !button.menu) button.menu = newMenu(button.id);
 					},
@@ -1076,8 +1082,8 @@ export const useRibbonStore = create<RibbonStore>()(
 						color: "info",
 					},
 					coalesceKey,
-				),
-			);
+				);
+			});
 		},
 
 		deleteButton(location, tabId, groupId, buttonId) {

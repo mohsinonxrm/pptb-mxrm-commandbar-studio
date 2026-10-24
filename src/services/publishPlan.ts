@@ -308,15 +308,16 @@ export function planScope(input: PlanInput): ScopePlan {
 		for (const { button } of cur.values()) for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
 
 		for (const [key, { button, menu }] of cur) {
-			if (menu && !MENU_ITEM_KINDS.includes(button.kind ?? "button")) {
-				unsupported.push(
-					`Menu item "${button.label}" (${button.id}) is a ${CONTROL_TAG_BY_KIND[button.kind] ?? button.kind} — a menu can hold buttons and flyouts only; change its Kind`,
-				);
-			}
 			const refs = buttonLabelRefs(button);
 			refs.forEach((id) => referencedLabels.add(id));
 			const b = base.get(key)?.button;
 			const emitted = !b || hasOobOverrideChanges(b, button);
+			// Only an item this publish writes: a loaded one is left as it is (#154).
+			if (emitted && menu && !MENU_ITEM_KINDS.includes(button.kind ?? "button")) {
+				unsupported.push(
+					`Menu item "${button.label}" (${button.id}) is a ${CONTROL_TAG_BY_KIND[button.kind] ?? button.kind} — a menu can hold buttons and flyouts only; change its Kind`,
+				);
+			}
 			for (const id of [buttonLabelId(button.id), buttonTooltipTitleId(button.id), buttonTooltipBodyId(button.id)]) {
 				if (emitted) generatorLabels.add(id);
 				else if (!refs.includes(id)) unreferencedConventionLabels.set(id, button);

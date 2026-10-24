@@ -199,4 +199,14 @@ describe("#155 the Tab rules panel", () => {
 		expect(document.body.textContent).toContain("This tab has no display rule of its own.");
 		expect(document.body.textContent).not.toContain("this tab will be hidden");
 	});
+
+	it("a tab is editable when the layer couldn't be read, and saving without a change changes nothing", () => {
+		load([{ tabCommand: CMD, rules: [homeGrid] }]);
+		useRibbonStore.setState((st) => ({ layers: { ...st.layers, entity: null } }));
+		open();
+		expect(button("Save rules")!.disabled).toBe(false);
+		const before = savedRules();
+		act(() => button("Save rules")!.click());
+		expect(savedRules()).toEqual(before);
+	});
 });

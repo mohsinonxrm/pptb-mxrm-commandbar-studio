@@ -125,6 +125,29 @@ describe("#153 schema checks before a publish", () => {
 	});
 });
 
+describe("#153 review", () => {
+	it("a problem in an element this publish changes is an error", () => {
+		const findings = schema(diff("", `<EnableRule Id="cbs.New" />`), ["enableRules:cbs.New"]);
+		expect(findings.map((f) => f.severity)).toEqual(["error"]);
+	});
+
+	it("a library that names no web resource is reported", () => {
+		const messages = schema(
+			diff(
+				command(
+					"cbs.L",
+					`<JavaScriptFunction FunctionName="cbs.run" Library="$webresource:" />`,
+				),
+				`<EnableRule Id="cbs.R"><CustomRule FunctionName="cbs.check" Library="$webresource:" /></EnableRule>`,
+			),
+		).map((f) => f.message);
+		expect(messages).toEqual([
+			"Command cbs.L: JavaScriptFunction Library names no web resource",
+			"Enable rule cbs.R: CustomRule Library names no web resource",
+		]);
+	});
+});
+
 describe("#153 a cleared number parameter isn't stored as NaN", () => {
 	let container: HTMLDivElement;
 	let root: Root;
@@ -161,6 +184,22 @@ describe("#153 a cleared number parameter isn't stored as NaN", () => {
 		type("2.5");
 		expect(onChange).not.toHaveBeenCalled();
 		type("7");
+		expect(params).toEqual([{ kind: "IntParameter", value: 7 }]);
+		// A decimal in exponent form would be written as Value="1e-7" (not an xs:decimal).
+		params = [{ kind: "DecimalParameter", value: 1.5 }];
+		act(() =>
+			root.render(
+				<FluentProvider theme={webLightTheme}>
+					<CrmParameterEditor params={params} onChange={onChange} />
+				</FluentProvider>,
+			),
+		);
+		onChange.mockClear();
+		type("1e-7");
+		expect(onChange).not.toHaveBeenCalled();
+		type("0.25");
+		expect(params).toEqual([{ kind: "DecimalParameter", value: 0.25 }]);
+		params = [{ kind: "IntParameter", value: 7 }];
 		expect(params).toEqual([{ kind: "IntParameter", value: 7 }]);
 		expect(
 			onChange.mock.calls.flat(2).some((p) => Number.isNaN((p as { value: number }).value)),

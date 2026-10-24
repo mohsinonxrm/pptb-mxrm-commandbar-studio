@@ -44,7 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A control keeps only the attributes its new element allows. For example, a flyout
     turned into a button no longer carries `PopulateDynamically`.
   - A menu item can be a button or a flyout, which is all a menu can hold.
-  - A loaded control's Kind is locked: publishing could never change it.
+  - A loaded control's Kind is locked: changing it would replace the control another
+    solution or an earlier publish defined. Add a new control instead.
 - **A tab has one display rule (#155).** Adding a second rule replaced the first, so a new
   tab could disappear from where it was meant to show.
   - **Tab rules** now edits a single rule, and the tab shows where any of its steps

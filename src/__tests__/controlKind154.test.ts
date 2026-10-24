@@ -200,3 +200,60 @@ describe("#154 menu items are buttons or flyouts", () => {
 		expect(find("cbs.NewFly").kind).toBe("splitButton");
 	});
 });
+
+describe("#154 review: what is left alone", () => {
+	const flyoutWith = (item: RibbonButton) => {
+		const flyout = control("mgd.Fly", "flyout");
+		flyout.menu = newMenu(flyout.id);
+		flyout.menu.sections[0].controls.push(item);
+		return flyout;
+	};
+	const plan = (current: RibbonDefinition, baseline: RibbonDefinition) =>
+		planScope({
+			locations: [{ current, baseline }],
+			commands: [],
+			baselineCommands: [],
+			enableRules: [],
+			baselineEnableRules: [],
+			displayRules: [],
+			baselineDisplayRules: [],
+		});
+
+	it("a loaded menu item of another kind that this publish doesn't write isn't reported", () => {
+		const loaded = () =>
+			ribbon([
+				flyoutWith(control("mgd.Fly.Check", "checkBox")),
+				control("own.Btn", "button"),
+			]);
+		const current = loaded();
+		current.tabs[0].groups[0].buttons[1].label = "Renamed";
+		expect(plan(current, loaded()).unsupported.join("\n")).not.toContain("Menu item");
+	});
+
+	it("a refused kind-only change isn't an undo step", () => {
+		const empty = (location: RibbonLocation): RibbonDefinition => ({
+			location,
+			entityLogicalName: T,
+			tabs: [],
+		});
+		useRibbonStore.getState().loadWorkspace({
+			ribbons: {
+				HomepageGrid: ribbon([control("cbs.Loaded", "button")]),
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
+			commands: [],
+			enableRules: [],
+			displayRules: [],
+			locLabels: [],
+		});
+		const before = useRibbonStore.getState();
+		useRibbonStore
+			.getState()
+			.setButtonProp("HomepageGrid", MAIN, GROUP, "cbs.Loaded", { kind: "checkBox" });
+		const after = useRibbonStore.getState();
+		expect(after.past).toHaveLength(before.past.length);
+		expect(after.mutationsSincePublish).toBe(before.mutationsSincePublish);
+	});
+});

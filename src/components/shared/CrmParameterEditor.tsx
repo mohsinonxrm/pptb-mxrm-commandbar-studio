@@ -132,7 +132,9 @@ function NumberParamInput({
 			onChange={(_, d) => {
 				setText(d.value);
 				const n = Number(d.value);
-				if (d.value.trim() !== "" && Number.isFinite(n) && (!integer || Number.isInteger(n))) onChange(n);
+				// Written as String(n): 1e-7 would be exponent form, which xs:decimal doesn't allow.
+				if (d.value.trim() !== "" && Number.isFinite(n) && (!integer || Number.isInteger(n)) && !/e/i.test(String(n)))
+					onChange(n);
 			}}
 			onBlur={() => setText(Number.isFinite(value) ? String(value) : "")}
 		/>
