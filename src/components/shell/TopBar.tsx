@@ -5,7 +5,6 @@ import {
 	Button,
 	Text,
 	Badge,
-	Select,
 	Combobox,
 	Option,
 	Popover,
@@ -20,9 +19,7 @@ import {
 	ArrowUndoRegular,
 	ArrowRedoRegular,
 	ArrowSwapRegular,
-	SettingsRegular,
 	QuestionCircleRegular,
-	SaveRegular,
 	CloudArrowUpRegular,
 	SearchRegular,
 	DatabaseRegular,
@@ -33,6 +30,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useDraftStore } from "@/store/draftStore";
 import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
+import { copyText } from "@/utils/hostIO";
 
 const useStyles = makeStyles({
 	root: {
@@ -108,7 +106,6 @@ const useStyles = makeStyles({
 
 export function TopBar() {
 	const styles = useStyles();
-	const [simState, setSimState] = useState<"Loaded" | "Empty" | "Error" | "Publishing">("Loaded");
 	const past = useRibbonStore((s) => s.past);
 	const future = useRibbonStore((s) => s.future);
 	const undo = useRibbonStore((s) => s.undo);
@@ -341,19 +338,6 @@ export function TopBar() {
 
 			<div className={styles.sep} />
 
-			<Select
-				value={simState}
-				onChange={(_, d) => setSimState(d.value as "Loaded" | "Empty" | "Error" | "Publishing")}
-				size="small"
-				title="State simulator"
-				aria-label="State simulator"
-			>
-				<option value="Loaded">Loaded</option>
-				<option value="Empty">Empty</option>
-				<option value="Error">Error</option>
-				<option value="Publishing">Publishing</option>
-			</Select>
-
 			{/* Import/Export */}
 			<Button
 				appearance="subtle"
@@ -365,26 +349,10 @@ export function TopBar() {
 				title="Import / Export RibbonDiffXml"
 				aria-label="Import/Export"
 			/>
-			<Button
-				appearance="subtle"
-				size="small"
-				icon={<SettingsRegular />}
-				title="Settings"
-				aria-label="Settings"
-			/>
-			<Button
-				appearance="subtle"
-				size="small"
-				icon={<QuestionCircleRegular />}
-				title="Help"
-				aria-label="Help"
-			/>
+			<HelpButton />
 
 			<div className={styles.sep} />
 
-			<Button appearance="secondary" size="small" icon={<SaveRegular />}>
-				Save
-			</Button>
 			<Button
 				appearance="primary"
 				size="small"
@@ -394,5 +362,65 @@ export function TopBar() {
 				Publish All
 			</Button>
 		</header>
+	);
+}
+
+const DOCS_URL = "https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio#readme";
+
+/**
+ * Help (#22): what the old Save / Settings buttons promised and didn't do.
+ * Changes are kept as a draft automatically (#16); PPTB has no way to open a
+ * link in the browser, so the documentation link is copied.
+ */
+function HelpButton() {
+	const [copied, setCopied] = useState<"" | "yes" | "no">("");
+	return (
+		<Popover withArrow onOpenChange={() => setCopied("")}>
+			<PopoverTrigger disableButtonEnhancement>
+				<Button
+					appearance="subtle"
+					size="small"
+					icon={<QuestionCircleRegular />}
+					title="Help"
+					aria-label="Help"
+				/>
+			</PopoverTrigger>
+			<PopoverSurface aria-label="Help">
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						gap: tokens.spacingVerticalS,
+						maxWidth: 320,
+					}}
+				>
+					<Text weight="semibold">Command Bar Studio</Text>
+					<Text size={200}>
+						Your changes are kept as a draft for each table automatically, until you
+						publish or discard them.
+					</Text>
+					<Text size={200}>
+						<strong>Ctrl+K</strong> search · <strong>Ctrl+S</strong> publish ·{" "}
+						<strong>Ctrl+Z</strong> / <strong>Ctrl+Y</strong> undo / redo ·{" "}
+						<strong>Ctrl+D</strong> duplicate · <strong>Ctrl+X</strong> /{" "}
+						<strong>Ctrl+V</strong> move a button
+					</Text>
+					<Button
+						size="small"
+						onClick={async () =>
+							setCopied((await copyText(DOCS_URL)).ok ? "yes" : "no")
+						}
+					>
+						Copy documentation link
+					</Button>
+					{copied === "yes" && (
+						<Text size={200}>Copied: paste it into your browser.</Text>
+					)}
+					{copied === "no" && (
+						<Text size={200}>Couldn&apos;t copy. The link is {DOCS_URL}</Text>
+					)}
+				</div>
+			</PopoverSurface>
+		</Popover>
 	);
 }
