@@ -141,6 +141,8 @@ describe("#6 icons", () => {
 		label: "AI",
 		kind: "button",
 		sequence: 10,
+		templateAlias: "o1",
+		commandId: "msdyn.Ai.Command",
 		hidden: false,
 		oob: false,
 		custom: false,
