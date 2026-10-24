@@ -310,8 +310,8 @@ export type AttributedRuleStep = StandardRuleAttributes &
 	(
 	| {
 			kind: "CommandClientTypeRule";
-			// "Modern"  = Dynamics 365 for tablets (NOT Unified Interface web client)
-			// "Refresh" = Updated UI / Unified Interface (web)
+			// "Modern"  = Unified Interface (web, tablets and phones): Mscrm.HideOnModern hides there (#152)
+			// "Refresh" = the legacy updated web client (pre-Unified Interface)
 			// "Legacy"  = Classic ribbon / Outlook list views
 			type: "Modern" | "Refresh" | "Legacy";
 	  }
