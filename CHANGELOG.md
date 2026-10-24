@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0-beta.3] - 2026-10-24
+
+The third beta of 0.7.0 (npm `beta`): one fix. The **Show on Unified Interface** filter added a
+rule that hid the button in Unified Interface. Requires Power Platform ToolBox 1.2.7 or later.
+
 ### 🔧 Fixed
 
 - **Client-type filters target the right client (#152).** Unified Interface evaluates

@@ -37,7 +37,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Command binding with action summary chips
 - Display rules + Enable rules pill lists with inline add/remove
 - Scaling summary with link to full editor
-- Advanced: form ribbon scope selector, `Mscrm.OpenRecordItem` override toggle, client-type filter shortcuts
+- Advanced: form ribbon scope selector, `Mscrm.OpenRecordItem` override toggle, client-type filter shortcuts (Unified Interface evaluates as `Modern`; one filter per command)
 - Conflict banner — surfaces managed-solution provenance via solution-layer API
 
 ### ⚡ Command Editor
