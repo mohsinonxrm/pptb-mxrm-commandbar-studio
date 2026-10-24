@@ -70,6 +70,9 @@ const useStyles = makeStyles({
 	paletteButton: {
 		height: "28px",
 		minWidth: "260px",
+		"@media (max-width: 1100px)": { minWidth: "120px" },
+		overflow: "hidden",
+		whiteSpace: "nowrap",
 		display: "flex",
 		alignItems: "center",
 		gap: tokens.spacingHorizontalS,
@@ -91,6 +94,23 @@ const useStyles = makeStyles({
 		borderRadius: "3px",
 		fontSize: tokens.fontSizeBase100,
 		backgroundColor: tokens.colorNeutralBackground2,
+	},
+	/** The brand's text gives way first in a narrow pane (#22). */
+	brandTitle: {
+		whiteSpace: "nowrap",
+		"@media (max-width: 1100px)": { display: "none" },
+	},
+	solutionTrigger: {
+		minWidth: 0,
+		flexShrink: 1,
+		whiteSpace: "nowrap",
+		overflow: "hidden",
+	},
+	ellipsis: {
+		minWidth: 0,
+		overflow: "hidden",
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
 	},
 	solutionPickerSurface: {
 		padding: tokens.spacingHorizontalM,
@@ -193,7 +213,7 @@ export function TopBar() {
 						CBS
 					</Text>
 				</div>
-				<Text weight="semibold" size={300}>
+				<Text weight="semibold" size={300} className={styles.brandTitle}>
 					Command Bar Studio
 				</Text>
 			</div>
@@ -219,9 +239,11 @@ export function TopBar() {
 						icon={<DatabaseRegular />}
 						iconPosition="before"
 						aria-label="Select solution"
+						className={styles.solutionTrigger}
+						title={activeSolution?.friendlyName}
 					>
 						<Text size={200}>Solution:&nbsp;</Text>
-						<Text size={200} weight="semibold">
+						<Text size={200} weight="semibold" className={styles.ellipsis}>
 							{activeSolution?.friendlyName ?? "Select solution…"}
 						</Text>
 						{activeSolution && (
@@ -309,7 +331,9 @@ export function TopBar() {
 				aria-label="Search buttons, commands, rules (Ctrl+K)"
 			>
 				<SearchRegular fontSize={14} />
-				<span style={{ flex: 1, textAlign: "left" }}>Search buttons, commands, rules…</span>
+				<span className={styles.ellipsis} style={{ flex: 1, textAlign: "left" }}>
+					Search buttons, commands, rules…
+				</span>
 				<kbd className={styles.kbd}>Ctrl</kbd>
 				<kbd className={styles.kbd}>K</kbd>
 			</button>

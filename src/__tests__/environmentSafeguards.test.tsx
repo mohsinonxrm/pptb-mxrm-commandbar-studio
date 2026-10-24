@@ -20,6 +20,7 @@ import {
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useUIStore } from "@/store/uiStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type { EntityMetadata } from "@/types/entity";
 import type { Solution } from "@/types/solution";
 import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
@@ -299,6 +300,48 @@ describe("the publish dialog names its target and guards Production (#121)", () 
 		expect(text).not.toContain("Production environment");
 		expect(confirmInput()).toBeNull();
 		expect(publishButton()?.disabled).toBe(false);
+	});
+
+	it("publishing all customizations needs its own confirmation, naming the environment (#109)", async () => {
+		environment = "Dev";
+		useSessionStore.setState({ connectionName: "Contoso" });
+		await openPublishDialog();
+		const dropdown = [...document.querySelectorAll<HTMLElement>("[role=combobox]")].find((b) =>
+			b.textContent?.includes("Publish only these ribbons"),
+		)!;
+		act(() => dropdown.click());
+		await flush();
+		const option = [...document.querySelectorAll<HTMLElement>("[role=option]")].find((o) =>
+			o.textContent?.includes("Also publish all customizations"),
+		)!;
+		act(() => option.click());
+		await flush();
+		expect(document.body.textContent).toContain("This publishes every unpublished customization in Contoso");
+		expect(publishButton()?.disabled).toBe(true);
+		const checkbox = [...document.querySelectorAll<HTMLInputElement>("input[type=checkbox]")].find((c) =>
+			c.closest("label, div")?.textContent?.includes("Publish all unpublished customizations in Contoso"),
+		)!;
+		act(() => checkbox.click());
+		await flush();
+		expect(publishButton()?.disabled).toBe(false);
+	});
+
+	it("the publish comment is written to the Console log (#109)", async () => {
+		environment = "Dev";
+		await openPublishDialog();
+		const comment = document.querySelector<HTMLTextAreaElement>("textarea")!;
+		const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+		act(() => {
+			setter.call(comment, "Adds the New one button");
+			comment.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		useRuntimeLogStore.getState().clear();
+		// No Dataverse here: the publish itself fails, after the comment is logged.
+		await act(async () => publishButton()!.click());
+		await flush();
+		expect(useRuntimeLogStore.getState().entries.map((e) => e.message)).toContain(
+			"Publish comment: Adds the New one button",
+		);
 	});
 });
 

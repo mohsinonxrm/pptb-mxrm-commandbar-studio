@@ -296,3 +296,30 @@ describe("#22 review — the Command Editor after an undo", () => {
 		expect(useUIStore.getState().commandEditorOpen).toBe(false);
 	});
 });
+
+describe("#22 — the Command Editor's action cards keep their keys", () => {
+	it("removing an action leaves the next card's elements with it", () => {
+		loadTable([button("cbs.One")]);
+		const command = useRibbonStore.getState().commands.find((c) => c.id === button("cbs.One").commandId)!;
+		act(() =>
+			useRibbonStore.getState().upsertCommand({
+				...command,
+				actions: [
+					{ kind: "javascript", library: "$webresource:cbs_/a.js", functionName: "cbs.first", params: [] },
+					{ kind: "javascript", library: "$webresource:cbs_/b.js", functionName: "cbs.second", params: [] },
+				],
+			}),
+		);
+		act(() => root.render(<CommandEditorPanel />));
+		act(() => useUIStore.getState().openCommandEditor(command.id));
+		const input = (value: string) =>
+			[...document.querySelectorAll<HTMLInputElement>("input")].find((i) => i.value === value);
+		const second = input("cbs.second")!;
+		expect(second).toBeDefined();
+		const remove = [...document.querySelectorAll<HTMLButtonElement>('button[aria-label="Remove action"]')][0];
+		act(() => remove.click());
+		expect(input("cbs.first")).toBeUndefined();
+		// The same element: an index key would have re-used the first card's.
+		expect(input("cbs.second")).toBe(second);
+	});
+});

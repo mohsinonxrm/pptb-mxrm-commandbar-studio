@@ -54,6 +54,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A table's tab picks that table or any, instead of a free-text name.
   - A tab your customizations don't add is read-only.
   - A new tab with no steps says it gets the default rule when you publish.
+- **Publishing all customizations needs its own confirmation (#109).** **Also publish all
+  customizations** publishes every unpublished customization in the environment, including
+  other people's work in progress. It now shows a warning naming the environment, and
+  **Publish** waits for you to confirm it. The **Publish comment**, which was collected and
+  then dropped, is written to the Console log with the publish.
+- **The top bar has no controls that do nothing (#22).**
+  - The **State simulator**, **Save** and **Settings** controls are removed. Changes are
+    already kept as a draft for each table automatically, and Ctrl+S opens Publish.
+  - **Help** now shows the shortcuts and copies the documentation link.
+- **Narrow panes (#22).**
+  - When the window is narrow, the Tables and Properties panes give way so the canvas
+    keeps at least 40% of the width. In an 800 px pane it used to show one group at a
+    time.
+  - The top bar's solution name and search box shorten instead of overlapping.
+- **Command editor (#22):** removing an action no longer hands its card's state to the next
+  one.
 
 ## [0.7.0-beta.3] - 2026-10-24
 
