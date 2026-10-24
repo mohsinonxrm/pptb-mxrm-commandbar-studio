@@ -1457,28 +1457,33 @@ function generateLocLabel(label: LocLabel): string {
  * EntityRule there; PageRule is valid only in the application ribbon
  * (RibbonTypes.xsd TabDisplayRulesEntityType vs TabDisplayRulesGlobalType — #40),
  * so it is left out of entity scopes, and a TabDisplayRule left with no rules
- * (choice minOccurs=1) is not emitted.
+ * (choice minOccurs=1) is not emitted. Entries for the same TabCommand are
+ * written as one TabDisplayRule: the layer keeps one per TabCommand, so a
+ * second one would replace the first (#155).
  */
 export function generateTabDisplayRulesForTab(tab: RibbonTab, isApplication: boolean): string {
-	return tab.tabDisplayRules
-		.map((tdr) => {
-			const steps = tdr.rules
-				.map((step) => {
-					if (step.kind === "EntityRule") {
-						return `<EntityRule${attr("EntityName", step.entityName)}${attr("AppliesTo", step.appliesTo)}${attr("Context", step.context)}/>`;
-					}
-					if (step.kind === "PageRule" && isApplication) {
-						return `<PageRule${attr("Address", step.address)}/>`;
-					}
-					return "";
-				})
-				.filter(Boolean);
-			if (steps.length === 0) return "";
-			return `<TabDisplayRule TabCommand="${escapeXml(tdr.tabCommand)}">
+	const stepsByCommand = new Map<string, string[]>();
+	for (const tdr of tab.tabDisplayRules) {
+		const steps = tdr.rules
+			.map((step) => {
+				if (step.kind === "EntityRule") {
+					return `<EntityRule${attr("EntityName", step.entityName)}${attr("AppliesTo", step.appliesTo)}${attr("Context", step.context)}/>`;
+				}
+				if (step.kind === "PageRule" && isApplication) {
+					return `<PageRule${attr("Address", step.address)}/>`;
+				}
+				return "";
+			})
+			.filter(Boolean);
+		stepsByCommand.set(tdr.tabCommand, [...(stepsByCommand.get(tdr.tabCommand) ?? []), ...steps]);
+	}
+	return [...stepsByCommand]
+		.filter(([, steps]) => steps.length > 0)
+		.map(
+			([tabCommand, steps]) => `<TabDisplayRule TabCommand="${escapeXml(tabCommand)}">
         ${steps.join("\n        ")}
-      </TabDisplayRule>`;
-		})
-		.filter(Boolean)
+      </TabDisplayRule>`,
+		)
 		.join("\n      ");
 }
 

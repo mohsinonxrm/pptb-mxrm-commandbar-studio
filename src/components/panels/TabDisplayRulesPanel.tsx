@@ -18,9 +18,20 @@ import {
 } from "@fluentui/react-components";
 import { DismissRegular, AddRegular, DeleteRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
-import { useRibbonStore } from "@/store/ribbonStore";
+import { ownContainerIds, useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import type { TabDisplayRule, TabDisplayRuleStep } from "@/types/ribbon";
+
+type EntityStep = Extract<TabDisplayRuleStep, { kind: "EntityRule" }>;
+
+/**
+ * A tab has one TabDisplayRule: the layer keeps one per TabCommand, so a
+ * second one would replace the first (#155). Its steps are alternatives: the
+ * tab shows where any of them matches.
+ */
+function stepsOf(rules: TabDisplayRule[] | undefined): TabDisplayRuleStep[] {
+	return (rules ?? []).flatMap((r) => r.rules);
+}
 
 function createEntityStep(): TabDisplayRuleStep {
 	return {
@@ -84,71 +95,32 @@ export const TabDisplayRulesPanel: React.FC = () => {
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
 	const isApplication = location === "Application";
-	const tabCommandLocked = Boolean(tab?.commandId);
+	const isNewTab = useRibbonStore((s) => !s.baseline[location]?.tabs.some((t) => t.id === tabId));
+	// Rules of a tab another solution adds can't be changed (the publish
+	// reports it); when the layer couldn't be read, the publish decides.
+	const ownTabs = useRibbonStore((s) => ownContainerIds(s, location));
+	const readOnly = Boolean(tab) && !isNewTab && ownTabs !== undefined && !ownTabs.includes(tabId);
 
-	const [rules, setRules] = useState<TabDisplayRule[]>(() => tab?.tabDisplayRules ?? []);
+	const [steps, setSteps] = useState<TabDisplayRuleStep[]>(() => stepsOf(tab?.tabDisplayRules));
 	const [validationError, setValidationError] = useState<string | null>(null);
 
 	React.useEffect(() => {
 		if (open) {
 			setValidationError(null);
-			setRules(tab?.tabDisplayRules ?? []);
+			setSteps(stepsOf(tab?.tabDisplayRules));
 		}
 	}, [open, tab]);
 
-	const addRule = () => {
-		setRules((prev) => [
-			...prev,
-			{
-				tabCommand: tab?.commandId ?? "",
-				rules: [createEntityStep()],
-			},
-		]);
+	const updateStep = (index: number, nextStep: TabDisplayRuleStep) => {
+		setSteps((prev) => prev.map((step, i) => (i === index ? nextStep : step)));
 	};
 
-	const removeRule = (index: number) => {
-		setRules((prev) => prev.filter((_, i) => i !== index));
+	const addStep = () => {
+		setSteps((prev) => [...prev, isApplication ? createPageStep() : createEntityStep()]);
 	};
 
-	const updateRuleTabCommand = (index: number, value: string) => {
-		if (tabCommandLocked) return;
-		setRules((prev) => prev.map((r, i) => (i === index ? { ...r, tabCommand: value } : r)));
-	};
-
-	const updateStep = (ruleIndex: number, stepIndex: number, nextStep: TabDisplayRuleStep) => {
-		setRules((prev) =>
-			prev.map((rule, ri) =>
-				ri === ruleIndex
-					? {
-							...rule,
-							rules: rule.rules.map((step, si) => (si === stepIndex ? nextStep : step)),
-						}
-					: rule,
-			),
-		);
-	};
-
-	const addStep = (ruleIndex: number) => {
-		setRules((prev) =>
-			prev.map((rule, ri) =>
-				ri === ruleIndex
-					? {
-							...rule,
-							rules: [...rule.rules, isApplication ? createPageStep() : createEntityStep()],
-						}
-					: rule,
-			),
-		);
-	};
-
-	const removeStep = (ruleIndex: number, stepIndex: number) => {
-		setRules((prev) =>
-			prev.map((rule, ri) =>
-				ri === ruleIndex
-					? { ...rule, rules: rule.rules.filter((_, si) => si !== stepIndex) }
-					: rule,
-			),
-		);
+	const removeStep = (index: number) => {
+		setSteps((prev) => prev.filter((_, i) => i !== index));
 	};
 
 	const handleSave = () => {
@@ -156,30 +128,27 @@ export const TabDisplayRulesPanel: React.FC = () => {
 			setValidationError("No active tab selected.");
 			return;
 		}
-
-		for (const [index, rule] of rules.entries()) {
-			if (!rule.tabCommand.trim()) {
-				setValidationError(`Rule ${index + 1}: tabCommand is required.`);
+		for (const [index, step] of steps.entries()) {
+			if (step.kind === "PageRule" && !isApplication) {
+				setValidationError(`Step ${index + 1}: a page rule is only valid on application ribbon tabs.`);
 				return;
 			}
-			if (tab.commandId && rule.tabCommand !== tab.commandId) {
-				setValidationError(
-					`Rule ${index + 1}: tabCommand must match the tab command ID (${tab.commandId}).`,
-				);
-				return;
-			}
-			if (!isApplication && rule.rules.some((step) => step.kind === "PageRule")) {
-				setValidationError(
-					`Rule ${index + 1}: PageRule is only valid for Application ribbon tabs.`,
-				);
+			if (step.kind === "PageRule" && !step.address.trim()) {
+				setValidationError(`Step ${index + 1}: enter the page address.`);
 				return;
 			}
 		}
 
 		setValidationError(null);
-		setTabDisplayRules(location, tabId, rules);
+		// A new tab's rule without a TabCommand is bound to the tab's Command when it's published.
+		setTabDisplayRules(location, tabId, steps.length > 0 ? [{ tabCommand: tab.commandId ?? "", rules: steps }] : []);
 		closeTabDisplayRules();
 	};
+
+	// A table's tab is already limited to that table: it, or any.
+	const tableOptions = (step: EntityStep) => [
+		...new Set([ribbon.entityLogicalName, step.entityName].filter((n): n is string => Boolean(n))),
+	];
 
 	return (
 		<OverlayDrawer
@@ -213,8 +182,8 @@ export const TabDisplayRulesPanel: React.FC = () => {
 					<MessageBar intent="info">
 						<MessageBarBody>
 							<Text size={200}>
-								Tabs are <strong>hidden by default</strong>. Each Tab Display Rule defines when this
-								tab is shown. The tabCommand must match the tab's Command ID.
+								Tabs are <strong>hidden by default</strong>. A tab&apos;s display rule says where it&apos;s
+								shown, and is bound to the tab&apos;s Command.
 							</Text>
 						</MessageBarBody>
 					</MessageBar>
@@ -236,53 +205,48 @@ export const TabDisplayRulesPanel: React.FC = () => {
 						</div>
 					)}
 
-					{rules.length === 0 && (
+					{readOnly && (
+						<MessageBar intent="warning">
+							<MessageBarBody>
+								<Text size={200}>
+									This tab isn&apos;t added by your customizations, so its display rule can&apos;t be
+									changed here.
+								</Text>
+							</MessageBarBody>
+						</MessageBar>
+					)}
+
+					{steps.length === 0 && (
 						<Text style={{ color: tokens.colorNeutralForeground3, textAlign: "center" }}>
-							No display rules — this tab will be hidden.
+							{isNewTab && !isApplication
+								? "No steps: when you publish, this new tab gets the default rule for its location (this table, where the tab is)."
+								: "No steps: this tab will be hidden."}
 						</Text>
 					)}
 
-					{rules.map((rule, ri) => (
-						<div key={ri} className={styles.ruleRow}>
+					{steps.length > 0 && (
+						<div className={styles.ruleRow}>
 							<div className={styles.ruleHeader}>
 								<Badge appearance="outline" size="small">
-									Rule {ri + 1}
+									Display rule
 								</Badge>
-								<div style={{ flex: 1 }} />
-								<Button
-									appearance="subtle"
-									size="small"
-									icon={<DeleteRegular />}
-									onClick={() => removeRule(ri)}
-									aria-label="Remove rule"
-								/>
+								<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+									The tab shows where any step matches.
+								</Text>
 							</div>
 
-							<Field label="Tab command ID" hint="Must match Tab.commandId">
-								<Input
-									value={rule.tabCommand}
-									onChange={(_, d) => updateRuleTabCommand(ri, d.value)}
-									disabled={tabCommandLocked}
-									size="small"
-									style={{ fontFamily: tokens.fontFamilyMonospace }}
-								/>
-							</Field>
-
-							<Text size={100} weight="semibold" style={{ color: tokens.colorNeutralForeground3 }}>
-								Steps
-							</Text>
-
-							{rule.rules.map((step, si) => (
+							{steps.map((step, si) => (
 								<div key={si} className={styles.stepFields}>
 									<Field label="Type" style={{ minWidth: "140px" }}>
 										<Select
 											size="small"
 											value={step.kind}
+											disabled={readOnly}
 											onChange={(_, d) => {
 												if (d.value === "PageRule") {
-													updateStep(ri, si, createPageStep());
+													updateStep(si, createPageStep());
 												} else {
-													updateStep(ri, si, createEntityStep());
+													updateStep(si, createEntityStep());
 												}
 											}}
 										>
@@ -296,14 +260,16 @@ export const TabDisplayRulesPanel: React.FC = () => {
 											<Field label="Applies to" style={{ minWidth: "130px" }}>
 												<Select
 													size="small"
-													value={step.appliesTo ?? "PrimaryEntity"}
+													value={step.appliesTo ?? ""}
+													disabled={readOnly}
 													onChange={(_, d) =>
-														updateStep(ri, si, {
+														updateStep(si, {
 															...step,
-															appliesTo: d.value as "PrimaryEntity" | "SelectedEntity",
+															appliesTo: (d.value || undefined) as EntityStep["appliesTo"],
 														})
 													}
 												>
+													<option value="">Any</option>
 													<option value="PrimaryEntity">Primary entity</option>
 													<option value="SelectedEntity">Selected entity</option>
 												</Select>
@@ -311,34 +277,49 @@ export const TabDisplayRulesPanel: React.FC = () => {
 											<Field label="Context" style={{ minWidth: "160px" }}>
 												<Select
 													size="small"
-													value={step.context ?? "HomePageGrid"}
+													value={step.context ?? ""}
+													disabled={readOnly}
 													onChange={(_, d) =>
-														updateStep(ri, si, {
+														updateStep(si, {
 															...step,
-															context: d.value as
-																| "Form"
-																| "HomePageGrid"
-																| "SubGridStandard"
-																| "SubGridAssociated",
+															context: (d.value || undefined) as EntityStep["context"],
 														})
 													}
 												>
+													<option value="">Any</option>
 													<option value="Form">Form</option>
 													<option value="HomePageGrid">Home Page Grid</option>
 													<option value="SubGridStandard">SubGrid Standard</option>
 													<option value="SubGridAssociated">SubGrid Associated</option>
 												</Select>
 											</Field>
-											<Field label="Entity (optional)">
-												<Input
-													size="small"
-													value={step.entityName ?? ""}
-													onChange={(_, d) =>
-														updateStep(ri, si, { ...step, entityName: d.value || undefined })
-													}
-													placeholder="any"
-												/>
-											</Field>
+											{isApplication ? (
+												<Field label="Table (optional)">
+													<Input
+														size="small"
+														value={step.entityName ?? ""}
+														disabled={readOnly}
+														onChange={(_, d) => updateStep(si, { ...step, entityName: d.value || undefined })}
+														placeholder="any"
+													/>
+												</Field>
+											) : (
+												<Field label="Table">
+													<Select
+														size="small"
+														value={step.entityName ?? ""}
+														disabled={readOnly}
+														onChange={(_, d) => updateStep(si, { ...step, entityName: d.value || undefined })}
+													>
+														<option value="">Any</option>
+														{tableOptions(step).map((name) => (
+															<option key={name} value={name}>
+																{name}
+															</option>
+														))}
+													</Select>
+												</Field>
+											)}
 										</>
 									)}
 
@@ -347,7 +328,8 @@ export const TabDisplayRulesPanel: React.FC = () => {
 											<Input
 												size="small"
 												value={step.address}
-												onChange={(_, d) => updateStep(ri, si, { ...step, address: d.value })}
+												disabled={readOnly}
+												onChange={(_, d) => updateStep(si, { ...step, address: d.value })}
 												placeholder="https://…"
 											/>
 										</Field>
@@ -357,31 +339,24 @@ export const TabDisplayRulesPanel: React.FC = () => {
 										appearance="subtle"
 										size="small"
 										icon={<DeleteRegular />}
-										onClick={() => removeStep(ri, si)}
+										disabled={readOnly}
+										onClick={() => removeStep(si)}
 										aria-label="Remove step"
 									/>
 								</div>
 							))}
-
-							<Button
-								appearance="subtle"
-								size="small"
-								icon={<AddRegular />}
-								onClick={() => addStep(ri)}
-							>
-								Add step
-							</Button>
-
-							<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-								Info: EntityRule is valid for entity-scoped tabs. Use PageRule only for
-								globally-scoped application ribbon tabs.
-							</Text>
 						</div>
-					))}
+					)}
 
-					<Button appearance="subtle" icon={<AddRegular />} onClick={addRule}>
-						Add display rule
+					<Button appearance="subtle" icon={<AddRegular />} onClick={addStep} disabled={readOnly || !tab}>
+						Add step
 					</Button>
+
+					<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+						{isApplication
+							? "Entity rules and page rules are both valid on application ribbon tabs."
+							: "A table's tabs take entity rules only."}
+					</Text>
 
 					<div
 						style={{
@@ -394,7 +369,7 @@ export const TabDisplayRulesPanel: React.FC = () => {
 						<Button appearance="secondary" onClick={closeTabDisplayRules}>
 							Cancel
 						</Button>
-						<Button appearance="primary" onClick={handleSave}>
+						<Button appearance="primary" onClick={handleSave} disabled={readOnly}>
 							Save rules
 						</Button>
 					</div>
