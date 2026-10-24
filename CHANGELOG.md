@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Fixed
 
+- **Duplicating a built-in group keeps its title.** A group titled by a platform text
+  (`$Resources:`) or another solution's label was copied with the key itself as its title
+  ("Ribbon.HomepageGrid.MainTab.Management (copy)"), and that text was published. Like a
+  copied button, the copy now keeps the title as it is, so it shows the same text as the
+  original. Other groups' copies are still titled "… (copy)".
 - **The pre-publish check catches what the import would reject (#153).** These used to fail
   only at import, after CBS had started writing. Now they're found first, and nothing is
   written:
