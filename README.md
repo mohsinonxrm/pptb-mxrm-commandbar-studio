@@ -32,7 +32,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - If your unmanaged ribbon customizations can't be read when a table loads, a warning says so (labels may show as ids, ownership is unknown), with **Retry**
 
 ### 📋 Properties Pane
-- Identity: label, translations (multi-LCID), tooltip, icon picker, image16/32, kind, sequence, template alias
+- Identity: label, translations (multi-LCID), tooltip, icon picker, image16/32, kind (for new controls; a menu item is a button or a flyout), sequence, template alias
 - Translations edit the labels a button publishes to; another solution's label, shared with every control that uses it, is read-only there
 - Command binding with action summary chips
 - Display rules + Enable rules pill lists with inline add/remove
@@ -75,8 +75,10 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Validation: non-overlapping MaxSize/Scale ranges
 
 ### 🗃️ Tab Display Rules Editor
-- `EntityRule` (all 4 contexts) + `PageRule`
+- One display rule per tab; the tab shows where any of its steps matches
+- `EntityRule` (all 4 contexts, or any) + `PageRule`
 - Info note: entity-scoped tabs can only use EntityRule; global tabs can use both
+- Read-only for a tab your customizations don't add
 
 ### 🌐 Web Resource Browser
 - Virtualized list with type filter, custom-only toggle, search
@@ -97,7 +99,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 
 ### 🔄 Publish Pipeline
 - Read → merge → write: reads the table's existing unmanaged ribbon layer (CustomActions, commands, rules, labels) and merges your changes into it, so customizations made elsewhere (e.g. with Ribbon Workbench) are kept
-- Pre-publish validation — blocking errors stop the import; warnings are logged
+- Pre-publish validation — blocking errors stop the import; warnings are logged. It includes the schema rules the import enforces (empty rules, one-branch OrRules, function names, required values, numbers)
 - Solution ZIP packaging with `behavior=2` (shell-only) root component — does **not** pull in all entity subcomponents
 - Import → publish → re-import → publish, so Unified Interface picks up the change
 - Waits and retries while the environment is busy with another import, publish or ribbon-metadata job

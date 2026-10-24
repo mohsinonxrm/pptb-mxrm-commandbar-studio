@@ -26,6 +26,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     every load for 5 minutes, because Dataverse can take that long to return the new version.
   - **Progress:** the loading spinner names the table and the step it's on.
 
+### 🔧 Fixed
+
+- **The pre-publish check catches what the import would reject (#153).** These used to fail
+  only at import, after CBS had started writing. Now they're found first, and nothing is
+  written:
+  - a rule with no steps;
+  - an OrRule with one alternative;
+  - a JavaScript action or custom rule without a valid function name or library;
+  - a URL action without an address or with an unnamed parameter;
+  - a rule step with a required value left empty;
+  - a number that isn't one.
+
+  The same problems in customizations that are already published are warnings. A cleared
+  number parameter now keeps its last value instead of being written as `NaN`.
+- **Changing a control's Kind writes valid XML (#154).**
+  - A control keeps only the attributes its new element allows. For example, a flyout
+    turned into a button no longer carries `PopulateDynamically`.
+  - A menu item can be a button or a flyout, which is all a menu can hold.
+  - A loaded control's Kind is locked: publishing could never change it.
+- **A tab has one display rule (#155).** Adding a second rule replaced the first, so a new
+  tab could disappear from where it was meant to show.
+  - **Tab rules** now edits a single rule, and the tab shows where any of its steps
+    matches.
+  - **Applies to** and **Context** can be **Any**.
+  - A table's tab picks that table or any, instead of a free-text name.
+  - A tab your customizations don't add is read-only.
+  - A new tab with no steps says it gets the default rule when you publish.
+
 ## [0.7.0-beta.3] - 2026-10-24
 
 The third beta of 0.7.0 (npm `beta`): one fix. The **Show on Unified Interface** filter added a
