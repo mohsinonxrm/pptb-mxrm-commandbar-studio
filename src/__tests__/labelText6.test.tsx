@@ -35,6 +35,7 @@ describe("#6 captions", () => {
 		// Not keys: captions and short ids stay as they are.
 		expect(captionFromKey("Email a Link")).toBeUndefined();
 		expect(captionFromKey("cbs.Button")).toBeUndefined();
+		expect(captionFromKey("RefreshCommandBar.Flows")).toBe("Flows");
 	});
 
 	it("your layer's label, then a managed solution's, then the key", () => {

@@ -21,8 +21,12 @@ const GENERIC_SEGMENTS = new Set([
 	"text",
 ]);
 
-/** A dotted resource / label key such as `Ribbon.HomepageGrid.MainTab.New`, not a caption. */
-const KEY = /^[A-Za-z_$][\w$]*(\.[\w$!{}-]+){2,}$/;
+/**
+ * A dotted resource / label key such as `Ribbon.HomepageGrid.MainTab.New`, not
+ * a caption: three segments or more, or two starting with a capital
+ * (`RefreshCommandBar.Flows`) — not `cbs.Button`, a lower-case prefix and id.
+ */
+const KEY = /^([A-Za-z_$][\w$]*(\.[\w$!{}-]+){2,}|[A-Z][\w$]*\.[\w$!{}-]+)$/;
 
 /**
  * A readable caption from a key Dataverse resolves at runtime and CBS can't
