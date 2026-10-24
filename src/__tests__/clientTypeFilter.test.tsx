@@ -135,6 +135,42 @@ describe("#152 client type filters", () => {
 		expect(rule.steps).toEqual([{ kind: "CommandClientTypeRule", type: "Modern" }]);
 	});
 
+	it("replaces a filter of another type left on the command (an old Refresh rule), so the rules don't hide the button everywhere", () => {
+		const oldRefresh: DisplayRule = {
+			id: "cbs.One.Command.Refresh.DisplayRule",
+			steps: [{ kind: "CommandClientTypeRule", type: "Refresh" }],
+		};
+		load([oldRefresh, SHOW_ONLY_ON_MODERN, HIDE_ON_MODERN]);
+		const cmd = useRibbonStore.getState().commands[0];
+		act(() =>
+			useRibbonStore
+				.getState()
+				.upsertCommand({ ...cmd, displayRules: [oldRefresh.id, "Mscrm.HideOnModern"] }),
+		);
+		render(<AdvancedSection />);
+		act(() => badge("Show on Unified Interface (Modern)")!.click());
+		// The old filter is unbound (not deleted); an inverted rule isn't a filter and stays.
+		expect(commandRules()).toEqual(["Mscrm.HideOnModern", "Mscrm.ShowOnlyOnModern"]);
+		expect(useRibbonStore.getState().displayRules.some((r) => r.id === oldRefresh.id)).toBe(
+			true,
+		);
+		// One undo step.
+		act(() => useRibbonStore.getState().undo());
+		expect(commandRules()).toEqual([oldRefresh.id, "Mscrm.HideOnModern"]);
+	});
+
+	it("doesn't reuse a rule with Default set", () => {
+		load([
+			{
+				id: "isv.ModernDefault",
+				steps: [{ kind: "CommandClientTypeRule", type: "Modern", default: false }],
+			},
+		]);
+		render(<AdvancedSection />);
+		act(() => badge("Show on Unified Interface (Modern)")!.click());
+		expect(commandRules()).not.toContain("isv.ModernDefault");
+	});
+
 	it("the rule editor names Modern as Unified Interface and Refresh as the legacy web client", () => {
 		render(
 			<RuleStepEditor

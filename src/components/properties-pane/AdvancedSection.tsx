@@ -138,14 +138,24 @@ export const AdvancedSection: React.FC = () => {
 			};
 		}
 
+		// The filters are alternatives: display rules are ANDed, so another
+		// client-type filter left on the command (e.g. one the old "Refresh"
+		// filter added, #152) would hide the button everywhere. It's unbound,
+		// not deleted.
+		const isOtherFilter = (id: string) => {
+			const r = displayRules.find((d) => d.id === id);
+			const s = r?.steps.length === 1 ? r.steps[0] : undefined;
+			return s?.kind === "CommandClientTypeRule" && s.type !== type && !s.invertResult && s.default === undefined;
+		};
 		// The new rule and its binding are one undo step (#34).
 		const boundRuleId = ruleId;
+		const kept = selectedCommand.displayRules.filter((id) => !isOtherFilter(id));
 		batch(() => {
 			if (rule) upsertDisplayRule(rule);
-			if (!selectedCommand.displayRules.includes(boundRuleId)) {
+			if (!kept.includes(boundRuleId) || kept.length !== selectedCommand.displayRules.length) {
 				upsertCommand({
 					...selectedCommand,
-					displayRules: [...selectedCommand.displayRules, boundRuleId],
+					displayRules: kept.includes(boundRuleId) ? kept : [...kept, boundRuleId],
 				});
 			}
 		});
