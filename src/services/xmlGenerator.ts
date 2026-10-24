@@ -941,11 +941,95 @@ function resolveLocalizedAttr(
 	return locLabelRef(conventionId);
 }
 
-const IMAGE_ATTRIBUTES = ["ModernImage", "Image16by16", "Image32by32"];
-const DISALLOWED_CONTROL_ATTRIBUTES: Partial<Record<RibbonButton["kind"], string[]>> = {
-	textBox: ["LabelText", ...IMAGE_ATTRIBUTES],
-	comboBox: ["LabelText", ...IMAGE_ATTRIBUTES],
-	checkBox: IMAGE_ATTRIBUTES,
+const TOOLTIP_ATTRIBUTES = [
+	"ToolTipTitle",
+	"ToolTipDescription",
+	"ToolTipHelpKeyWord",
+	"ToolTipShortcutKey",
+	"ToolTipImage32by32",
+	"ToolTipImage32by32Class",
+	"ToolTipImage32by32Left",
+	"ToolTipImage32by32Top",
+];
+const IMAGE_ATTRIBUTES = [
+	"Image16by16",
+	"Image16by16Class",
+	"Image16by16Left",
+	"Image16by16Top",
+	"Image32by32",
+	"Image32by32Class",
+	"Image32by32Left",
+	"Image32by32Top",
+	"ModernImage",
+];
+const COMMON_ATTRIBUTES = ["Id", "Command", "Sequence", "TemplateAlias", ...TOOLTIP_ATTRIBUTES];
+const POPULATE_ATTRIBUTES = ["PopulateDynamically", "PopulateOnlyOnce", "PopulateQueryCommand", "CacheMenuVersions"];
+
+/**
+ * The attributes each editable control allows (RibbonWSS.xsd ButtonType,
+ * FlyoutAnchorType, …). TextBox / ComboBox have no LabelText or images and
+ * CheckBox no images (#41); a control whose Kind changed keeps only what its
+ * new element allows, not the old one's PopulateDynamically,
+ * ModernCommandType, … (#154).
+ */
+const CONTROL_ATTRIBUTES: Record<string, ReadonlySet<string>> = {
+	Button: new Set([
+		...COMMON_ATTRIBUTES,
+		...IMAGE_ATTRIBUTES,
+		"Alt",
+		"CommandType",
+		"CommandValueId",
+		"Description",
+		"LabelCss",
+		"LabelText",
+		"MenuItemId",
+		"ModernCommandType",
+		"Priority",
+	]),
+	FlyoutAnchor: new Set([
+		...COMMON_ATTRIBUTES,
+		...IMAGE_ATTRIBUTES,
+		...POPULATE_ATTRIBUTES,
+		"Alt",
+		"CommandMenuClose",
+		"CommandType",
+		"LabelText",
+		"ModernCommandType",
+		"ToolTipSelectedItemTitle",
+	]),
+	SplitButton: new Set([
+		...COMMON_ATTRIBUTES,
+		...IMAGE_ATTRIBUTES,
+		...POPULATE_ATTRIBUTES,
+		"Alt",
+		"CommandMenuClose",
+		"CommandMenuOpen",
+		"CommandType",
+		"LabelText",
+		"MenuAlt",
+		"MenuCommand",
+		"ToolTipSelectedItemTitle",
+	]),
+	CheckBox: new Set([...COMMON_ATTRIBUTES, "Alt", "LabelText", "MenuItemId", "QueryCommand"]),
+	TextBox: new Set([...COMMON_ATTRIBUTES, "ImeEnabled", "MaxLength", "QueryCommand", "ShowAsLabel", "Width"]),
+	ComboBox: new Set([
+		...COMMON_ATTRIBUTES,
+		...POPULATE_ATTRIBUTES,
+		"AllowFreeForm",
+		"Alt",
+		"AltArrow",
+		"AutoComplete",
+		"AutoCompleteDelay",
+		"CommandMenuClose",
+		"CommandMenuOpen",
+		"CommandPreview",
+		"CommandPreviewRevert",
+		"ImeEnabled",
+		"InitialItem",
+		"QueryCommand",
+		"ToolTipSelectedItemTitle",
+		"Width",
+	]),
 };
 
 /** Attributes RetrieveEntityRibbon adds to controls that are not valid in RibbonDiffXml. */
@@ -1067,9 +1151,9 @@ function generateButtonElement(
 	set("Image16by16", isResourceRef(button.image16) ? button.image16 : undefined);
 	set("Image32by32", isResourceRef(button.image32) ? button.image32 : undefined);
 
-	// RibbonCore.xsd: TextBox / ComboBox have no LabelText or images, CheckBox
-	// has no images — emit only what the control type allows (#41).
-	for (const name of DISALLOWED_CONTROL_ATTRIBUTES[button.kind] ?? []) attrs.delete(name);
+	// Only what the element allows (#41, #154).
+	const allowed = CONTROL_ATTRIBUTES[tag];
+	if (allowed) for (const name of [...attrs.keys()]) if (!allowed.has(name)) attrs.delete(name);
 
 	const attrXml = Array.from(attrs.entries())
 		.map(([k, v]) => `${k}="${escapeXml(v)}"`)
@@ -1457,28 +1541,33 @@ function generateLocLabel(label: LocLabel): string {
  * EntityRule there; PageRule is valid only in the application ribbon
  * (RibbonTypes.xsd TabDisplayRulesEntityType vs TabDisplayRulesGlobalType — #40),
  * so it is left out of entity scopes, and a TabDisplayRule left with no rules
- * (choice minOccurs=1) is not emitted.
+ * (choice minOccurs=1) is not emitted. Entries for the same TabCommand are
+ * written as one TabDisplayRule: the layer keeps one per TabCommand, so a
+ * second one would replace the first (#155).
  */
 export function generateTabDisplayRulesForTab(tab: RibbonTab, isApplication: boolean): string {
-	return tab.tabDisplayRules
-		.map((tdr) => {
-			const steps = tdr.rules
-				.map((step) => {
-					if (step.kind === "EntityRule") {
-						return `<EntityRule${attr("EntityName", step.entityName)}${attr("AppliesTo", step.appliesTo)}${attr("Context", step.context)}/>`;
-					}
-					if (step.kind === "PageRule" && isApplication) {
-						return `<PageRule${attr("Address", step.address)}/>`;
-					}
-					return "";
-				})
-				.filter(Boolean);
-			if (steps.length === 0) return "";
-			return `<TabDisplayRule TabCommand="${escapeXml(tdr.tabCommand)}">
+	const stepsByCommand = new Map<string, string[]>();
+	for (const tdr of tab.tabDisplayRules) {
+		const steps = tdr.rules
+			.map((step) => {
+				if (step.kind === "EntityRule") {
+					return `<EntityRule${attr("EntityName", step.entityName)}${attr("AppliesTo", step.appliesTo)}${attr("Context", step.context)}/>`;
+				}
+				if (step.kind === "PageRule" && isApplication) {
+					return `<PageRule${attr("Address", step.address)}/>`;
+				}
+				return "";
+			})
+			.filter(Boolean);
+		stepsByCommand.set(tdr.tabCommand, [...(stepsByCommand.get(tdr.tabCommand) ?? []), ...steps]);
+	}
+	return [...stepsByCommand]
+		.filter(([, steps]) => steps.length > 0)
+		.map(
+			([tabCommand, steps]) => `<TabDisplayRule TabCommand="${escapeXml(tabCommand)}">
         ${steps.join("\n        ")}
-      </TabDisplayRule>`;
-		})
-		.filter(Boolean)
+      </TabDisplayRule>`,
+		)
 		.join("\n      ");
 }
 

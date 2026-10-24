@@ -515,7 +515,7 @@ export function RibbonCanvas({
 							Tab rules
 							{currentTab && currentTab.tabDisplayRules.length > 0 && (
 								<Badge size="small" appearance="tint" color="brand" style={{ marginLeft: 4 }}>
-									{currentTab.tabDisplayRules.length}
+									{currentTab.tabDisplayRules.reduce((n, r) => n + r.rules.length, 0)}
 								</Badge>
 							)}
 						</Button>

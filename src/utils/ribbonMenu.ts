@@ -13,6 +13,14 @@ import type { RibbonButton, RibbonGroup, RibbonMenu, RibbonMenuSection } from "@
 export const isMenuKind = (kind?: string) => kind === "flyout" || kind === "splitButton";
 
 /**
+ * The kinds a menu item can be (#154): RibbonWSS.xsd's MenuSectionControlsType
+ * allows Button, FlyoutAnchor, ToggleButton, ColorPicker and InsertTable, and
+ * CBS edits the first two. A check box, text box, combo box or split button in
+ * a menu fails the import.
+ */
+export const MENU_ITEM_KINDS: readonly RibbonButton["kind"][] = ["button", "flyout"];
+
+/**
  * Whether a `PopulateDynamically` value turns the menu dynamic (filled at runtime by its
  * PopulateQueryCommand, no static `<Menu>`): an xs:boolean, so "true" or "1" (#101).
  */

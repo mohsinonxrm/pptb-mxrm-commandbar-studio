@@ -108,6 +108,39 @@ interface CrmParameterEditorProps {
 	urlMode?: boolean;
 }
 
+/**
+ * A number parameter's value. Only a valid number is kept: a cleared or
+ * half-typed field ("", "-", "1e") used to be stored as NaN and written as
+ * Value="NaN", which the import rejects (#153). Leaving the field shows the
+ * kept value again.
+ */
+function NumberParamInput({
+	value,
+	integer,
+	onChange,
+}: {
+	value: number;
+	integer: boolean;
+	onChange: (value: number) => void;
+}) {
+	const [text, setText] = React.useState(String(value));
+	React.useEffect(() => setText(Number.isFinite(value) ? String(value) : ""), [value]);
+	return (
+		<Input
+			type="number"
+			value={text}
+			onChange={(_, d) => {
+				setText(d.value);
+				const n = Number(d.value);
+				// Written as String(n): 1e-7 would be exponent form, which xs:decimal doesn't allow.
+				if (d.value.trim() !== "" && Number.isFinite(n) && (!integer || Number.isInteger(n)) && !/e/i.test(String(n)))
+					onChange(n);
+			}}
+			onBlur={() => setText(Number.isFinite(value) ? String(value) : "")}
+		/>
+	);
+}
+
 export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 	params,
 	onChange,
@@ -194,19 +227,13 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 								onChange={(_, d) => setParam(i, { ...param, value: d.checked as boolean })}
 								label="true"
 							/>
+						) : param.kind === "StringParameter" ? (
+							<Input value={String(param.value)} onChange={(_, d) => setParam(i, { ...param, value: d.value })} />
 						) : (
-							<Input
-								type={param.kind === "StringParameter" ? "text" : "number"}
-								value={String(param.value)}
-								onChange={(_, d) => {
-									const val =
-										param.kind === "StringParameter"
-											? d.value
-											: param.kind === "IntParameter"
-												? parseInt(d.value)
-												: parseFloat(d.value);
-									setParam(i, { ...param, value: val } as ActionParameter);
-								}}
+							<NumberParamInput
+								value={param.value as number}
+								integer={param.kind === "IntParameter"}
+								onChange={(value) => setParam(i, { ...param, value } as ActionParameter)}
 							/>
 						)}
 					</div>

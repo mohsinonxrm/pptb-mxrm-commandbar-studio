@@ -295,7 +295,7 @@ export const RuleEditorPanel: React.FC = () => {
 							))}
 					{activeRule.steps.length === 0 && (
 						<Text italic style={{ color: tokens.colorNeutralForeground3 }}>
-							No steps yet — all buttons with this rule will be visible/enabled by default.
+							No steps yet. A rule needs at least one step: add one before you publish, or remove the rule from its commands.
 						</Text>
 					)}
 						</ol>
