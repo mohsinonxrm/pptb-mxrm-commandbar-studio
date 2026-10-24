@@ -6,7 +6,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { ResizableHandle } from "@/components/shared/ResizableHandle";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import { MIN_LEFT, MIN_RIGHT, fitPaneWidths } from "@/utils/paneWidths";
+import { dragPaneWidths, fitPaneWidths } from "@/utils/paneWidths";
 
 // Lazy-loaded panels and modals
 const XmlDrawer = lazy(() => import("@/components/panels/XmlDrawer"));
@@ -132,19 +132,17 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 		wasOverlayOpenRef.current = anyOverlayOpen;
 	}, [anyOverlayOpen]);
 
-	const resizeLeft = useCallback(
-		(delta: number) => {
-			setLeftPaneWidth(Math.max(MIN_LEFT, Math.min(500, fitted.left + delta)));
+	const dockedRight = rightPaneMode === "docked" ? rightPaneWidth : 0;
+	const resizePane = useCallback(
+		(side: "left" | "right", delta: number) => {
+			const next = dragPaneWidths(windowWidth, leftPaneWidth, dockedRight, side, delta);
+			if (next.left !== undefined) setLeftPaneWidth(next.left);
+			if (next.right !== undefined) setRightPaneWidth(next.right);
 		},
-		[fitted.left, setLeftPaneWidth],
+		[windowWidth, leftPaneWidth, dockedRight, setLeftPaneWidth, setRightPaneWidth],
 	);
-
-	const resizeRight = useCallback(
-		(delta: number) => {
-			setRightPaneWidth(Math.max(MIN_RIGHT, Math.min(600, fitted.right - delta)));
-		},
-		[fitted.right, setRightPaneWidth],
-	);
+	const resizeLeft = useCallback((delta: number) => resizePane("left", delta), [resizePane]);
+	const resizeRight = useCallback((delta: number) => resizePane("right", delta), [resizePane]);
 
 	const resizeBottom = useCallback(
 		(delta: number) => {

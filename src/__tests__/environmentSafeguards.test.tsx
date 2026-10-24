@@ -342,6 +342,12 @@ describe("the publish dialog names its target and guards Production (#121)", () 
 		expect(useRuntimeLogStore.getState().entries.map((e) => e.message)).toContain(
 			"Publish comment: Adds the New one button",
 		);
+		// Closing clears it: it isn't logged again with the next publish.
+		const cancel = [...document.querySelectorAll("button")].find((b) => /^(Cancel|Close)$/.test(b.textContent?.trim() ?? ""))!;
+		act(() => cancel.click());
+		act(() => useUIStore.setState({ bulkPublishOpen: true }));
+		await flush();
+		expect(document.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
 	});
 });
 

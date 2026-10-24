@@ -8,7 +8,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { TopBar } from "@/components/shell/TopBar";
-import { fitPaneWidths } from "@/utils/paneWidths";
+import { dragPaneWidths, fitPaneWidths } from "@/utils/paneWidths";
 
 vi.setConfig({ testTimeout: 30_000 });
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -73,5 +73,33 @@ describe("#22 side panes in a narrow window", () => {
 	it("never below their minimums; a hidden Properties pane takes nothing", () => {
 		expect(fitPaneWidths(400, 260, 340)).toEqual({ left: 160, right: 200 });
 		expect(fitPaneWidths(400, 260, 0)).toEqual({ left: 240, right: 0 });
+	});
+});
+
+describe("#22 review: dragging a handle while the panes are fitted", () => {
+	const drag = (side: "left" | "right", step: number, moves: number) => {
+		let stored = { left: 260, right: 340 };
+		const shown: number[] = [];
+		for (let i = 0; i < moves; i++) {
+			const next = dragPaneWidths(800, stored.left, stored.right, side, step);
+			stored = { left: next.left ?? stored.left, right: next.right ?? stored.right };
+			const fit = fitPaneWidths(800, stored.left, stored.right);
+			shown.push(side === "left" ? fit.left : fit.right);
+		}
+		return shown;
+	};
+
+	it("widens the pane being dragged wider, on every move", () => {
+		const left = drag("left", 5, 10);
+		for (let i = 1; i < left.length; i++) expect(left[i]).toBeGreaterThan(left[i - 1]);
+		expect(left[0]).toBeGreaterThan(fitPaneWidths(800, 260, 340).left);
+		// The right handle widens Properties when dragged left.
+		const right = drag("right", -5, 10);
+		for (let i = 1; i < right.length; i++) expect(right[i]).toBeGreaterThan(right[i - 1]);
+	});
+
+	it("leaves the stored widths alone when nothing is fitted, and the hidden pane's width too", () => {
+		expect(dragPaneWidths(1600, 260, 340, "left", 10)).toEqual({ left: 270 });
+		expect(dragPaneWidths(400, 260, 0, "left", 10)).toEqual({ left: 250 });
 	});
 });

@@ -65,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Help** now shows the shortcuts and copies the documentation link.
 - **Narrow panes (#22).**
   - When the window is narrow, the Tables and Properties panes give way so the canvas
-    keeps at least 40% of the width. In an 800 px pane it used to show one group at a
+    keeps at least 40% of the width, as far as their minimum widths allow. In an 800 px pane it used to show one group at a
     time.
   - The top bar's solution name and search box shorten instead of overlapping.
 - **Command editor (#22):** removing an action no longer hands its card's state to the next

@@ -138,7 +138,7 @@ export const BulkPublishModal: React.FC = () => {
 	// it needs its own confirmation, cleared whenever the choice changes.
 	const [publishAllConfirmed, setPublishAllConfirmed] = useState(false);
 	const publishAllBlocked = publishStrategy === "allAsync" && !publishAllConfirmed;
-	const connectionName = useSessionStore((s) => s.connectionName || s.connectionUrl);
+	const connectionName = useSessionStore((s) => s.connectionName || s.connectionUrl || "this environment");
 	// The target block's verdict (#121): false while the connection is read, and on Production
 	// until the confirmation word is typed; with the environment type it was given for.
 	const [target, setTarget] = useState<{ confirmed: boolean; environment?: string }>({
@@ -522,6 +522,8 @@ export const BulkPublishModal: React.FC = () => {
 		setTarget({ confirmed: false });
 		setPublishStrategy("targeted");
 		setPublishAllConfirmed(false);
+		// Logged with the publish it was written for, not again with the next one.
+		setPublishComment("");
 		// A new target block next time: the dialog's content can stay mounted after
 		// it closes (a closing animation that never ends in a background window),
 		// and the old block would neither report again nor forget a typed word.
