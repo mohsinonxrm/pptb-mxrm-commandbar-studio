@@ -26,6 +26,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     every load for 5 minutes, because Dataverse can take that long to return the new version.
   - **Progress:** the loading spinner names the table and the step it's on.
 
+### ✨ Added
+
+- **Built-in buttons show captions and icons (#6).** The canvas used to show keys such as
+  `Ribbon.HomepageGrid.MainTab.New` and a placeholder icon for most out-of-the-box buttons.
+  - **Captions:** the texts managed solutions define (for example "Focused view" or
+    "Learning Path") are read with each table, in about 0.2 s.
+  - **Platform keys:** Dataverse resolves these itself, and CBS can't read them yet (see
+    below). They show their last meaningful segment instead: `…MainTab.New` → "New",
+    `…View.TabName` → "View".
+  - **Icons:** about 80 out-of-the-box `ModernImage` names (New, Export to Excel, Flows,
+    Email a Link, Assign, …) get Fluent icons. A button whose icon is a `$webresource:`
+    image shows that image.
+  - **Display only:** what publishes is the label and icon as loaded.
+
+  The real texts of platform keys only come from `GetClientMetadata`, a 162 MB response,
+  which is more than Power Platform ToolBox passes to a tool (128 MB).
+
 ### 🔧 Fixed
 
 - **The pre-publish check catches what the import would reject (#153).** These used to fail

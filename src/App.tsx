@@ -26,7 +26,8 @@ import {
 } from "@/services/dataverse/solutionService";
 import { fetchEntitiesByMetadataIds } from "@/services/dataverse/entityService";
 import { fetchRibbonWorkspace, invalidateApplicationRibbonCache } from "@/services/dataverse/ribbonService";
-import { fetchRibbonProvenance } from "@/services/dataverse/ribbonProvenanceService";
+import { fetchManagedLocLabels, fetchRibbonProvenance } from "@/services/dataverse/ribbonProvenanceService";
+import { useLabelTextStore } from "@/store/labelTextStore";
 import { applyProvenanceToRibbons, type ButtonProvenance } from "@/utils/ribbonProvenance";
 import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import type { ConflictEntry } from "@/types/ribbon";
@@ -245,9 +246,12 @@ export function App() {
 			fetchRibbonProvenance(activeEntity.logicalName).catch(
 				() => new Map<string, ButtonProvenance>(),
 			),
+			// The managed solutions' label texts, for the canvas only (#6).
+			fetchManagedLocLabels(activeEntity.logicalName).catch(() => []),
 		])
-			.then(([workspace, provenance]) => {
+			.then(([workspace, provenance, managedLabels]) => {
 				if (cancelled) return;
+				useLabelTextStore.getState().setManaged(managedLabels);
 				const own = new Set([
 					...(workspace.layers?.entity?.controlIds ?? []),
 					...(workspace.layers?.application?.controlIds ?? []),

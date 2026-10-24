@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from "react";
+import { useDisplayText } from "@/hooks/useDisplayText";
 import {
 	makeStyles,
 	tokens,
@@ -20,8 +21,7 @@ import {
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
-import FluentIcon from "@/components/shared/FluentIcon";
-import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import { groupControls, isDynamicMenuValue, isMenuKind, menuItemsOf, rootControlOf } from "@/utils/ribbonMenu";
 import { canDeleteControl } from "@/utils/ribbonProvenance";
 import { newButtonIds } from "@/utils/idGenerator";
@@ -113,6 +113,7 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 	const baseline = useRibbonStore((s) => s.baseline);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	const addMenuSection = useRibbonStore((s) => s.addMenuSection);
 	const setMenuSectionProp = useRibbonStore((s) => s.setMenuSectionProp);
 	const deleteMenuSection = useRibbonStore((s) => s.deleteMenuSection);
@@ -132,7 +133,7 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 
 	if (!group || !root || (!root.menu && !isMenuKind(root.kind))) return null;
 	const groupId = group.id;
-	const label = (b: RibbonButton) => resolveDisplayLabel(b.label, locLabels);
+	const label = (b: RibbonButton) => captionOf(b.label, locLabels);
 	const dynamicQuery = (b: RibbonButton) =>
 		isDynamicMenuValue(b.source?.attributes["PopulateDynamically"])
 			? (b.source?.attributes["PopulateQueryCommand"] ?? "a command")
@@ -210,7 +211,7 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 						aria-label={`Menu item ${label(item)}${item.hidden ? " — hidden" : ""}${overrideNote(modern, modernAppNames)}`}
 						onClick={() => selectButtonInContext(location, tab.id, groupId, item.id)}
 					>
-						<FluentIcon name={item.icon || "apps_add_in"} size={16} />
+						<RibbonButtonIcon button={item} size={16} />
 						<Text size={200}>{label(item)}</Text>
 						{item.menu && <ChevronDownRegular fontSize={12} aria-hidden />}
 						<ClassicModernOverrideBadge overrides={modern} appNames={modernAppNames} />
@@ -277,6 +278,7 @@ function MenuSectionView({
 }: MenuSectionViewProps) {
 	const styles = useStyles();
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	const items = [...section.controls].sort((a, b) => a.sequence - b.sequence);
 	return (
 		<div className={styles.section}>
@@ -311,7 +313,7 @@ function MenuSectionView({
 					</>
 				) : (
 					// A loaded section's Title can be a `$LocLabels:` / `$Resources:` token (#75).
-					<Caption1>{resolveDisplayLabel(section.title, locLabels) || section.id}</Caption1>
+					<Caption1>{captionOf(section.title, locLabels) || section.id}</Caption1>
 				)}
 			</div>
 			{items.map((item) => renderItem(item))}

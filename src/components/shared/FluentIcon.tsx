@@ -178,6 +178,41 @@ import {
 	CodeBlockFilled,
 	ArrowCounterclockwiseRegular,
 	ArrowCounterclockwiseFilled,
+	FlowRegular,
+	MailLinkRegular,
+	DocumentTableRegular,
+	PersonArrowRightRegular,
+	CheckmarkCircleRegular,
+	DismissCircleRegular,
+	ProhibitedRegular,
+	PlugConnectedRegular,
+	TextBulletListAddRegular,
+	TextBulletListRegular,
+	DocumentTextRegular,
+	AppsRegular,
+	FormRegular,
+	PeopleTeamRegular,
+	ArrowSwapRegular,
+	OrganizationRegular,
+	SaveArrowRightRegular,
+	ArrowRoutingRegular,
+	MegaphoneRegular,
+	DocumentPdfRegular,
+	MergeRegular,
+	CommentRegular,
+	EmojiSadRegular,
+	BookOpenRegular,
+	BookRegular,
+	HistoryRegular,
+	ContactCardRegular,
+	FlashRegular,
+	PinRegular,
+	SelectAllOnRegular,
+	PeopleAddRegular,
+	HeartPulseRegular,
+	WrenchRegular,
+	TaskListLtrRegular,
+	CalendarLtrRegular,
 } from "@fluentui/react-icons";
 import type { FluentIconsProps } from "@fluentui/react-icons";
 
@@ -205,6 +240,91 @@ function normalizeName(name: string): string {
 		.replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
 		.toLowerCase();
 }
+
+/**
+ * Microsoft's out-of-the-box ModernImage names (New, ExportToExcel, Flows, …)
+ * that aren't Fluent names: the canvas showed a placeholder for most built-in
+ * buttons (#6). Display only; the loaded ModernImage is what publishes.
+ */
+const MODERN_IMAGE_ICONS: Record<string, IconComponent> = {
+	new: AddRegular,
+	plus: AddRegular,
+	addexisting: AddRegular,
+	exporttoexcel: DocumentTableRegular,
+	tablegroup: TableSimpleRegular,
+	flows: FlowRegular,
+	process: FlowRegular,
+	emaillink: MailLinkRegular,
+	sendbyemail: SendRegular,
+	failedmail: MailRegular,
+	letter: MailRegular,
+	remove: DismissRegular,
+	close: DismissRegular,
+	abandon: DismissRegular,
+	cancel: DismissCircleRegular,
+	cleardefault: DismissCircleRegular,
+	assign: PersonArrowRightRegular,
+	activate: CheckmarkCircleRegular,
+	saveascomplete: CheckmarkCircleRegular,
+	finishstage: CheckmarkCircleRegular,
+	setdefault: CheckmarkCircleRegular,
+	deactivate: ProhibitedRegular,
+	reactivate: ArrowClockwiseRegular,
+	connection: PlugConnectedRegular,
+	connect: PlugConnectedRegular,
+	connectiontoother: PlugConnectedRegular,
+	connectiontome: PlugConnectedRegular,
+	addtoqueue: TextBulletListAddRegular,
+	bulletlistadd: TextBulletListAddRegular,
+	queueitemdetail: TextBulletListRegular,
+	ratingempty: StarRegular,
+	ratingfull: StarRegular,
+	ratingfullgrey: StarRegular,
+	report: DataBarVerticalRegular,
+	openinpowerbi: DataBarVerticalRegular,
+	wordtemplates: DocumentTextRegular,
+	documenttemplates: DocumentTextRegular,
+	applytemplate: DocumentTextRegular,
+	dynamics365: AppsRegular,
+	formdesign: FormRegular,
+	msteamsicon: PeopleTeamRegular,
+	convert: ArrowSwapRegular,
+	switchprocess: ArrowSwapRegular,
+	viewhierarchy: OrganizationRegular,
+	linkarticle: LinkRegular,
+	saveandclose: SaveArrowRightRegular,
+	saveandedit: SaveRegular,
+	runroutingrule: ArrowRoutingRegular,
+	saveandrunroutingrule: ArrowRoutingRegular,
+	createquickcampaign: MegaphoneRegular,
+	pdficonfile: DocumentPdfRegular,
+	mergerecords: MergeRegular,
+	yammericon: CommentRegular,
+	post: CommentRegular,
+	opportunity: MoneyRegular,
+	opportunitieslist: MoneyRegular,
+	case: BriefcaseRegular,
+	deletebulk: DeleteRegular,
+	foldertrack: FolderRegular,
+	sadsmiley: EmojiSadRegular,
+	kbrecords: BookOpenRegular,
+	insertkbarticle: BookOpenRegular,
+	salesliterature: BookRegular,
+	follow: EyeRegular,
+	history: HistoryRegular,
+	contactcard: ContactCardRegular,
+	flash: FlashRegular,
+	pin: PinRegular,
+	multiselect: SelectAllOnRegular,
+	browsecards: GridRegular,
+	addmembers: PeopleAddRegular,
+	distributionlist: PeopleRegular,
+	health: HeartPulseRegular,
+	tools: WrenchRegular,
+	relationshipassistant: LightbulbRegular,
+	task: TaskListLtrRegular,
+	appointment: CalendarLtrRegular,
+};
 
 const ICON_COMPONENTS: Record<string, { regular: IconComponent; filled: IconComponent }> = {
 	add: { regular: AddRegular, filled: AddFilled },
@@ -320,9 +440,9 @@ export const FluentIcon: React.FC<FluentIconProps> = ({
 	const normalized = normalizeName(name).replace(/_/g, "");
 	const resolved = ICON_COMPONENTS[normalized];
 	const IconComponent =
-		variant === "filled"
-			? (resolved?.filled ?? resolved?.regular ?? AppsAddInRegular)
-			: (resolved?.regular ?? AppsAddInRegular);
+		(variant === "filled" ? (resolved?.filled ?? resolved?.regular) : resolved?.regular) ??
+		MODERN_IMAGE_ICONS[normalized] ??
+		AppsAddInRegular;
 
 	return (
 		<IconComponent
@@ -379,4 +499,13 @@ export async function fluentIconToSvg(
 	// nothing inside a web-resource file.
 	markup = markup.replace(/\s(?:class|aria-hidden|focusable|data-fui-icon|font-size)="[^"]*"/g, "");
 	return markup;
+}
+
+/** Whether the canvas has an icon for `name` (a Fluent or out-of-the-box ModernImage name), not the placeholder (#6). */
+// Shares the lookup tables with the component above, like fluentIconToSvg.
+// eslint-disable-next-line react-refresh/only-export-components
+export function hasFluentIcon(name: string | undefined): boolean {
+	if (!name) return false;
+	const normalized = normalizeName(name).replace(/_/g, "");
+	return !!ICON_COMPONENTS[normalized] || !!MODERN_IMAGE_ICONS[normalized];
 }

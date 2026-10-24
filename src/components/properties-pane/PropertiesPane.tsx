@@ -1,4 +1,5 @@
 import { makeStyles, tokens, Text, Subtitle2, Divider, Caption1 } from "@fluentui/react-components";
+import { useDisplayText } from "@/hooks/useDisplayText";
 import { CursorHoverRegular } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -14,7 +15,6 @@ import { OrphanedCustomizationsSection } from "./OrphanedCustomizationsSection";
 import { ReadOnlyControlSection } from "./ReadOnlyControlSection";
 import { isReadOnlyControlKind } from "@/utils/controlKinds";
 import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
-import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { ModernCommandProperties, ModernOverrideSection } from "./ModernCommandProperties";
 import { useClassicOverrides, useSelectedModernCommand } from "@/hooks/useModernCommands";
 
@@ -63,6 +63,7 @@ export function PropertiesPane() {
 	// A menu item (#27): say whose menu it is in.
 	const place = group && button ? menuItemPlace(group, button.id) : undefined;
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	// Modern commands (#32) are shown read-only and live outside the ribbon store.
 	const modern = useSelectedModernCommand();
 	const modernOverrides = useClassicOverrides(location, button?.id);
@@ -91,7 +92,7 @@ export function PropertiesPane() {
 					{place && (
 						<div className={styles.section}>
 							<Caption1>
-								Menu item of “{resolveDisplayLabel(place.parent.label, locLabels)}”
+								Menu item of “{captionOf(place.parent.label, locLabels)}”
 								{place.section.title ? ` — section “${place.section.title}”` : ""}
 							</Caption1>
 						</div>

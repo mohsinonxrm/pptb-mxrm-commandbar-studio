@@ -11,6 +11,7 @@ import {
 	type TableColumnDefinition,
 	type TableColumnSizingOptions,
 } from "@fluentui/react-components";
+import { useDisplayText } from "@/hooks/useDisplayText";
 import {
 	DataGrid,
 	DataGridHeader,
@@ -20,9 +21,8 @@ import {
 import { EyeOffRegular, SearchRegular } from "@fluentui/react-icons";
 import { useState, useMemo } from "react";
 import { useSelectionStore } from "@/store/selectionStore";
-import FluentIcon from "@/components/shared/FluentIcon";
+import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import { useRibbonStore } from "@/store/ribbonStore";
-import { resolveDisplayLabel } from "@/utils/displayLabel";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
 import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
 import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
@@ -85,6 +85,7 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
 
 	const isGlobalOobReadOnly = (button: RibbonButton) =>
@@ -99,9 +100,9 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 	const allRows: ButtonRow[] = tab.groups.flatMap((g) =>
 		g.buttons.map((b) => ({
 			button: b,
-			label: resolveDisplayLabel(b.label, locLabels),
+			label: captionOf(b.label, locLabels),
 			groupId: g.id,
-			groupLabel: resolveDisplayLabel(g.label, locLabels, lang),
+			groupLabel: captionOf(g.label, locLabels, lang),
 		})),
 	);
 
@@ -150,7 +151,7 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 			),
 			renderCell: ({ button }) => (
 				<div className={styles.iconCell}>
-					<FluentIcon name={button.icon || "apps_add_in"} size={16} />
+					<RibbonButtonIcon button={button} size={16} />
 				</div>
 			),
 		}),

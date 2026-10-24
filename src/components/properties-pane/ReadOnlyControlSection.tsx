@@ -1,9 +1,9 @@
 import { useState } from "react";
+import { useDisplayText } from "@/hooks/useDisplayText";
 import { Button, Caption1, makeStyles, Subtitle2, Text, tokens } from "@fluentui/react-components";
 import { EyeOffRegular, EyeRegular, LockClosedRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
-import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { CONTROL_KIND_LABELS, CONTROL_TAG_BY_KIND } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
 
@@ -60,6 +60,7 @@ interface Props {
 export function ReadOnlyControlSection({ button, location, tabId, groupId }: Props) {
 	const styles = useStyles();
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
 	const hideOobButton = useRibbonStore((s) => s.hideOobButton);
 	const hideWithDisplayRules = useRibbonStore((s) => s.hideWithDisplayRules);
@@ -86,7 +87,7 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 				Command Bar Studio shows this &lt;{CONTROL_TAG_BY_KIND[button.kind]}&gt; but doesn&apos;t edit it. You can hide it,
 				and move or delete it when your customizations add it; its XML is published as it was loaded.
 			</Caption1>
-			{field("Label", resolveDisplayLabel(button.label, locLabels))}
+			{field("Label", captionOf(button.label, locLabels))}
 			{field("Id", button.id)}
 			{field("Command", button.commandId || undefined)}
 			<div>

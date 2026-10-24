@@ -440,3 +440,27 @@ export async function publishWebResource(
 		parameters: { ParameterXml: parameterXml },
 	});
 }
+
+/** Image types of `webresourcetype`: PNG, JPG, GIF, ICO, SVG. */
+const IMAGE_MIME: Record<number, string> = {
+	5: "image/png",
+	6: "image/jpeg",
+	7: "image/gif",
+	10: "image/x-icon",
+	11: "image/svg+xml",
+};
+
+/**
+ * A `$webresource:` image as a data URI, for the canvas (#6): content and type
+ * in one query by name. Null when there's no such image web resource.
+ */
+export async function loadWebResourceImage(name: string): Promise<string | null> {
+	const api = getHostDataverseApi();
+	const result = await api.queryData(
+		`webresourceset?$select=content,webresourcetype&$filter=name eq '${name.replace(/'/g, "''")}'&$top=1`,
+	);
+	const row = result.value?.[0] as Record<string, unknown> | undefined;
+	const mime = IMAGE_MIME[Number(row?.["webresourcetype"])];
+	const content = row?.["content"];
+	return mime && typeof content === "string" && content ? `data:${mime};base64,${content}` : null;
+}

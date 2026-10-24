@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useDisplayText } from "@/hooks/useDisplayText";
 import {
 	tokens,
 	Text,
@@ -46,7 +47,6 @@ import {
 import { ownContainerIds, scopeLayer, useRibbonStore } from "@/store/ribbonStore";
 import { CustomiseMenuItems } from "@/components/ribbon-canvas/CustomiseMenuItems";
 import { useSelectionStore } from "@/store/selectionStore";
-import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { moveTargets } from "@/utils/moveTargets";
 import {
 	canDeleteControl,
@@ -59,7 +59,7 @@ import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import { RenameGroupDialog } from "@/components/modals/RenameGroupDialog";
 import { ChangeGroupTemplateDialog } from "@/components/modals/ChangeGroupTemplateDialog";
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
-import FluentIcon from "@/components/shared/FluentIcon";
+import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonGroup, RibbonTab, RibbonLocation } from "@/types/ribbon";
 
@@ -204,8 +204,8 @@ interface GroupMenuState {
 
 function DragGhostTile({ button }: { button: RibbonButton }) {
 	const locLabels = useRibbonStore((s) => s.locLabels);
-	const displayLabel = resolveDisplayLabel(button.label, locLabels);
-	const iconName = button.icon || "apps_add_in";
+	const captionOf = useDisplayText();
+	const displayLabel = captionOf(button.label, locLabels);
 	return (
 		<div
 			style={{
@@ -227,7 +227,7 @@ function DragGhostTile({ button }: { button: RibbonButton }) {
 				color: button.custom ? tokens.colorBrandForeground1 : tokens.colorNeutralForeground1,
 			}}
 		>
-			<FluentIcon name={iconName} size={24} />
+			<RibbonButtonIcon button={button} size={24} />
 			<span
 				style={{
 					fontSize: tokens.fontSizeBase100,
@@ -320,11 +320,12 @@ function DroppableSlot({
 
 export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	// Group titles in the organisation's base language (a rename replaces it — #66 review m3).
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
 	// Accessible names and tooltips use the same resolved text as the canvas (#75);
 	// a group without a title reads as its id.
-	const groupText = (group: RibbonGroup) => resolveDisplayLabel(group.label, locLabels, lang) || group.id;
+	const groupText = (group: RibbonGroup) => captionOf(group.label, locLabels, lang) || group.id;
 	const baseline = useRibbonStore((s) => s.baseline);
 	const customTemplates = useRibbonStore((s) => s.templates);
 	const moveButton = useRibbonStore((s) => s.moveButton);
@@ -725,7 +726,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 								Duplicate
 							</MenuItem>
 							{/* Move to group sub-items */}
-							{moveTargets(tab, btnMenu.groupId, btnMenu.button.id, locLabels, lang).map((t) => (
+							{moveTargets(tab, btnMenu.groupId, btnMenu.button.id, locLabels, lang, captionOf).map((t) => (
 								<MenuItem
 									key={t.groupId}
 									icon={<ArrowMoveRegular />}
@@ -904,7 +905,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 			{hideWarning && (
 				<HideOobWarningModal
 					open
-					buttonLabel={resolveDisplayLabel(hideWarning.button.label, locLabels)}
+					buttonLabel={captionOf(hideWarning.button.label, locLabels)}
 					onConfirmHide={() => {
 						hideOobButton(location, tab.id, hideWarning.groupId, hideWarning.button.id);
 						setHideWarning(null);
@@ -948,10 +949,11 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
 	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	const isSelected = selectedButtonId === button.id;
 	const isGlobalOobReadOnly =
 		location === "Application" && tabId === "Mscrm.GlobalTab" && button.oob && !button.custom;
-	const displayLabel = resolveDisplayLabel(button.label, locLabels);
+	const displayLabel = captionOf(button.label, locLabels);
 	// A kind CBS shows read-only (#42) says what it is: "Toggle button", "Spinner", …
 	const readOnlyKind = isReadOnlyControlKind(button.kind) ? CONTROL_KIND_LABELS[button.kind] : undefined;
 	const kindNote = readOnlyKind ? ` (${readOnlyKind}, read-only)` : "";
@@ -992,7 +994,6 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 		transition: "opacity 0.15s, border-color 0.1s, background-color 0.1s",
 	};
 
-	const iconName = button.icon || "apps_add_in";
 
 	const handleArrowNavigation = (event: React.KeyboardEvent<HTMLButtonElement>) => {
 		if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
@@ -1055,8 +1056,8 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 				{...listeners}
 			>
 				{/* Icon */}
-				<FluentIcon
-					name={iconName}
+				<RibbonButtonIcon
+					button={button}
 					size={24}
 					style={{ filter: button.custom ? "none" : "grayscale(40%) opacity(0.85)" }}
 				/>
