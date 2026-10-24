@@ -620,7 +620,7 @@ describe("#68 review 1 — tab and group titles and attributes publish as import
 		expect(doc.querySelector('TabDisplayRule[TabCommand="cbs.Tab.Command"]')).not.toBeNull();
 	});
 
-	it("a renamed imported tab keeps its label id and other languages; a duplicated group gets its own title", async () => {
+	it("a renamed imported tab keeps its label id and other languages; a duplicated group keeps its platform title", async () => {
 		importIntoStore(CAPTIONED);
 		useRibbonStore.getState().renameTab("HomepageGrid", "cbs.Tab", "Renamed");
 		useRibbonStore.getState().duplicateGroup("HomepageGrid", MAIN, "cbs.Grp");

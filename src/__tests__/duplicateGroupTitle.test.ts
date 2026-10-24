@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import { generateRibbonDiffXml } from "@/services/xmlGenerator";
 import { planScope } from "@/services/publishPlan";
 import { useRibbonStore } from "@/store/ribbonStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type { LocLabel, RibbonDefinition, RibbonGroup, RibbonLocation } from "@/types/ribbon";
 
 const MAIN = "Mscrm.HomepageGrid.contact.MainTab";
@@ -90,6 +91,38 @@ describe("duplicating a group keeps a title it can't add (copy) to", () => {
 		expect(xml).not.toContain("Ribbon.HomepageGrid.MainTab.Management (copy)");
 		expect(copy.source?.titleToken).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
 		expect(plan.unsupported).toEqual([]);
+		// Said in the Console: once published, the copy's title can't be renamed.
+		expect(useRuntimeLogStore.getState().entries.at(-1)?.message).toMatch(
+			/Rename the copy before you publish/,
+		);
+	});
+
+	it("renamed before publishing, the copy publishes a label of its own", () => {
+		const g = group(`${MAIN}.Actions`, "$Resources:Ribbon.HomepageGrid.MainTab.Actions");
+		const { copy } = duplicate(g);
+		useRibbonStore.getState().renameGroup("HomepageGrid", MAIN, copy.id, "More actions");
+		const state = useRibbonStore.getState();
+		const xml = generateRibbonDiffXml({
+			current: state.ribbons.HomepageGrid,
+			baseline: {
+				location: "HomepageGrid",
+				entityLogicalName: "contact",
+				tabs: [{ id: MAIN, label: "Main", sequence: 10, tabDisplayRules: [], groups: [g] }],
+			},
+			commands: [],
+			enableRules: [],
+			displayRules: [],
+			locLabels: state.locLabels,
+			entityLogicalName: "contact",
+			location: "HomepageGrid",
+		});
+		const doc = new DOMParser().parseFromString(xml, "application/xml");
+		expect(doc.querySelector(`Group[Id="${copy.id}"]`)?.getAttribute("Title")).toBe(
+			`$LocLabels:${copy.id}.Title`,
+		);
+		expect(
+			doc.querySelector(`LocLabel[Id="${copy.id}.Title"] Title`)?.getAttribute("description"),
+		).toBe("More actions");
 	});
 
 	it("another solution's label is kept as the token", () => {

@@ -1389,6 +1389,8 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		duplicateGroup(location, tabId, groupId) {
+			// The copy's id and title, when it kept a title it can't rename once published.
+			let keptTitle: { copyId: string; title: string } | null = null;
 			set((state) =>
 				commitMutation(
 					state,
@@ -1430,6 +1432,7 @@ export const useRibbonStore = create<RibbonStore>()(
 						};
 						const idx = tab.groups.findIndex((g) => g.id === groupId);
 						tab.groups.splice(idx + 1, 0, copy);
+						if (keepTitle) keptTitle = { copyId: copy.id, title };
 					},
 					{
 						ts: new Date().toISOString(),
@@ -1443,6 +1446,17 @@ export const useRibbonStore = create<RibbonStore>()(
 					},
 				),
 			);
+			if (keptTitle) {
+				const { copyId, title } = keptTitle;
+				useRuntimeLogStore
+					.getState()
+					.logInfo(
+						"ribbon",
+						`Duplicate group ${groupId}: the copy ${copyId} keeps its title ${title}, which comes from ` +
+							`${isPlatformText(title) ? "the platform" : "another solution"} and can't take " (copy)". ` +
+							`Rename the copy before you publish if it should read differently: once published, only titles of your own can be renamed.`,
+					);
+			}
 		},
 
 		setGroupTemplate(location, tabId, groupId, template) {

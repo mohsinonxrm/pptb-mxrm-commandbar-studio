@@ -261,8 +261,9 @@ describe("duplicating a group (#33)", () => {
 
 	it("a platform `$Resources:` title is kept as the token, never written as text", () => {
 		// It can't take " (copy)": the copy shows the same text, like a copied button (#86).
-		const { title, text } = duplicate(MGMT);
+		const { copy, title } = duplicate(MGMT);
 		expect(title).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
-		expect(text).toBeUndefined();
+		// No label of the copy's own is written.
+		expect(useRibbonStore.getState().locLabels.some((l) => l.id === `${copy.id}.Title`)).toBe(false);
 	});
 });
