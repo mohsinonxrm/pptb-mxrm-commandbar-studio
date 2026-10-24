@@ -5,7 +5,6 @@ import {
 	Button,
 	Text,
 	Badge,
-	Select,
 	Combobox,
 	Option,
 	Popover,
@@ -20,9 +19,7 @@ import {
 	ArrowUndoRegular,
 	ArrowRedoRegular,
 	ArrowSwapRegular,
-	SettingsRegular,
 	QuestionCircleRegular,
-	SaveRegular,
 	CloudArrowUpRegular,
 	SearchRegular,
 	DatabaseRegular,
@@ -33,6 +30,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useDraftStore } from "@/store/draftStore";
 import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
+import { copyText } from "@/utils/hostIO";
 
 const useStyles = makeStyles({
 	root: {
@@ -72,6 +70,9 @@ const useStyles = makeStyles({
 	paletteButton: {
 		height: "28px",
 		minWidth: "260px",
+		"@media (max-width: 1100px)": { minWidth: "120px" },
+		overflow: "hidden",
+		whiteSpace: "nowrap",
 		display: "flex",
 		alignItems: "center",
 		gap: tokens.spacingHorizontalS,
@@ -94,6 +95,23 @@ const useStyles = makeStyles({
 		fontSize: tokens.fontSizeBase100,
 		backgroundColor: tokens.colorNeutralBackground2,
 	},
+	/** The brand's text gives way first in a narrow pane (#22). */
+	brandTitle: {
+		whiteSpace: "nowrap",
+		"@media (max-width: 1100px)": { display: "none" },
+	},
+	solutionTrigger: {
+		minWidth: 0,
+		flexShrink: 1,
+		whiteSpace: "nowrap",
+		overflow: "hidden",
+	},
+	ellipsis: {
+		minWidth: 0,
+		overflow: "hidden",
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
+	},
 	solutionPickerSurface: {
 		padding: tokens.spacingHorizontalM,
 		minWidth: "360px",
@@ -108,7 +126,6 @@ const useStyles = makeStyles({
 
 export function TopBar() {
 	const styles = useStyles();
-	const [simState, setSimState] = useState<"Loaded" | "Empty" | "Error" | "Publishing">("Loaded");
 	const past = useRibbonStore((s) => s.past);
 	const future = useRibbonStore((s) => s.future);
 	const undo = useRibbonStore((s) => s.undo);
@@ -196,7 +213,7 @@ export function TopBar() {
 						CBS
 					</Text>
 				</div>
-				<Text weight="semibold" size={300}>
+				<Text weight="semibold" size={300} className={styles.brandTitle}>
 					Command Bar Studio
 				</Text>
 			</div>
@@ -222,9 +239,11 @@ export function TopBar() {
 						icon={<DatabaseRegular />}
 						iconPosition="before"
 						aria-label="Select solution"
+						className={styles.solutionTrigger}
+						title={activeSolution?.friendlyName}
 					>
 						<Text size={200}>Solution:&nbsp;</Text>
-						<Text size={200} weight="semibold">
+						<Text size={200} weight="semibold" className={styles.ellipsis}>
 							{activeSolution?.friendlyName ?? "Select solution…"}
 						</Text>
 						{activeSolution && (
@@ -233,7 +252,7 @@ export function TopBar() {
 									appearance="tint"
 									color={activeSolution.isManaged ? "informative" : "success"}
 									size="small"
-									style={{ marginLeft: tokens.spacingHorizontalXS }}
+									style={{ marginLeft: tokens.spacingHorizontalXS, flexShrink: 0 }}
 								>
 									{activeSolution.isManaged ? "Managed" : "Unmanaged"}
 								</Badge>
@@ -258,7 +277,7 @@ export function TopBar() {
 													? `Imports will land under the org's default publisher "${prefix}". To use your own publisher, create a new solution in maker.powerapps.com bound to it.`
 													: `Publisher: ${activeSolution.publisherName || activeSolution.publisherUniqueName || prefix}`
 											}
-											style={{ marginLeft: tokens.spacingHorizontalXS }}
+											style={{ marginLeft: tokens.spacingHorizontalXS, flexShrink: 0 }}
 										>
 											{prefix}_
 										</Badge>
@@ -312,7 +331,9 @@ export function TopBar() {
 				aria-label="Search buttons, commands, rules (Ctrl+K)"
 			>
 				<SearchRegular fontSize={14} />
-				<span style={{ flex: 1, textAlign: "left" }}>Search buttons, commands, rules…</span>
+				<span className={styles.ellipsis} style={{ flex: 1, textAlign: "left" }}>
+					Search buttons, commands, rules…
+				</span>
 				<kbd className={styles.kbd}>Ctrl</kbd>
 				<kbd className={styles.kbd}>K</kbd>
 			</button>
@@ -341,19 +362,6 @@ export function TopBar() {
 
 			<div className={styles.sep} />
 
-			<Select
-				value={simState}
-				onChange={(_, d) => setSimState(d.value as "Loaded" | "Empty" | "Error" | "Publishing")}
-				size="small"
-				title="State simulator"
-				aria-label="State simulator"
-			>
-				<option value="Loaded">Loaded</option>
-				<option value="Empty">Empty</option>
-				<option value="Error">Error</option>
-				<option value="Publishing">Publishing</option>
-			</Select>
-
 			{/* Import/Export */}
 			<Button
 				appearance="subtle"
@@ -365,26 +373,10 @@ export function TopBar() {
 				title="Import / Export RibbonDiffXml"
 				aria-label="Import/Export"
 			/>
-			<Button
-				appearance="subtle"
-				size="small"
-				icon={<SettingsRegular />}
-				title="Settings"
-				aria-label="Settings"
-			/>
-			<Button
-				appearance="subtle"
-				size="small"
-				icon={<QuestionCircleRegular />}
-				title="Help"
-				aria-label="Help"
-			/>
+			<HelpButton />
 
 			<div className={styles.sep} />
 
-			<Button appearance="secondary" size="small" icon={<SaveRegular />}>
-				Save
-			</Button>
 			<Button
 				appearance="primary"
 				size="small"
@@ -394,5 +386,65 @@ export function TopBar() {
 				Publish All
 			</Button>
 		</header>
+	);
+}
+
+const DOCS_URL = "https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio#readme";
+
+/**
+ * Help (#22): what the old Save / Settings buttons promised and didn't do.
+ * Changes are kept as a draft automatically (#16); PPTB has no way to open a
+ * link in the browser, so the documentation link is copied.
+ */
+function HelpButton() {
+	const [copied, setCopied] = useState<"" | "yes" | "no">("");
+	return (
+		<Popover withArrow onOpenChange={() => setCopied("")}>
+			<PopoverTrigger disableButtonEnhancement>
+				<Button
+					appearance="subtle"
+					size="small"
+					icon={<QuestionCircleRegular />}
+					title="Help"
+					aria-label="Help"
+				/>
+			</PopoverTrigger>
+			<PopoverSurface aria-label="Help">
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						gap: tokens.spacingVerticalS,
+						maxWidth: 320,
+					}}
+				>
+					<Text weight="semibold">Command Bar Studio</Text>
+					<Text size={200}>
+						Your changes are kept as a draft for each table automatically, until you
+						publish or discard them.
+					</Text>
+					<Text size={200}>
+						<strong>Ctrl+K</strong> search · <strong>Ctrl+S</strong> publish ·{" "}
+						<strong>Ctrl+Z</strong> / <strong>Ctrl+Y</strong> undo / redo ·{" "}
+						<strong>Ctrl+D</strong> duplicate · <strong>Ctrl+X</strong> /{" "}
+						<strong>Ctrl+V</strong> move a button
+					</Text>
+					<Button
+						size="small"
+						onClick={async () =>
+							setCopied((await copyText(DOCS_URL)).ok ? "yes" : "no")
+						}
+					>
+						Copy documentation link
+					</Button>
+					{copied === "yes" && (
+						<Text size={200}>Copied: paste it into your browser.</Text>
+					)}
+					{copied === "no" && (
+						<Text size={200}>Couldn&apos;t copy. The link is {DOCS_URL}</Text>
+					)}
+				</div>
+			</PopoverSurface>
+		</Popover>
 	);
 }

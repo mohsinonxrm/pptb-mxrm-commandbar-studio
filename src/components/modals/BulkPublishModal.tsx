@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import {
 	Badge,
 	Button,
+	Checkbox,
 	Dialog,
 	DialogActions,
 	DialogBody,
@@ -133,6 +134,11 @@ export const BulkPublishModal: React.FC = () => {
 	const [done, setDone] = useState(false);
 	const [incrementSolutionVersion, setIncrementSolutionVersion] = useState(false);
 	const [publishStrategy, setPublishStrategy] = useState<"targeted" | "allAsync">("targeted");
+	// Publishing everything publishes other people's work in progress too (#109):
+	// it needs its own confirmation, cleared whenever the choice changes.
+	const [publishAllConfirmed, setPublishAllConfirmed] = useState(false);
+	const publishAllBlocked = publishStrategy === "allAsync" && !publishAllConfirmed;
+	const connectionName = useSessionStore((s) => s.connectionName || s.connectionUrl || "this environment");
 	// The target block's verdict (#121): false while the connection is read, and on Production
 	// until the confirmation word is typed; with the environment type it was given for.
 	const [target, setTarget] = useState<{ confirmed: boolean; environment?: string }>({
@@ -330,7 +336,7 @@ export const BulkPublishModal: React.FC = () => {
 	// One close guard for the whole run (#10): it would otherwise drop between scopes.
 	const handlePublish = () =>
 		withCloseGuard(async () => {
-		if (!activeSolution || unsupported.length > 0 || scopes.length === 0 || checkBlocks || !targetConfirmed || baseLanguageUnknown) return;
+		if (!activeSolution || unsupported.length > 0 || scopes.length === 0 || checkBlocks || !targetConfirmed || baseLanguageUnknown || publishAllBlocked) return;
 		setPublishing(true);
 		// One guard for the whole run (#120): every scope writes to the connection
 		// the run started on. After a switch, nothing more is published or stored.
@@ -367,6 +373,8 @@ export const BulkPublishModal: React.FC = () => {
 		const verified: { scope: string; result: PublishVerification }[] = [];
 		const logs = useRuntimeLogStore.getState();
 		const fmt = (e: unknown) => (e instanceof Error ? e.message : String(e));
+		// The comment goes to the Console log with this publish (#109): it was collected and dropped.
+		if (publishComment.trim()) logs.logInfo("publish", `Publish comment: ${publishComment.trim()}`);
 		const common = {
 			commands,
 			enableRules,
@@ -498,7 +506,6 @@ export const BulkPublishModal: React.FC = () => {
 		setErrorMessages(errors);
 		setDone(!hadError);
 		setPublishing(false);
-		void publishComment;
 		});
 
 	const handleClose = () => {
@@ -513,6 +520,10 @@ export const BulkPublishModal: React.FC = () => {
 		setCheckFindings([]);
 		setCheckError("");
 		setTarget({ confirmed: false });
+		setPublishStrategy("targeted");
+		setPublishAllConfirmed(false);
+		// Logged with the publish it was written for, not again with the next one.
+		setPublishComment("");
 		// A new target block next time: the dialog's content can stay mounted after
 		// it closes (a closing animation that never ends in a background window),
 		// and the old block would neither report again nor forget a typed word.
@@ -710,6 +721,7 @@ export const BulkPublishModal: React.FC = () => {
 											onOptionSelect={(_, data) => {
 												if (data.optionValue === "targeted" || data.optionValue === "allAsync") {
 													setPublishStrategy(data.optionValue);
+													setPublishAllConfirmed(false);
 												}
 											}}
 										>
@@ -719,6 +731,22 @@ export const BulkPublishModal: React.FC = () => {
 											</Option>
 										</Dropdown>
 									</Field>
+									{publishStrategy === "allAsync" && (
+										<MessageBar intent="warning" layout="multiline">
+											<MessageBarBody>
+												<Text block>
+													This publishes <strong>every</strong> unpublished customization in{" "}
+													<strong>{connectionName}</strong>, not only these ribbons: forms, views,
+													tables and other people&apos;s work in progress included.
+												</Text>
+												<Checkbox
+													checked={publishAllConfirmed}
+													onChange={(_, d) => setPublishAllConfirmed(d.checked === true)}
+													label={`Publish all unpublished customizations in ${connectionName}`}
+												/>
+											</MessageBarBody>
+										</MessageBar>
+									)}
 									<Field label="Solution version">
 										<Input
 											size="small"
@@ -732,7 +760,7 @@ export const BulkPublishModal: React.FC = () => {
 										checked={incrementSolutionVersion}
 										onChange={(_, d) => setIncrementSolutionVersion(d.checked === true)}
 									/>
-									<Field label="Publish comment">
+									<Field label="Publish comment" hint="Written to the Console log with this publish; it isn't stored in Dataverse.">
 										<Textarea
 											resize="vertical"
 											value={publishComment}
@@ -823,7 +851,8 @@ export const BulkPublishModal: React.FC = () => {
 									unsupported.length > 0 ||
 									checkBlocks ||
 									!targetConfirmed ||
-									baseLanguageUnknown
+									baseLanguageUnknown ||
+									publishAllBlocked
 								}
 							>
 								{publishing ? "Publishing..." : "Publish"}

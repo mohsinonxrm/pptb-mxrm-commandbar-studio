@@ -150,7 +150,7 @@ started (if the tool's connection changes in Power Platform ToolBox, the operati
 
 | Operation | When | What it does in Dataverse |
 |---|---|---|
-| **Publish** | **Publish All** in the top bar, or Ctrl+S | Builds a solution package for the selected unmanaged solution with the table's **complete** ribbon customization (what is in the solution's layer, plus your changes) and imports it **twice** (`ImportSolution` with `OverwriteUnmanagedCustomizations`), then publishes the table (`PublishXml`) and reads the layer back to verify it. It first publishes the table (`PublishXml`), so ribbon changes imported elsewhere but not yet published become part of the layer it reads, instead of being replaced; the publish at the end would publish them anyway. Just before each import it reads the layer again: if it changed since it was read (published from another session or tool), nothing is imported. The same for the application ribbon, when the solution contains the Application Ribbons component. **Also publish all customizations** adds `PublishAllXmlAsync`, which publishes everything unpublished in the environment. |
+| **Publish** | **Publish All** in the top bar, or Ctrl+S | Builds a solution package for the selected unmanaged solution with the table's **complete** ribbon customization (what is in the solution's layer, plus your changes) and imports it **twice** (`ImportSolution` with `OverwriteUnmanagedCustomizations`), then publishes the table (`PublishXml`) and reads the layer back to verify it. It first publishes the table (`PublishXml`), so ribbon changes imported elsewhere but not yet published become part of the layer it reads, instead of being replaced; the publish at the end would publish them anyway. Just before each import it reads the layer again: if it changed since it was read (published from another session or tool), nothing is imported. The same for the application ribbon, when the solution contains the Application Ribbons component. **Also publish all customizations** adds `PublishAllXmlAsync`, which publishes everything unpublished in the environment (anyone's), so it asks for its own confirmation. The **Publish comment** is written to the Console log. |
 | **Upload a web resource** | Web resource browser → **Upload**; icon picker → **Upload SVG** | Creates a web resource named `<prefix>_/<folder>/<file name>` and adds it to the selected unmanaged solution (`AddSolutionComponent`). If one with that name exists you choose **Replace** (its content changes everywhere it is used), **Keep existing** or **Cancel**; a managed one can only be kept. |
 | **Pick a Fluent icon** | Icon picker → Fluent icons | Creates the SVG web resource `<prefix>_/icons/cbs/<icon>.svg` (an existing one is reused, never overwritten), adds it to the solution and publishes it (`PublishXml`). |
 | **Pick an existing web resource as an icon** | Icon picker → Web resource | Adds the web resource to the selected unmanaged solution (`AddSolutionComponent`). |
@@ -164,7 +164,7 @@ Nothing else writes to Dataverse:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ TopBar: Solution picker │ Ctrl+K │ Undo/Redo │ Save │ Publish   │
+│ TopBar: Solution picker │ Ctrl+K │ Undo/Redo │ Help │ Publish   │
 │ SubHeader: Breadcrumb   │ N changes since publish │ Preview …   │
 ├──────────────────┬──────────────────────────────┬───────────────┤
 │ Left Pane        │ Ribbon Canvas                │ Properties    │

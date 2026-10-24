@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useCallback, useEffect, useRef } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { makeStyles, tokens } from "@fluentui/react-components";
 import { TopBar } from "./TopBar";
 import { SubHeader } from "./SubHeader";
@@ -6,6 +6,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { ResizableHandle } from "@/components/shared/ResizableHandle";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { dragPaneWidths, fitPaneWidths } from "@/utils/paneWidths";
 
 // Lazy-loaded panels and modals
 const XmlDrawer = lazy(() => import("@/components/panels/XmlDrawer"));
@@ -58,6 +59,16 @@ const useStyles = makeStyles({
 	},
 });
 
+function useWindowWidth(): number {
+	const [width, setWidth] = useState(() => window.innerWidth);
+	useEffect(() => {
+		const onResize = () => setWidth(window.innerWidth);
+		window.addEventListener("resize", onResize);
+		return () => window.removeEventListener("resize", onResize);
+	}, []);
+	return width;
+}
+
 interface LayoutProps {
 	children: React.ReactNode;
 	leftPane: React.ReactNode;
@@ -76,6 +87,8 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const bottomCollapsed = useUIStore((s) => s.bottomCollapsed);
 	const setBottomPanelHeight = useUIStore((s) => s.setBottomPanelHeight);
 	const announcement = useUIStore((s) => s.announcement);
+	const windowWidth = useWindowWidth();
+	const fitted = fitPaneWidths(windowWidth, leftPaneWidth, rightPaneMode === "docked" ? rightPaneWidth : 0);
 	const anyOverlayOpen = useUIStore(
 		(s) =>
 			s.xmlDrawerOpen ||
@@ -119,19 +132,17 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 		wasOverlayOpenRef.current = anyOverlayOpen;
 	}, [anyOverlayOpen]);
 
-	const resizeLeft = useCallback(
-		(delta: number) => {
-			setLeftPaneWidth(Math.max(160, Math.min(500, leftPaneWidth + delta)));
+	const dockedRight = rightPaneMode === "docked" ? rightPaneWidth : 0;
+	const resizePane = useCallback(
+		(side: "left" | "right", delta: number) => {
+			const next = dragPaneWidths(windowWidth, leftPaneWidth, dockedRight, side, delta);
+			if (next.left !== undefined) setLeftPaneWidth(next.left);
+			if (next.right !== undefined) setRightPaneWidth(next.right);
 		},
-		[leftPaneWidth, setLeftPaneWidth],
+		[windowWidth, leftPaneWidth, dockedRight, setLeftPaneWidth, setRightPaneWidth],
 	);
-
-	const resizeRight = useCallback(
-		(delta: number) => {
-			setRightPaneWidth(Math.max(200, Math.min(600, rightPaneWidth - delta)));
-		},
-		[rightPaneWidth, setRightPaneWidth],
-	);
+	const resizeLeft = useCallback((delta: number) => resizePane("left", delta), [resizePane]);
+	const resizeRight = useCallback((delta: number) => resizePane("right", delta), [resizePane]);
 
 	const resizeBottom = useCallback(
 		(delta: number) => {
@@ -146,7 +157,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			<TopBar />
 			<SubHeader />
 			<div className={styles.body}>
-				<div className={styles.leftPane} style={{ width: leftPaneWidth }}>
+				<div className={styles.leftPane} style={{ width: fitted.left }}>
 					<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
 				</div>
 				<ResizableHandle direction="vertical" onResize={resizeLeft} aria-label="Resize left pane" />
@@ -158,7 +169,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 							onResize={resizeRight}
 							aria-label="Resize right pane"
 						/>
-						<div className={styles.rightPane} style={{ width: rightPaneWidth }}>
+						<div className={styles.rightPane} style={{ width: fitted.right }}>
 							<ErrorBoundary label="Properties pane">{rightPane}</ErrorBoundary>
 						</div>
 					</>
