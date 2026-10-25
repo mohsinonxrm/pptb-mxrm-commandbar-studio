@@ -62,20 +62,34 @@ const useStyles = makeStyles({
 
 type Dismissed = Record<string, string>;
 
+/** The most severe message leads; ties keep the caller's order. */
+const SEVERITY: Record<MessageBarIntent, number> = { error: 0, warning: 1, info: 2, success: 3 };
+
+/** A saved value that isn't a map of strings (edited, or an older shape) is ignored. */
+function readDismissed(key: string): Dismissed {
+	const value: unknown = readPref<unknown>(key, {});
+	if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+	return Object.fromEntries(
+		Object.entries(value).filter((e): e is [string, string] => typeof e[1] === "string"),
+	);
+}
+
 export const MessageSlot: React.FC<MessageSlotProps> = ({ scope, messages, className }) => {
 	const styles = useStyles();
 	const key = `dismissed.${scope}`;
-	const [dismissed, setDismissed] = useState<Dismissed>(() => readPref<Dismissed>(key, {}));
+	const [dismissed, setDismissed] = useState<Dismissed>(() => readDismissed(key));
 	const [expanded, setExpanded] = useState(false);
 	// Re-read when the scope changes (another table).
 	const [lastScope, setLastScope] = useState(scope);
 	if (lastScope !== scope) {
 		setLastScope(scope);
-		setDismissed(readPref<Dismissed>(key, {}));
+		setDismissed(readDismissed(key));
 		setExpanded(false);
 	}
 
-	const visible = messages.filter((m) => dismissed[m.id] !== (m.signature ?? ""));
+	const visible = messages
+		.filter((m) => dismissed[m.id] !== (m.signature ?? ""))
+		.sort((a, b) => SEVERITY[a.intent] - SEVERITY[b.intent]);
 	if (visible.length === 0) return null;
 	const shown = expanded ? visible : visible.slice(0, 1);
 

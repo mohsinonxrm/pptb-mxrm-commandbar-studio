@@ -137,7 +137,17 @@ describe("#181 Properties notices", () => {
 		expect(byName("View solution layers")).toBeTruthy();
 	});
 
-	it("a modern override is the second notice, behind +1 more", () => {
+	it("a read-only kind gets no Customise or override; a managed one keeps its layers", () => {
+		render(notices(button({ kind: "toggleButton" })));
+		expect(bars()).toHaveLength(0);
+		render(notices(button({ kind: "toggleButton", origin: "managed", solutionName: "Sales" })));
+		expect(bars()[0].textContent).toContain("From the managed solution Sales");
+		expect(byName("Create override")).toBeUndefined();
+		expect(byName("Customise button")).toBeUndefined();
+		expect(byName("View solution layers")).toBeTruthy();
+	});
+
+	it("a modern override that hides the button leads, its source behind +1 more", () => {
 		const override = {
 			effect: "hidden",
 			command: { id: "m1", name: "Edit", appModuleId: null },
@@ -146,7 +156,8 @@ describe("#181 Properties notices", () => {
 		expect(bars()).toHaveLength(1);
 		act(() => byName("+1 more")!.click());
 		expect(bars()).toHaveLength(2);
-		expect(bars()[1].textContent).toContain("Hidden by a modern command");
+		expect(bars()[0].textContent).toContain("Hidden by a modern command");
+		expect(bars()[1].textContent).toContain("Out-of-the-box button");
 	});
 
 	it("your own button has no notice", () => {

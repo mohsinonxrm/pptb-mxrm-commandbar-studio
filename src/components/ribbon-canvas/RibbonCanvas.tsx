@@ -4,6 +4,7 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { useUIStore } from "@/store/uiStore";
+import { useSessionStore } from "@/store/sessionStore";
 import { ClassicRibbon } from "./ClassicRibbon";
 import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
@@ -80,15 +81,22 @@ export function RibbonCanvas({
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	// Not yet deleted (a pending delete is crossed out in the list), and not
 	// just published from here (most likely not loaded yet, #64 review).
-	const orphanCount = useRibbonStore(
-		(s) =>
-			s.orphans.entity.filter(
+	// Their ids are the dismiss signature, so a different set shows again.
+	const orphanIds = useRibbonStore((s) =>
+		s.orphans.entity
+			.filter(
 				(o) => !s.pendingOrphanDeletes.entity.includes(o.id) && !o.recentPublish?.published,
-			).length,
+			)
+			.map((o) => o.id)
+			.sort()
+			.join("|"),
 	);
+	const orphanCount = orphanIds ? orphanIds.split("|").length : 0;
+	const connectionUrl = useSessionStore((s) => s.connectionUrl);
 	const clearSelection = useSelectionStore((s) => s.clearSelection);
 	const ribbonViewStyle = useUIStore((s) => s.ribbonViewStyle);
 	const openNewGroup = useUIStore((s) => s.openNewGroup);
+	const setPropertiesRequested = useUIStore((s) => s.setPropertiesRequested);
 	// Retry of an unread layer replaces the canvas: unpublished changes are asked about first (#110).
 	const [confirmingReload, setConfirmingReload] = useState(false);
 
@@ -142,7 +150,7 @@ export function RibbonCanvas({
 		messages.push({
 			id: "orphans",
 			intent: "warning",
-			signature: String(orphanCount),
+			signature: orphanIds,
 			title: `${orphanCount} of your customizations ${orphanCount !== 1 ? "aren't" : "isn't"} on the canvas`,
 			body: (
 				<>
@@ -152,7 +160,13 @@ export function RibbonCanvas({
 				</>
 			),
 			actions: (
-				<Button size="small" onClick={clearSelection}>
+				<Button
+					size="small"
+					onClick={() => {
+						clearSelection();
+						setPropertiesRequested(true);
+					}}
+				>
 					Show
 				</Button>
 			),
@@ -173,7 +187,7 @@ export function RibbonCanvas({
 
 			<MessageSlot
 				messages={messages}
-				scope={`canvas:${location}`}
+				scope={`canvas:${connectionUrl}:${ribbon.entityLogicalName}:${location}`}
 				className={styles.messages}
 			/>
 

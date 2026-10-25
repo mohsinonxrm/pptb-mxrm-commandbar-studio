@@ -7,6 +7,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useModernAppNames } from "@/hooks/useModernCommands";
 import { describeOverride } from "@/services/modernCommands";
+import { isReadOnlyControlKind } from "@/utils/controlKinds";
 import type { ClassicModernOverride } from "@/types/modernCommand";
 import type { ConflictEntry, RibbonButton, RibbonLocation } from "@/types/ribbon";
 
@@ -44,64 +45,60 @@ export function ButtonNotices({ button, location, tabId, groupId, overrides }: B
 
 	const messages: SlotMessage[] = [];
 
-	// Whose button it is. Your own (unmanaged) buttons need no notice.
-	const conflict = conflicts.find((c: ConflictEntry) => c.elementId === button.id);
-	const layers = conflict?.solutions.length ?? 0;
-	if (button.origin === "oob" || button.origin === "managed" || layers > 1) {
+	// Whose button it is. Your own (unmanaged) buttons need no notice. A kind
+	// shown read-only (#42) explains itself in its section and can't be
+	// customised or overridden, so it only gets a managed solution's layers.
+	const readOnly = isReadOnlyControlKind(button.kind);
+	if (button.origin === "managed" || (button.origin === "oob" && !readOnly)) {
+		const conflict = conflicts.find((c: ConflictEntry) => c.elementId === button.id);
 		const solutionName = button.solutionName ?? conflict?.solutions[0]?.solutionName;
 		const publisher = button.publisherName ?? conflict?.solutions[0]?.publisher;
 		const title =
-			layers > 1
-				? `Customized by ${layers} solutions`
-				: button.origin === "oob"
-					? "Out-of-the-box button"
-					: `From the managed solution${solutionName ? ` ${solutionName}` : ""}${publisher ? ` by ${publisher}` : ""}`;
-		const body =
-			layers > 1
-				? "The last imported solution wins. Customise a copy, or create an override, to change it."
-				: "You can't edit it directly: customise a copy, or create an override, to change it.";
-		messages.push({
-			id: "provenance",
-			intent: "info",
-			title,
-			body,
-			dismissible: false,
-			actions: (
-				<>
-					{canCustomise && (
-						<Button
-							size="small"
-							onClick={() => {
-								const prefix =
-									activeSolution?.publisherPrefix?.trim() ||
-									sessionPrefix?.trim() ||
-									"new";
-								const id = customiseButton(
-									location,
-									tabId,
-									groupId,
-									button.id,
-									prefix,
-								);
-								if (id) selectButtonInContext(location, tabId, groupId, id);
-							}}
-						>
-							Customise button
-						</Button>
-					)}
+			button.origin === "oob"
+				? "Out-of-the-box button"
+				: `From the managed solution${solutionName ? ` ${solutionName}` : ""}${publisher ? ` by ${publisher}` : ""}`;
+		const body = readOnly
+			? undefined
+			: "You can't edit it directly: customise a copy, or create an override, to change it.";
+		const actions = (
+			<>
+				{!readOnly && canCustomise && (
+					<Button
+						size="small"
+						onClick={() => {
+							const prefix =
+								activeSolution?.publisherPrefix?.trim() ||
+								sessionPrefix?.trim() ||
+								"new";
+							const id = customiseButton(location, tabId, groupId, button.id, prefix);
+							if (id) selectButtonInContext(location, tabId, groupId, id);
+						}}
+					>
+						Customise button
+					</Button>
+				)}
+				{!readOnly && (
 					<Button
 						size="small"
 						onClick={() => customizeOobButton(location, tabId, groupId, button.id)}
 					>
 						Create override
 					</Button>
-					{(button.origin === "managed" || layers > 0) && (
-						<Button size="small" onClick={() => openConflictDrawer(button.id)}>
-							View solution layers
-						</Button>
-					)}
-				</>
-			),
+				)}
+				{button.origin === "managed" && (
+					<Button size="small" onClick={() => openConflictDrawer(button.id)}>
+						View solution layers
+					</Button>
+				)}
+			</>
+		);
+		messages.push({
+			id: "provenance",
+			intent: "info",
+			title,
+			body,
+			dismissible: false,
+			actions,
 		});
 	}
 

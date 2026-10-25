@@ -198,20 +198,21 @@ describe("MessageSlot", () => {
 		{ id: "layer", intent: "error", title: "Couldn't read your layer", dismissible: false },
 	];
 
-	it("shows one message and the rest behind +n more", async () => {
+	it("shows the most severe message, and the rest behind +n more", async () => {
 		render(<MessageSlot scope="t" messages={msgs()} />);
-		expect(text()).toContain("3 customizations point at missing controls");
-		expect(text()).not.toContain("Couldn't read your layer");
-		await click(buttonNamed("+1 more"));
 		expect(text()).toContain("Couldn't read your layer");
+		expect(text()).not.toContain("3 customizations point at missing controls");
+		await click(buttonNamed("+1 more"));
+		expect(text()).toContain("3 customizations point at missing controls");
 		expect(buttonNamed("Show fewer")).toBeTruthy();
 	});
 
 	it("remembers a dismiss until the message changes", async () => {
 		render(<MessageSlot scope="t" messages={msgs()} />);
+		await click(buttonNamed("+1 more"));
 		await click(buttonNamed("Dismiss: 3 customizations point at missing controls"));
 		expect(text()).not.toContain("3 customizations");
-		// The error can't be dismissed and is now first.
+		// The error can't be dismissed.
 		expect(text()).toContain("Couldn't read your layer");
 		expect(buttonNamed("Dismiss: Couldn't read your layer")).toBeUndefined();
 
@@ -221,7 +222,14 @@ describe("MessageSlot", () => {
 		expect(text()).not.toContain("3 customizations");
 
 		render(<MessageSlot scope="t" messages={msgs("4")} />);
+		await click(buttonNamed("+1 more"));
 		expect(text()).toContain("4 customizations point at missing controls");
+	});
+
+	it("ignores a saved dismissal list it can't read", () => {
+		localStorage.setItem("cbs.ui.dismissed.t", JSON.stringify(["orphans"]));
+		render(<MessageSlot scope="t" messages={msgs().slice(0, 1)} />);
+		expect(text()).toContain("3 customizations");
 	});
 
 	it("keeps dismissals per scope and renders nothing when empty", async () => {
