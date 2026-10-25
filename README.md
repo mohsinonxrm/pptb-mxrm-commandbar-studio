@@ -237,7 +237,7 @@ npm test
 # Lint (zero warnings allowed)
 npm run lint
 
-# Check / apply Prettier formatting
+# Check / apply Prettier formatting (CI fails when format:check does)
 npm run format:check
 npm run format
 

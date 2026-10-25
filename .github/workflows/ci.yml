@@ -26,6 +26,8 @@ jobs:
         run: npm audit --omit=dev --audit-level=moderate
       - run: npm run typecheck
       - run: npm run lint
+      - name: Formatting (Prettier)
+        run: npm run format:check
       - run: npm test
       - run: npm run validate
       - run: npm run build
