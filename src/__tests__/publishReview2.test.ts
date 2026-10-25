@@ -302,7 +302,7 @@ describe("N5 — duplicates are new controls", () => {
 		useRibbonStore.getState().duplicateButton("HomepageGrid", tab.id, tab.groups[0].id, "rw.contact.Mine.Button");
 		const copy = useRibbonStore
 			.getState()
-			.ribbons.HomepageGrid.tabs[0].groups[0].buttons.find((b) => b.id.startsWith("rw.contact.Mine.Button_copy"))!;
+			.ribbons.HomepageGrid.tabs[0].groups[0].buttons.find((b) => b.id.includes("rw.contact.Mine.Button_copy"))!;
 		expect(copy.source).toBeUndefined();
 		expect(copy.origin).toBe("unmanaged");
 	});

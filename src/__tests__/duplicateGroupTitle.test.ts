@@ -48,7 +48,7 @@ function duplicate(g: RibbonGroup, locLabels: LocLabel[] = []) {
 	useRibbonStore.getState().duplicateGroup("HomepageGrid", MAIN, g.id);
 	const state = useRibbonStore.getState();
 	const copy = state.ribbons.HomepageGrid.tabs[0].groups.find((x) =>
-		x.id.startsWith(`${g.id}_copy_`),
+		x.id.includes(`${g.id}_copy_`),
 	)!;
 	const xml = generateRibbonDiffXml({
 		current: state.ribbons.HomepageGrid,

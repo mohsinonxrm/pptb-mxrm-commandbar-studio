@@ -357,7 +357,7 @@ describe("Delete / Backspace on the canvas", () => {
 		document.body.appendChild(dialog);
 		press(document.body, "Delete");
 		press(document.body, "d", true);
-		expect(ids().filter((id) => id === "cbs.Mine" || id.startsWith("cbs.Mine_copy"))).toEqual(["cbs.Mine"]);
+		expect(ids().filter((id) => id === "cbs.Mine" || id.includes("cbs.Mine_copy"))).toEqual(["cbs.Mine"]);
 		dialog.remove();
 		press(document.body, "Delete");
 		expect(has("cbs.Mine")).toBe(false);
@@ -365,7 +365,7 @@ describe("Delete / Backspace on the canvas", () => {
 });
 
 describe("other shortcuts in text fields and dialogs", () => {
-	const copies = () => ids().filter((id) => id.startsWith("cbs.Mine_copy"));
+	const copies = () => ids().filter((id) => id.includes("cbs.Mine_copy"));
 
 	it("Ctrl+D duplicates on the canvas but not in a text field", () => {
 		select("cbs.Mine");

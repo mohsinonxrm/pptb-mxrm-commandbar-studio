@@ -469,11 +469,11 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 		store.duplicateGroup("HomepageGrid", TAB, GROUP);
 		store.duplicateButton("HomepageGrid", TAB, GROUP, "mxrm.T.Spinner");
 		const groups = useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups;
-		const spinnerCopy = groups[0].buttons.find((b) => b.id.startsWith("mxrm.T.Spinner_copy_"))!;
+		const spinnerCopy = groups[0].buttons.find((b) => b.id.includes("mxrm.T.Spinner_copy_"))!;
 		expect(spinnerCopy.label).toBe("mxrm.T.Spinner");
 		expect(parseXmlElement(spinnerCopy.source!.xml!).getAttribute("Id")).toBe(spinnerCopy.id);
 		expect(parseXmlElement(spinnerCopy.source!.xml!).getElementsByTagName("Unit")).toHaveLength(1);
-		const groupCopy = groups.find((g) => g.id.startsWith(`${GROUP}_copy_`))!;
+		const groupCopy = groups.find((g) => g.id.includes(`${GROUP}_copy_`))!;
 		for (const b of groupCopy.buttons.filter((x) => x.kind !== "button")) {
 			expect(parseXmlElement(b.source!.xml!).getAttribute("Id")).toBe(b.id);
 		}

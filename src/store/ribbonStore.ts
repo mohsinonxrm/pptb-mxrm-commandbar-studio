@@ -579,10 +579,10 @@ export function sequenceBetween(current: number, prev?: number, next?: number): 
  * button gets the lowest unused sequence after its previous neighbour, so it
  * never shares a value with another button (it then sorts a little later).
  */
-export function resequenceAround(
-	buttons: RibbonButton[],
+export function resequenceAround<T extends { sequence: number }>(
+	buttons: T[],
 	at: number,
-	canRenumber: (b: RibbonButton) => boolean,
+	canRenumber: (b: T) => boolean,
 ): void {
 	let s = at;
 	while (s > 0 && canRenumber(buttons[s - 1])) s--;
@@ -610,6 +610,43 @@ export function resequenceAround(
 	let seq = (at > 0 ? buttons[at - 1].sequence : 0) + 1;
 	while (used.has(seq)) seq++;
 	buttons[at].sequence = seq;
+}
+
+/**
+ * Gives the item at `at` a Sequence between its neighbours, renumbering the
+ * ones `canRenumber` allows when there's no free value (#164): a duplicate
+ * took its original's Sequence + 5, which could collide with another copy or
+ * pass its next neighbour.
+ */
+function placeBetween<T extends { sequence: number }>(list: T[], at: number, canRenumber: (t: T) => boolean): void {
+	const item = list[at];
+	const seq = sequenceBetween(item.sequence, list[at - 1]?.sequence, list[at + 1]?.sequence);
+	if (seq !== undefined) {
+		item.sequence = seq;
+		return;
+	}
+	resequenceAround(list, at, canRenumber);
+	// No room between neighbours that can't be renumbered (out-of-the-box ones
+	// one apart): it goes where its Sequence publishes it, not where it was put.
+	const fits = (list[at - 1]?.sequence ?? -Infinity) < item.sequence && item.sequence < (list[at + 1]?.sequence ?? Infinity);
+	if (!fits) {
+		list.splice(at, 1);
+		const to = list.findIndex((t) => t.sequence > item.sequence);
+		list.splice(to < 0 ? list.length : to, 0, item);
+	}
+}
+
+/** The publisher prefix ids of new elements start with (#164). */
+function sessionIdPrefix(): string {
+	const { activeSolution, publisherPrefix } = useSessionStore.getState();
+	return activeSolution?.publisherPrefix?.trim() || publisherPrefix?.trim() || "new";
+}
+
+/** `id` starting with the publisher prefix: a copy of another solution's element is yours (#164). */
+function prefixedId(id: string, prefix: string): string {
+	const lower = id.toLowerCase();
+	const p = prefix.toLowerCase();
+	return lower.startsWith(`${p}.`) || lower.startsWith(`${p}_`) ? id : `${prefix}.${id}`;
 }
 
 const EMPTY_RIBBONS: Record<RibbonLocation, RibbonDefinition> = {
@@ -947,8 +984,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				// commands and rules aren't in the application ribbon, nor the reverse.
 				if ((src.location === "Application") !== (dst.location === "Application"))
 					return refuse("it isn't yours, and a copy can't move between the table's ribbon and the application ribbon.");
-				const { activeSolution, publisherPrefix } = useSessionStore.getState();
-				const prefix = activeSolution?.publisherPrefix?.trim() || publisherPrefix?.trim() || "new";
+				const prefix = sessionIdPrefix();
 				let moved: string | null = null;
 				let copied = false;
 				get().batch(() => {
@@ -1252,17 +1288,23 @@ export const useRibbonStore = create<RibbonStore>()(
 							const platformLabel =
 								isPlatformText(btn.source?.labelToken) || isOtherSolutionLabel(btn.source?.labelToken, loadedLabelIds);
 							const copy: RibbonButton = {
-								...copyControl(btn, `${btn.id}_copy_${Date.now()}`, loadedLabelIds),
+								...copyControl(btn, `${prefixedId(btn.id, sessionIdPrefix())}_copy_${Date.now()}`, loadedLabelIds),
 								// A read-only kind is copied as loaded (#42), and a platform text
 								// (`$Resources:`) or another solution's label (#137) can't take a
 								// " (copy)" suffix (#86): both keep their label.
 								label: isReadOnlyControlKind(btn.kind) || platformLabel ? btn.label : `${btn.label} (copy)`,
-								sequence: btn.sequence + 5,
+								sequence: btn.sequence,
 							};
 							const place = menuItemPlace(group, buttonId);
 							const list = place ? place.section.controls : group.buttons;
 							const idx = list.findIndex((b) => b.id === buttonId);
 							list.splice(idx + 1, 0, copy);
+							// Right after the original, before its next neighbour (#164).
+							const own = new Set(scopeLayer(state, location)?.controlIds ?? []);
+							const loaded = new Set(
+								(state.baseline[location]?.tabs ?? []).flatMap((t) => t.groups.flatMap(groupControls)).map((b) => b.id),
+							);
+							placeBetween(list, idx + 1, (b) => b === copy || own.has(b.id) || !loaded.has(b.id));
 						}
 					},
 					{
@@ -1400,6 +1442,7 @@ export const useRibbonStore = create<RibbonStore>()(
 						const grp = tab.groups.find((g) => g.id === groupId);
 						if (!grp) return;
 						const stamp = `_copy_${Date.now()}`;
+						const prefix = sessionIdPrefix();
 						const loadedLabelIds = loadedLabelIdsOf(state);
 						const lang = state.baseLanguageCode;
 						// The group's Title as loaded: an imported group (#30) keeps it in
@@ -1417,7 +1460,7 @@ export const useRibbonStore = create<RibbonStore>()(
 						const keepTitle = isPlatformText(title) || isOtherSolutionLabel(title, loadedLabelIds);
 						const copy: RibbonGroup = {
 							...JSON.parse(JSON.stringify(grp)),
-							id: `${grp.id}${stamp}`,
+							id: `${prefixedId(grp.id, prefix)}${stamp}`,
 							// Otherwise the title's text (#33) plus " (copy)": a `$LocLabels:`
 							// token never becomes part of the copy's title text.
 							label: keepTitle
@@ -1427,11 +1470,18 @@ export const useRibbonStore = create<RibbonStore>()(
 							// nor its Description (#42); a kept title is its only token.
 							source: keepTitle ? { titleToken: title, attributes: {} } : undefined,
 							description: undefined,
-							sequence: grp.sequence + 5,
-							buttons: grp.buttons.map((b) => copyControl(b, `${b.id}${stamp}`, loadedLabelIds)),
+							sequence: grp.sequence,
+							buttons: grp.buttons.map((b) => copyControl(b, `${prefixedId(b.id, prefix)}${stamp}`, loadedLabelIds)),
 						};
 						const idx = tab.groups.findIndex((g) => g.id === groupId);
 						tab.groups.splice(idx + 1, 0, copy);
+						// Right after the original, before its next neighbour (#164). Only the
+						// copy and new groups are renumbered: a loaded group's Sequence change
+						// wouldn't publish.
+						const loadedGroups = new Set(
+							(state.baseline[location]?.tabs ?? []).flatMap((t) => t.groups.map((g) => g.id)),
+						);
+						placeBetween(tab.groups, idx + 1, (g) => g === copy || !loadedGroups.has(g.id));
 						if (keepTitle) keptTitle = { copyId: copy.id, title };
 					},
 					{
@@ -1624,9 +1674,34 @@ export const useRibbonStore = create<RibbonStore>()(
 					state,
 					(ribbons) => {
 						const tabs = ribbons[location].tabs;
-						ribbons[location].tabs = tabIds
+						const ordered = tabIds
 							.map((id) => tabs.find((t) => t.id === id))
 							.filter((t): t is RibbonTab => t !== undefined);
+						ribbons[location].tabs = ordered;
+						// The Sequence decides the order Dataverse shows (#163): a dragged
+						// tab got none, so the publish had nothing to publish. A new tab,
+						// or one your customizations add, is renumbered to sit between its
+						// neighbours; another solution's can't be, and the publish says so.
+						const loaded = new Set(state.baseline[location]?.tabs.map((t) => t.id) ?? []);
+						const own = new Set(ownContainerIds(state, location) ?? []);
+						const canRenumber = (t: RibbonTab) => !loaded.has(t.id) || own.has(t.id);
+						for (let i = 1; i < ordered.length; i++) {
+							if (ordered[i].sequence > ordered[i - 1].sequence) continue;
+							if (canRenumber(ordered[i])) resequenceAround(ordered, i, canRenumber);
+							else if (canRenumber(ordered[i - 1])) resequenceAround(ordered, i - 1, canRenumber);
+						}
+						// No free value between neighbours that can't be renumbered: such a tab
+						// goes where its Sequence publishes it, not where it was dropped.
+						for (const tab of ordered.filter(canRenumber)) {
+							const at = ordered.indexOf(tab);
+							const fits =
+								(ordered[at - 1]?.sequence ?? -Infinity) < tab.sequence &&
+								tab.sequence < (ordered[at + 1]?.sequence ?? Infinity);
+							if (fits) continue;
+							ordered.splice(at, 1);
+							const to = ordered.findIndex((t) => t.sequence > tab.sequence);
+							ordered.splice(to < 0 ? ordered.length : to, 0, tab);
+						}
 					},
 					{
 						ts: new Date().toISOString(),

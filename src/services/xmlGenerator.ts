@@ -377,6 +377,12 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	for (const button of emittedButtons) for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
 	// A new tab's Command is defined with it (an empty command, as in
 	// Microsoft's custom-tab walkthrough) unless the model already has one.
+	// A new (imported) group's own Command too (#169 review), when the model has it.
+	for (const tab of current.tabs)
+		for (const group of tab.groups) {
+			const command = group.source?.attributes["Command"];
+			if (command && !baselineGroupIds.has(group.id)) referencedCommandIds.add(command);
+		}
 	const tabCommands: CommandDefinition[] = [];
 	for (const tab of newTabs) {
 		const id = tab.commandId!;
@@ -581,8 +587,10 @@ function generateScalingCustomActions(
 	return [...maxSizes, ...scales];
 }
 
-function generateScaleStep(tag: "MaxSize" | "Scale", step: ScaleStep): string {
-	return `<${tag} Id="${escapeXml(step.id)}" GroupId="${escapeXml(step.groupId)}" Sequence="${step.sequence}" Size="${escapeXml(step.size)}"/>`;
+export function generateScaleStep(tag: "MaxSize" | "Scale", step: ScaleStep): string {
+	// PopupSize (ScaleType only) is written back as loaded (#169).
+	const popup = tag === "Scale" && step.popupSize ? ` PopupSize="${escapeXml(step.popupSize)}"` : "";
+	return `<${tag} Id="${escapeXml(step.id)}" GroupId="${escapeXml(step.groupId)}" Sequence="${step.sequence}" Size="${escapeXml(step.size)}"${popup}/>`;
 }
 
 function generateScalingCustomAction(tabId: string, tag: "MaxSize" | "Scale", step: ScaleStep): string {
@@ -881,10 +889,16 @@ function descriptionAttr(
  */
 const CONTAINER_MODELLED_ATTRIBUTES = new Set(["Id", "Command", "Title", "Description", "Sequence", "Template"]);
 
-/** The other attributes of an imported tab / group (Description, images, …), as imported (#30). */
+/**
+ * The other attributes of an imported tab / group (Description, images, …), as
+ * imported (#30). A group's `Command` among them (#169): a tab's is modelled
+ * (commandId), a group's isn't, so it was dropped.
+ */
 function containerAttributes(container: RibbonTab | RibbonGroup): string {
+	const isGroup = "buttons" in container;
 	return Object.entries(container.source?.attributes ?? {})
-		.filter(([k]) => !CONTAINER_MODELLED_ATTRIBUTES.has(k) && !NON_DIFF_ATTRIBUTES.has(k))
+		.filter(([k]) => (isGroup && k === "Command") || !CONTAINER_MODELLED_ATTRIBUTES.has(k))
+		.filter(([k]) => !NON_DIFF_ATTRIBUTES.has(k))
 		.map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
 		.join("");
 }

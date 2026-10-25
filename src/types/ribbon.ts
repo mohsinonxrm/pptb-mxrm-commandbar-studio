@@ -537,6 +537,8 @@ export interface ScaleStep {
 	groupId: string;
 	size: string;
 	sequence: number;
+	/** `PopupSize` of a Scale step, as loaded (#169); absent when it has none. */
+	popupSize?: string;
 }
 
 export interface HideCustomAction {

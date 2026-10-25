@@ -203,6 +203,8 @@ export const XmlDrawer: React.FC = () => {
 		const asked = statusFor.current;
 		const name = `RibbonDiffXml_${activeLocation}.xml`;
 		setSaving(true);
+		// While the Save dialog is open, no earlier result (a Copy's) shows (#150).
+		setStatus(null);
 		try {
 			const r = await saveTextFile(name, xml, [{ name: "XML", extensions: ["xml"] }]);
 			if (asked !== statusFor.current) return;

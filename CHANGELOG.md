@@ -48,6 +48,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Fixed
 
+- **Reordering tabs publishes (#163).** Dragging a tab changed only the canvas, so the
+  publish had nothing to publish and the order reverted. A new tab, or one your
+  customizations add, now gets a Sequence between its neighbours, and that Sequence is
+  published. Reordering another solution's tabs is reported, since only their Sequence
+  orders them. When there's no free Sequence between two tabs, the tab is shown where it
+  will publish.
+- **Duplicates are placed where they're shown (#164).**
+  - **Placement:** a copied button, menu item or group gets a Sequence between its
+    original and the next item (it used to get the original's + 5, which could collide
+    or pass the neighbour). When built-in neighbours leave no room, the copy is shown
+    where it will publish.
+  - **Ids:** a copy of another solution's element starts with your publisher prefix.
+  - **Solution Elements:** a button dropped from there goes after the group's last button.
+  - **Pre-publish check:** it warns when sibling customizations share a Sequence.
+- **A dynamic flyout's PopulateQueryCommand is checked (#133).** A command that's misspelled
+  or defined nowhere, which left the drop-down empty, is reported. A copied flyout
+  carries its populate command.
+- **Smaller fixes:**
+  - A ribbon package without `RibbonXml.xml` fails with a clear error instead of loading
+    an empty ribbon (#168).
+  - An imported group's `Command` (and its definition) and a Scale step's `PopupSize` are
+    no longer dropped (#169).
+  - Starting a Download in the XML drawer clears an earlier Copy message (#150).
 - **Saved web resources are published (#156).** Saving a command's script in the command
   editor, or replacing a file through **Upload**, updated the web resource but didn't publish
   it, so users kept the old script or icon until someone ran Publish All. They're published

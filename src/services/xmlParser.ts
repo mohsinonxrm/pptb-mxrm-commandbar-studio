@@ -231,6 +231,7 @@ function parseScaling(doc: Document): Record<string, ScalingDefinition> {
 			groupId: el.getAttribute("GroupId") ?? "",
 			size: el.getAttribute("Size") ?? "",
 			sequence: parseInt(el.getAttribute("Sequence") ?? "0", 10),
+			...(el.getAttribute("PopupSize") ? { popupSize: el.getAttribute("PopupSize")! } : {}),
 		});
 		const kids = Array.from(scalingEl.children);
 		out[tabId] = {
