@@ -48,6 +48,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Fixed
 
+- **Saved web resources are published (#156).** Saving a command's script in the command
+  editor, or replacing a file through **Upload**, updated the web resource but didn't publish
+  it, so users kept the old script or icon until someone ran Publish All. They're published
+  now. If the publish fails, the save is kept and CBS says so.
+- **Translations and Properties agree on the base language (#157).** The Translations
+  dialog's base-language row edited a copy that the publish then overwrote with the
+  Properties text. It now edits the button's own text; other languages are unchanged.
+- **Web resources are always referenced with `$webresource:` (#158).** That's the only form
+  that makes the solution depend on the web resource.
+  - A custom rule's library and a typed image path get the directive.
+  - A `/WebResources/…` path becomes `$webresource:…`.
+  - Platform paths (`/_imgs/…`) and URLs are kept as they are.
+- **A typed `$LocLabels:` reference is kept as is (#159).** A label that CBS doesn't have was
+  published as a placeholder whose text was its own id. It's now written as a reference,
+  like another solution's label, and the pre-publish check warns when nothing defines it.
+  The XML import's message about it no longer says the publish would fail.
 - **Duplicating a built-in group keeps its title.** A group titled by a platform text
   (`$Resources:`) or another solution's label was copied with the key itself as its title
   ("Ribbon.HomepageGrid.MainTab.Management (copy)"), and that text was published. Like a

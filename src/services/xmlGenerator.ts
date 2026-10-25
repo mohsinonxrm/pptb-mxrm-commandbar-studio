@@ -924,7 +924,11 @@ function resolveLocalizedAttr(
 	if (value.startsWith("$LocLabels:")) {
 		const id = value.slice("$LocLabels:".length);
 		const existing = storeLocLabels.find((l) => l.id === id);
-		sink(existing ?? { id, titles: [{ languageCode: lang, description: id }] });
+		// A typed reference to a label CBS doesn't have is written as is (#159),
+		// like another solution's label (#137): a placeholder whose text was its
+		// id became an unmanaged label that every control using it showed. The
+		// pre-publish check warns when nothing defines it.
+		if (existing) sink(existing);
 		return value;
 	}
 	if (isPlatformText(value)) {
@@ -1091,10 +1095,14 @@ function resolveButtonText(
 export function effectiveModernImage(button: RibbonButton): string | undefined {
 	const src = button.source;
 	const isWebResource = (v?: string): v is string => !!v?.startsWith("$webresource:");
+	// A bare web resource name picked in CBS counts as the web resource it names (#158).
+	const ref = (v?: string) => (v && !v.startsWith("/") && /[/.]/.test(v) ? webResourceRef(v) : v);
+	const image32 = ref(button.image32);
+	const image16 = ref(button.image16);
 	const pickedImages = (
 		[
-			[button.image32, "Image32by32"],
-			[button.image16, "Image16by16"],
+			[image32, "Image32by32"],
+			[image16, "Image16by16"],
 		] as const
 	)
 		.filter(([value, attr]) => isWebResource(value) && value !== src?.attributes[attr])
@@ -1102,7 +1110,7 @@ export function effectiveModernImage(button: RibbonButton): string | undefined {
 	if (src && normalizeModernImage(src.modernImage) === button.icon && pickedImages.length === 0) {
 		return src.modernImage;
 	}
-	return pickedImages[0] ?? [button.image32, button.image16, button.icon].find(isWebResource);
+	return pickedImages[0] ?? [image32, image16, button.icon].find(isWebResource);
 }
 
 function generateButtonElement(
@@ -1147,9 +1155,11 @@ function generateButtonElement(
 	// "New", /_imgs/ paths). A bare Fluent icon name chosen in CBS is a
 	// canvas-preview value only and must never be emitted (it doesn't resolve).
 	const isResourceRef = (v?: string) => !!v && (v.startsWith("$webresource:") || v.includes("/") || v.includes("."));
+	// With the directive (#158): a bare `new_/icons/x.svg` was written as is.
+	const imageRef = (v?: string) => (isResourceRef(v) ? webResourceRef(v!) : undefined);
 	set("ModernImage", effectiveModernImage(button));
-	set("Image16by16", isResourceRef(button.image16) ? button.image16 : undefined);
-	set("Image32by32", isResourceRef(button.image32) ? button.image32 : undefined);
+	set("Image16by16", imageRef(button.image16));
+	set("Image32by32", imageRef(button.image32));
 
 	// Only what the element allows (#41, #154).
 	const allowed = CONTROL_ATTRIBUTES[tag];
@@ -1265,15 +1275,28 @@ function generateVerbatimControl(
 // ---------------------------------------------------------------------------
 
 /**
- * A bare web resource name (`new_/scripts/x.js`) needs the `$webresource:`
- * directive. The directive is matched case-insensitively: out-of-the-box
- * commands use `$Webresource:Main_system_library.js`, which must be kept as is
- * (prefixing it again produced `$webresource:$Webresource:…`).
+ * A reference to a web resource as a ribbon must write it (#158): with the
+ * `$webresource:` directive, the only form that creates a solution dependency
+ * (https://learn.microsoft.com/power-apps/developer/model-driven-apps/web-resources).
+ * A bare name (`new_/scripts/x.js`) gets the directive and a root-relative
+ * `/WebResources/new_/x.js` becomes `$webresource:new_/x.js`. The directive is
+ * matched case-insensitively — out-of-the-box commands use
+ * `$Webresource:Main_system_library.js`, kept as is (prefixing it again
+ * produced `$webresource:$Webresource:…`) — and platform paths (`/_imgs/…`)
+ * and URLs stay as they are.
  */
-export function normalizeLibrary(library: string): string {
-	const v = (library ?? "").trim();
-	if (!v || /^\$webresource:/i.test(v) || /^https?:\/\//i.test(v) || v.startsWith("/")) return v;
+export function webResourceRef(value: string): string {
+	const v = (value ?? "").trim();
+	if (!v || /^\$webresource:/i.test(v) || /^https?:\/\//i.test(v)) return v;
+	const rootRelative = v.match(/^\/?WebResources\/(.+)$/i);
+	if (rootRelative) return `$webresource:${rootRelative[1]}`;
+	if (v.startsWith("/")) return v;
 	return `$webresource:${v}`;
+}
+
+/** A JavaScriptFunction / CustomRule Library: a web resource reference (#158). */
+export function normalizeLibrary(library: string): string {
+	return webResourceRef(library);
 }
 
 /** ` Name="value"`, or nothing when the value is undefined. */
@@ -1436,7 +1459,7 @@ export function generateRuleStep(step: RuleStep, indent = ""): string {
 			// Parameters are unnamed, like JavaScriptFunction's (CustomRuleType → ParameterType).
 			return element(
 				"CustomRule",
-				`${attr("FunctionName", step.functionName)}${attr("Library", step.library)}${std}`,
+				`${attr("FunctionName", step.functionName)}${attr("Library", step.library === undefined ? undefined : normalizeLibrary(step.library))}${std}`,
 				(step.params ?? []).map((p) => generateActionParam(p, false)),
 				indent,
 			);

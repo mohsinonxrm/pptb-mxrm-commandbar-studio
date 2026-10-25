@@ -341,14 +341,14 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		if (src.tooltipTitleToken) button.tooltipTitle = text(src.tooltipTitleToken, "");
 		if (src.tooltipBodyToken) button.tooltipBody = text(src.tooltipBodyToken, "");
 	};
-	/** `$LocLabels:` references neither the XML nor the session defines: the import would fail. */
+	/** `$LocLabels:` references neither the XML nor the session defines: their text won't show unless another solution defines it. */
 	const checkLabels = (item: { id: string; source?: { attributes: Record<string, string>; xml?: string } }) => {
 		// A control kept verbatim (#42): its children's references too.
 		for (const v of item.source?.xml ? [item.source.xml] : Object.values(item.source?.attributes ?? {}))
 			for (const [, id] of v.matchAll(LOC_LABEL_REF))
 				if (!locLabels.some((l) => l.id === id)) {
 					notApplied.push(
-						`${item.id}: references label ${id}, which neither the XML nor the loaded ribbon defines — add its <LocLabel> or the publish will fail.`,
+						`${item.id}: references label ${id}, which neither the XML nor the loaded ribbon defines — add its <LocLabel>, or its text won't show unless another solution defines it (the pre-publish check warns).`,
 					);
 				}
 	};
