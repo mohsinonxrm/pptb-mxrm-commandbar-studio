@@ -1,4 +1,5 @@
 import { useReplaceWebResourceConfirm } from "@/hooks/useReplaceWebResourceConfirm";
+import { webResourceRef } from "@/services/xmlGenerator";
 import { writeGuard } from "@/services/hostConnection";
 import React, { useState, useMemo } from "react";
 import {
@@ -401,15 +402,16 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 
 	const handleSelectWebResource = async () => {
 		if (!webResourcePath || !selectedButtonId || !selectedGroupId) return;
+		// Always with the `$webresource:` directive (#158): a typed bare name or
+		// /WebResources/ path made no solution dependency and lost the icon.
+		const path = webResourceRef(webResourcePath);
 		const guard = writeGuard();
 		const logs = useRuntimeLogStore.getState();
 		setIconError(null);
 		setIconNote(null);
 		// An existing web resource must also be in the active solution, or a
 		// solution export misses the icon the ribbon references (#61).
-		const name = webResourcePath.startsWith("$webresource:")
-			? webResourcePath.slice("$webresource:".length).trim()
-			: null;
+		const name = path.startsWith("$webresource:") ? path.slice("$webresource:".length).trim() : null;
 		let note: string | null = null;
 		if (name) {
 			setUploading(true);
@@ -435,8 +437,8 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 			}
 		}
 		setButtonProp(location, tabId, selectedGroupId, selectedButtonId, {
-			image16: webResourcePath,
-			image32: webResourcePath,
+			image16: path,
+			image32: path,
 		});
 		if (note) {
 			// Keep the dialog open so the note is seen; the icon is already applied.
@@ -467,11 +469,13 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 				reader.readAsDataURL(file);
 			});
 			const name = `${publisherPrefix || "new"}_/icons/${file.name}`;
-			await saveWebResource(name, content, 11, {
+			const saved = await saveWebResource(name, content, 11, {
 				displayName: file.name,
 				guard,
 				onExisting: replaceConfirm.onExisting,
 			});
+			// Shown here too, not only in the Console (#156 review).
+			setIconNote([saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null);
 			setWebResourcePath(`$webresource:${name}`);
 			setActiveTab("webresource");
 			const rows = await loadWebResources("svg");
