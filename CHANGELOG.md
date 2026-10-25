@@ -13,9 +13,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Formatting is enforced (#118, item 1).** The codebase is formatted with Prettier once, in its
   own commit (146 files: line wrapping, indentation, trailing commas and parentheses; no behaviour
-  change). CI now runs `npm run format:check`
-  after lint, so unformatted code fails the build. This comes first in the UI/UX work (#193),
-  so later diffs show only real changes.
+  change). CI now runs `npm run format:check` after lint, so unformatted code fails the build.
+  This comes first in the UI/UX work (#193), so later diffs show only real changes.
+- **Shared Fluent UI components (#190).** These are the pieces the UI/UX issues build on, so each
+  surface looks and behaves the same:
+  - `AppDialog`: one dialog shell in three widths (440 / 600 / 960 px). Only the content scrolls,
+    so the actions never leave the dialog. A close button, and `DangerButton` for destructive
+    actions.
+  - `PropertySection`: collapsible properties sections with one heading style. The open sections
+    are remembered.
+  - `IdField`: a long id shown read-only and truncated, with the full id in a tooltip and a copy
+    button.
+  - `LocationInfo`: "About this location", with an explanation of each ribbon location in Unified
+    Interface terms. It replaces permanent banners (#181).
+  - `MessageSlot`: one message bar at a time with "+n more". Dismissing is remembered until the
+    message changes.
+  - `RuleTag`: a bound rule, named by the part of its id that tells rules apart instead of
+    "EnableRule". Click to open, ✕ to unbind.
+  - **Lint guard:** components can't add raw `button`/`input`/`select`/`textarea`/`table`
+    elements, or text in an extra-small Badge. The files that still do are listed in
+    `eslint.config.js` and come off the list as their issues are fixed.
+
+### 🔧 Changed
+
+- **Confirmation dialogs** use the shared dialog shell: 440 px wide, with the confirm button
+  red when it deletes or discards something.
 
 ## [0.8.0-beta.1] - 2026-10-25
 
