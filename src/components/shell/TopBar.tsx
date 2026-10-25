@@ -104,7 +104,6 @@ const useStyles = makeStyles({
 		backgroundColor: tokens.colorNeutralStroke2,
 		flexShrink: 0,
 	},
-	spacer: { flex: "1 1 0", minWidth: 0 },
 	solutionTrigger: {
 		minWidth: "120px",
 		maxWidth: "260px",
@@ -145,13 +144,19 @@ const useStyles = makeStyles({
 		fontSize: tokens.fontSizeBase100,
 		"@media (max-width: 1180px)": { display: "none" },
 	},
+	/**
+	 * Fills the free space, tools right-aligned: Fluent's Overflow measures this
+	 * container, and one sized to its content never grows back after a narrow moment.
+	 */
 	toolsOverflow: {
-		flex: "0 1 auto",
+		flex: "1 1 0",
 		minWidth: "40px",
 		overflow: "hidden",
 		display: "flex",
+		justifyContent: "flex-end",
 	},
 	toolbar: { flexWrap: "nowrap", minWidth: 0 },
+	overflowSlot: { display: "inline-flex" },
 	publish: { flexShrink: 0 },
 	helpBody: {
 		display: "flex",
@@ -201,7 +206,7 @@ export function TopBar() {
 
 			<SolutionPicker />
 
-			<div className={styles.spacer} />
+			<Tools onHelp={() => setHelpOpen(true)} />
 
 			<Tooltip content="Search buttons, commands, rules (Ctrl+K)" relationship="label">
 				<Button
@@ -216,8 +221,6 @@ export function TopBar() {
 					</span>
 				</Button>
 			</Tooltip>
-
-			<Tools onHelp={() => setHelpOpen(true)} />
 
 			{canPublish ? (
 				publishButton
@@ -520,17 +523,20 @@ function Tools({ onHelp }: { onHelp: () => void }) {
 						</Tooltip>
 					</OverflowItem>
 					<ToolbarDivider />
+					{/* A span the overflow can measure and hide: a Menu or Popover can't take its ref. */}
 					<OverflowItem id="xml">
-						<Menu>
-							<MenuTrigger disableButtonEnhancement>
-								<ToolbarButton icon={<CodeRegular />}>
-									XML <ChevronDownRegular fontSize={12} />
-								</ToolbarButton>
-							</MenuTrigger>
-							<MenuPopover>
-								<MenuList>{XML_ITEMS(t)}</MenuList>
-							</MenuPopover>
-						</Menu>
+						<span className={styles.overflowSlot}>
+							<Menu>
+								<MenuTrigger disableButtonEnhancement>
+									<ToolbarButton icon={<CodeRegular />}>
+										XML <ChevronDownRegular fontSize={12} />
+									</ToolbarButton>
+								</MenuTrigger>
+								<MenuPopover>
+									<MenuList>{XML_ITEMS(t)}</MenuList>
+								</MenuPopover>
+							</Menu>
+						</span>
 					</OverflowItem>
 					<OverflowItem id="open">
 						<Tooltip content="Open this table in Dynamics 365" relationship="label">
@@ -542,19 +548,25 @@ function Tools({ onHelp }: { onHelp: () => void }) {
 						</Tooltip>
 					</OverflowItem>
 					<OverflowItem id="view">
-						<Menu {...viewMenuProps(t)}>
-							<MenuTrigger disableButtonEnhancement>
-								<Tooltip content="View" relationship="label">
-									<ToolbarButton icon={<LayoutColumnTwoSplitRightRegular />} />
-								</Tooltip>
-							</MenuTrigger>
-							<MenuPopover>
-								<MenuList>{VIEW_ITEMS}</MenuList>
-							</MenuPopover>
-						</Menu>
+						<span className={styles.overflowSlot}>
+							<Menu {...viewMenuProps(t)}>
+								<MenuTrigger disableButtonEnhancement>
+									<Tooltip content="View" relationship="label">
+										<ToolbarButton
+											icon={<LayoutColumnTwoSplitRightRegular />}
+										/>
+									</Tooltip>
+								</MenuTrigger>
+								<MenuPopover>
+									<MenuList>{VIEW_ITEMS}</MenuList>
+								</MenuPopover>
+							</Menu>
+						</span>
 					</OverflowItem>
 					<OverflowItem id="help">
-						<HelpButton />
+						<span className={styles.overflowSlot}>
+							<HelpButton />
+						</span>
 					</OverflowItem>
 					<ToolsOverflowMenu tools={t} onHelp={onHelp} />
 				</Toolbar>
