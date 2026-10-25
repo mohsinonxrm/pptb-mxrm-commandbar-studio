@@ -18,6 +18,8 @@ const useStyles = makeStyles({
 	name: { maxWidth: "180px" },
 	/** The name gives way to the type badge in a narrow top bar (#179). */
 	nameBelow1200: {
+		display: "inline-flex",
+		minWidth: 0,
 		"@media (max-width: 1200px)": { display: "none" },
 	},
 });
@@ -49,17 +51,18 @@ export function EnvironmentBadge({
 						{prefix}
 					</Text>
 				)}
-				<Text
-					size={200}
-					weight="semibold"
-					truncate
-					wrap={false}
-					className={
-						compactBelow ? `${styles.name} ${styles.nameBelow1200}` : styles.name
-					}
-				>
-					{name || url}
-				</Text>
+				{/* A wrapper span: a media-query class on Text loses to Text's own display. */}
+				<span className={compactBelow ? styles.nameBelow1200 : undefined}>
+					<Text
+						size={200}
+						weight="semibold"
+						truncate
+						wrap={false}
+						className={styles.name}
+					>
+						{name || url}
+					</Text>
+				</span>
 				{environment && (
 					<Badge
 						size="small"

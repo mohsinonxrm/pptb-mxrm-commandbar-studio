@@ -73,6 +73,7 @@ const useStyles = makeStyles({
 	},
 	drawerBody: {
 		position: "relative",
+		width: "100%",
 		height: "100%",
 		overflow: "hidden",
 	},
@@ -246,9 +247,12 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 							</div>
 						</OverlayDrawer>
 						{rightPaneMode !== "hidden" && (
+							// Non-modal: the canvas stays usable, so picking another button
+							// updates Properties instead of needing a close first.
 							<OverlayDrawer
 								position="end"
 								size="small"
+								modalType="non-modal"
 								open={propsOpen}
 								onOpenChange={(_, d) => setPropsOpen(d.open)}
 								aria-label="Properties"

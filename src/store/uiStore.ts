@@ -115,7 +115,8 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	leftPaneWidth: 260,
 	rightPaneWidth: 340,
 	bottomPanelHeight: 220,
-	bottomCollapsed: false,
+	// Collapsed until wanted (#179): the canvas gets the height.
+	bottomCollapsed: true,
 	rightPaneMode: "docked",
 	themeMode: "light",
 	ribbonViewStyle: "modern",

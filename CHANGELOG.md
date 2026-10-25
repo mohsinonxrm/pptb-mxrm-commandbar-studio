@@ -53,8 +53,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tool-wide messages** (connection changed, draft couldn't be saved) sit under the top bar
     and push the panes down. They used to cover the left pane's tabs and the Properties header.
   - **Below 1200 px wide,** the left pane becomes a rail that opens it as a drawer. Properties
-    opens as a drawer when you select something. At 1024 px the canvas went from about a third of
-    the width to nearly all of it.
+    opens as a drawer when you select something; the canvas stays usable behind it, so picking
+    another button updates it. At 1024 px the canvas went from about a third of the width to
+    nearly all of it.
+  - **The bottom panel starts collapsed** (new installs) and opens when you choose one of its
+    tabs.
 - **Confirmation dialogs** use the shared dialog shell: 440 px wide, with the confirm button
   red when it deletes or discards something.
 

@@ -267,12 +267,14 @@ export function BottomPanel() {
 			<div className={styles.tabRow}>
 				<TabList
 					selectedValue={activeBottomTab}
-					onTabSelect={(_, d) =>
+					onTabSelect={(_, d) => {
 						setActiveBottomTab(
 							d.value as
 								"commands" | "displayRules" | "enableRules" | "history" | "console",
-						)
-					}
+						);
+						// Choosing a tab of a collapsed panel opens it (#179).
+						if (bottomPanelCollapsed) setBottomPanelCollapsed(false);
+					}}
 					size="small"
 					style={{ flex: 1 }}
 				>
