@@ -582,7 +582,9 @@ function generateScalingCustomActions(
 }
 
 function generateScaleStep(tag: "MaxSize" | "Scale", step: ScaleStep): string {
-	return `<${tag} Id="${escapeXml(step.id)}" GroupId="${escapeXml(step.groupId)}" Sequence="${step.sequence}" Size="${escapeXml(step.size)}"/>`;
+	// PopupSize (ScaleType only) is written back as loaded (#169).
+	const popup = tag === "Scale" && step.popupSize ? ` PopupSize="${escapeXml(step.popupSize)}"` : "";
+	return `<${tag} Id="${escapeXml(step.id)}" GroupId="${escapeXml(step.groupId)}" Sequence="${step.sequence}" Size="${escapeXml(step.size)}"${popup}/>`;
 }
 
 function generateScalingCustomAction(tabId: string, tag: "MaxSize" | "Scale", step: ScaleStep): string {
@@ -881,10 +883,16 @@ function descriptionAttr(
  */
 const CONTAINER_MODELLED_ATTRIBUTES = new Set(["Id", "Command", "Title", "Description", "Sequence", "Template"]);
 
-/** The other attributes of an imported tab / group (Description, images, …), as imported (#30). */
+/**
+ * The other attributes of an imported tab / group (Description, images, …), as
+ * imported (#30). A group's `Command` among them (#169): a tab's is modelled
+ * (commandId), a group's isn't, so it was dropped.
+ */
 function containerAttributes(container: RibbonTab | RibbonGroup): string {
+	const isGroup = "template" in container;
 	return Object.entries(container.source?.attributes ?? {})
-		.filter(([k]) => !CONTAINER_MODELLED_ATTRIBUTES.has(k) && !NON_DIFF_ATTRIBUTES.has(k))
+		.filter(([k]) => (isGroup && k === "Command") || !CONTAINER_MODELLED_ATTRIBUTES.has(k))
+		.filter(([k]) => !NON_DIFF_ATTRIBUTES.has(k))
 		.map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
 		.join("");
 }
