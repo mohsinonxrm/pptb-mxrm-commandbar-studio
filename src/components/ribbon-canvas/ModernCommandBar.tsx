@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useDisplayText } from "@/hooks/useDisplayText";
 import {
 	makeStyles,
 	tokens,
@@ -30,9 +31,8 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { loadedLabelIdsOf, useRibbonStore } from "@/store/ribbonStore";
 import { CustomiseMenuItems } from "@/components/ribbon-canvas/CustomiseMenuItems";
 import { useUIStore } from "@/store/uiStore";
-import FluentIcon from "@/components/shared/FluentIcon";
+import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
-import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { moveTargets } from "@/utils/moveTargets";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
 import { copyControl } from "@/utils/ribbonMenu";
@@ -176,9 +176,11 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
 	const customizeOobButton = useRibbonStore((s) => s.customizeOobButton);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	// Group titles resolve like the classic canvas shows them (#75).
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
-	const groupText = (label: string, id: string) => resolveDisplayLabel(label, locLabels, lang) || id;
+	const groupText = (label: string, id: string, titleToken?: string) =>
+		captionOf(label, locLabels, lang, titleToken) || id;
 	const openIconPicker = useUIStore((s) => s.openIconPicker);
 	const openLocalizationEditor = useUIStore((s) => s.openLocalizationEditor);
 	const openNewButton = useUIStore((s) => s.openNewButton);
@@ -328,7 +330,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							content={
 								isGlobalOobReadOnly(button)
 									? "OOB global command bar buttons cannot be customized."
-									: `${resolveDisplayLabel(button.label, locLabels)}${kindNote(button)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`
+									: `${captionOf(button.label, locLabels, undefined, button.source?.labelToken)}${kindNote(button)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`
 							}
 							relationship="label"
 						>
@@ -343,7 +345,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									.filter(Boolean)
 									.join(" ")}
 								aria-selected={selectedButtonId === button.id}
-								aria-label={`${resolveDisplayLabel(button.label, locLabels)}${kindNote(button)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`}
+								aria-label={`${captionOf(button.label, locLabels, undefined, button.source?.labelToken)}${kindNote(button)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`}
 								onClick={() => selectButtonInContext(location, tab.id, groupId, button.id)}
 								onContextMenu={(e) => {
 									e.preventDefault();
@@ -357,8 +359,8 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 								onDrop={(e) => onDropOn(e, groupId, button.id)}
 								style={{ opacity: dragging === button.id ? 0.3 : undefined }}
 							>
-								<FluentIcon name={button.icon || "apps_add_in"} size={16} />
-								<Text size={200}>{resolveDisplayLabel(button.label, locLabels)}</Text>
+								<RibbonButtonIcon button={button} size={16} />
+								<Text size={200}>{captionOf(button.label, locLabels, undefined, button.source?.labelToken)}</Text>
 								{isReadOnlyKind(button) && (
 									<Badge size="extra-small" appearance="outline" color="informative">
 										{CONTROL_KIND_LABELS[button.kind]}
@@ -413,7 +415,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 						}
 						return (
 							<Tooltip
-								content={`Add a new button to "${groupText(firstGroup.label, firstGroup.id)}"`}
+								content={`Add a new button to "${groupText(firstGroup.label, firstGroup.id, firstGroup.source?.titleToken)}"`}
 								relationship="label"
 							>
 								<button
@@ -567,7 +569,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									Delete
 								</MenuItem>
 							)}
-							{moveTargets(tab, btnMenu.groupId, btnMenu.button.id, locLabels, lang).map((t) => (
+							{moveTargets(tab, btnMenu.groupId, btnMenu.button.id, locLabels, lang, captionOf).map((t) => (
 								<MenuItem
 									key={t.groupId}
 									icon={<ArrowMoveRegular />}
@@ -598,7 +600,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 			{hideWarning && (
 				<HideOobWarningModal
 					open
-					buttonLabel={resolveDisplayLabel(hideWarning.button.label, locLabels)}
+					buttonLabel={captionOf(hideWarning.button.label, locLabels, undefined, hideWarning.button.source?.labelToken)}
 					onConfirmHide={() => {
 						hideOobButton(location, tab.id, hideWarning.groupId, hideWarning.button.id);
 						setHideWarning(null);

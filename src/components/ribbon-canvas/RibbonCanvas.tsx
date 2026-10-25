@@ -11,6 +11,7 @@ import {
 	Input,
 	Spinner,
 } from "@fluentui/react-components";
+import { useDisplayText } from "@/hooks/useDisplayText";
 import {
 	TableRegular,
 	TableResizeColumnRegular,
@@ -225,6 +226,7 @@ export function RibbonCanvas({
 	const renameTab = useRibbonStore((s) => s.renameTab);
 	const deleteTab = useRibbonStore((s) => s.deleteTab);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	// Tab titles in the organisation's base language: a rename replaces that
 	// language's title (#66 review m3).
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
@@ -605,7 +607,7 @@ export function RibbonCanvas({
 					}}
 					onCancel={() => setDeletingTabId(null)}
 				>
-					Delete the tab &ldquo;{resolveDisplayLabel(deletingTab.label, locLabels, lang)}&rdquo; and its
+					Delete the tab &ldquo;{captionOf(deletingTab.label, locLabels, lang, deletingTab.source?.titleToken)}&rdquo; and its
 					groups and buttons?
 				</ConfirmDialog>
 			)}
@@ -669,10 +671,11 @@ function SortableTab({
 		id: tab.id,
 	});
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	// Tab titles in the organisation's base language: a rename replaces that
 	// language's title (#66 review m3).
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
-	const displayLabel = resolveDisplayLabel(tab.label, locLabels, lang);
+	const displayLabel = captionOf(tab.label, locLabels, lang, tab.source?.titleToken);
 
 	const style: React.CSSProperties = {
 		transform: CSS.Transform.toString(transform),

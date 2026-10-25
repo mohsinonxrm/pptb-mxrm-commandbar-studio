@@ -26,6 +26,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - **Modern command bar view** — flat command bar exactly as rendered in Unified Interface
 - **List view** — sortable data grid of all buttons with inline visibility toggle
 - All 4 ribbon locations: **Home Grid**, **Sub Grid**, **Form**, **Application**
+- Built-in buttons show their captions (managed solutions' label texts; a platform key shows its last segment, e.g. "New") and icons (out-of-the-box `ModernImage` names, `$webresource:` images)
 - Tab drag-to-reorder, inline rename (double-click), `+ Add tab`
 - Context menus on buttons and groups — hide/show, duplicate, move, rename, delete, override OOB
 - A copy (duplicate, customise button) keeps the labels another solution defines, so it shows the same text; edit its text to give it labels of its own. A duplicated group with a platform or another solution's title keeps it: rename the copy before publishing if it should read differently

@@ -1,5 +1,6 @@
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type { ButtonProvenance } from "@/utils/ribbonProvenance";
+import type { LocLabel } from "@/types/ribbon";
 import { queryAll } from "@/services/dataverse/ribbonLayerService";
 
 /** The platform's own layer: its controls are out-of-the-box, not a managed solution's. */
@@ -119,4 +120,60 @@ export async function fetchRibbonProvenance(
 	}
 
 	return result;
+}
+
+/**
+ * The texts of the LocLabels managed solutions define for a table's ribbon and
+ * the application ribbon (#6): the merged ribbon names them (`$LocLabels:…`)
+ * but carries no texts, so the canvas showed their ids. One query of the
+ * managed `ribbondiffs` LocLabel rows (difftype 3), every language included.
+ * For display only: your own layer's labels stay the ones that publish (#137).
+ * A failed read returns none; the ids are shown as before.
+ */
+export async function fetchManagedLocLabels(entityLogicalName: string): Promise<LocLabel[]> {
+	if (!entityLogicalName || entityLogicalName === ENTITY_TOKEN) return [];
+	try {
+		const safeEntity = entityLogicalName.replace(/'/g, "''");
+		const rows = await queryAll(
+			`ribbondiffs?$select=rdx` +
+				`&$filter=(entity eq '${safeEntity}' or entity eq null) and ismanaged eq true and difftype eq 3` +
+				`&$orderby=solutionid`,
+		);
+		// Ordered, so the same solution's text wins on every load when two define one id.
+		const labels: LocLabel[] = [];
+		const parser = new DOMParser();
+		for (const row of rows) {
+			const doc = parser.parseFromString(String(row["rdx"] ?? ""), "application/xml");
+			if (doc.querySelector("parsererror")) continue;
+			for (const el of Array.from(doc.getElementsByTagName("LocLabel"))) {
+				const id = el.getAttribute("Id");
+				if (!id) continue;
+				const titles = Array.from(el.getElementsByTagName("Title"))
+					.map((t) => ({
+						languageCode: Number(t.getAttribute("languagecode")),
+						description: t.getAttribute("description") ?? "",
+					}))
+					.filter((t) => Number.isFinite(t.languageCode) && t.description);
+				if (titles.length === 0) continue;
+				// Application-ribbon ids keep the token; the table's ribbon resolves it.
+				labels.push({ id, titles });
+				const resolved = id.split(ENTITY_TOKEN).join(entityLogicalName);
+				if (resolved !== id) labels.push({ id: resolved, titles });
+			}
+		}
+		useRuntimeLogStore
+			.getState()
+			.logInfo("provenance", `${labels.length} label text(s) from managed solutions for ${entityLogicalName}.`);
+		return labels;
+	} catch (e) {
+		useRuntimeLogStore
+			.getState()
+			.logWarn(
+				"provenance",
+				`Couldn't read the managed solutions' label texts for ${entityLogicalName} (${
+					e instanceof Error ? e.message : String(e)
+				}); their ids are shown. This is non-fatal.`,
+			);
+		return [];
+	}
 }

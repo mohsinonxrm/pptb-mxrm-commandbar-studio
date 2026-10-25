@@ -4,6 +4,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { findGroupControl } from "@/utils/ribbonMenu";
 import { deleteBlockedReason } from "@/utils/ribbonProvenance";
 import { HideOobWarningModal } from "./HideOobWarningModal";
+import { useDisplayText } from "@/hooks/useDisplayText";
 
 /**
  * Delete pressed on a button that isn't yours (#17): explains why it can't be
@@ -24,12 +25,14 @@ export const HideInsteadOfDeleteModal: React.FC = () => {
 			: undefined,
 	);
 	const baseline = useRibbonStore((s) => (target ? s.baseline[target.location] : undefined));
+	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	if (!target || !button || !baseline) return null;
 
 	return (
 		<HideOobWarningModal
 			open
-			buttonLabel={button.label}
+			buttonLabel={captionOf(button.label, locLabels, undefined, button.source?.labelToken)}
 			commandId={button.commandId}
 			deleteBlockedReason={deleteBlockedReason(button, baseline)}
 			onConfirmHide={() => {

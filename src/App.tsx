@@ -26,7 +26,8 @@ import {
 } from "@/services/dataverse/solutionService";
 import { fetchEntitiesByMetadataIds } from "@/services/dataverse/entityService";
 import { fetchRibbonWorkspace, invalidateApplicationRibbonCache } from "@/services/dataverse/ribbonService";
-import { fetchRibbonProvenance } from "@/services/dataverse/ribbonProvenanceService";
+import { fetchManagedLocLabels, fetchRibbonProvenance } from "@/services/dataverse/ribbonProvenanceService";
+import { useLabelTextStore } from "@/store/labelTextStore";
 import { applyProvenanceToRibbons, type ButtonProvenance } from "@/utils/ribbonProvenance";
 import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import type { ConflictEntry } from "@/types/ribbon";
@@ -233,6 +234,13 @@ export function App() {
 		setLayerReadError(null);
 		setRibbonLoadStep(null);
 		logInfo("ribbon", `Loading ribbon workspace for ${activeEntity.logicalName}...`);
+
+		// The managed solutions' label texts, for the canvas only (#6): the load
+		// doesn't wait for them; the captions update when they arrive.
+		useLabelTextStore.getState().setManaged([]);
+		void fetchManagedLocLabels(activeEntity.logicalName).then((labels) => {
+			if (!cancelled) useLabelTextStore.getState().setManaged(labels);
+		});
 
 		// Load the ribbon and which managed solutions add its controls in
 		// parallel, then name the owners before seeding the store. Provenance is

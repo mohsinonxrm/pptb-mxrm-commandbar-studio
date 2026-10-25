@@ -9,6 +9,7 @@ import {
 import { ArrowMoveRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { moveTargets } from "@/utils/moveTargets";
+import { useDisplayText } from "@/hooks/useDisplayText";
 import type { RibbonLocation, RibbonTab } from "@/types/ribbon";
 
 interface MoveToFlyoutProps {
@@ -24,7 +25,8 @@ interface MoveToFlyoutProps {
 export function MoveToFlyout({ trigger, currentGroupId, buttonId, tab, onMove }: MoveToFlyoutProps) {
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
-	const otherGroups = moveTargets(tab, currentGroupId, buttonId, locLabels, lang);
+	const captionOf = useDisplayText();
+	const otherGroups = moveTargets(tab, currentGroupId, buttonId, locLabels, lang, captionOf);
 
 	if (otherGroups.length === 0) {
 		return null;
@@ -58,7 +60,8 @@ interface MoveToSubMenuProps {
 export function MoveToSubMenuItems({ currentGroupId, buttonId, tab, onMove }: MoveToSubMenuProps) {
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
-	const otherGroups = moveTargets(tab, currentGroupId, buttonId, locLabels, lang);
+	const captionOf = useDisplayText();
+	const otherGroups = moveTargets(tab, currentGroupId, buttonId, locLabels, lang, captionOf);
 	if (otherGroups.length === 0) {
 		return <MenuItem disabled>No other groups</MenuItem>;
 	}

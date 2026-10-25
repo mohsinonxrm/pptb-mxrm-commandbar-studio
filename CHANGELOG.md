@@ -26,6 +26,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     every load for 5 minutes, because Dataverse can take that long to return the new version.
   - **Progress:** the loading spinner names the table and the step it's on.
 
+### ✨ Added
+
+- **Built-in buttons show captions and icons (#6).** The canvas used to show keys such as
+  `Ribbon.HomepageGrid.MainTab.New` and a placeholder icon for most out-of-the-box buttons.
+  - **Captions:** the texts managed solutions define (for example "Focused view" or
+    "Learning Path") are read with each table, in the org's base language. The table
+    doesn't wait for them; the captions update when they arrive.
+  - **Platform keys:** Dataverse resolves these itself, and CBS can't read them yet (see
+    below). They show their last meaningful segment instead: `…MainTab.New` → "New",
+    `…View.TabName` → "View".
+  - **Icons:** about 80 out-of-the-box `ModernImage` names (New, Export to Excel, Flows,
+    Email a Link, Assign, …) get Fluent icons. A button whose icon is a `$webresource:`
+    image shows that image.
+  - **Only references:** only a label that refers to a text CBS can't read gets a caption.
+    Literal labels, and controls without one, are shown as they are.
+  - **Display only:** what publishes is the label and icon as loaded.
+
+  The real texts of platform keys only come from `GetClientMetadata`, a 162 MB response,
+  which is more than Power Platform ToolBox passes to a tool (128 MB).
+
 ### 🔧 Fixed
 
 - **Duplicating a built-in group keeps its title.** A group titled by a platform text
