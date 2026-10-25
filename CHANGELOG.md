@@ -58,6 +58,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     nearly all of it.
   - **The bottom panel starts collapsed** (new installs) and opens when you choose one of its
     tabs.
+- **The rows above the canvas fit and work from the keyboard (#180).** The location row was
+  hand-rolled tabs that the keyboard couldn't reach. The ribbon tab strip stacked each tab's label,
+  its full id and a delete button into 32 px, and pushed Add tab and Tab rules off-screen.
+  - **Locations use Unified Interface names:** Main grid · Main form · Sub-grid · Application. They
+    form a Fluent tab list (arrow keys, Enter) with a **More** menu when they don't fit.
+  - **About this location (ⓘ)** explains each location and shows its ribbon id.
+  - **App and View are compact menus** instead of 170 px drop-downs. The canvas's own XML button is
+    gone: the top bar's XML menu is the one entry point.
+  - **Ribbon tabs show their label only.** The id is in a tooltip. Double-click or F2 still renames.
+    **Tab options (⋯)** holds Rename…, Tab display rules…, **Move left / Move right** (the keyboard
+    way to reorder; dragging still works), and Delete tab….
+  - **Add tab and Tab rules** (with its rule count) stay reachable however many tabs there are.
+    When a rename isn't allowed, the reason is announced to screen readers.
 - **Confirmation dialogs** use the shared dialog shell: 440 px wide, with the confirm button
   red when it deletes or discards something.
 
