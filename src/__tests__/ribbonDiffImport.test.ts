@@ -620,7 +620,7 @@ describe("#68 review 1 — tab and group titles and attributes publish as import
 		expect(doc.querySelector('TabDisplayRule[TabCommand="cbs.Tab.Command"]')).not.toBeNull();
 	});
 
-	it("a renamed imported tab keeps its label id and other languages; a duplicated group gets its own title", async () => {
+	it("a renamed imported tab keeps its label id and other languages; a duplicated group keeps its platform title", async () => {
 		importIntoStore(CAPTIONED);
 		useRibbonStore.getState().renameTab("HomepageGrid", "cbs.Tab", "Renamed");
 		useRibbonStore.getState().duplicateGroup("HomepageGrid", MAIN, "cbs.Grp");
@@ -640,7 +640,8 @@ describe("#68 review 1 — tab and group titles and attributes publish as import
 		const copy = Array.from(doc.querySelectorAll("Group")).find((g) =>
 			g.getAttribute("Id")?.startsWith("cbs.Grp_copy_"),
 		);
-		expect(copy?.getAttribute("Title")).toMatch(/^\$LocLabels:cbs\.Grp_copy_.*\.Title$/);
+		// A platform title is kept as the token: it can't take " (copy)" (like a copied button, #86).
+		expect(copy?.getAttribute("Title")).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
 		expect(copy?.getAttribute("Description")).toBeNull();
 	});
 });
