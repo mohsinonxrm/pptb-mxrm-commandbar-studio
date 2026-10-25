@@ -264,7 +264,8 @@ function SolutionPicker() {
 	const solutions = useSessionStore((s) => s.solutions);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const requestSolutionSwitch = useDraftStore((s) => s.requestSolutionSwitch);
-	const [pickerOpen, setPickerOpen] = useState(false);
+	const pickerOpen = useUIStore((s) => s.solutionPickerOpen);
+	const setPickerOpen = useUIStore((s) => s.setSolutionPickerOpen);
 	const [query, setQuery] = useState("");
 
 	// Managed solutions can never be modified by a tool: ribbon customizations

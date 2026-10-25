@@ -88,6 +88,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - the ampersand note on a URL action's address.
   - **Removed:** the developer note about "Monaco editing … integration path", and the "Your own
     command." bar (its badge says it).
+- **Clear empty, loading and error states (#195).**
+  - **Before a solution is chosen,** the canvas offered "This tab has no groups yet · Add
+    first group". Now it says **Choose a solution to start**, and its button opens the solution
+    picker.
+  - **With a solution but no table:** **Pick a table**. Choose table opens the tables drawer in
+    a narrow window, or puts you in the table search otherwise.
+  - **Loading** shows a progress bar, a skeleton in the shape of the canvas, and a status line
+    with the table and step.
+  - **A failed load** is a titled error with a plain-language cause (for example "Your
+    connection may have expired." for a 401) and Retry. The raw details are in a collapsible
+    section with Copy details.
+  - **Compare with nothing changed** says "No changes since the last publish", with **Show the
+    full XML anyway**, instead of a diff of identical XML.
+  - **Publish with nothing to publish** is disabled with a reason (see the top bar above).
 - **Confirmation dialogs** use the shared dialog shell: 440 px wide, with the confirm button
   red when it deletes or discards something.
 

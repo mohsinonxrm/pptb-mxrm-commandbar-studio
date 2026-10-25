@@ -221,6 +221,7 @@ export function TablesPane() {
 				<Input
 					contentBefore={<SearchRegular />}
 					placeholder="Search tables…"
+					aria-label="Search tables"
 					size="small"
 					value={filter}
 					onChange={(_, d) => setFilter(d.value)}

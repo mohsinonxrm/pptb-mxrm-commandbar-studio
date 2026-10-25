@@ -14,7 +14,7 @@ import {
 	MessageBarBody,
 	Spinner,
 } from "@fluentui/react-components";
-import { DismissRegular } from "@fluentui/react-icons";
+import { CheckmarkCircleRegular, DismissRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { generateRibbonDiffXml } from "@/services/xmlGenerator";
@@ -30,6 +30,16 @@ type IStandaloneDiffEditor = import("monaco-editor").editor.IStandaloneDiffEdito
 const LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form", "Application"];
 
 const useStyles = makeStyles({
+	unchanged: {
+		flex: 1,
+		display: "flex",
+		flexDirection: "column",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: tokens.spacingVerticalM,
+		textAlign: "center",
+		color: tokens.colorNeutralForeground3,
+	},
 	drawer: {},
 	body: {
 		display: "flex",
@@ -118,6 +128,8 @@ export const DiffViewer: React.FC = () => {
 	const closeDiffViewer = useUIStore((s) => s.closeDiffViewer);
 	const themeMode = useUIStore((s) => s.themeMode);
 	const [sideBySide, setSideBySide] = React.useState(true);
+	// Compare with nothing changed shows an empty state first (#195).
+	const [showUnchanged, setShowUnchanged] = React.useState(false);
 
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const baseline = useRibbonStore((s) => s.baseline);
@@ -204,76 +216,93 @@ export const DiffViewer: React.FC = () => {
 					overflow: "hidden",
 				}}
 			>
-				<div className={styles.body}>
-					<MessageBar intent="info">
-						<MessageBarBody>
-							<Text size={200}>
-								{mode === "compare"
-									? "Showing current state vs. last published baseline."
-									: "Showing the change introduced by this history entry."}
-							</Text>
-						</MessageBarBody>
-					</MessageBar>
-
-					<div className={styles.toggleRow}>
-						<Badge appearance="tint" color="success">
-							+{added} lines
-						</Badge>
-						<Badge appearance="tint" color="danger">
-							-{removed} lines
-						</Badge>
-						<div style={{ flex: 1 }} />
-						<Button
-							appearance={sideBySide ? "primary" : "subtle"}
-							size="small"
-							onClick={() => setSideBySide(true)}
-						>
-							Side by side
-						</Button>
-						<Button
-							appearance={!sideBySide ? "primary" : "subtle"}
-							size="small"
-							onClick={() => setSideBySide(false)}
-						>
-							Unified
+				{mode === "compare" && !showUnchanged && baselineXml === currentXml ? (
+					<div className={styles.unchanged}>
+						<CheckmarkCircleRegular
+							fontSize={40}
+							color={tokens.colorPaletteGreenForeground1}
+							aria-hidden="true"
+						/>
+						<Text size={500} weight="semibold">
+							No changes since the last publish
+						</Text>
+						<Text>What you see matches what&apos;s published for this table.</Text>
+						<Button onClick={() => setShowUnchanged(true)}>
+							Show the full XML anyway
 						</Button>
 					</div>
+				) : (
+					<div className={styles.body}>
+						<MessageBar intent="info">
+							<MessageBarBody>
+								<Text size={200}>
+									{mode === "compare"
+										? "Showing current state vs. last published baseline."
+										: "Showing the change introduced by this history entry."}
+								</Text>
+							</MessageBarBody>
+						</MessageBar>
 
-					<div className={styles.editorWrap}>
-						<Suspense
-							fallback={
-								<div
-									style={{
-										display: "flex",
-										alignItems: "center",
-										justifyContent: "center",
-										height: "100%",
+						<div className={styles.toggleRow}>
+							<Badge appearance="tint" color="success">
+								+{added} lines
+							</Badge>
+							<Badge appearance="tint" color="danger">
+								-{removed} lines
+							</Badge>
+							<div style={{ flex: 1 }} />
+							<Button
+								appearance={sideBySide ? "primary" : "subtle"}
+								size="small"
+								onClick={() => setSideBySide(true)}
+							>
+								Side by side
+							</Button>
+							<Button
+								appearance={!sideBySide ? "primary" : "subtle"}
+								size="small"
+								onClick={() => setSideBySide(false)}
+							>
+								Unified
+							</Button>
+						</div>
+
+						<div className={styles.editorWrap}>
+							<Suspense
+								fallback={
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "center",
+											height: "100%",
+										}}
+									>
+										<Spinner size="medium" label="Loading diff editor…" />
+									</div>
+								}
+							>
+								<DiffEditorLazy
+									original={baselineXml}
+									modified={currentXml}
+									language="xml"
+									theme={isDark ? "vs-dark" : "vs"}
+									height="100%"
+									onMount={handleDiffEditorMount}
+									options={{
+										readOnly: true,
+										renderSideBySide: sideBySide,
+										lineNumbers: "on",
+										minimap: { enabled: false },
+										scrollBeyondLastLine: false,
+										automaticLayout: true,
+										wordWrap: "on",
 									}}
-								>
-									<Spinner size="medium" label="Loading diff editor…" />
-								</div>
-							}
-						>
-							<DiffEditorLazy
-								original={baselineXml}
-								modified={currentXml}
-								language="xml"
-								theme={isDark ? "vs-dark" : "vs"}
-								height="100%"
-								onMount={handleDiffEditorMount}
-								options={{
-									readOnly: true,
-									renderSideBySide: sideBySide,
-									lineNumbers: "on",
-									minimap: { enabled: false },
-									scrollBeyondLastLine: false,
-									automaticLayout: true,
-									wordWrap: "on",
-								}}
-							/>
-						</Suspense>
+								/>
+							</Suspense>
+						</div>
 					</div>
-				</div>
+				)}
 			</DrawerBody>
 		</OverlayDrawer>
 	);

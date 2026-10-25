@@ -1,13 +1,4 @@
-import {
-	makeStyles,
-	tokens,
-	Button,
-	Text,
-	MessageBar,
-	MessageBarBody,
-	MessageBarActions,
-	Spinner,
-} from "@fluentui/react-components";
+import { makeStyles, tokens, Button, Text } from "@fluentui/react-components";
 import { DocumentRegular, AddRegular } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -18,6 +9,12 @@ import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
 import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
 import { LocationRow, RibbonTabStrip } from "./CanvasHeader";
+import {
+	CanvasEmptyState,
+	CanvasLoadError,
+	CanvasLoading,
+	type CanvasEmptyKind,
+} from "./CanvasStates";
 import { MessageSlot, type SlotMessage } from "@/components/shared/MessageSlot";
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
 import { hasUnpublishedChanges } from "@/store/draftStore";
@@ -63,6 +60,8 @@ interface RibbonCanvasProps {
 	/** The ribbon loaded, but an unmanaged layer couldn't be read (#110). */
 	layerReadError?: string | null;
 	onRetryRibbonLoad?: () => void;
+	/** Before a solution or table is open, only this shows (#195). */
+	emptyState?: CanvasEmptyKind;
 }
 
 export function RibbonCanvas({
@@ -72,6 +71,7 @@ export function RibbonCanvas({
 	ribbonLoadError = null,
 	layerReadError = null,
 	onRetryRibbonLoad,
+	emptyState,
 }: RibbonCanvasProps) {
 	const styles = useStyles();
 	const location = useSelectionStore((s) => s.location);
@@ -159,6 +159,14 @@ export function RibbonCanvas({
 		});
 	}
 
+	if (emptyState) {
+		return (
+			<main className={styles.root} aria-label="Ribbon canvas">
+				<CanvasEmptyState kind={emptyState} />
+			</main>
+		);
+	}
+
 	return (
 		<main className={styles.root} aria-label="Ribbon canvas">
 			<LocationRow />
@@ -174,51 +182,13 @@ export function RibbonCanvas({
 			{/* Canvas area */}
 			<div className={styles.canvas}>
 				{isLoadingRibbon ? (
-					<div
-						style={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							height: "100%",
-						}}
-					>
-						<Spinner
-							label={
-								<>
-									{loadingTable
-										? `Loading ${loadingTable}`
-										: "Loading the ribbon"}
-									{loadingStep && (
-										<>
-											<br />
-											<span style={{ fontSize: "12px", opacity: 0.8 }}>
-												{loadingStep}
-											</span>
-										</>
-									)}
-								</>
-							}
-						/>
-					</div>
+					<CanvasLoading table={loadingTable} step={loadingStep} />
 				) : ribbonLoadError ? (
-					<MessageBar intent="error">
-						<MessageBarBody>
-							Failed to load ribbon definition. {ribbonLoadError}
-						</MessageBarBody>
-						{onRetryRibbonLoad && (
-							<MessageBarActions
-								containerAction={
-									<Button
-										appearance="primary"
-										size="small"
-										onClick={onRetryRibbonLoad}
-									>
-										Retry
-									</Button>
-								}
-							/>
-						)}
-					</MessageBar>
+					<CanvasLoadError
+						table={loadingTable}
+						error={ribbonLoadError}
+						onRetry={onRetryRibbonLoad}
+					/>
 				) : !currentTab ? (
 					<EmptyTab onAddGroup={openNewGroup} />
 				) : (

@@ -407,6 +407,9 @@ export function App() {
 					ribbonLoadError={ribbonLoadError}
 					layerReadError={layerReadError}
 					onRetryRibbonLoad={handleRetryRibbonLoad}
+					emptyState={
+						!activeSolution ? "noSolution" : !activeEntity ? "noTable" : undefined
+					}
 				/>
 			</Layout>
 			<DraftRestoreDialog />

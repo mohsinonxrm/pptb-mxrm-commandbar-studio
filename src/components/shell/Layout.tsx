@@ -121,7 +121,11 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
 	const selectedGroupId = useSelectionStore((s) => s.selectedGroupId);
 	const activeTable = useSessionStore((s) => s.activeEntity?.logicalName ?? null);
-	const [leftOpen, setLeftOpen] = useState(false);
+	const [leftOpenState, setLeftOpen] = useState(false);
+	// "Choose table" on an empty canvas (#195): the drawer when narrow, the table search when wide.
+	const tablePickerRequested = useUIStore((s) => s.tablePickerRequested);
+	const setTablePickerRequested = useUIStore((s) => s.setTablePickerRequested);
+	const leftOpen = leftOpenState || (narrow && tablePickerRequested);
 	const [propsOpen, setPropsOpen] = useState(false);
 	// In a narrow window, selecting something opens Properties and opening a
 	// table closes the tables drawer (compared during render, not in an effect).
@@ -166,6 +170,17 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const wasOverlayOpenRef = useRef(false);
 
 	useKeyboardShortcuts();
+
+	useEffect(() => {
+		if (tablePickerRequested && !narrow) {
+			document.querySelector<HTMLInputElement>('input[aria-label="Search tables"]')?.focus();
+			setTablePickerRequested(false);
+		}
+	}, [tablePickerRequested, narrow, setTablePickerRequested]);
+	// Opening a table answers the request (the drawer closes with it).
+	useEffect(() => {
+		if (activeTable) setTablePickerRequested(false);
+	}, [activeTable, setTablePickerRequested]);
 
 	useEffect(() => {
 		if (anyOverlayOpen && !wasOverlayOpenRef.current) {
@@ -239,7 +254,10 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 							position="start"
 							size="small"
 							open={leftOpen}
-							onOpenChange={(_, d) => setLeftOpen(d.open)}
+							onOpenChange={(_, d) => {
+								setLeftOpen(d.open);
+								if (!d.open) setTablePickerRequested(false);
+							}}
 							aria-label="Tables and solution"
 						>
 							<div className={styles.drawerBody}>

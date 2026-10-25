@@ -494,7 +494,7 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			expect(tabs()).not.toContain("mxrm.contact.NewTab");
 		});
 
-		it("the loading spinner names the table and the step (#4)", () => {
+		it("loading names the table and the step (#4)", () => {
 			render(
 				<RibbonCanvas
 					isLoadingRibbon
@@ -502,9 +502,12 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 					loadingStep="Reading your customizations…"
 				/>,
 			);
-			const spinner = container.querySelector(".fui-Spinner")!;
-			expect(spinner.textContent).toContain("Loading Account");
-			expect(spinner.textContent).toContain("Reading your customizations…");
+			// A skeleton with a status line since #195.
+			const status = [...container.querySelectorAll('[role="status"]')].find((el) =>
+				el.textContent?.includes("Loading"),
+			)!;
+			expect(status.textContent).toContain("Loading Account");
+			expect(status.textContent).toContain("Reading your customizations…");
 		});
 
 		it("an unread unmanaged layer is said on the canvas, with Retry (#110)", () => {
