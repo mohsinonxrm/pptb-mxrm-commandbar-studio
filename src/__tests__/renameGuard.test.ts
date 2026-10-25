@@ -225,7 +225,7 @@ describe("duplicating a group (#33)", () => {
 		useRibbonStore.getState().duplicateGroup("HomepageGrid", MAIN, groupId);
 		const state = useRibbonStore.getState();
 		const copy = state.ribbons.HomepageGrid.tabs[0].groups.find((g) =>
-			g.id.startsWith(`${groupId}_copy_`),
+			g.id.includes(`${groupId}_copy_`),
 		)!;
 		const xml = generateRibbonDiffXml({
 			current: state.ribbons.HomepageGrid,

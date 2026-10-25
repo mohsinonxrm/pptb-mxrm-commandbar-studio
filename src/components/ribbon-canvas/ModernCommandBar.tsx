@@ -288,7 +288,8 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 							...copyControl(seButton, `${seButton.id}${stamp}`, loadedLabelIdsOf(useRibbonStore.getState())),
 							label: seButton.label ?? "New Button",
 							kind: seButton.kind ?? "button",
-							sequence: 50,
+							// No sequence: the store places it after the group's last button,
+							// where it's shown (#164; 50 published it wherever 50 falls).
 							templateAlias: seButton.templateAlias ?? "o1",
 							commandId: seButton.commandId ?? "",
 							hidden: false,

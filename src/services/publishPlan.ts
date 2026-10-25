@@ -119,6 +119,8 @@ export interface ScopePlan {
 	editedLocLabelIds: string[];
 	/** Tabs the layer adds whose TabDisplayRules changed (#49). */
 	editedTabIds: string[];
+	/** Tabs the layer adds that were reordered: their new Sequence (#163). */
+	resequencedTabs: { id: string; sequence: number }[];
 	/**
 	 * Tabs / groups the layer adds that were renamed: the base-language title of
 	 * the LocLabel their Title refers to is replaced with `text` (#58).
@@ -200,6 +202,7 @@ export function planScope(input: PlanInput): ScopePlan {
 	const deletedContainers: string[] = [];
 	const moved: MovedControl[] = [];
 	const editedTabIds: string[] = [];
+	const resequencedTabs: { id: string; sequence: number }[] = [];
 	const renamedLabels: RenamedLabel[] = [];
 	// Who uses each label (tab / group titles, button texts), as loaded.
 	const labelUsers = new Map<string, Set<string>>();
@@ -425,6 +428,27 @@ export function planScope(input: PlanInput): ScopePlan {
 
 		const baseGroups = new Map(baseline.tabs.flatMap((t) => t.groups.map((g) => [g.id, g] as const)));
 		const baseTabs = new Map(baseline.tabs.map((t) => [t.id, t] as const));
+
+		// Tab order (#163): a tab your customizations add publishes its new
+		// Sequence; two others swapped can't be — only their Sequence orders them.
+		const baseOrder = baseline.tabs.map((t) => t.id).filter((id) => current.tabs.some((t) => t.id === id));
+		const curOrder = current.tabs.map((t) => t.id).filter((id) => baseTabs.has(id));
+		const fixed = (id: string) => !ownContainers.has(id);
+		const fixedBase = baseOrder.filter(fixed);
+		const fixedCur = curOrder.filter(fixed);
+		const reordered = fixedCur.find((id, i) => id !== fixedBase[i]);
+		if (reordered) {
+			const tab = current.tabs.find((t) => t.id === reordered)!;
+			unsupported.push(
+				`Reordering tab "${tab.label}" (${tab.id}) — only tabs your customizations add can be reordered; drag it back`,
+			);
+		}
+		for (const tab of current.tabs) {
+			const bt = baseTabs.get(tab.id);
+			if (bt && ownContainers.has(tab.id) && bt.sequence !== tab.sequence) {
+				resequencedTabs.push({ id: tab.id, sequence: tab.sequence });
+			}
+		}
 		const curTabIds = new Set(current.tabs.map((t) => t.id));
 		const curGroupIds = new Set(current.tabs.flatMap((t) => t.groups.map((g) => g.id)));
 		for (const tab of current.tabs) {
@@ -637,6 +661,7 @@ export function planScope(input: PlanInput): ScopePlan {
 			moved.length > 0 ||
 			editedLocLabelIds.length > 0 ||
 			editedTabIds.length > 0 ||
+			resequencedTabs.length > 0 ||
 			renamedLabels.length > 0,
 		editedCommandIds,
 		uncustomisedCommandIds,
@@ -648,6 +673,7 @@ export function planScope(input: PlanInput): ScopePlan {
 		movedButtons: moved,
 		editedLocLabelIds,
 		editedTabIds,
+		resequencedTabs,
 		renamedLabels,
 		unsupported: [...new Set(unsupported)],
 		warnings: [...new Set(warnings)],

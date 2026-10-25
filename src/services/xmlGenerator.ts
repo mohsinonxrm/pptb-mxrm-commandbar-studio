@@ -581,7 +581,7 @@ function generateScalingCustomActions(
 	return [...maxSizes, ...scales];
 }
 
-function generateScaleStep(tag: "MaxSize" | "Scale", step: ScaleStep): string {
+export function generateScaleStep(tag: "MaxSize" | "Scale", step: ScaleStep): string {
 	// PopupSize (ScaleType only) is written back as loaded (#169).
 	const popup = tag === "Scale" && step.popupSize ? ` PopupSize="${escapeXml(step.popupSize)}"` : "";
 	return `<${tag} Id="${escapeXml(step.id)}" GroupId="${escapeXml(step.groupId)}" Sequence="${step.sequence}" Size="${escapeXml(step.size)}"${popup}/>`;

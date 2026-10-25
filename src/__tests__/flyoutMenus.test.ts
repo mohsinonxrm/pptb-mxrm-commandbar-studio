@@ -990,7 +990,7 @@ describe("#27 store — menu items are edited like buttons", () => {
 	it("duplicating a flyout gives its menu and items new ids", () => {
 		const { tabId, groupId } = load();
 		useRibbonStore.getState().duplicateButton("HomepageGrid", tabId, groupId, "cbs.Fly");
-		const copy = grp().buttons.find((b) => b.id.startsWith("cbs.Fly_copy_"))!;
+		const copy = grp().buttons.find((b) => b.id.includes("cbs.Fly_copy_"))!;
 		const ids = [
 			copy.menu!.id,
 			copy.menu!.sections[0].id,

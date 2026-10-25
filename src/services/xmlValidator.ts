@@ -322,6 +322,7 @@ export type PublishCheckCode =
 	| "loclabel-missing"
 	| "webresource-missing"
 	| "webresource-path"
+	| "duplicate-sequence"
 	| "webresource-not-in-solution"
 	| "webresource-lookup"
 	| "scaling-collision"
@@ -700,16 +701,21 @@ export function validatePublishRibbonDiff(
 		const known = new Set([...parts.commandDefinitions.keys(), ...context.known.commandIds]);
 		for (const { key, el } of customActions) {
 			for (const node of Array.from(el.getElementsByTagName("*"))) {
-				const command = node.getAttribute("Command");
-				if (!command || known.has(command) || CONTAINER_TAGS.has(node.tagName)) continue;
-				const id = node.getAttribute("Id") ?? "";
-				add(
-					"undefined-command",
-					key,
-					`${node.tagName} ${id} uses command ${command}, which is defined neither in the customizations nor in the loaded ribbon`,
-					id,
-					isPlatformId(command),
-				);
+				if (CONTAINER_TAGS.has(node.tagName)) continue;
+				// A dynamic flyout's PopulateQueryCommand too (#133): misspelled or
+				// defined nowhere, the drop-down stays empty.
+				for (const attr of ["Command", "PopulateQueryCommand"]) {
+					const command = node.getAttribute(attr);
+					if (!command || known.has(command)) continue;
+					const id = node.getAttribute("Id") ?? "";
+					add(
+						"undefined-command",
+						key,
+						`${node.tagName} ${id} uses ${attr === "Command" ? "command" : "PopulateQueryCommand"} ${command}, which is defined neither in the customizations nor in the loaded ribbon`,
+						id,
+						isPlatformId(command),
+					);
+				}
 			}
 		}
 	}
@@ -792,6 +798,28 @@ export function validatePublishRibbonDiff(
 				);
 			}
 		}
+	}
+
+	// Siblings with the same Sequence (#164): Dataverse's order between them is
+	// undefined, so the canvas order may not be what publishes.
+	const bySlot = new Map<string, { key: string; id: string }[]>();
+	for (const { key, el } of customActions) {
+		const location = el.getAttribute("Location") ?? "";
+		const sequence = el.getAttribute("Sequence");
+		if (el.tagName !== "CustomAction" || !location.endsWith("._children") || !sequence) continue;
+		const slot = `${location}|${sequence}`;
+		bySlot.set(slot, [...(bySlot.get(slot) ?? []), { key, id: el.getAttribute("Id") ?? key }]);
+	}
+	for (const [slot, items] of bySlot) {
+		if (items.length < 2) continue;
+		const [location, sequence] = slot.split("|");
+		add(
+			"duplicate-sequence",
+			items.map((i) => i.key),
+			`${items.map((i) => i.id).join(" and ")} have the same Sequence (${sequence}) in ${location} — their order isn't defined; give one another Sequence`,
+			items[0].id,
+			true,
+		);
 	}
 
 	// A root-relative /WebResources/ path makes no solution dependency (#158):
