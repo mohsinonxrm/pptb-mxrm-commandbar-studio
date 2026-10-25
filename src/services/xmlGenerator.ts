@@ -377,6 +377,12 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	for (const button of emittedButtons) for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
 	// A new tab's Command is defined with it (an empty command, as in
 	// Microsoft's custom-tab walkthrough) unless the model already has one.
+	// A new (imported) group's own Command too (#169 review), when the model has it.
+	for (const tab of current.tabs)
+		for (const group of tab.groups) {
+			const command = group.source?.attributes["Command"];
+			if (command && !baselineGroupIds.has(group.id)) referencedCommandIds.add(command);
+		}
 	const tabCommands: CommandDefinition[] = [];
 	for (const tab of newTabs) {
 		const id = tab.commandId!;
@@ -889,7 +895,7 @@ const CONTAINER_MODELLED_ATTRIBUTES = new Set(["Id", "Command", "Title", "Descri
  * (commandId), a group's isn't, so it was dropped.
  */
 function containerAttributes(container: RibbonTab | RibbonGroup): string {
-	const isGroup = "template" in container;
+	const isGroup = "buttons" in container;
 	return Object.entries(container.source?.attributes ?? {})
 		.filter(([k]) => (isGroup && k === "Command") || !CONTAINER_MODELLED_ATTRIBUTES.has(k))
 		.filter(([k]) => !NON_DIFF_ATTRIBUTES.has(k))

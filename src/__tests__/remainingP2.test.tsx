@@ -307,3 +307,80 @@ describe("#150 the XML drawer's Download", () => {
 		expect(document.body.textContent).toContain("Saved to C:/x.xml.");
 	});
 });
+
+describe("review of #163 / #164 / #169", () => {
+	beforeEach(() => useSessionStore.setState({ publisherPrefix: "cbs", activeSolution: null }));
+	const MAIN = "Mscrm.HomepageGrid.account.MainTab";
+
+	it("duplicating a group never renumbers a loaded group; the copy goes where it publishes", () => {
+		load(
+			[tab(MAIN, 10, [group("cbs.A", 10), group("cbs.B", 11), group("Mscrm.C", 12)])],
+			["cbs.A", "cbs.B"],
+		);
+		useRibbonStore.getState().duplicateGroup("HomepageGrid", MAIN, "cbs.A");
+		const groups = ribbon().tabs[0].groups;
+		expect(groups.filter((g) => !g.id.includes("_copy_")).map((g) => g.sequence)).toEqual([
+			10, 11, 12,
+		]);
+		const seq = groups.map((g) => g.sequence);
+		expect([...seq].sort((a, b) => a - b)).toEqual(seq);
+		expect(new Set(seq).size).toBe(seq.length);
+	});
+
+	it("an imported group's own Command is defined with it", () => {
+		const g = {
+			...group("cbs.Grp", 10),
+			source: { attributes: { Id: "cbs.Grp", Command: "cbs.Grp.Command" } },
+		};
+		const xml = generateRibbonDiffXml({
+			current: { ...empty("HomepageGrid"), tabs: [tab(MAIN, 10, [g])] },
+			baseline: { ...empty("HomepageGrid"), tabs: [tab(MAIN, 10)] },
+			commands: [
+				{
+					id: "cbs.Grp.Command",
+					enableRules: [],
+					displayRules: [],
+					actions: [
+						{
+							kind: "javascript",
+							library: "$webresource:cbs_/a.js",
+							functionName: "cbs.go",
+							params: [],
+						},
+					],
+				},
+			],
+			enableRules: [],
+			displayRules: [],
+			locLabels: [],
+			entityLogicalName: T,
+			location: "HomepageGrid",
+		});
+		expect(xml).toContain('<CommandDefinition Id="cbs.Grp.Command"');
+	});
+
+	it("a tab with no room between neighbours is shown where it publishes", () => {
+		load([tab("A", 10), tab("B", 11), tab("cbs.Own", 30)], ["cbs.Own"]);
+		useRibbonStore.getState().reorderTabs("HomepageGrid", ["A", "cbs.Own", "B"]);
+		const seq = ribbon().tabs.map((t) => t.sequence);
+		expect([...seq].sort((a, b) => a - b)).toEqual(seq);
+		expect(plan().unsupported).toEqual([]);
+	});
+
+	it("with the layer unread, reordering says why instead of 'not yours'", () => {
+		load([tab("A", 10), tab("B", 20)]);
+		useRibbonStore.setState((s) => ({ layers: { ...s.layers, entity: null } }));
+		useRibbonStore.getState().reorderTabs("HomepageGrid", ["B", "A"]);
+		const s = useRibbonStore.getState();
+		const p = planScope({
+			locations: [{ current: s.ribbons.HomepageGrid, baseline: s.baseline.HomepageGrid }],
+			commands: [],
+			baselineCommands: [],
+			enableRules: [],
+			baselineEnableRules: [],
+			displayRules: [],
+			baselineDisplayRules: [],
+		});
+		expect(p.unsupported.join("\n")).toMatch(/couldn't be read/);
+	});
+});

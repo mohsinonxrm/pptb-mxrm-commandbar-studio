@@ -811,7 +811,8 @@ export function validatePublishRibbonDiff(
 		bySlot.set(slot, [...(bySlot.get(slot) ?? []), { key, id: el.getAttribute("Id") ?? key }]);
 	}
 	for (const [slot, items] of bySlot) {
-		if (items.length < 2) continue;
+		// A tie already in the published layer isn't reported on every publish.
+		if (items.length < 2 || !items.some((i) => isChanged(i.key))) continue;
 		const [location, sequence] = slot.split("|");
 		add(
 			"duplicate-sequence",

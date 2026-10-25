@@ -52,7 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   publish had nothing to publish and the order reverted. A new tab, or one your
   customizations add, now gets a Sequence between its neighbours, and that Sequence is
   published. Reordering another solution's tabs is reported, since only their Sequence
-  orders them.
+  orders them. When there's no free Sequence between two tabs, the tab is shown where it
+  will publish.
 - **Duplicates are placed where they're shown (#164).**
   - **Placement:** a copied button, menu item or group gets a Sequence between its
     original and the next item (it used to get the original's + 5, which could collide
@@ -67,8 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Smaller fixes:**
   - A ribbon package without `RibbonXml.xml` fails with a clear error instead of loading
     an empty ribbon (#168).
-  - An imported group's `Command` and a Scale step's `PopupSize` are no longer dropped
-    (#169).
+  - An imported group's `Command` (and its definition) and a Scale step's `PopupSize` are
+    no longer dropped (#169).
   - Starting a Download in the XML drawer clears an earlier Copy message (#150).
 - **Saved web resources are published (#156).** Saving a command's script in the command
   editor, or replacing a file through **Upload**, updated the web resource but didn't publish

@@ -644,7 +644,9 @@ function sessionIdPrefix(): string {
 
 /** `id` starting with the publisher prefix: a copy of another solution's element is yours (#164). */
 function prefixedId(id: string, prefix: string): string {
-	return id.startsWith(`${prefix}.`) ? id : `${prefix}.${id}`;
+	const lower = id.toLowerCase();
+	const p = prefix.toLowerCase();
+	return lower.startsWith(`${p}.`) || lower.startsWith(`${p}_`) ? id : `${prefix}.${id}`;
 }
 
 const EMPTY_RIBBONS: Record<RibbonLocation, RibbonDefinition> = {
@@ -1473,12 +1475,13 @@ export const useRibbonStore = create<RibbonStore>()(
 						};
 						const idx = tab.groups.findIndex((g) => g.id === groupId);
 						tab.groups.splice(idx + 1, 0, copy);
-						// Right after the original, before its next neighbour (#164).
-						const own = new Set(ownContainerIds(state, location) ?? []);
+						// Right after the original, before its next neighbour (#164). Only the
+						// copy and new groups are renumbered: a loaded group's Sequence change
+						// wouldn't publish.
 						const loadedGroups = new Set(
 							(state.baseline[location]?.tabs ?? []).flatMap((t) => t.groups.map((g) => g.id)),
 						);
-						placeBetween(tab.groups, idx + 1, (g) => g === copy || own.has(g.id) || !loadedGroups.has(g.id));
+						placeBetween(tab.groups, idx + 1, (g) => g === copy || !loadedGroups.has(g.id));
 						if (keepTitle) keptTitle = { copyId: copy.id, title };
 					},
 					{
@@ -1686,6 +1689,18 @@ export const useRibbonStore = create<RibbonStore>()(
 							if (ordered[i].sequence > ordered[i - 1].sequence) continue;
 							if (canRenumber(ordered[i])) resequenceAround(ordered, i, canRenumber);
 							else if (canRenumber(ordered[i - 1])) resequenceAround(ordered, i - 1, canRenumber);
+						}
+						// No free value between neighbours that can't be renumbered: such a tab
+						// goes where its Sequence publishes it, not where it was dropped.
+						for (const tab of ordered.filter(canRenumber)) {
+							const at = ordered.indexOf(tab);
+							const fits =
+								(ordered[at - 1]?.sequence ?? -Infinity) < tab.sequence &&
+								tab.sequence < (ordered[at + 1]?.sequence ?? Infinity);
+							if (fits) continue;
+							ordered.splice(at, 1);
+							const to = ordered.findIndex((t) => t.sequence > tab.sequence);
+							ordered.splice(to < 0 ? ordered.length : to, 0, tab);
 						}
 					},
 					{

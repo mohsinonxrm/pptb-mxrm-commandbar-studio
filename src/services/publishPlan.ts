@@ -440,7 +440,9 @@ export function planScope(input: PlanInput): ScopePlan {
 		if (reordered) {
 			const tab = current.tabs.find((t) => t.id === reordered)!;
 			unsupported.push(
-				`Reordering tab "${tab.label}" (${tab.id}) — only tabs your customizations add can be reordered; drag it back`,
+				input.layer
+					? `Reordering tab "${tab.label}" (${tab.id}) — only tabs your customizations add can be reordered; drag it back`
+					: `Reordering tab "${tab.label}" (${tab.id}) — your unmanaged customizations couldn't be read, so it isn't known whether the tab is yours; use Retry, or drag it back`,
 			);
 		}
 		for (const tab of current.tabs) {
@@ -489,6 +491,9 @@ export function planScope(input: PlanInput): ScopePlan {
 				const bg = baseGroups.get(g.id);
 				if (!bg) {
 					generatorLabels.add(`${g.id}.Title`);
+					// An imported group's own Command is published with it (#169 review).
+					const groupCommand = g.source?.attributes["Command"];
+					if (groupCommand) referencedCommandIds.add(groupCommand);
 					// An imported group keeps its own Title label (#30).
 					const titleRef = locRef(g.source?.titleToken);
 					if (titleRef) generatorLabels.add(titleRef);
