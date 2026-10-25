@@ -11,6 +11,9 @@ import {
 	generateRuleStep,
 	webResourceRef,
 } from "@/services/xmlGenerator";
+import { normalizeLibrary } from "@/services/xmlGenerator";
+import { parseRibbonXml } from "@/services/xmlParser";
+import { validatePublishRibbonDiff } from "@/services/xmlValidator";
 import type { RibbonButton, RibbonDefinition } from "@/types/ribbon";
 
 describe("#158 web resource references", () => {
@@ -135,5 +138,53 @@ describe("#158 web resource references", () => {
 			"$LocLabels:contoso.Shared.Save",
 		);
 		expect(doc.querySelector('LocLabel[Id="contoso.Shared.Save"]')).toBeNull();
+	});
+});
+
+describe("#158 review", () => {
+	it("relative paths stay; a loaded image path doesn't replace a loaded ModernImage", () => {
+		expect(webResourceRef("../WebResources/new_/x.png")).toBe("../WebResources/new_/x.png");
+		const loaded = {
+			id: "cbs.Loaded",
+			label: "L",
+			kind: "button" as const,
+			sequence: 10,
+			templateAlias: "o1",
+			commandId: "c",
+			hidden: false,
+			oob: false,
+			custom: true,
+			managed: false,
+			icon: "new",
+			image16: "new_/icons/x.png",
+			image32: "new_/icons/x.png",
+			source: {
+				attributes: {
+					Id: "cbs.Loaded",
+					ModernImage: "New",
+					Image16by16: "new_/icons/x.png",
+					Image32by32: "new_/icons/x.png",
+				},
+				modernImage: "New",
+			},
+		};
+		expect(effectiveModernImage(loaded)).toBe("New");
+	});
+
+	it("a loaded /WebResources/ library still round-trips (editable), and the pre-publish check warns", () => {
+		expect(normalizeLibrary("/WebResources/new_/a.js")).toBe("/WebResources/new_/a.js");
+		const xml = `<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs /></Ribbon></UI><CommandDefinitions>
+  <CommandDefinition Id="cbs.Cmd"><EnableRules /><DisplayRules /><Actions><JavaScriptFunction FunctionName="cbs.run" Library="/WebResources/new_/a.js" /></Actions></CommandDefinition>
+</CommandDefinitions><RuleDefinitions><TabDisplayRules /><DisplayRules /><EnableRules /></RuleDefinitions></RibbonDefinition></RibbonDefinitions>`;
+		const cmd = parseRibbonXml(xml, "HomepageGrid", "account").commands.find(
+			(c) => c.id === "cbs.Cmd",
+		)!;
+		expect(cmd.actions.map((a) => a.kind)).toEqual(["javascript"]);
+		const findings = validatePublishRibbonDiff(
+			`<RibbonDiffXml><CustomActions /><Templates><RibbonTemplates Id="Mscrm.Templates" /></Templates><CommandDefinitions><CommandDefinition Id="cbs.Cmd"><EnableRules /><DisplayRules /><Actions><JavaScriptFunction FunctionName="cbs.run" Library="/WebResources/new_/a.js" /></Actions></CommandDefinition></CommandDefinitions><RuleDefinitions><TabDisplayRules /><DisplayRules /><EnableRules /></RuleDefinitions><LocLabels /></RibbonDiffXml>`,
+		).filter((f) => f.code === "webresource-path");
+		expect(findings).toHaveLength(1);
+		expect(findings[0].severity).toBe("warning");
+		expect(findings[0].message).toMatch(/use \$webresource:new_\/a\.js/);
 	});
 });

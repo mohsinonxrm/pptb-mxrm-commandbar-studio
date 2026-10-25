@@ -202,4 +202,49 @@ describe("#157 the Translations dialog's base language is the button's own text"
 		);
 		expect(titles).toEqual({ "1033": "New", "1031": "Alt" });
 	});
+
+	it("saving without a change writes no label, so nothing blocks the publish (#157 review)", async () => {
+		const { planScope } = await import("@/services/publishPlan");
+		const loaded: RibbonButton = {
+			id: "Mscrm.HomepageGrid.account.NewRecord",
+			label: "Ribbon.HomepageGrid.New",
+			kind: "button",
+			sequence: 10,
+			templateAlias: "o1",
+			commandId: "Mscrm.NewRecordFromGrid",
+			hidden: false,
+			oob: true,
+			custom: false,
+			managed: false,
+			origin: "oob",
+			source: {
+				attributes: {
+					Id: "Mscrm.HomepageGrid.account.NewRecord",
+					LabelText: "$Resources:Ribbon.HomepageGrid.New",
+				},
+				labelToken: "$Resources:Ribbon.HomepageGrid.New",
+			},
+		};
+		load([loaded]);
+		const before = useRibbonStore.getState();
+		open(loaded.id);
+		save();
+		const after = useRibbonStore.getState();
+		expect(after.locLabels).toEqual(before.locLabels);
+		expect(after.ribbons).toEqual(before.ribbons);
+		const plan = planScope({
+			locations: [
+				{ current: after.ribbons.HomepageGrid, baseline: after.baseline.HomepageGrid },
+			],
+			commands: [],
+			baselineCommands: [],
+			enableRules: [],
+			baselineEnableRules: [],
+			displayRules: [],
+			baselineDisplayRules: [],
+			locLabels: after.locLabels,
+			baselineLocLabels: [],
+		});
+		expect(plan.unsupported).toEqual([]);
+	});
 });

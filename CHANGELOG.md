@@ -58,8 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Web resources are always referenced with `$webresource:` (#158).** That's the only form
   that makes the solution depend on the web resource.
   - A custom rule's library and a typed image path get the directive.
-  - A `/WebResources/…` path becomes `$webresource:…`.
-  - Platform paths (`/_imgs/…`) and URLs are kept as they are.
+  - A typed `/WebResources/…` image path becomes `$webresource:…`.
+  - A loaded `/WebResources/…` library is kept as is, and the pre-publish check warns about
+    it.
+  - Platform (`/_imgs/…`) and relative paths, and URLs, are kept as they are.
 - **A typed `$LocLabels:` reference is kept as is (#159).** A label that CBS doesn't have was
   published as a placeholder whose text was its own id. It's now written as a reference,
   like another solution's label, and the pre-publish check warns when nothing defines it.

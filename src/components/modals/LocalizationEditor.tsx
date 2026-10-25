@@ -251,17 +251,25 @@ export const LocalizationEditor: React.FC = () => {
 		if (base && tooltipBodyId && base.tooltipBody !== (button.tooltipBody ?? ""))
 			patch.tooltipBody = base.tooltipBody || undefined;
 
+		// A label is written when the text has one already or gets another
+		// language: the base text alone lives on the button (#157 review — saving
+		// with no change created a label for a literal or platform text, and
+		// the publish plan then refused it).
+		const write = (id: string | null, field: keyof Omit<LcidEntry, "lcid">) =>
+			!!id &&
+			(locLabels.some((l) => l.id === id) || toTitles(field).some((t) => t.languageCode !== baseLcid));
+
 		// One undo step for the whole dialog (#34).
 		batch(() => {
 			if (found && Object.keys(patch).length > 0)
 				setButtonProp(found.location, found.tabId, found.groupId, button.id, patch);
-			if (labelId && toTitles("label").length > 0) {
+			if (labelId && write(labelId, "label") && toTitles("label").length > 0) {
 				upsertLocLabel({ id: labelId, titles: toTitles("label") });
 			}
-			if (tooltipTitleId && toTitles("tooltipTitle").length > 0) {
+			if (tooltipTitleId && write(tooltipTitleId, "tooltipTitle") && toTitles("tooltipTitle").length > 0) {
 				upsertLocLabel({ id: tooltipTitleId, titles: toTitles("tooltipTitle") });
 			}
-			if (tooltipBodyId && toTitles("tooltipBody").length > 0) {
+			if (tooltipBodyId && write(tooltipBodyId, "tooltipBody") && toTitles("tooltipBody").length > 0) {
 				upsertLocLabel({ id: tooltipBodyId, titles: toTitles("tooltipBody") });
 			}
 		});

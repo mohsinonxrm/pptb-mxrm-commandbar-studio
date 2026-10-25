@@ -321,6 +321,7 @@ export type PublishCheckCode =
 	| "id-prefix"
 	| "loclabel-missing"
 	| "webresource-missing"
+	| "webresource-path"
 	| "webresource-not-in-solution"
 	| "webresource-lookup"
 	| "scaling-collision"
@@ -787,6 +788,28 @@ export function validatePublishRibbonDiff(
 					key,
 					`${[node.tagName, id, attr.name].filter(Boolean).join(" ")} references $LocLabels:${labelId}, which has no <LocLabel> in these customizations — the text won't resolve unless another solution defines the label`,
 					id,
+					true,
+				);
+			}
+		}
+	}
+
+	// A root-relative /WebResources/ path makes no solution dependency (#158):
+	// a ribbon should always use the `$webresource:` directive.
+	for (const { key, el } of elements) {
+		for (const node of selfAndDescendants(el)) {
+			for (const attr of Array.from(node.attributes)) {
+				if (attr.name !== "Library" && !IMAGE_ATTRIBUTES.has(attr.name)) continue;
+				const path = /^\/?WebResources\/(.+)$/i.exec(attr.value.trim())?.[1];
+				if (!path) continue;
+				add(
+					"webresource-path",
+					key,
+					`${node.tagName} ${node.getAttribute("Id") ?? ""} ${attr.name} is the path ${attr.value} — use $webresource:${path}, the only form that makes the solution depend on the web resource`.replace(
+						/\s+/g,
+						" ",
+					),
+					node.getAttribute("Id") ?? undefined,
 					true,
 				);
 			}

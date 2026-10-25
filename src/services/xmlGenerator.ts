@@ -907,7 +907,7 @@ export function normalizeGroupTemplate(template: string): string {
  * appear" — the ribbon-metadata compile fails to resolve the missing label).
  *
  *   - `$LocLabels:<id>`  → reference as-is; emit the matching store LocLabel
- *                          (or a placeholder so the reference still resolves).
+ *                          (none when CBS doesn't have it: another solution may, #159).
  *   - `$Resources:<key>` → built-in platform resource; reference as-is, no LocLabel.
  *   - plain text         → synthesize `$LocLabels:<conventionId>` and emit a
  *                          LocLabel whose 1033 title is the text, merged with any
@@ -1095,18 +1095,19 @@ function resolveButtonText(
 export function effectiveModernImage(button: RibbonButton): string | undefined {
 	const src = button.source;
 	const isWebResource = (v?: string): v is string => !!v?.startsWith("$webresource:");
-	// A bare web resource name picked in CBS counts as the web resource it names (#158).
+	// A bare web resource name picked in CBS counts as the web resource it names
+	// (#158). Picked means changed from what was loaded, compared as written.
 	const ref = (v?: string) => (v && !v.startsWith("/") && /[/.]/.test(v) ? webResourceRef(v) : v);
 	const image32 = ref(button.image32);
 	const image16 = ref(button.image16);
 	const pickedImages = (
 		[
-			[image32, "Image32by32"],
-			[image16, "Image16by16"],
+			[button.image32, image32, "Image32by32"],
+			[button.image16, image16, "Image16by16"],
 		] as const
 	)
-		.filter(([value, attr]) => isWebResource(value) && value !== src?.attributes[attr])
-		.map(([value]) => value);
+		.filter(([raw, value, attr]) => isWebResource(value) && raw !== src?.attributes[attr])
+		.map(([, value]) => value);
 	if (src && normalizeModernImage(src.modernImage) === button.icon && pickedImages.length === 0) {
 		return src.modernImage;
 	}
@@ -1290,13 +1291,20 @@ export function webResourceRef(value: string): string {
 	if (!v || /^\$webresource:/i.test(v) || /^https?:\/\//i.test(v)) return v;
 	const rootRelative = v.match(/^\/?WebResources\/(.+)$/i);
 	if (rootRelative) return `$webresource:${rootRelative[1]}`;
-	if (v.startsWith("/")) return v;
+	// Platform paths (/_imgs/…) and relative ones (../…) aren't web resource names.
+	if (v.startsWith("/") || v.startsWith(".")) return v;
 	return `$webresource:${v}`;
 }
 
-/** A JavaScriptFunction / CustomRule Library: a web resource reference (#158). */
+/**
+ * A JavaScriptFunction / CustomRule Library: a web resource reference (#158).
+ * A root-relative `/WebResources/…` library is kept as loaded, so a loaded
+ * action still round-trips (and stays editable); the pre-publish check warns
+ * about it instead.
+ */
 export function normalizeLibrary(library: string): string {
-	return webResourceRef(library);
+	const v = (library ?? "").trim();
+	return v.startsWith("/") ? v : webResourceRef(v);
 }
 
 /** ` Name="value"`, or nothing when the value is undefined. */

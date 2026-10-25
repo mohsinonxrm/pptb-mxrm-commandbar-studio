@@ -393,6 +393,7 @@ export async function saveWebResource(
 		try {
 			await withBusyRetry(`Publishing web resource ${name}`, () => publishWebResource(result.id, guard), {
 				timeoutMs: 2 * 60_000,
+				onProgress: (msg) => useRuntimeLogStore.getState().logInfo("webresource", msg),
 			});
 			result.published = true;
 		} catch (err) {

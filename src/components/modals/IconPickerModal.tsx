@@ -469,11 +469,13 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 				reader.readAsDataURL(file);
 			});
 			const name = `${publisherPrefix || "new"}_/icons/${file.name}`;
-			await saveWebResource(name, content, 11, {
+			const saved = await saveWebResource(name, content, 11, {
 				displayName: file.name,
 				guard,
 				onExisting: replaceConfirm.onExisting,
 			});
+			// Shown here too, not only in the Console (#156 review).
+			setIconNote([saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null);
 			setWebResourcePath(`$webresource:${name}`);
 			setActiveTab("webresource");
 			const rows = await loadWebResources("svg");
