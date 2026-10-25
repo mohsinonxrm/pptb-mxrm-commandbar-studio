@@ -40,8 +40,6 @@ import type { ConflictEntry } from "@/types/ribbon";
 import { fetchCurrentUser } from "@/services/dataverse/userService";
 import { useRibbonPersistence } from "@/hooks/useRibbonPersistence";
 import { useDraftStore, draftKeyFor } from "@/store/draftStore";
-import { DraftSaveWarning } from "@/components/shell/DraftSaveWarning";
-import { ConnectionChangedNotice } from "@/components/shell/ConnectionChangedNotice";
 import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
 import { UnsavedChangesDialog } from "@/components/modals/UnsavedChangesDialog";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
@@ -402,8 +400,6 @@ export function App() {
 				rightPane={<PropertiesPane />}
 				bottomPanel={<BottomPanel />}
 			>
-				<DraftSaveWarning />
-				<ConnectionChangedNotice />
 				<RibbonCanvas
 					isLoadingRibbon={ribbonLoadState === "loading"}
 					loadingTable={activeEntity?.displayName ?? activeEntity?.logicalName}

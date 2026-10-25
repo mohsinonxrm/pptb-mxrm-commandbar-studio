@@ -1,8 +1,11 @@
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { makeStyles, tokens } from "@fluentui/react-components";
+import { Button, OverlayDrawer, Tooltip, makeStyles, tokens } from "@fluentui/react-components";
+import { DismissRegular, PanelLeftExpandRegular } from "@fluentui/react-icons";
 import { TopBar } from "./TopBar";
-import { SubHeader } from "./SubHeader";
+import { ShellMessages } from "./ShellMessages";
 import { useUIStore } from "@/store/uiStore";
+import { useSelectionStore } from "@/store/selectionStore";
+import { useSessionStore } from "@/store/sessionStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { ResizableHandle } from "@/components/shared/ResizableHandle";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
@@ -57,7 +60,32 @@ const useStyles = makeStyles({
 	bottomPanel: {
 		flexShrink: 0,
 	},
+	/** Below NARROW_WIDTH the side panes become a rail and overlay drawers (#179). */
+	rail: {
+		width: "48px",
+		flexShrink: 0,
+		display: "flex",
+		flexDirection: "column",
+		alignItems: "center",
+		paddingTop: tokens.spacingVerticalS,
+		borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
+		backgroundColor: tokens.colorNeutralBackground2,
+	},
+	drawerBody: {
+		position: "relative",
+		height: "100%",
+		overflow: "hidden",
+	},
+	drawerClose: {
+		position: "absolute",
+		top: tokens.spacingVerticalXS,
+		right: tokens.spacingHorizontalXS,
+		zIndex: 1,
+	},
 });
+
+/** Below this window width the side panes stop taking canvas width (#179). */
+const NARROW_WIDTH = 1200;
 
 function useWindowWidth(): number {
 	const [width, setWidth] = useState(() => window.innerWidth);
@@ -88,6 +116,25 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const setBottomPanelHeight = useUIStore((s) => s.setBottomPanelHeight);
 	const announcement = useUIStore((s) => s.announcement);
 	const windowWidth = useWindowWidth();
+	const narrow = windowWidth < NARROW_WIDTH;
+	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
+	const selectedGroupId = useSelectionStore((s) => s.selectedGroupId);
+	const activeTable = useSessionStore((s) => s.activeEntity?.logicalName ?? null);
+	const [leftOpen, setLeftOpen] = useState(false);
+	const [propsOpen, setPropsOpen] = useState(false);
+	// In a narrow window, selecting something opens Properties and opening a
+	// table closes the tables drawer (compared during render, not in an effect).
+	const selectionKey = `${selectedGroupId ?? ""}|${selectedButtonId ?? ""}`;
+	const [seenSelection, setSeenSelection] = useState(selectionKey);
+	if (seenSelection !== selectionKey) {
+		setSeenSelection(selectionKey);
+		setPropsOpen(selectedButtonId !== null || selectedGroupId !== null);
+	}
+	const [seenTable, setSeenTable] = useState(activeTable);
+	if (seenTable !== activeTable) {
+		setSeenTable(activeTable);
+		setLeftOpen(false);
+	}
 	const fitted = fitPaneWidths(
 		windowWidth,
 		leftPaneWidth,
@@ -159,18 +206,70 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	return (
 		<div className={styles.root}>
 			<TopBar />
-			<SubHeader />
+			<ShellMessages />
 			<div className={styles.body}>
-				<div className={styles.leftPane} style={{ width: fitted.left }}>
-					<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
-				</div>
-				<ResizableHandle
-					direction="vertical"
-					onResize={resizeLeft}
-					aria-label="Resize left pane"
-				/>
+				{narrow ? (
+					<nav className={styles.rail} aria-label="Side panes">
+						<Tooltip content="Tables and solution" relationship="label">
+							<Button
+								appearance="subtle"
+								icon={<PanelLeftExpandRegular />}
+								aria-expanded={leftOpen}
+								onClick={() => setLeftOpen(true)}
+							/>
+						</Tooltip>
+					</nav>
+				) : (
+					<>
+						<div className={styles.leftPane} style={{ width: fitted.left }}>
+							<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
+						</div>
+						<ResizableHandle
+							direction="vertical"
+							onResize={resizeLeft}
+							aria-label="Resize left pane"
+						/>
+					</>
+				)}
 				<ErrorBoundary label="Ribbon canvas">{children}</ErrorBoundary>
-				{rightPaneMode === "docked" && (
+				{narrow && (
+					<>
+						<OverlayDrawer
+							position="start"
+							size="small"
+							open={leftOpen}
+							onOpenChange={(_, d) => setLeftOpen(d.open)}
+							aria-label="Tables and solution"
+						>
+							<div className={styles.drawerBody}>
+								<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
+							</div>
+						</OverlayDrawer>
+						{rightPaneMode !== "hidden" && (
+							<OverlayDrawer
+								position="end"
+								size="small"
+								open={propsOpen}
+								onOpenChange={(_, d) => setPropsOpen(d.open)}
+								aria-label="Properties"
+							>
+								<div className={styles.drawerBody}>
+									<Button
+										className={styles.drawerClose}
+										appearance="subtle"
+										aria-label="Close properties"
+										icon={<DismissRegular />}
+										onClick={() => setPropsOpen(false)}
+									/>
+									<ErrorBoundary label="Properties pane">
+										{rightPane}
+									</ErrorBoundary>
+								</div>
+							</OverlayDrawer>
+						)}
+					</>
+				)}
+				{!narrow && rightPaneMode === "docked" && (
 					<>
 						<ResizableHandle
 							direction="vertical"
@@ -182,7 +281,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 						</div>
 					</>
 				)}
-				{rightPaneMode === "floating" && (
+				{!narrow && rightPaneMode === "floating" && (
 					<div
 						style={{
 							position: "absolute",

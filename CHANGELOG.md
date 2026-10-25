@@ -36,6 +36,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Changed
 
+- **The top bar fits PPTB's widths (#179).** At about 1000–1200 px, the old top bar and sub-header
+  wrapped "Publish All" onto two lines. They also pushed View as, XML and Tab rules off-screen or
+  under the Properties pane. Now:
+  - **One top bar** replaces the sub-header row (36 px more for the canvas). It holds the
+    environment, solution, search, undo/redo, an **XML** menu (View XML, Import XML…, Compare with
+    published), **Open in Dynamics 365**, a **View** menu (Properties docked / floating / hidden,
+    the bottom panel) and Help.
+  - **Narrow windows:** tools that don't fit move into a **⋯** menu. **Publish** is never hidden.
+  - **Publish** says what it does ("Publish 2 changes"). With nothing to publish it's disabled,
+    and its tooltip says why.
+  - **Solution button:** shows just the solution's name. A warning icon appears when new ids would
+    use the org's default publisher prefix. The prefix, with an explanation, is in the picker.
+  - **Environment:** below 1200 px it shows just its type badge. The full URL is in a tooltip
+    you can reach with the keyboard.
+  - **Tool-wide messages** (connection changed, draft couldn't be saved) sit under the top bar
+    and push the panes down. They used to cover the left pane's tabs and the Properties header.
+  - **Below 1200 px wide,** the left pane becomes a rail that opens it as a drawer. Properties
+    opens as a drawer when you select something. At 1024 px the canvas went from about a third of
+    the width to nearly all of it.
 - **Confirmation dialogs** use the shared dialog shell: 440 px wide, with the confirm button
   red when it deletes or discards something.
 

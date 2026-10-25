@@ -292,9 +292,11 @@ describe("#16 — a full browser storage", () => {
 			act(() =>
 				useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"),
 			);
+			// A titled message in the shell's slot since #179.
 			expect(document.body.textContent).toContain(
-				"can't be saved as a draft: the browser storage is full",
+				"Your latest changes can't be saved as a draft",
 			);
+			expect(document.body.textContent).toContain("The browser storage is full.");
 			act(() => useDraftStore.getState().requestEntitySwitch(entity("contact")));
 			expect(findButton("Keep as draft")?.disabled).toBe(true);
 			click("Cancel");

@@ -1,0 +1,197 @@
+/**
+ * #179: the top bar holds what the sub-header had (XML, compare, open in app,
+ * the Properties mode), Publish says how many changes it publishes and is never
+ * hidden, tool-wide messages sit in flow under the bar, and below 1200 px the
+ * side panes become a rail and overlay drawers.
+ */
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { FluentProvider, webLightTheme } from "@fluentui/react-components";
+import { TopBar } from "@/components/shell/TopBar";
+import { Layout } from "@/components/shell/Layout";
+import { useUIStore } from "@/store/uiStore";
+import { useRibbonStore } from "@/store/ribbonStore";
+import { useDraftStore } from "@/store/draftStore";
+import { useSessionStore } from "@/store/sessionStore";
+import { useSelectionStore } from "@/store/selectionStore";
+
+// Layout lazy-loads every panel and modal; they aren't under test here, and
+// loading them for real outlives the test.
+vi.mock("@/components/panels/XmlDrawer", () => ({ default: () => null }));
+vi.mock("@/components/panels/CommandEditorPanel", () => ({ default: () => null }));
+vi.mock("@/components/panels/RuleEditorPanel", () => ({ default: () => null }));
+vi.mock("@/components/modals/BulkPublishModal", () => ({ default: () => null }));
+vi.mock("@/components/modals/NewButtonModal", () => ({ default: () => null }));
+vi.mock("@/components/modals/NewGroupModal", () => ({ default: () => null }));
+vi.mock("@/components/modals/NewTabModal", () => ({ default: () => null }));
+vi.mock("@/components/modals/ImportXmlModal", () => ({ default: () => null }));
+vi.mock("@/components/command-palette/CommandPalette", () => ({ default: () => null }));
+vi.mock("@/components/modals/LocalizationEditor", () => ({ default: () => null }));
+vi.mock("@/components/modals/IconPickerModal", () => ({ default: () => null }));
+vi.mock("@/components/panels/TabDisplayRulesPanel", () => ({ default: () => null }));
+vi.mock("@/components/panels/ScalingEditorPanel", () => ({ default: () => null }));
+vi.mock("@/components/panels/ConflictDrawer", () => ({ default: () => null }));
+vi.mock("@/components/panels/WebResourceBrowser", () => ({ default: () => null }));
+vi.mock("@/components/panels/UrlComposerModal", () => ({ default: () => null }));
+vi.mock("@/components/panels/DiffViewer", () => ({ default: () => null }));
+vi.mock("@/components/modals/HideInsteadOfDeleteModal", () => ({ default: () => null }));
+
+vi.setConfig({ testTimeout: 30_000 });
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+if (typeof window.ResizeObserver === "undefined") {
+	window.ResizeObserver = class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof ResizeObserver;
+}
+
+let container: HTMLDivElement;
+let root: Root;
+const initialUI = useUIStore.getState();
+
+function render(ui: React.ReactElement) {
+	act(() => root.render(<FluentProvider theme={webLightTheme}>{ui}</FluentProvider>));
+}
+const buttons = () => [...document.body.querySelectorAll("button")];
+const byName = (name: string) =>
+	buttons().find((b) => b.getAttribute("aria-label") === name || b.textContent?.trim() === name);
+const menuItem = (name: string) =>
+	[...document.body.querySelectorAll('[role^="menuitem"]')].find(
+		(m) => m.textContent?.trim() === name,
+	) as HTMLElement | undefined;
+const click = (el: Element | undefined) => {
+	if (!el) throw new Error("not found");
+	act(() => (el as HTMLElement).click());
+};
+const setWidth = (w: number) => {
+	Object.defineProperty(window, "innerWidth", { configurable: true, value: w });
+	act(() => {
+		window.dispatchEvent(new Event("resize"));
+	});
+};
+
+beforeEach(() => {
+	container = document.createElement("div");
+	document.body.appendChild(container);
+	root = createRoot(container);
+	useUIStore.setState(initialUI, true);
+	useDraftStore.setState({ target: null });
+	useRibbonStore.setState({ mutationsSincePublish: 0 });
+	useSessionStore.setState({ connectionNotice: null });
+	useSelectionStore.setState({ selectedButtonId: null, selectedGroupId: null });
+	setWidth(1600);
+});
+afterEach(() => {
+	act(() => root.unmount());
+	container.remove();
+	document.body.innerHTML = "";
+});
+
+describe("#179 Publish", () => {
+	it("says how many changes it publishes and opens the publish dialog", () => {
+		useDraftStore.setState({
+			target: { connectionUrl: "u", solutionId: "s", entity: "account" },
+		} as never);
+		useRibbonStore.setState({ mutationsSincePublish: 2 });
+		render(<TopBar />);
+		click(byName("Publish 2 changes"));
+		expect(useUIStore.getState().bulkPublishOpen).toBe(true);
+	});
+
+	it("is disabled with a reason when there's nothing to publish, and doesn't open", () => {
+		render(<TopBar />);
+		const publish = byName("Publish")!;
+		expect(publish.getAttribute("aria-disabled")).toBe("true");
+		expect(publish.getAttribute("aria-describedby")).toBeTruthy();
+		click(publish);
+		expect(useUIStore.getState().bulkPublishOpen).toBe(false);
+	});
+});
+
+describe("#179 the sub-header's actions moved to the top bar", () => {
+	it("has one XML menu: view, import and compare", () => {
+		render(<TopBar />);
+		click(byName("XML"));
+		click(menuItem("View XML"));
+		expect(useUIStore.getState().xmlDrawerOpen).toBe(true);
+		click(byName("XML"));
+		click(menuItem("Import XML…"));
+		expect(useUIStore.getState().importXmlOpen).toBe(true);
+		click(byName("XML"));
+		click(menuItem("Compare with published"));
+		expect(useUIStore.getState().diffViewerOpen).toBe(true);
+		expect(useUIStore.getState().diffViewerMode).toBe("compare");
+	});
+
+	it("sets the Properties mode and the bottom panel from the View menu", () => {
+		render(<TopBar />);
+		click(byName("View"));
+		click(menuItem("Hidden"));
+		expect(useUIStore.getState().rightPaneMode).toBe("hidden");
+		click(byName("View"));
+		click(menuItem("Show the bottom panel"));
+		expect(useUIStore.getState().bottomCollapsed).toBe(!initialUI.bottomCollapsed);
+	});
+
+	it("keeps Open in Dynamics 365 disabled until a table is open", () => {
+		render(<TopBar />);
+		expect(byName("Open this table in Dynamics 365")?.disabled).toBe(true);
+	});
+});
+
+describe("#179 tool-wide messages and the narrow layout", () => {
+	const shell = () => (
+		<Layout
+			leftPane={<div>LEFT PANE</div>}
+			rightPane={<div>PROPERTIES</div>}
+			bottomPanel={null}
+		>
+			<main>CANVAS</main>
+		</Layout>
+	);
+
+	it("shows the connection notice in flow, and its dismiss clears it", () => {
+		useSessionStore.setState({
+			connectionNotice: {
+				from: { name: "Dev", url: "https://a", environment: "Sandbox" },
+				to: { name: "Test", url: "https://b", environment: "Sandbox" },
+				draftKept: false,
+				draftLost: false,
+			},
+		} as never);
+		render(shell());
+		const bar = [...document.body.querySelectorAll(".fui-MessageBar")].find((m) =>
+			m.textContent?.includes("Connection changed to Test (Sandbox)"),
+		) as HTMLElement;
+		expect(bar).toBeTruthy();
+		expect(bar.style.position).toBe("");
+		click(byName("Dismiss: Connection changed to Test (Sandbox)"));
+		expect(useSessionStore.getState().connectionNotice).toBeNull();
+	});
+
+	it("keeps the side panes inline on a wide window", () => {
+		render(shell());
+		expect(container.textContent).toContain("LEFT PANE");
+		expect(container.textContent).toContain("PROPERTIES");
+		expect(byName("Tables and solution")).toBeUndefined();
+	});
+
+	it("turns them into a rail and overlay drawers below 1200 px", () => {
+		setWidth(1024);
+		render(shell());
+		expect(container.textContent).not.toContain("LEFT PANE");
+		expect(container.textContent).not.toContain("PROPERTIES");
+		click(byName("Tables and solution"));
+		expect(document.body.textContent).toContain("LEFT PANE");
+
+		// Opening a table closes the tables drawer; selecting a button opens Properties.
+		act(() => useSessionStore.setState({ activeEntity: { logicalName: "account" } } as never));
+		expect(document.body.textContent).not.toContain("LEFT PANE");
+		act(() => useSelectionStore.getState().selectButton("G", "B"));
+		expect(document.body.textContent).toContain("PROPERTIES");
+		click(byName("Close properties"));
+		expect(document.body.textContent).not.toContain("PROPERTIES");
+	});
+});

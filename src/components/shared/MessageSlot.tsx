@@ -33,6 +33,11 @@ export interface SlotMessage {
 	dismissible?: boolean;
 	/** When this changes, a dismissed message shows again. */
 	signature?: string;
+	/**
+	 * Handles the dismiss itself (e.g. clears a store flag) instead of it being
+	 * remembered: for one-off messages that shouldn't stay hidden next time.
+	 */
+	onDismiss?: () => void;
 }
 
 export interface MessageSlotProps {
@@ -75,6 +80,10 @@ export const MessageSlot: React.FC<MessageSlotProps> = ({ scope, messages, class
 	const shown = expanded ? visible : visible.slice(0, 1);
 
 	const dismiss = (m: SlotMessage) => {
+		if (m.onDismiss) {
+			m.onDismiss();
+			return;
+		}
 		const next = { ...dismissed, [m.id]: m.signature ?? "" };
 		setDismissed(next);
 		writePref(key, next);

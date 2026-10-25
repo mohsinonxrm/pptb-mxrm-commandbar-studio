@@ -67,7 +67,6 @@ export default tseslint.config(
 			"src/components/ribbon-canvas/modern/ClassicModernOverrideBadge.tsx",
 			"src/components/ribbon-canvas/modern/ModernCommandChip.tsx",
 			"src/components/ribbon-canvas/modern/ModernCommandsTable.tsx",
-			"src/components/shell/TopBar.tsx",
 		],
 		rules: {
 			"no-restricted-syntax": "off",
