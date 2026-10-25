@@ -509,7 +509,7 @@ function Tools({ onHelp }: { onHelp: () => void }) {
 						<Tooltip content="Undo (Ctrl+Z)" relationship="label">
 							<ToolbarButton
 								icon={<ArrowUndoRegular />}
-								disabled={!t.canUndo}
+								disabledFocusable={!t.canUndo}
 								onClick={t.undo}
 							/>
 						</Tooltip>
@@ -518,7 +518,7 @@ function Tools({ onHelp }: { onHelp: () => void }) {
 						<Tooltip content="Redo (Ctrl+Y)" relationship="label">
 							<ToolbarButton
 								icon={<ArrowRedoRegular />}
-								disabled={!t.canRedo}
+								disabledFocusable={!t.canRedo}
 								onClick={t.redo}
 							/>
 						</Tooltip>
@@ -543,7 +543,7 @@ function Tools({ onHelp }: { onHelp: () => void }) {
 						<Tooltip content="Open this table in Dynamics 365" relationship="label">
 							<ToolbarButton
 								icon={<OpenRegular />}
-								disabled={!t.canOpenInApp}
+								disabledFocusable={!t.canOpenInApp}
 								onClick={t.openInApp}
 							/>
 						</Tooltip>

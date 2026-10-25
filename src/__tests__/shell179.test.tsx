@@ -15,6 +15,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useDraftStore } from "@/store/draftStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { useModernCommandStore } from "@/store/modernCommandStore";
 
 // Layout lazy-loads every panel and modal; they aren't under test here, and
 // loading them for real outlives the test.
@@ -137,7 +138,10 @@ describe("#179 the sub-header's actions moved to the top bar", () => {
 
 	it("keeps Open in Dynamics 365 disabled until a table is open", () => {
 		render(<TopBar />);
-		expect(byName("Open this table in Dynamics 365")?.disabled).toBe(true);
+		// Still focusable, so its tooltip names it.
+		expect(byName("Open this table in Dynamics 365")?.getAttribute("aria-disabled")).toBe(
+			"true",
+		);
 	});
 });
 
@@ -193,5 +197,38 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 		expect(document.body.textContent).toContain("PROPERTIES");
 		click(byName("Close properties"));
 		expect(document.body.textContent).not.toContain("PROPERTIES");
+	});
+
+	it("reaches Properties from the rail, a modern command, or a request", () => {
+		setWidth(1024);
+		render(shell());
+		const toggle = () =>
+			buttons().find((b) => b.getAttribute("aria-pressed") !== null && b.closest("nav"));
+		click(toggle());
+		expect(document.body.textContent).toContain("PROPERTIES");
+		expect(toggle()?.getAttribute("aria-pressed")).toBe("true");
+		click(toggle());
+		expect(document.body.textContent).not.toContain("PROPERTIES");
+
+		act(() => useModernCommandStore.getState().selectCommand("m1"));
+		expect(document.body.textContent).toContain("PROPERTIES");
+		click(byName("Close properties"));
+
+		// Show orphans asks for it with nothing selected.
+		act(() => useUIStore.getState().setPropertiesRequested(true));
+		expect(document.body.textContent).toContain("PROPERTIES");
+		click(byName("Close properties"));
+		expect(document.body.textContent).not.toContain("PROPERTIES");
+		expect(useUIStore.getState().propertiesRequested).toBe(false);
+	});
+
+	it("closes the drawers when the window crosses the narrow width", () => {
+		setWidth(1024);
+		render(shell());
+		click(byName("Tables and solution"));
+		expect(document.body.textContent).toContain("LEFT PANE");
+		setWidth(1600);
+		setWidth(1024);
+		expect(document.body.textContent).not.toContain("LEFT PANE");
 	});
 });

@@ -1,11 +1,16 @@
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Button, OverlayDrawer, Tooltip, makeStyles, tokens } from "@fluentui/react-components";
-import { DismissRegular, PanelLeftExpandRegular } from "@fluentui/react-icons";
+import {
+	DismissRegular,
+	PanelLeftExpandRegular,
+	PanelRightExpandRegular,
+} from "@fluentui/react-icons";
 import { TopBar } from "./TopBar";
 import { ShellMessages } from "./ShellMessages";
 import { useUIStore } from "@/store/uiStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { ResizableHandle } from "@/components/shared/ResizableHandle";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
@@ -126,14 +131,31 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const tablePickerRequested = useUIStore((s) => s.tablePickerRequested);
 	const setTablePickerRequested = useUIStore((s) => s.setTablePickerRequested);
 	const leftOpen = leftOpenState || (narrow && tablePickerRequested);
-	const [propsOpen, setPropsOpen] = useState(false);
-	// In a narrow window, selecting something opens Properties and opening a
-	// table closes the tables drawer (compared during render, not in an effect).
-	const selectionKey = `${selectedGroupId ?? ""}|${selectedButtonId ?? ""}`;
+	const selectedModernId = useModernCommandStore((s) => s.selectedCommandId);
+	const [propsOpenState, setPropsOpen] = useState(false);
+	// Show orphans and similar actions ask for Properties (#179 review).
+	const propertiesRequested = useUIStore((s) => s.propertiesRequested);
+	const setPropertiesRequested = useUIStore((s) => s.setPropertiesRequested);
+	const propsOpen = propsOpenState || (narrow && propertiesRequested);
+	const closeProps = () => {
+		setPropsOpen(false);
+		setPropertiesRequested(false);
+	};
+	// In a narrow window, selecting something (a classic control or a modern
+	// command) opens Properties; clearing the selection doesn't close it, and
+	// opening a table closes the tables drawer (compared during render).
+	const selectionKey = `${selectedGroupId ?? ""}|${selectedButtonId ?? ""}|${selectedModernId ?? ""}`;
 	const [seenSelection, setSeenSelection] = useState(selectionKey);
 	if (seenSelection !== selectionKey) {
 		setSeenSelection(selectionKey);
-		setPropsOpen(selectedButtonId !== null || selectedGroupId !== null);
+		if (narrow && (selectedButtonId || selectedGroupId || selectedModernId)) setPropsOpen(true);
+	}
+	// The drawers start closed whenever the window crosses the narrow width.
+	const [seenNarrow, setSeenNarrow] = useState(narrow);
+	if (seenNarrow !== narrow) {
+		setSeenNarrow(narrow);
+		setLeftOpen(false);
+		setPropsOpen(false);
 	}
 	const [seenTable, setSeenTable] = useState(activeTable);
 	if (seenTable !== activeTable) {
@@ -177,6 +199,9 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			setTablePickerRequested(false);
 		}
 	}, [tablePickerRequested, narrow, setTablePickerRequested]);
+	useEffect(() => {
+		if (propertiesRequested && !narrow) setPropertiesRequested(false);
+	}, [propertiesRequested, narrow, setPropertiesRequested]);
 	// Opening a table answers the request (the drawer closes with it).
 	useEffect(() => {
 		if (activeTable) setTablePickerRequested(false);
@@ -234,6 +259,16 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 								onClick={() => setLeftOpen(true)}
 							/>
 						</Tooltip>
+						{rightPaneMode !== "hidden" && (
+							<Tooltip content="Properties" relationship="label">
+								<Button
+									appearance="subtle"
+									icon={<PanelRightExpandRegular />}
+									aria-pressed={propsOpen}
+									onClick={() => (propsOpen ? closeProps() : setPropsOpen(true))}
+								/>
+							</Tooltip>
+						)}
 					</nav>
 				) : (
 					<>
@@ -272,7 +307,9 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 								size="small"
 								modalType="non-modal"
 								open={propsOpen}
-								onOpenChange={(_, d) => setPropsOpen(d.open)}
+								onOpenChange={(_, d) =>
+									d.open ? setPropsOpen(true) : closeProps()
+								}
 								aria-label="Properties"
 							>
 								<div className={styles.drawerBody}>
@@ -281,7 +318,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 										appearance="subtle"
 										aria-label="Close properties"
 										icon={<DismissRegular />}
-										onClick={() => setPropsOpen(false)}
+										onClick={closeProps}
 									/>
 									<ErrorBoundary label="Properties pane">
 										{rightPane}

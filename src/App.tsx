@@ -68,6 +68,9 @@ const useStyles = makeStyles({
 function LeftPane() {
 	const styles = useStyles();
 	const [tab, setTab] = useState<"tables" | "elements">("tables");
+	// "Choose table" (#195) needs the table list showing.
+	const tablePickerRequested = useUIStore((s) => s.tablePickerRequested);
+	if (tablePickerRequested && tab !== "tables") setTab("tables");
 
 	return (
 		<div className={styles.leftPaneTabs}>

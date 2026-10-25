@@ -58,6 +58,8 @@ export interface UIStore {
 	solutionPickerOpen: boolean;
 	/** The tables are asked for: the left drawer opens when narrow, the table search is focused when wide (#195). */
 	tablePickerRequested: boolean;
+	/** Something asked for the Properties pane (e.g. Show orphans): it opens when it's a drawer (#179). */
+	propertiesRequested: boolean;
 	newTabOpen: boolean;
 	/** A control Delete was pressed on that isn't yours: offered a hide instead (#17). */
 	hideInsteadOfDelete: ControlRef | null;
@@ -105,6 +107,7 @@ export interface UIStore {
 	setCommandPaletteOpen(open: boolean): void;
 	setSolutionPickerOpen(open: boolean): void;
 	setTablePickerRequested(requested: boolean): void;
+	setPropertiesRequested(requested: boolean): void;
 	openNewTab(): void;
 	closeNewTab(): void;
 	openHideInsteadOfDelete(control: ControlRef): void;
@@ -154,6 +157,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	commandPaletteOpen: false,
 	solutionPickerOpen: false,
 	tablePickerRequested: false,
+	propertiesRequested: false,
 	newTabOpen: false,
 	hideInsteadOfDelete: null,
 
@@ -211,6 +215,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	setCommandPaletteOpen: (open: boolean) => set({ commandPaletteOpen: open }),
 	setSolutionPickerOpen: (open) => set({ solutionPickerOpen: open }),
 	setTablePickerRequested: (requested) => set({ tablePickerRequested: requested }),
+	setPropertiesRequested: (requested) => set({ propertiesRequested: requested }),
 	openNewTab: () => set({ newTabOpen: true }),
 	closeNewTab: () => set({ newTabOpen: false }),
 	openHideInsteadOfDelete: (control) => set({ hideInsteadOfDelete: control }),

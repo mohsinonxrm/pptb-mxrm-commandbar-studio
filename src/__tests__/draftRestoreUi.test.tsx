@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
-import { DraftSaveWarning } from "@/components/shell/DraftSaveWarning";
+import { ShellMessages } from "@/components/shell/ShellMessages";
 import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
 import { UnsavedChangesDialog } from "@/components/modals/UnsavedChangesDialog";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -136,7 +136,7 @@ beforeEach(() => {
 	act(() =>
 		root.render(
 			<FluentProvider theme={webLightTheme}>
-				<DraftSaveWarning />
+				<ShellMessages />
 				<DraftRestoreDialog />
 				<UnsavedChangesDialog />
 			</FluentProvider>,
