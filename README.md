@@ -28,7 +28,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - All 4 ribbon locations: **Home Grid**, **Sub Grid**, **Form**, **Application**
 - Tab drag-to-reorder, inline rename (double-click), `+ Add tab`
 - Context menus on buttons and groups — hide/show, duplicate, move, rename, delete, override OOB
-- A copy (duplicate, customise button) keeps the labels another solution defines, so it shows the same text; edit its text to give it labels of its own
+- A copy (duplicate, customise button) keeps the labels another solution defines, so it shows the same text; edit its text to give it labels of its own. A duplicated group with a platform or another solution's title keeps it: rename the copy before publishing if it should read differently
 - If your unmanaged ribbon customizations can't be read when a table loads, a warning says so (labels may show as ids, ownership is unknown), with **Retry**
 
 ### 📋 Properties Pane

@@ -259,10 +259,11 @@ describe("duplicating a group (#33)", () => {
 		expect(lang).toBe("1031");
 	});
 
-	it("a platform `$Resources:` title isn't written as text with the token in it", () => {
-		const { copy, text } = duplicate(MGMT);
-		expect(copy.label).toBe("Ribbon.HomepageGrid.MainTab.Management (copy)");
-		expect(text).toBe("Ribbon.HomepageGrid.MainTab.Management (copy)");
-		expect(text).not.toContain("$Resources");
+	it("a platform `$Resources:` title is kept as the token, never written as text", () => {
+		// It can't take " (copy)": the copy shows the same text, like a copied button (#86).
+		const { copy, title } = duplicate(MGMT);
+		expect(title).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
+		// No label of the copy's own is written.
+		expect(useRibbonStore.getState().locLabels.some((l) => l.id === `${copy.id}.Title`)).toBe(false);
 	});
 });

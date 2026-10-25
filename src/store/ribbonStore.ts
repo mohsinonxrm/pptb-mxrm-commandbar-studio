@@ -1389,6 +1389,8 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		duplicateGroup(location, tabId, groupId) {
+			// The copy's id and title, when it kept a title it can't rename once published.
+			let keptTitle: { copyId: string; title: string } | null = null;
 			set((state) =>
 				commitMutation(
 					state,
@@ -1399,20 +1401,38 @@ export const useRibbonStore = create<RibbonStore>()(
 						if (!grp) return;
 						const stamp = `_copy_${Date.now()}`;
 						const loadedLabelIds = loadedLabelIdsOf(state);
+						const lang = state.baseLanguageCode;
+						// The group's Title as loaded: an imported group (#30) keeps it in
+						// source while its label is still the token's text; a loaded one has
+						// the token as its label.
+						const imported = grp.source?.titleToken;
+						const title =
+							imported !== undefined && resolveDisplayLabel(imported, state.locLabels, lang) === grp.label
+								? imported
+								: grp.label;
+						// A platform text (`$Resources:`) or another solution's label (#137)
+						// can't take a " (copy)" suffix — the copy took the key itself as its
+						// literal title ("Ribbon.HomepageGrid.MainTab.Management (copy)"). Like
+						// a copied button (#86), it keeps the token, so it shows the same text.
+						const keepTitle = isPlatformText(title) || isOtherSolutionLabel(title, loadedLabelIds);
 						const copy: RibbonGroup = {
 							...JSON.parse(JSON.stringify(grp)),
 							id: `${grp.id}${stamp}`,
-							// The title's text (#33), as the canvas shows it: a `$LocLabels:` /
-							// `$Resources:` token never becomes part of the copy's title text.
-							label: `${resolveDisplayLabel(grp.label, state.locLabels, state.baseLanguageCode)} (copy)`,
-							// The copy must not reuse an imported group's Title label (#30), nor its Description (#42).
-							source: undefined,
+							// Otherwise the title's text (#33) plus " (copy)": a `$LocLabels:`
+							// token never becomes part of the copy's title text.
+							label: keepTitle
+								? resolveDisplayLabel(title, state.locLabels, lang)
+								: `${resolveDisplayLabel(grp.label, state.locLabels, lang)} (copy)`,
+							// The copy must not reuse an imported group's other attributes (#30),
+							// nor its Description (#42); a kept title is its only token.
+							source: keepTitle ? { titleToken: title, attributes: {} } : undefined,
 							description: undefined,
 							sequence: grp.sequence + 5,
 							buttons: grp.buttons.map((b) => copyControl(b, `${b.id}${stamp}`, loadedLabelIds)),
 						};
 						const idx = tab.groups.findIndex((g) => g.id === groupId);
 						tab.groups.splice(idx + 1, 0, copy);
+						if (keepTitle) keptTitle = { copyId: copy.id, title };
 					},
 					{
 						ts: new Date().toISOString(),
@@ -1426,6 +1446,17 @@ export const useRibbonStore = create<RibbonStore>()(
 					},
 				),
 			);
+			if (keptTitle) {
+				const { copyId, title } = keptTitle;
+				useRuntimeLogStore
+					.getState()
+					.logInfo(
+						"ribbon",
+						`Duplicate group ${groupId}: the copy ${copyId} keeps its title ${title}, which comes from ` +
+							`${isPlatformText(title) ? "the platform" : "another solution"} and can't take " (copy)". ` +
+							`Rename the copy before you publish if it should read differently: once published, only titles of your own can be renamed.`,
+					);
+			}
 		},
 
 		setGroupTemplate(location, tabId, groupId, template) {
