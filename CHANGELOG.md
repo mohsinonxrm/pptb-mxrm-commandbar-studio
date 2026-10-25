@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0-beta.1] - 2026-10-25
+
+The first beta of 0.8.0 (npm `beta`), on publish correctness and load performance:
+- tables open faster;
+- built-in buttons show captions and icons;
+- the pre-publish check catches what the import would reject;
+- saved web resources are published;
+- tab reorders, duplicates and Kind changes publish as shown.
+
+It includes everything in 0.7.0-beta.3. Requires Power Platform ToolBox 1.2.7 or later.
+
 ### ⚡ Performance
 
 - **Tables open faster (#151, #4).**
