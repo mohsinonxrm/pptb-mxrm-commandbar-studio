@@ -1,3 +1,5 @@
+import { getPrimaryConnection, writeGuard } from "@/services/hostConnection";
+import { requiresTypedConfirmation } from "@/components/shared/targetScopeRules";
 import React, { useState } from "react";
 import {
 	Badge,
@@ -42,6 +44,7 @@ import type { RibbonDiffParts } from "@/services/ribbonDiffMerge";
 import type { PublishFinding } from "@/services/xmlValidator";
 import type { RibbonLocation } from "@/types/ribbon";
 import { groupControls } from "@/utils/ribbonMenu";
+import { TargetScope } from "@/components/shared/TargetScope";
 
 const useStyles = makeStyles({
 	content: {
@@ -110,6 +113,7 @@ export const BulkPublishModal: React.FC = () => {
 	const customisedCommandIds = useRibbonStore((s) => s.customisedCommandIds);
 	const uncustomisedCommandIds = useRibbonStore((s) => s.uncustomisedCommandIds);
 	const baseLanguageCode = useRibbonStore((s) => s.baseLanguageCode);
+	const baseLanguageUnknown = useRibbonStore((s) => s.baseLanguageUnknown);
 	const setLayerSnapshot = useRibbonStore((s) => s.setLayerSnapshot);
 	const markPublished = useRibbonStore((s) => s.markPublished);
 	const mutationsSincePublish = useRibbonStore((s) => s.mutationsSincePublish);
@@ -129,6 +133,18 @@ export const BulkPublishModal: React.FC = () => {
 	const [done, setDone] = useState(false);
 	const [incrementSolutionVersion, setIncrementSolutionVersion] = useState(false);
 	const [publishStrategy, setPublishStrategy] = useState<"targeted" | "allAsync">("targeted");
+	// The target block's verdict (#121): false while the connection is read, and on Production
+	// until the confirmation word is typed; with the environment type it was given for.
+	const [target, setTarget] = useState<{ confirmed: boolean; environment?: string }>({
+		confirmed: false,
+	});
+	const onTargetChange = React.useCallback(
+		(confirmed: boolean, environment: string | undefined) => setTarget({ confirmed, environment }),
+		[],
+	);
+	const targetConfirmed = target.confirmed;
+	// Bumped to read the connection again (a new TargetScope).
+	const [targetRead, setTargetRead] = useState(0);
 	const [progressMessage, setProgressMessage] = useState("");
 	const [publishComment, setPublishComment] = useState("");
 	const [solutionVersion, setSolutionVersion] = useState(activeSolution?.version ?? "1.0.0.0");
@@ -212,6 +228,8 @@ export const BulkPublishModal: React.FC = () => {
 		...(activeEntity && entityPlan?.hasChanges ? [activeEntity.logicalName] : []),
 		...(includeApplicationRibbon ? ["Application ribbon"] : []),
 	];
+	// Typed on a Production connection (#121): the table's logical name, or "application ribbon".
+	const confirmWord = activeEntity && entityPlan?.hasChanges ? activeEntity.logicalName : "application ribbon";
 
 	// Pre-publish check (#35): validates the RibbonDiffXml each scope would
 	// import (existing layer + changes). It runs once the plan has nothing
@@ -312,8 +330,29 @@ export const BulkPublishModal: React.FC = () => {
 	// One close guard for the whole run (#10): it would otherwise drop between scopes.
 	const handlePublish = () =>
 		withCloseGuard(async () => {
-		if (!activeSolution || unsupported.length > 0 || scopes.length === 0 || checkBlocks) return;
+		if (!activeSolution || unsupported.length > 0 || scopes.length === 0 || checkBlocks || !targetConfirmed || baseLanguageUnknown) return;
 		setPublishing(true);
+		// One guard for the whole run (#120): every scope writes to the connection
+		// the run started on. After a switch, nothing more is published or stored.
+		const guard = writeGuard();
+		const startVersion = useSessionStore.getState().connectionVersion;
+		const switched = () => useSessionStore.getState().connectionVersion !== startVersion;
+		// The confirmation holds for the environment type it was given for (#121): the connection
+		// is read again, and if it is Production now and wasn't then, the word is asked for.
+		const connection = await getPrimaryConnection().catch(() => null);
+		if (switched()) {
+			setPublishing(false);
+			return;
+		}
+		if (requiresTypedConfirmation(connection?.environment) && !requiresTypedConfirmation(target.environment)) {
+			setTarget({ confirmed: false });
+			setTargetRead((n) => n + 1);
+			setPublishing(false);
+			useRuntimeLogStore
+				.getState()
+				.logWarn("publish", `${connection?.name ?? "The connection"} is a Production environment now: type the confirmation to publish.`);
+			return;
+		}
 		setProgressMessage("");
 		setErrorMessages([]);
 		setVerifications([]);
@@ -337,6 +376,9 @@ export const BulkPublishModal: React.FC = () => {
 			baselineEnableRules,
 			baselineDisplayRules,
 			publishCustomizations: true,
+			// The language the canvas resolved labels in (#106 review): a fresh read could
+			// differ and turn unchanged labels into edits.
+			languageCode: baseLanguageCode,
 			solution: {
 				uniqueName: activeSolution.uniqueName,
 				friendlyName: activeSolution.friendlyName,
@@ -358,6 +400,7 @@ export const BulkPublishModal: React.FC = () => {
 				const result = await publishRibbon(
 					{
 						...common,
+						guard,
 						entity: {
 							logicalName: activeEntity.logicalName,
 							schemaName: activeEntity.schemaName,
@@ -385,13 +428,14 @@ export const BulkPublishModal: React.FC = () => {
 			published.push(...ENTITY_LOCATIONS); // nothing changed there
 		}
 
-		if (includeApplicationRibbon) {
+		if (includeApplicationRibbon && !switched()) {
 			const scope = "Application ribbon";
 			setStatusMap((prev) => ({ ...prev, [scope]: "publishing" }));
 			try {
 				const result = await publishRibbon(
 					{
 						...common,
+						guard,
 						entity: null,
 						locations: [{ current: ribbons.Application, baseline: baseline.Application }],
 						ribbonCustomizationIds: solutionRibbonComponentIds ?? [],
@@ -415,11 +459,23 @@ export const BulkPublishModal: React.FC = () => {
 
 		if (!hadError && publishStrategy === "allAsync") {
 			try {
-				await publishAllAsync((msg) => setProgressMessage(msg));
+				await publishAllAsync((msg) => setProgressMessage(msg), { guard });
 			} catch (err) {
 				hadError = true;
 				errors.push({ scope: "Publish all customizations", message: fmt(err) });
 			}
+		}
+
+		if (switched()) {
+			// The store holds the new connection's (empty) workspace now: nothing of
+			// this run belongs in it.
+			if (includeApplicationRibbon && !errors.some((e) => e.scope === "Application ribbon"))
+				errors.push({ scope: "Application ribbon", message: "Not published: the tool's connection changed during the publish." });
+			setVerifications(verified);
+			setErrorMessages(errors);
+			setDone(false);
+			setPublishing(false);
+			return;
 		}
 
 		// Only scopes that were actually imported (or had nothing to import) are
@@ -427,11 +483,15 @@ export const BulkPublishModal: React.FC = () => {
 		markPublished(published, importedLayers);
 		// Re-read the layers that were published so ownership, labels and the
 		// "Hidden by customizations" list match the server (#47, #48).
+		// A failed read (null) keeps what markPublished recorded rather than
+		// forgetting the layer (which would block Rename and Delete, #33 review).
 		if (activeEntity && published.includes("HomepageGrid") && entityPlan?.hasChanges) {
-			setLayerSnapshot("entity", await fetchLayerSnapshot(activeEntity.logicalName));
+			const snapshot = await fetchLayerSnapshot(activeEntity.logicalName);
+			if (snapshot) setLayerSnapshot("entity", snapshot);
 		}
 		if (published.includes("Application") && includeApplicationRibbon) {
-			setLayerSnapshot("application", await fetchLayerSnapshot(null));
+			const snapshot = await fetchLayerSnapshot(null);
+			if (snapshot) setLayerSnapshot("application", snapshot);
 		}
 		if (!hadError) setProgressMessage("Done.");
 		setVerifications(verified);
@@ -452,6 +512,11 @@ export const BulkPublishModal: React.FC = () => {
 		setCheckState("idle");
 		setCheckFindings([]);
 		setCheckError("");
+		setTarget({ confirmed: false });
+		// A new target block next time: the dialog's content can stay mounted after
+		// it closes (a closing animation that never ends in a background window),
+		// and the old block would neither report again nor forget a typed word.
+		setTargetRead((n) => n + 1);
 		closeBulkPublish();
 	};
 
@@ -467,6 +532,16 @@ export const BulkPublishModal: React.FC = () => {
 							{!activeSolution && (
 								<MessageBar intent="warning">
 									<MessageBarBody>No solution selected. Please select a solution first.</MessageBarBody>
+								</MessageBar>
+							)}
+
+							{baseLanguageUnknown && !done && (
+								<MessageBar intent="error" layout="multiline">
+									<MessageBarBody>
+										The organization&apos;s base language couldn&apos;t be read when the table loaded, so
+										labels are shown in English. Reload the table before publishing: publishing now could
+										write English texts as the base language&apos;s titles.
+									</MessageBarBody>
 								</MessageBar>
 							)}
 
@@ -552,7 +627,7 @@ export const BulkPublishModal: React.FC = () => {
 								<MessageBarBody>
 									Publishing writes this table&apos;s complete ribbon customization: what is already
 									published, plus your changes. Ribbon changes on this table that were imported
-									elsewhere but <strong>not published</strong> are replaced. Publishing takes about 1–4
+									elsewhere but <strong>not published</strong> are published first, so they are kept. Publishing takes about 1–4
 									minutes (the ribbon is imported twice so Unified Interface picks up the change). Users may need to refresh the page, or navigate away and back, to see the
 									update. You have <strong>{mutationsSincePublish}</strong> change(s) since the last
 									publish.
@@ -582,10 +657,48 @@ export const BulkPublishModal: React.FC = () => {
 
 							{!publishing && !done && (
 								<>
-									<Text>
-										<strong>Will publish:</strong>{" "}
-										{scopes.length > 0 ? scopes.join(", ") : "nothing (there are no changes to publish)"}
-									</Text>
+									<TargetScope
+										key={targetRead}
+										rows={[
+											{
+												label: "Solution",
+												value: activeSolution ? (
+													<Text weight="semibold">
+														{activeSolution.friendlyName || activeSolution.uniqueName}
+													</Text>
+												) : (
+													<Text>None selected</Text>
+												),
+											},
+											{
+												label: "Will publish",
+												value: (
+													<Text weight="semibold">
+														{scopes.length > 0 ? scopes.join(", ") : "nothing (there are no changes to publish)"}
+													</Text>
+												),
+											},
+											{
+												label: "Writes",
+												value: (
+													<Text>
+														Publishes {scopes.length === 1 ? "it" : "them"} first (keeps changes imported
+														elsewhere but not published),{" "}
+														{scopes.length === 1 ? "imports its" : "imports each one's"} ribbon customization
+														twice, replacing what the solution&apos;s layer has, then publishes{" "}
+														{publishStrategy === "allAsync"
+															? "every unpublished customization in the environment"
+															: scopes.length === 1
+																? "it"
+																: "them"}
+														.
+													</Text>
+												),
+											},
+										]}
+										confirmWord={confirmWord}
+										onConfirmationChange={onTargetChange}
+									/>
 									<Field label="Afterwards">
 										<Dropdown
 											value={
@@ -630,7 +743,8 @@ export const BulkPublishModal: React.FC = () => {
 										appearance="subtle"
 										onClick={() => {
 											openXmlDrawer();
-											closeBulkPublish();
+											// The same close as Cancel: the next open starts afresh (#121).
+											handleClose();
 										}}
 									>
 										View RibbonDiffXml
@@ -707,7 +821,9 @@ export const BulkPublishModal: React.FC = () => {
 									!activeSolution ||
 									scopes.length === 0 ||
 									unsupported.length > 0 ||
-									checkBlocks
+									checkBlocks ||
+									!targetConfirmed ||
+									baseLanguageUnknown
 								}
 							>
 								{publishing ? "Publishing..." : "Publish"}

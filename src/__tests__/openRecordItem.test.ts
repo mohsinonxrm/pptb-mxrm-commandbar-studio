@@ -429,6 +429,17 @@ describe("#22 review — Mscrm.OpenRecordItem override", () => {
 		expect(found[0].message).toContain("Mscrm.HideOnModern + Mscrm.ShowOnlyOnModern");
 	});
 
+	it("doesn't claim Mscrm.ShowOnlyOnModern alone hides the button: it shows it in Unified Interface (#152)", async () => {
+		loadStore({ carriers: ["HomepageGrid"], openCommand: true });
+		useRibbonStore.getState().hideWithDisplayRules(OPEN);
+		const cmd = useRibbonStore.getState().commands.find((c) => c.id === OPEN)!;
+		useRibbonStore.getState().upsertCommand({ ...cmd, displayRules: cmd.displayRules.filter((id) => id !== "Mscrm.HideOnModern") });
+		const { parts } = await build();
+		const found = validatePublishRibbonDiff(parts).filter((f) => f.code === "open-record-hidden");
+		expect(found).toHaveLength(1);
+		expect(found[0].message).not.toContain("hide its button");
+	});
+
 	it("doesn't warn about a shown carrier", async () => {
 		useRibbonStore.getState().setOpenRecordOverride("HomepageGrid", true, "cbs");
 		setOpenAction();

@@ -1,3 +1,5 @@
+import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
+import { writeGuard } from "@/services/hostConnection";
 import React, { useEffect, useMemo, useState } from "react";
 import {
 	makeStyles,
@@ -293,6 +295,7 @@ export const CommandEditorPanel: React.FC = () => {
 
 	const saveCodePanel = async () => {
 		if (!codeEditable || codeActionIndex === null || !codeWebResourceName) return;
+		const guard = writeGuard(); // the script goes to the connection it was edited on (#120)
 		setCodeLoading(true);
 		setCodeError(null);
 		setCodeWarning(null);
@@ -301,7 +304,7 @@ export const CommandEditorPanel: React.FC = () => {
 				codeWebResourceName,
 				encodeUtf8Base64(codeValue),
 				inferWebResourceTypeCode(codeWebResourceName),
-				{ displayName: codeWebResourceName.split("/").pop() },
+				{ displayName: codeWebResourceName.split("/").pop(), guard },
 			);
 			setCodeWarning(saved.solutionWarning ?? null);
 			setCodeDirty(false);
@@ -471,6 +474,7 @@ export const CommandEditorPanel: React.FC = () => {
 								>
 									Close
 								</Button>
+								{codeEditable && <EnvironmentBadge prefix="Saves to" />}
 								{codeEditable && (
 									<Button
 										appearance="primary"

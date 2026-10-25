@@ -70,6 +70,13 @@ export interface DraftStore {
 	requestEntitySwitch(entity: EntityMetadata): void;
 	requestSolutionSwitch(solution: Solution): void;
 	resolveSwitch(choice: SwitchChoice): void;
+	/**
+	 * The tool's connection changed (#120): the unpublished changes are saved as
+	 * a draft under the previous org (the draft key holds its URL), and the
+	 * workspace no longer belongs to a draft. Nothing can be cancelled: the host
+	 * has already switched.
+	 */
+	releaseForConnectionChange(): { hadChanges: boolean; kept: boolean };
 }
 
 /** Whether `state` has anything to publish. The counter alone can't tell after a partial publish (#16 review). */
@@ -143,6 +150,9 @@ const WATCHED: (keyof RibbonStoreState)[] = [
 /** Saves the draft on every change of the workspace. Returns the unsubscribe. */
 export function installDraftAutosave(): () => void {
 	return useRibbonStore.subscribe((state, prev) => {
+		// A publish (a new baseline) ends the undone restore's claim on the
+		// draft: what it held is published or undone; a redo saves it again (#129).
+		if (state.baseline !== prev.baseline) restoredAt = null;
 		if (WATCHED.every((k) => state[k] === prev[k])) return;
 		saveOrClear(state);
 	});
@@ -277,5 +287,22 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 		set({ pendingSwitch: null, target: null, pending: null, pendingBaselineChanged: false, saveFailed: false });
 		resetWorkspace();
 		applySwitch(pendingSwitch);
+	},
+
+	releaseForConnectionChange() {
+		const hadChanges = hasUnpublishedChanges();
+		// While an earlier draft waits for Restore / Discard, that one stays as it is.
+		const kept = hadChanges ? saveOrClear(useRibbonStore.getState()) : false;
+		restoredAt = null;
+		set({
+			target: null,
+			pending: null,
+			pendingBaselineChanged: false,
+			restoreError: null,
+			pendingSwitch: null,
+			saveFailed: false,
+			lastSavedAt: null,
+		});
+		return { hadChanges, kept };
 	},
 }));

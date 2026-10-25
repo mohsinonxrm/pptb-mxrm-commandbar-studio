@@ -7,7 +7,7 @@ import {
 	type RuleKind,
 } from "@/constants/ruleKinds";
 import { CRM_PARAMETER_VALUE_SET, isNamedCrmParameterValue } from "@/constants/crmParameters";
-import { groupControls } from "@/utils/ribbonMenu";
+import { groupControls, isDynamicMenuValue } from "@/utils/ribbonMenu";
 import { isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { MAX_LOC_LABEL_ID_LENGTH } from "@/utils/locLabelRef";
 import { OPEN_RECORD_ITEM_COMMAND_ID, isOpenRecordCarrier } from "@/utils/openRecordItem";
@@ -608,7 +608,8 @@ export function validatePublishRibbonDiff(
 			.filter((c) => c.tagName === "DisplayRules")
 			.flatMap((c) => childElements(c).map((r) => r.getAttribute("Id") ?? r.tagName));
 		if (rules.length === 0) continue;
-		const hides = HIDE_DISPLAY_RULE_IDS.filter((id) => rules.includes(id));
+		// Mscrm.HideOnModern hides in Unified Interface; Mscrm.ShowOnlyOnModern alone shows it there (#152).
+		const hides = rules.includes("Mscrm.HideOnModern") ? HIDE_DISPLAY_RULE_IDS.filter((id) => rules.includes(id)) : [];
 		add(
 			"open-record-hidden",
 			key,
@@ -621,11 +622,25 @@ export function validatePublishRibbonDiff(
 	}
 
 	// A flyout / split button without its <Menu> publishes as an empty drop-down.
+	// A dynamic one (#101) has none: its PopulateQueryCommand fills it at runtime
+	// (as in publishPlan, which doesn't report it as an empty menu either).
 	for (const { key, el } of customActions) {
 		for (const node of Array.from(el.getElementsByTagName("*"))) {
 			if (!MENU_CONTROL_TAGS.has(node.tagName)) continue;
 			if (childElements(node).some((c) => c.tagName === "Menu")) continue;
 			const id = node.getAttribute("Id") ?? "";
+			if (isDynamicMenuValue(node.getAttribute("PopulateDynamically"))) {
+				if (!node.getAttribute("PopulateQueryCommand")?.trim()) {
+					add(
+						"menu-missing",
+						key,
+						`${node.tagName} ${id} is populated dynamically but has no PopulateQueryCommand — its drop-down may stay empty`,
+						id,
+						true,
+					);
+				}
+				continue;
+			}
 			add(
 				"menu-missing",
 				key,
@@ -743,7 +758,11 @@ export function validatePublishRibbonDiff(
 	// `$LocLabels:` references without a <LocLabel> in the same RibbonDiffXml.
 	// A warning: the generator deliberately keeps the token of a managed / ISV
 	// control whose label lives in its own solution; and a token written back
-	// exactly as loaded isn't reported at all.
+	// exactly as loaded isn't reported at all, nor is a label some loaded control
+	// already uses — a copy keeps another solution's label (#137).
+	const loadedLabelRefs = new Set<string>();
+	for (const attrs of Object.values(context.loadedAttributes ?? {}))
+		for (const value of Object.values(attrs)) if (LOC_LABEL_REF.test(value)) loadedLabelRefs.add(value);
 	for (const { key, el } of elements) {
 		if (el.tagName === "LocLabel") continue;
 		for (const node of selfAndDescendants(el)) {
@@ -752,6 +771,7 @@ export function validatePublishRibbonDiff(
 				if (!labelId || parts.locLabels.has(labelId)) continue;
 				const id = node.getAttribute("Id") ?? undefined;
 				if (id && context.loadedAttributes?.[id]?.[attr.name] === attr.value) continue;
+				if (loadedLabelRefs.has(attr.value)) continue;
 				add(
 					"loclabel-missing",
 					key,

@@ -126,6 +126,41 @@ export function canDeleteGroup(group: RibbonGroup, baseline: RibbonDefinition, o
 	return isOwnContainer(group.id, loaded, own) && deletableControls(loadedOwnership(baseline), group.buttons);
 }
 
+/** The parts of the scope's unmanaged layer the rename rule reads (LayerSnapshot). */
+export interface RenameLayer {
+	containerIds?: OwnContainerIds;
+	locLabelIds?: OwnContainerIds;
+}
+
+/** Why a tab or group can't be renamed, in words (#33). */
+export const RENAME_NOT_PUBLISHABLE =
+	"Only tabs and groups your unmanaged customizations add (with a translatable title), or new ones, can be renamed";
+
+/**
+ * Whether renaming a tab or group can be published (#33): publishPlan's rename
+ * rule. It was created this session, or the unmanaged layer adds it and its
+ * title as loaded is a `$LocLabels:` label the layer defines (its text changes).
+ * Out-of-the-box and managed ones would need an override of the whole tab /
+ * group (#135). Unknown (no layer read) means no, for anything loaded.
+ */
+export function canRenameContainer(
+	kind: "tab" | "group",
+	id: string,
+	baseline: RibbonDefinition,
+	layer: RenameLayer | null | undefined,
+): boolean {
+	// Looked up as the plan does: a group by its last occurrence (an application
+	// ribbon group id can repeat across tabs).
+	const loaded =
+		kind === "tab"
+			? baseline.tabs.find((t) => t.id === id)
+			: new Map(baseline.tabs.flatMap((t) => t.groups.map((g) => [g.id, g] as const))).get(id);
+	if (!loaded) return true;
+	if (!isOwnContainer(id, true, layer?.containerIds)) return false;
+	const labelId = /^\$LocLabels:(.+)$/.exec(loaded.label ?? "")?.[1];
+	return !!labelId && isOwnContainer(labelId, true, layer?.locLabelIds);
+}
+
 /** Whether a tab can be deleted (#17 review): yours, and so is every group and control in it. */
 export function canDeleteTab(tab: RibbonTab, baseline: RibbonDefinition, own: OwnContainerIds): boolean {
 	const loaded = baseline.tabs.some((t) => t.id === tab.id);

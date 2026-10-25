@@ -28,13 +28,16 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - All 4 ribbon locations: **Home Grid**, **Sub Grid**, **Form**, **Application**
 - Tab drag-to-reorder, inline rename (double-click), `+ Add tab`
 - Context menus on buttons and groups — hide/show, duplicate, move, rename, delete, override OOB
+- A copy (duplicate, customise button) keeps the labels another solution defines, so it shows the same text; edit its text to give it labels of its own
+- If your unmanaged ribbon customizations can't be read when a table loads, a warning says so (labels may show as ids, ownership is unknown), with **Retry**
 
 ### 📋 Properties Pane
 - Identity: label, translations (multi-LCID), tooltip, icon picker, image16/32, kind, sequence, template alias
+- Translations edit the labels a button publishes to; another solution's label, shared with every control that uses it, is read-only there
 - Command binding with action summary chips
 - Display rules + Enable rules pill lists with inline add/remove
 - Scaling summary with link to full editor
-- Advanced: form ribbon scope selector, `Mscrm.OpenRecordItem` override toggle, client-type filter shortcuts
+- Advanced: form ribbon scope selector, `Mscrm.OpenRecordItem` override toggle, client-type filter shortcuts (Unified Interface evaluates as `Modern`; one filter per command)
 - Conflict banner — surfaces managed-solution provenance via solution-layer API
 
 ### ⚡ Command Editor
@@ -87,6 +90,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 
 ### 📊 XML Drawer + Diff Viewer
 - Per-location RibbonDiffXml view in Monaco (read-only + editable import path)
+- **Copy** and **Download** use Power Platform ToolBox's clipboard and Save dialog (the browser's outside it) and say whether the XML was copied, where it was saved, or why not
 - "Format XML" button
 - Monaco `DiffEditor` compare-to-baseline
 - CBS-specific completions: `$LocLabels:`, `$webresource:`, `Command=`, `ModernImage=`
@@ -98,6 +102,8 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Import → publish → re-import → publish, so Unified Interface picks up the change
 - Waits and retries while the environment is busy with another import, publish or ribbon-metadata job
 - Post-publish verification — reads the published layer back and checks every element this publish changed has the imported content
+- The package carries the solution's description and its publisher's description, e-mail, website, addresses and option-value prefix as they are, so an import never clears them; if they can't be read, nothing is imported
+- Labels are written in the organization's base language, read before every publish; if it can't be read, the publish stops. The system Default solution isn't offered as a target
 - `Mscrm.OpenRecordItem` override support — emitted as a system-command override when the user defines a JS action on it
 
 ### 🧩 Solution Conflict Drawer
@@ -110,6 +116,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - `Ctrl+Z/Y`, `Ctrl+Shift+Z` — Undo / Redo (80-entry stack)
 - `Ctrl+D` — Duplicate selected button
 - `Ctrl+S` — Open Bulk Publish
+- Shortcuts work with Caps Lock on and on non-Latin layouts; AltGr letters (e.g. Polish `ś`) are typed, never taken as shortcuts
 - `Delete/Backspace` — Delete button (with OOB confirm)
 - `F2` — Inline rename tab / group
 - Arrow keys — navigate buttons on canvas
@@ -127,6 +134,29 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Pane widths, collapsed state, view mode all persisted
 
 ---
+
+## ✏️ What this tool changes
+
+Command Bar Studio only reads from Dataverse until you use one of the operations below. Every
+write shows the **target environment** first: the connection's name and type (Production
+highlighted) are always in the top bar and next to every button that writes, and the publish
+dialog names the environment, solution and tables. On a **Production** connection you type the
+table's logical name (or `application ribbon`) before **Publish** is enabled; the other
+operations add or change a single web resource and don't ask for it. Writes run as the connected user, or the
+user PPTB is impersonating, and only go to the connection the tool was on when the operation
+started (if the tool's connection changes in Power Platform ToolBox, the operation stops).
+
+| Operation | When | What it does in Dataverse |
+|---|---|---|
+| **Publish** | **Publish All** in the top bar, or Ctrl+S | Builds a solution package for the selected unmanaged solution with the table's **complete** ribbon customization (what is in the solution's layer, plus your changes) and imports it **twice** (`ImportSolution` with `OverwriteUnmanagedCustomizations`), then publishes the table (`PublishXml`) and reads the layer back to verify it. It first publishes the table (`PublishXml`), so ribbon changes imported elsewhere but not yet published become part of the layer it reads, instead of being replaced; the publish at the end would publish them anyway. Just before each import it reads the layer again: if it changed since it was read (published from another session or tool), nothing is imported. The same for the application ribbon, when the solution contains the Application Ribbons component. **Also publish all customizations** adds `PublishAllXmlAsync`, which publishes everything unpublished in the environment. |
+| **Upload a web resource** | Web resource browser → **Upload**; icon picker → **Upload SVG** | Creates a web resource named `<prefix>_/<folder>/<file name>` and adds it to the selected unmanaged solution (`AddSolutionComponent`). If one with that name exists you choose **Replace** (its content changes everywhere it is used), **Keep existing** or **Cancel**; a managed one can only be kept. |
+| **Pick a Fluent icon** | Icon picker → Fluent icons | Creates the SVG web resource `<prefix>_/icons/cbs/<icon>.svg` (an existing one is reused, never overwritten), adds it to the solution and publishes it (`PublishXml`). |
+| **Pick an existing web resource as an icon** | Icon picker → Web resource | Adds the web resource to the selected unmanaged solution (`AddSolutionComponent`). |
+| **Save a script** | Command editor → JavaScript action → **Save Web Resource** | Updates the content of the script you opened and adds it to the solution. The button shows the environment it saves to. |
+
+Nothing else writes to Dataverse:
+- **Unsaved changes** are kept as a draft in the browser storage of Power Platform ToolBox on your machine (`localStorage`), per environment, solution and table. A note of the last publish is kept for the session (`sessionStorage`).
+- **Export** writes a RibbonDiffXml file where you choose; **Import RibbonDiffXml** only changes the workspace until you publish.
 
 ## 🖼️ Interface Overview
 
@@ -235,7 +265,7 @@ CBS runs in two modes:
 | **TypeScript** | 5.8 | Strict mode, discriminated unions throughout |
 | **Vite** | 7 | Build tooling + HMR |
 | **Fluent UI v9** | 9.62 | Microsoft design system (Drawer, Dialog, DataGrid, Combobox…) |
-| **Monaco Editor** | 0.55 | XML / JS / diff editing across XmlDrawer, DiffViewer, Command Editor |
+| **Monaco Editor** | 0.57 | XML / JS / diff editing across XmlDrawer, DiffViewer, Command Editor |
 | **@dnd-kit** | 6.3 | Drag-to-reorder for tabs, ribbon buttons (DragOverlay ghost + DroppableSlot indicators), and rule steps |
 | **@fluentui-contrib/react-data-grid-react-window** | 1.4 | Virtualized entity list + web resource browser |
 | **Zustand** | 5 | Global state (ribbons, selection, UI, session) |

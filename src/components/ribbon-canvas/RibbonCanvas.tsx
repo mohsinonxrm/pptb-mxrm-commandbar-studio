@@ -22,11 +22,16 @@ import {
 	DismissRegular,
 } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
-import { ownContainerIds, useRibbonStore } from "@/store/ribbonStore";
+import { ownContainerIds, scopeLayer, useRibbonStore } from "@/store/ribbonStore";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
-import { canDeleteTab as canDeleteTabWithContents } from "@/utils/ribbonProvenance";
+import {
+	canDeleteTab as canDeleteTabWithContents,
+	canRenameContainer,
+	RENAME_NOT_PUBLISHABLE,
+} from "@/utils/ribbonProvenance";
 import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { useUIStore } from "@/store/uiStore";
+import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type { RibbonLocation, RibbonTab } from "@/types/ribbon";
 import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ClassicRibbon } from "./ClassicRibbon";
@@ -34,6 +39,7 @@ import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
 import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
+import { hasUnpublishedChanges } from "@/store/draftStore";
 import { ModernAppFilter } from "./modern/ModernAppFilter";
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
@@ -194,12 +200,15 @@ const LOCATIONS: { value: RibbonLocation; label: string; icon: React.ReactNode; 
 interface RibbonCanvasProps {
 	isLoadingRibbon?: boolean;
 	ribbonLoadError?: string | null;
+	/** The ribbon loaded, but an unmanaged layer couldn't be read (#110). */
+	layerReadError?: string | null;
 	onRetryRibbonLoad?: () => void;
 }
 
 export function RibbonCanvas({
 	isLoadingRibbon = false,
 	ribbonLoadError = null,
+	layerReadError = null,
 	onRetryRibbonLoad,
 }: RibbonCanvasProps) {
 	const styles = useStyles();
@@ -238,6 +247,8 @@ export function RibbonCanvas({
 	const inputRef = useRef<HTMLInputElement>(null);
 	// Tab awaiting delete confirmation (#18: window.confirm doesn't work in PPTB).
 	const [deletingTabId, setDeletingTabId] = useState<string | null>(null);
+	// Retry of an unread layer replaces the canvas: unpublished changes are asked about first (#110).
+	const [confirmingReload, setConfirmingReload] = useState(false);
 	const deletingTab = deletingTabId ? ribbons[location].tabs.find((t) => t.id === deletingTabId) : undefined;
 
 	useEffect(() => {
@@ -261,6 +272,23 @@ export function RibbonCanvas({
 	 */
 	function canDeleteTab(tab: RibbonTab): boolean {
 		return canDeleteTabWithContents(tab, baseline[location], ownContainerIds({ layers }, location));
+	}
+
+	/** Whether renaming the tab can be published (#33): new, or yours with a translatable title. */
+	function canRenameTab(tab: RibbonTab): boolean {
+		return canRenameContainer("tab", tab.id, baseline[location], scopeLayer({ layers }, location));
+	}
+
+	/** The tab whose rename was just refused: it says why (#33), until another tab is picked. */
+	const [renameRefusedTabId, setRenameRefusedTabId] = useState<string | null>(null);
+	function startTabRename(tab: RibbonTab) {
+		if (!canRenameTab(tab)) {
+			setRenameRefusedTabId(tab.id);
+			useRuntimeLogStore.getState().logInfo("canvas", `Tab ${tab.id} can't be renamed: ${RENAME_NOT_PUBLISHABLE}.`);
+			return;
+		}
+		setEditingTabId(tab.id);
+		setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
 	}
 
 	// PointerSensor without an activation constraint starts a drag on every
@@ -343,6 +371,26 @@ export function RibbonCanvas({
 				</div>
 			</div>
 
+			{layerReadError && !isLoadingRibbon && !ribbonLoadError && (
+				<MessageBar intent="warning" layout="multiline" style={{ flexShrink: 0 }}>
+					<MessageBarBody>
+						Couldn&apos;t read your unmanaged ribbon customizations, so labels may show as ids and
+						ownership (what you can edit or delete) is unknown. Reload before editing. Details:{" "}
+						{layerReadError}
+					</MessageBarBody>
+					{onRetryRibbonLoad && (
+						<MessageBarActions>
+							<Button
+								size="small"
+								onClick={() => (hasUnpublishedChanges() ? setConfirmingReload(true) : onRetryRibbonLoad())}
+							>
+								Retry
+							</Button>
+						</MessageBarActions>
+					)}
+				</MessageBar>
+			)}
+
 			{/* Location-specific info banners */}
 			{location === "Form" && (
 				<MessageBar intent="info" style={{ flexShrink: 0 }}>
@@ -423,16 +471,14 @@ export function RibbonCanvas({
 								inputRef={tab.id === editingTabId ? inputRef : undefined}
 								onSelect={() => {
 									if (editingTabId !== tab.id) setTabId(tab.id);
+									if (renameRefusedTabId !== tab.id) setRenameRefusedTabId(null);
 								}}
 								onDoubleClick={() => {
 									setTabId(tab.id);
-									setEditingTabId(tab.id);
-									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
+									startTabRename(tab);
 								}}
-								onF2={() => {
-									setEditingTabId(tab.id);
-									setEditValue(resolveDisplayLabel(tab.label, locLabels, lang));
-								}}
+								onF2={() => startTabRename(tab)}
+								renameRefused={renameRefusedTabId === tab.id}
 								onDelete={
 									currentTab?.id === tab.id && canDeleteTab(tab)
 										? () => setDeletingTabId(tab.id)
@@ -514,6 +560,22 @@ export function RibbonCanvas({
 					</>
 				)}
 			</div>
+			{confirmingReload && onRetryRibbonLoad && (
+				<ConfirmDialog
+					open
+					title="Reload the ribbon"
+					confirmLabel="Reload"
+					onConfirm={() => {
+						setConfirmingReload(false);
+						onRetryRibbonLoad();
+					}}
+					onCancel={() => setConfirmingReload(false)}
+				>
+					You have unpublished changes. Reloading replaces the canvas; your changes are kept in a draft that
+					is offered after the reload. They were made while your labels weren&apos;t loaded, so check their
+					texts before you publish: a text can read a label&apos;s id.
+				</ConfirmDialog>
+			)}
 			{deletingTab && (
 				<ConfirmDialog
 					open
@@ -564,6 +626,8 @@ interface SortableTabProps {
 	onEditCancel: () => void;
 	/** Set when the tab can be deleted (your own or new tab, and selected); asks to confirm first. */
 	onDelete?: () => void;
+	/** A rename was just refused (#33): the tooltip says why. */
+	renameRefused?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	styles: Record<string, any>;
 }
@@ -581,6 +645,7 @@ function SortableTab({
 	onEditCommit,
 	onEditCancel,
 	onDelete,
+	renameRefused,
 	styles,
 }: SortableTabProps) {
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -611,6 +676,7 @@ function SortableTab({
 			tabIndex={isActive ? 0 : -1}
 			onClick={onSelect}
 			onDoubleClick={onDoubleClick}
+			title={renameRefused ? `${RENAME_NOT_PUBLISHABLE}.` : undefined}
 			onKeyDown={(e) => {
 				if (e.key === "F2") onF2();
 			}}

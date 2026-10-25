@@ -77,6 +77,8 @@ export const useModernCommandStore = create<ModernCommandStore>()((set, get) => 
 			commands: [],
 			apps: [],
 			selectedCommandId: null,
+			// An app of the previous connection (#120) or table.
+			appFilter: "all",
 			loadToken: s.loadToken + 1,
 		}));
 	},

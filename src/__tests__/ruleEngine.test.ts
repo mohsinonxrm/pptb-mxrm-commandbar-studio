@@ -32,10 +32,10 @@ describe("summarizeRule — individual rule kinds", () => {
 		expect(result).toContain("Refresh");
 	});
 
-	it("summarizes CommandClientTypeRule — Modern maps to tablets description", () => {
-		const step: RuleStep = { kind: "CommandClientTypeRule", type: "Modern" };
-		const result = summarizeRule([step]);
-		expect(result).toMatch(/tablet|Modern/i);
+	it("summarizes CommandClientTypeRule: Modern is Unified Interface, Refresh the legacy web client (#152)", () => {
+		expect(summarizeRule([{ kind: "CommandClientTypeRule", type: "Modern" }])).toContain("Unified Interface");
+		expect(summarizeRule([{ kind: "CommandClientTypeRule", type: "Refresh" }])).toContain("legacy updated web client");
+		expect(summarizeRule([{ kind: "CommandClientTypeRule", type: "Refresh" }])).not.toContain("Unified Interface");
 	});
 
 	it("summarizes CrmClientTypeRule", () => {

@@ -34,6 +34,7 @@ import { fetchCurrentUser } from "@/services/dataverse/userService";
 import { useRibbonPersistence } from "@/hooks/useRibbonPersistence";
 import { useDraftStore, draftKeyFor } from "@/store/draftStore";
 import { DraftSaveWarning } from "@/components/shell/DraftSaveWarning";
+import { ConnectionChangedNotice } from "@/components/shell/ConnectionChangedNotice";
 import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
 import { UnsavedChangesDialog } from "@/components/modals/UnsavedChangesDialog";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
@@ -89,6 +90,7 @@ export function App() {
 	const setSolutionRibbonComponentIds = useSessionStore((s) => s.setSolutionRibbonComponentIds);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const activeEntity = useSessionStore((s) => s.activeEntity);
+	const connectionVersion = useSessionStore((s) => s.connectionVersion);
 	const loadWorkspace = useRibbonStore((s) => s.loadWorkspace);
 	const setTabId = useSelectionStore((s) => s.setTabId);
 	const themeMode = useUIStore((s) => s.themeMode);
@@ -105,6 +107,8 @@ export function App() {
 
 	const [ribbonLoadState, setRibbonLoadState] = useState<"idle" | "loading" | "error">("idle");
 	const [ribbonLoadError, setRibbonLoadError] = useState<string | null>(null);
+	// The ribbon loaded, but an unmanaged layer couldn't be read (#110).
+	const [layerReadError, setLayerReadError] = useState<string | null>(null);
 	const [reloadVersion, setReloadVersion] = useState(0);
 
 	// ----- Initial bootstrap: solutions + current user only -----
@@ -115,13 +119,17 @@ export function App() {
 	// same workflow up-front.
 	useEffect(() => {
 		logInfo("runtime", "Loading solutions and current user...");
+		// An answer from the previous connection must not land after a switch (#120).
+		let cancelled = false;
 
 		fetchSolutions()
 			.then((sols) => {
+				if (cancelled) return;
 				setSolutions(sols);
 				logInfo("runtime", `Loaded ${sols.length} solution(s). Pick one to load its tables.`);
 			})
 			.catch((error) => {
+				if (cancelled) return;
 				logError(
 					"runtime",
 					`Failed to load solutions: ${error instanceof Error ? error.message : String(error)}`,
@@ -130,7 +138,7 @@ export function App() {
 
 		void fetchCurrentUser()
 			.then((user) => {
-				if (!user.id) return;
+				if (cancelled || !user.id) return;
 				setCurrentUser(user.id, user.name);
 				logInfo("runtime", `Current user: ${user.name}.`);
 			})
@@ -140,7 +148,11 @@ export function App() {
 					`Failed to resolve current user: ${error instanceof Error ? error.message : String(error)}`,
 				);
 			});
-	}, [setSolutions, setCurrentUser, logInfo, logWarn, logError]);
+		return () => {
+			cancelled = true;
+		};
+		// Again after the tool's connection changed (#120).
+	}, [setSolutions, setCurrentUser, logInfo, logWarn, logError, connectionVersion]);
 
 	// ----- When the user picks a solution: resolve its entity components and
 	// fetch metadata for ONLY those entities (no bulk 1883-row catalog load).
@@ -208,6 +220,7 @@ export function App() {
 		if (!activeEntity?.logicalName) {
 			setRibbonLoadState("idle");
 			setRibbonLoadError(null);
+			setLayerReadError(null);
 			return;
 		}
 
@@ -215,6 +228,7 @@ export function App() {
 		const draftKey = draftKeyFor(activeEntity.logicalName);
 		setRibbonLoadState("loading");
 		setRibbonLoadError(null);
+		setLayerReadError(null);
 		logInfo("ribbon", `Loading ribbon workspace for ${activeEntity.logicalName}...`);
 
 		// Load the ribbon and its solution-layer provenance in parallel, then
@@ -274,6 +288,9 @@ export function App() {
 					locLabels: workspace.locLabels,
 					layers: workspace.layers,
 					baseLanguageCode: workspace.baseLanguageCode,
+					// Not read (#106): fetchRibbonWorkspace leaves it out when the read failed.
+					baseLanguageUnknown: workspace.baseLanguageCode === undefined,
+					labelsUnknown: workspace.layerReadError !== undefined,
 					// Right after a publish the ribbon can be the one from before it:
 					// what that publish wrote isn't offered for deletion (#64 review).
 					orphans: {
@@ -304,6 +321,8 @@ export function App() {
 				// on top of what was just loaded (#16).
 				useDraftStore.getState().workspaceLoaded(draftKey);
 
+				setLayerReadError(workspace.layerReadError ?? null);
+				if (workspace.layerReadError) logWarn("ribbon", `Unmanaged layer not read: ${workspace.layerReadError}`);
 				setRibbonLoadState("idle");
 				logInfo("ribbon", `Ribbon workspace loaded for ${activeEntity.logicalName}.`);
 			})
@@ -318,7 +337,7 @@ export function App() {
 		return () => {
 			cancelled = true;
 		};
-	}, [activeEntity?.logicalName, loadWorkspace, reloadVersion, setTabId, logInfo, logError]);
+	}, [activeEntity?.logicalName, loadWorkspace, reloadVersion, setTabId, logInfo, logWarn, logError]);
 
 	function handleRetryRibbonLoad() {
 		setReloadVersion((v) => v + 1);
@@ -328,9 +347,11 @@ export function App() {
 		<FluentProvider theme={themeMode === "dark" ? webDarkTheme : webLightTheme}>
 			<Layout leftPane={<LeftPane />} rightPane={<PropertiesPane />} bottomPanel={<BottomPanel />}>
 				<DraftSaveWarning />
+				<ConnectionChangedNotice />
 				<RibbonCanvas
 					isLoadingRibbon={ribbonLoadState === "loading"}
 					ribbonLoadError={ribbonLoadError}
+					layerReadError={layerReadError}
 					onRetryRibbonLoad={handleRetryRibbonLoad}
 				/>
 			</Layout>

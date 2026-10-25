@@ -29,8 +29,10 @@ import {
 	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
 import { fetchUnmanagedRibbonParts } from "@/services/dataverse/ribbonLayerService";
+import { writeGuard, type WriteGuard } from "@/services/hostConnection";
 import {
 	fetchOrganizationLanguageCode,
+	isEnvironmentBusyError,
 	waitForEnvironmentIdle,
 	withBusyRetry,
 	type BusyWaitOptions,
@@ -66,7 +68,9 @@ const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
 // hosts. The VS Code extension (1.1.0) drops ImportJobId — CBS polls and
 // verifies that job — and sends a table publish to PublishAllXml (#89). These
 // are the requests the desktop app's helpers send.
-function importSolution(customizationFile: string, importJobId: string): Promise<unknown> {
+async function importSolution(customizationFile: string, importJobId: string, guard: WriteGuard): Promise<unknown> {
+	// Never into another environment than the one the publish started on (#120).
+	await guard("The import");
 	return dataverseAPI.execute({
 		operationName: "ImportSolution",
 		operationType: "action",
@@ -80,7 +84,8 @@ function importSolution(customizationFile: string, importJobId: string): Promise
 }
 
 /** PublishXml for the given tables. */
-function publishTables(entityLogicalNames: string[]): Promise<unknown> {
+async function publishTables(entityLogicalNames: string[], guard: WriteGuard): Promise<unknown> {
+	await guard("Publishing");
 	const entities = entityLogicalNames.map((name) => `<entity>${escapeXml(name)}</entity>`).join("");
 	return dataverseAPI.execute({
 		operationName: "PublishXml",
@@ -90,7 +95,8 @@ function publishTables(entityLogicalNames: string[]): Promise<unknown> {
 }
 
 /** PublishAllXml: every unpublished customization in the environment. */
-function publishAll(): Promise<unknown> {
+async function publishAll(guard: WriteGuard): Promise<unknown> {
+	await guard("Publishing");
 	return dataverseAPI.execute({ operationName: "PublishAllXml", operationType: "action" });
 }
 
@@ -162,6 +168,12 @@ export interface PublishSolutionInfo {
 }
 
 export interface PublishRibbonInput {
+	/**
+	 * The guard of the whole publish run (#120): one run publishes several
+	 * scopes, and none may start on another connection than the run did.
+	 * Default: a guard bound when this publish starts.
+	 */
+	guard?: WriteGuard;
 	/** The table whose ribbon is published, or `null` for the application ribbon. */
 	entity: { logicalName: string; schemaName?: string; displayName?: string } | null;
 	/** Every location of this ribbon scope that has changes. For a table that is
@@ -277,6 +289,8 @@ export async function buildMergedRibbonDiffXml(
 	newKeys: string[];
 	/** Commands and rules the existing unmanaged layer defines (replaced by what is imported). */
 	layerDefinitionIds: { commandIds: string[]; enableRuleIds: string[]; displayRuleIds: string[] };
+	/** The unmanaged layer as read for the merge: the import must not replace anything else (#102). */
+	layer: RibbonDiffParts;
 }> {
 	const entityLogicalName = input.entity?.logicalName ?? "{!EntityLogicalName}";
 	const plan = {
@@ -497,6 +511,7 @@ export async function buildMergedRibbonDiffXml(
 			enableRuleIds: Array.from(existing.enableRules.keys()),
 			displayRuleIds: Array.from(existing.displayRules.keys()),
 		},
+		layer: existing,
 	};
 }
 
@@ -724,6 +739,120 @@ export async function verifyPublishedLayer(
 }
 
 /**
+ * The table's ribbon changed in Dataverse while it was being published (#102):
+ * other changes to it were published meanwhile (another session, tool or
+ * solution import). Nothing more is imported, since the import would replace
+ * that change. The layer tables show published state only, so a change
+ * imported elsewhere but not published can't be seen.
+ */
+export class RibbonLayerChangedError extends Error {
+	/** What changed, e.g. "added: customActions:X; changed: commandDefinitions:Y". */
+	readonly summary: string;
+
+	/**
+	 * `importRan`: no change was seen, but another solution import ran while
+	 * this one waited (#103). What it wrote may not be published yet, so the
+	 * check can't see it, and importing could replace it.
+	 */
+	constructor(
+		readonly scopeLabel: string,
+		readonly changes: RibbonDiffComparison,
+		readonly importRan = false,
+	) {
+		const summary = importRan
+			? "another solution import ran in the environment meanwhile, and what it changed may not be published yet"
+			: describeLayerChanges(changes);
+		super(
+			importRan
+				? `${scopeLabel}'s ribbon customizations may have changed in Dataverse since you started publishing: ` +
+						`${summary}. Importing could overwrite that change, so nothing was imported. Publish again: ` +
+						`the table is published first, so the change is kept.`
+				: `${scopeLabel}'s ribbon customizations changed in Dataverse since you started publishing ` +
+						`(${summary}): other ribbon changes for it were published meanwhile, from another session, tool or solution import. ` +
+						`Importing would overwrite that change, so nothing was imported. ` +
+						`Reload the table to get the change, then publish again.`,
+		);
+		this.name = "RibbonLayerChangedError";
+		this.summary = summary;
+	}
+}
+
+/** "added: customActions:X; changed: commandDefinitions:Y", at most five of each. */
+function describeLayerChanges(changes: RibbonDiffComparison): string {
+	const sample = (ids: string[]) => ids.slice(0, 5).join(", ") + (ids.length > 5 ? ", …" : "");
+	return [
+		changes.unexpected.length ? `added: ${sample(changes.unexpected)}` : "",
+		changes.missing.length ? `removed: ${sample(changes.missing)}` : "",
+		changes.differing.length ? `changed: ${sample(changes.differing)}` : "",
+	]
+		.filter(Boolean)
+		.join("; ");
+}
+
+/** The operation a busy error says is running ("…because there is a previous [Import] running…"). */
+function runningOperationOf(err: unknown): string | null {
+	const text = err instanceof Error ? err.message : String(err);
+	return /there is (?:another|a previous) \[(\w+)\] running/i.exec(text)?.[1] ?? null;
+}
+
+/** Every `part:id` of a layer: compared by content as well as presence. */
+const allKeys = (parts: RibbonDiffParts): string[] =>
+	(Object.keys(parts) as (keyof RibbonDiffParts)[]).flatMap((part) =>
+		Array.from(parts[part].keys()).map((id) => `${part}:${id}`),
+	);
+
+/** Two reads of the layer, element by element, exactly as Dataverse stored them. */
+function exactLayerChanges(expected: RibbonDiffParts, actual: RibbonDiffParts): RibbonDiffComparison {
+	const missing: string[] = [];
+	const unexpected: string[] = [];
+	const differing: string[] = [];
+	for (const part of Object.keys(expected) as (keyof RibbonDiffParts)[]) {
+		for (const [id, xml] of expected[part]) {
+			const got = actual[part].get(id);
+			if (got === undefined) missing.push(`${part}:${id}`);
+			else if (got !== xml) differing.push(`${part}:${id}`);
+		}
+		for (const id of actual[part].keys()) if (!expected[part].has(id)) unexpected.push(`${part}:${id}`);
+	}
+	return { missing, unexpected, differing };
+}
+
+const hasChanges = (c: RibbonDiffComparison) => c.missing.length + c.unexpected.length + c.differing.length > 0;
+
+/** How the layer is compared before an import (#102). */
+type ExpectedLayer =
+	/** An earlier read of the layer: every element must be exactly as it was. */
+	| { kind: "read" }
+	/**
+	 * What an import wrote: Dataverse rewrites some of it (platform actions,
+	 * labels), so elements are compared in the form that survives an import,
+	 * and the layer is read up to `attempts` times, `delayMs` apart, since it
+	 * can lag behind the publish (as verifyPublishedLayer allows).
+	 */
+	| { kind: "imported"; attempts?: number; delayMs?: number };
+
+/** Reads the layer again and throws RibbonLayerChangedError when it isn't `expected` (#102). */
+async function assertLayerUnchanged(
+	entityLogicalName: string | null,
+	scopeLabel: string,
+	expected: RibbonDiffParts,
+	as: ExpectedLayer,
+): Promise<void> {
+	const attempts = as.kind === "imported" ? (as.attempts ?? 3) : 1;
+	let changes: RibbonDiffComparison = { missing: [], unexpected: [], differing: [] };
+	for (let i = 0; i < attempts; i++) {
+		if (i > 0 && as.kind === "imported") await new Promise((r) => setTimeout(r, as.delayMs ?? 5000));
+		const actual = await fetchUnmanagedRibbonParts(entityLogicalName);
+		changes =
+			as.kind === "read"
+				? exactLayerChanges(expected, actual)
+				: compareRibbonDiffParts(expected, actual, { contentKeys: allKeys(expected) });
+		if (!hasChanges(changes)) return;
+	}
+	throw new RibbonLayerChangedError(scopeLabel, changes);
+}
+
+/**
  * Publishes one ribbon scope (a table, or the application ribbon):
  * read the existing unmanaged layer → merge CBS's edits from every location →
  * import ONE complete RibbonDiffXml → verify Dataverse actually applied it →
@@ -740,35 +869,11 @@ async function publishRibbonUnguarded(
 	input: PublishRibbonInput,
 	onProgress?: (msg: string) => void,
 ): Promise<PublishRibbonResult> {
+	// Every write of this operation goes to the connection it started on (#120).
+	const guard = input.guard ?? writeGuard();
 	const logs = useRuntimeLogStore.getState();
 	const scopeLabel = input.entity ? input.entity.logicalName : "Application ribbon";
 	const busy: BusyWaitOptions = { onProgress, ...input.busy };
-
-	onProgress?.(`Reading existing ribbon customizations for ${scopeLabel}…`);
-	logs.logInfo("publish", `Reading unmanaged ribbon layer for ${scopeLabel}.`);
-	const languageCode = input.languageCode ?? (await fetchOrganizationLanguageCode());
-	const merged = await buildMergedRibbonDiffXml({ ...input, languageCode });
-	logs.logInfo(
-		"publish",
-		`RibbonDiffXml for ${scopeLabel}: ${merged.preservedCount} existing element(s) preserved, ` +
-			`${merged.changedCount} element(s) from this session, ${merged.elementCount} total.`,
-	);
-	for (const c of merged.scalingChanges) logs.logWarn("publish", describeScalingChange(c));
-
-	// Pre-publish validation (#35): never import what the check rejects.
-	const findings = validatePublishRibbonDiff(
-		merged.parts,
-		publishValidationContext({ ...input, publisherPrefix: input.solution.publisherPrefix }, merged),
-	);
-	for (const f of findings) if (f.severity === "warning") logs.logWarn("publish", f.message);
-	const blocking = findings.filter((f) => f.severity === "error");
-	if (blocking.length > 0) {
-		for (const f of blocking) logs.logError("publish", f.message);
-		throw new Error(
-			`The pre-publish check found ${blocking.length} error(s), so nothing was imported: ` +
-				blocking.map((f) => f.message).join("; "),
-		);
-	}
 
 	const isApplication = input.entity === null;
 	if (isApplication && !input.ribbonCustomizationIds?.length) {
@@ -776,6 +881,119 @@ async function publishRibbonUnguarded(
 			"The selected solution does not contain Application Ribbons. Add it in make.powerapps.com " +
 				"(Solutions → your solution → Add existing → Application Ribbons) and reload the solution.",
 		);
+	}
+
+	const publishScope = async (progress = "Publishing customizations…") => {
+		onProgress?.(progress);
+		await withBusyRetry(
+			"Publish",
+			async () => {
+				if (isApplication) {
+					// Targeted publish of the application ribbon only — PublishAllXml
+					// would publish the whole environment.
+					await guard("Publishing");
+					await dataverseAPI.execute({
+						operationName: "PublishXml",
+						operationType: "action",
+						parameters: { ParameterXml: "<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>" },
+					});
+				} else {
+					await publishTables([input.entity!.logicalName], guard);
+				}
+			},
+			busy,
+		);
+	};
+
+	const languageCode = input.languageCode ?? (await fetchOrganizationLanguageCode());
+	// Reads the layer, merges this session's changes into it and runs the
+	// pre-publish check (#35): never import what the check rejects.
+	const mergeAndCheck = async (log: boolean) => {
+		onProgress?.(`Reading existing ribbon customizations for ${scopeLabel}…`);
+		if (log) logs.logInfo("publish", `Reading unmanaged ribbon layer for ${scopeLabel}.`);
+		const result = await buildMergedRibbonDiffXml({ ...input, languageCode });
+		const findings = validatePublishRibbonDiff(
+			result.parts,
+			publishValidationContext({ ...input, publisherPrefix: input.solution.publisherPrefix }, result),
+		);
+		const blocking = findings.filter((f) => f.severity === "error");
+		if (log || blocking.length > 0) {
+			logs.logInfo(
+				"publish",
+				`RibbonDiffXml for ${scopeLabel}: ${result.preservedCount} existing element(s) preserved, ` +
+					`${result.changedCount} element(s) from this session, ${result.elementCount} total.`,
+			);
+			for (const c of result.scalingChanges) logs.logWarn("publish", describeScalingChange(c));
+			for (const f of findings) if (f.severity === "warning") logs.logWarn("publish", f.message);
+		}
+		if (blocking.length > 0) {
+			for (const f of blocking) logs.logError("publish", f.message);
+			throw new Error(
+				`The pre-publish check found ${blocking.length} error(s), so nothing was imported: ` +
+					blocking.map((f) => f.message).join("; "),
+			);
+		}
+		return result;
+	};
+
+	// The layer tables show PUBLISHED state only, and the import replaces the
+	// whole unmanaged layer (#103): ribbon changes imported elsewhere but not yet
+	// published would be lost. Publishing the scope first makes them part of the
+	// layer that is read and merged. The publish at the end publishes them anyway
+	// (with everything else pending for the table), so this adds no other effect.
+	// A publish the check refuses as loaded writes nothing: the check runs before.
+	const dryRun = input.publishCustomizations !== false ? await mergeAndCheck(false) : null;
+	// Don't start while another solution operation runs (#46): an import still
+	// running is finished, and published below, before the layer is read.
+	onProgress?.("Checking that no other solution operation is running…");
+	await waitForEnvironmentIdle(busy);
+	// The solution's and publisher's own details go into the manifest as they are
+	// (#104): read after the wait, just before anything is written.
+	const manifestDetails = await fetchManifestDetails(input.solution);
+	// After the publish first, a failure says so: other makers' pending changes
+	// for the table were published, though nothing of yours was imported.
+	let importedOnce = false;
+	const publishedFirstNote = (err: unknown) => {
+		if (dryRun && !importedOnce && err instanceof Error) {
+			err.message +=
+				` (${scopeLabel} was published first, so customizations imported elsewhere for it and not yet ` +
+				`published are now published.)`;
+		}
+		return err;
+	};
+	if (dryRun) {
+		logs.logInfo(
+			"publish",
+			`Publishing ${scopeLabel} first, so ribbon changes imported elsewhere but not yet published are kept.`,
+		);
+		try {
+			await publishScope(`Publishing ${scopeLabel} first (keeps changes imported elsewhere but not published)…`);
+		} catch (err) {
+			if (err instanceof Error) err.message = `Publishing ${scopeLabel} first failed, so nothing was imported: ${err.message}`;
+			throw err;
+		}
+	}
+	let merged: Awaited<ReturnType<typeof mergeAndCheck>>;
+	try {
+		merged = await mergeAndCheck(true);
+	} catch (err) {
+		// It merged before the publish first: what that published (imported elsewhere) is in the way.
+		if (dryRun && err instanceof Error && !err.message.startsWith("The pre-publish check")) {
+			err.message =
+				`${scopeLabel}'s customizations changed when it was published first (changes imported elsewhere ` +
+				`and not yet published): ${err.message} Reload the table to get them, then publish again.`;
+		}
+		throw publishedFirstNote(err);
+	}
+	if (dryRun) {
+		const published = exactLayerChanges(dryRun.layer, merged.layer);
+		if (hasChanges(published)) {
+			logs.logInfo(
+				"publish",
+				`Publishing ${scopeLabel} first published ribbon changes imported elsewhere (${describeLayerChanges(published)}); ` +
+					`they are kept.`,
+			);
+		}
 	}
 
 	const entityName = input.entity?.schemaName || input.entity?.logicalName || "";
@@ -804,6 +1022,7 @@ async function publishRibbonUnguarded(
 		...input.solution,
 		languageCode,
 		rootComponents,
+		details: manifestDetails,
 	});
 
 	onProgress?.("Packaging solution ZIP…");
@@ -820,17 +1039,37 @@ async function publishRibbonUnguarded(
 	}
 	const base64Zip = btoa(binaryStr);
 
-	const importAndVerify = async (pass: string): Promise<string> => {
+	// The import replaces the whole unmanaged layer (#102): `expected` is what it
+	// must still be when the import starts, or someone else changed it.
+	const importAndVerify = async (
+		pass: string,
+		expected: { layer: RibbonDiffParts; as: ExpectedLayer },
+	): Promise<string> => {
 		onProgress?.(`Importing ${scopeLabel} ribbon${pass}…`);
 		// ImportSolution requires a client-generated ImportJobId (0x80048d19 otherwise).
 		const importJobId = crypto.randomUUID();
 		logs.logInfo("publish", `Importing solution${pass} (import job ${importJobId})…`);
 		// Another import / publish / ribbon-metadata generation makes ImportSolution
-		// fail with 0x80071151: wait for it and retry (#46).
+		// fail with 0x80071151: wait for it and retry (#46). The layer is read again
+		// before every attempt, after the wait.
+		let importRan = false;
 		await withBusyRetry(
 			"Import",
-			() =>
-				importSolution(base64Zip, importJobId),
+			async () => {
+				// Still the connection the publish started on (#120), before reading it.
+				await guard("Importing");
+				// Another import ran while this one waited (#103): what it wrote may not
+				// be published, so the check below can't see it.
+				if (importRan) throw new RibbonLayerChangedError(scopeLabel, { missing: [], unexpected: [], differing: [] }, true);
+				await assertLayerUnchanged(input.entity?.logicalName ?? null, scopeLabel, expected.layer, expected.as);
+				try {
+					await importSolution(base64Zip, importJobId, guard);
+				} catch (err) {
+					if (isEnvironmentBusyError(err) && runningOperationOf(err)?.toLowerCase() === "import") importRan = true;
+					throw err;
+				}
+				importedOnce = true;
+			},
 			busy,
 		);
 
@@ -869,31 +1108,12 @@ async function publishRibbonUnguarded(
 		return importJobId;
 	};
 
-	const publishScope = async () => {
-		onProgress?.("Publishing customizations…");
-		await withBusyRetry(
-			"Publish",
-			async () => {
-				if (isApplication) {
-					// Targeted publish of the application ribbon only — PublishAllXml
-					// would publish the whole environment.
-					await dataverseAPI.execute({
-						operationName: "PublishXml",
-						operationType: "action",
-						parameters: { ParameterXml: "<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>" },
-					});
-				} else {
-					await publishTables([input.entity!.logicalName]);
-				}
-			},
-			busy,
-		);
-	};
-
-	// Don't start while another solution operation runs (#46).
-	onProgress?.("Checking that no other solution operation is running…");
-	await waitForEnvironmentIdle(busy);
-	const importJobId = await importAndVerify("");
+	let importJobId: string;
+	try {
+		importJobId = await importAndVerify("", { layer: merged.layer, as: { kind: "read" } });
+	} catch (err) {
+		throw publishedFirstNote(err);
+	}
 	let verification: PublishVerification | undefined;
 
 	if (input.publishCustomizations !== false) {
@@ -912,23 +1132,42 @@ async function publishRibbonUnguarded(
 				"Refreshing Unified Interface command-bar metadata (second import of the same package)…",
 			);
 			try {
-				await importAndVerify(" (refreshing Unified Interface metadata)");
+				// The layer is now what the first import wrote.
+				await importAndVerify(" (refreshing Unified Interface metadata)", {
+					layer: merged.parts,
+					as: { kind: "imported", delayMs: input.verifyDelayMs },
+				});
 				await publishScope();
 			} catch (err) {
-				throw new Error(
+				if (err instanceof RibbonLayerChangedError) {
+					// Your changes are published: the publish succeeded, with a warning.
+					verification = {
+						ok: false,
+						...err.changes,
+						message:
+							`Your changes were imported and published, but ${scopeLabel}'s ribbon customizations changed ` +
+							`in Dataverse after that (${err.summary}): other changes were published meanwhile. They weren't ` +
+							`imported a second time to refresh Unified Interface's command-bar metadata, since that would ` +
+							`overwrite the other change, so new or changed buttons may not appear in the app until the ` +
+							`table's ribbon is published again. Reload the table to see the other change.`,
+					};
+					logs.logWarn("publish", verification.message);
+				} else throw new Error(
 					`Your changes were imported and published, but refreshing Unified Interface's command-bar ` +
 						`metadata failed (${err instanceof Error ? err.message : String(err)}). New or changed buttons ` +
 						`may not appear in the app until you publish again.`,
 				);
 			}
 		}
-		onProgress?.("Verifying the published ribbon…");
-		verification = await verifyPublishedLayer(input.entity?.logicalName ?? null, merged.parts, {
-			delayMs: input.verifyDelayMs,
-			contentKeys: merged.changedKeys,
-		});
-		if (verification.ok) logs.logInfo("publish", verification.message);
-		else logs.logWarn("publish", verification.message);
+		if (!verification) {
+			onProgress?.("Verifying the published ribbon…");
+			verification = await verifyPublishedLayer(input.entity?.logicalName ?? null, merged.parts, {
+				delayMs: input.verifyDelayMs,
+				contentKeys: merged.changedKeys,
+			});
+			if (verification.ok) logs.logInfo("publish", verification.message);
+			else logs.logWarn("publish", verification.message);
+		}
 	} else {
 		logs.logWarn(
 			"publish",
@@ -980,12 +1219,14 @@ async function publishUsingPublishXmlUnguarded(
 	input: PublishXmlInput,
 	onProgress?: (msg: string) => void,
 ): Promise<void> {
+	// Every write of this operation goes to the connection it started on (#120).
+	const guard = writeGuard();
 	const logs = useRuntimeLogStore.getState();
 	const entities = input.entityLogicalNames.filter(Boolean);
 	if (entities.length === 0) {
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Publishing all customizations...");
-			await publishAll();
+			await publishAll(guard);
 		}
 		return;
 	}
@@ -1000,6 +1241,7 @@ async function publishUsingPublishXmlUnguarded(
 	logs.logInfo("publish", `PublishXml request for ${entities.length} table(s).`);
 
 	try {
+		await guard("Publishing");
 		await dataverseAPI.execute({
 			operationName: "PublishXml",
 			operationType: "action",
@@ -1010,7 +1252,7 @@ async function publishUsingPublishXmlUnguarded(
 
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Publishing application ribbon...");
-			await publishAll();
+			await publishAll(guard);
 		}
 
 		logs.logInfo("publish", "PublishXml completed successfully.");
@@ -1021,26 +1263,28 @@ async function publishUsingPublishXmlUnguarded(
 		);
 		for (const entityName of entities) {
 			onProgress?.(`Fallback publish for ${entityName}...`);
-			await publishTables([entityName]);
+			await publishTables([entityName], guard);
 		}
 		if (input.includeApplicationRibbon) {
 			onProgress?.("Fallback publish for application ribbon...");
-			await publishAll();
+			await publishAll(guard);
 		}
 	}
 }
 
 export function publishAllAsync(
 	onProgress?: (msg: string) => void,
-	options?: { pollIntervalMs?: number; timeoutMs?: number },
+	options?: { pollIntervalMs?: number; timeoutMs?: number; guard?: WriteGuard },
 ): Promise<PublishAllAsyncResult> {
 	return withCloseGuard(() => publishAllAsyncUnguarded(onProgress, options));
 }
 
 async function publishAllAsyncUnguarded(
 	onProgress?: (msg: string) => void,
-	options?: { pollIntervalMs?: number; timeoutMs?: number },
+	options?: { pollIntervalMs?: number; timeoutMs?: number; guard?: WriteGuard },
 ): Promise<PublishAllAsyncResult> {
+	// Every write of this operation goes to the connection it started on (#120).
+	const guard = options?.guard ?? writeGuard();
 	const logs = useRuntimeLogStore.getState();
 	const pollIntervalMs = options?.pollIntervalMs ?? 2000;
 	const timeoutMs = options?.timeoutMs ?? 10 * 60 * 1000;
@@ -1048,6 +1292,7 @@ async function publishAllAsyncUnguarded(
 	onProgress?.("Starting asynchronous publish (PublishAllXmlAsync)...");
 	logs.logInfo("publish", "Calling PublishAllXmlAsync action.");
 
+	await guard("Publishing");
 	const response = (await dataverseAPI.execute({
 		operationName: "PublishAllXmlAsync",
 		operationType: "action",
@@ -1121,7 +1366,124 @@ interface SolutionXmlInput extends PublishSolutionInfo {
 	/** Organization base language. The solution manifest must match it. */
 	languageCode: number;
 	rootComponents: RootComponentSpec[];
+	/** The solution's and publisher's details as they are in Dataverse (#104). */
+	details: ManifestDetails;
 }
+
+/**
+ * What an import of the manifest would otherwise change on the solution and its
+ * publisher (#104, verified live): an empty or missing `<EMailAddress>`,
+ * `<SupportingWebsiteUrl>` or `<Addresses>` clears the publisher's e-mail,
+ * website and addresses, so they are written as they are, as an export does.
+ */
+export interface ManifestDetails {
+	solutionDescription: string;
+	publisherDescription: string;
+	publisherEmail: string;
+	publisherWebsite: string;
+	publisherOptionValuePrefix: number;
+	/** The publisher's address 1 and 2, `address{n}_<field>` columns. */
+	publisherAddresses: Record<string, unknown>[];
+}
+
+/** Address child elements of a solution manifest, with their `address{n}_` column. */
+const ADDRESS_ELEMENTS: [string, string][] = [
+	["AddressTypeCode", "addresstypecode"],
+	["City", "city"],
+	["County", "county"],
+	["Country", "country"],
+	["Fax", "fax"],
+	["FreightTermsCode", "freighttermscode"],
+	["Latitude", "latitude"],
+	["Line1", "line1"],
+	["Line2", "line2"],
+	["Line3", "line3"],
+	["Longitude", "longitude"],
+	["Name", "name"],
+	["PostalCode", "postalcode"],
+	["PostOfficeBox", "postofficebox"],
+	["PrimaryContactName", "primarycontactname"],
+	["ShippingMethodCode", "shippingmethodcode"],
+	["StateOrProvince", "stateorprovince"],
+	["Telephone1", "telephone1"],
+	["Telephone2", "telephone2"],
+	["Telephone3", "telephone3"],
+	["UPSZone", "upszone"],
+	["UTCOffset", "utcoffset"],
+	["UTCConversionTimeZoneCode", "utcconversiontimezonecode"],
+];
+
+/**
+ * Reads the solution's description and its publisher (every column: an unknown
+ * one in `$select` would fail the request) for the manifest (#104). Throws when
+ * they can't be read: importing without them would clear the publisher's details.
+ */
+export async function fetchManifestDetails(solution: PublishSolutionInfo): Promise<ManifestDetails> {
+	let record: Record<string, unknown> | undefined;
+	try {
+		const res = (await dataverseAPI.queryData(
+			`solutions?$select=description&$expand=publisherid&$filter=uniquename eq '${solution.uniqueName.replace(/'/g, "''")}'`,
+		)) as { value?: Record<string, unknown>[] };
+		record = res.value?.[0];
+	} catch (err) {
+		throw new Error(
+			`Couldn't read solution ${solution.uniqueName} and its publisher (${err instanceof Error ? err.message : String(err)}), so nothing was imported: an import without them would clear the publisher's details.`,
+		);
+	}
+	const publisher = record?.["publisherid"] as Record<string, unknown> | undefined;
+	if (!record || !publisher) {
+		throw new Error(
+			`Couldn't read solution ${solution.uniqueName} and its publisher, so nothing was imported: an import without them would clear the publisher's details.`,
+		);
+	}
+	const prefix = publisher["customizationoptionvalueprefix"];
+	if (typeof prefix !== "number") {
+		throw new Error(
+			`Couldn't read the option-value prefix of publisher ${solution.publisherUniqueName}, so nothing was imported: a wrong one would change the publisher.`,
+		);
+	}
+	const text = (v: unknown) => (typeof v === "string" ? v : "");
+	const addresses = [1, 2]
+		.map((n) =>
+			Object.fromEntries(
+				ADDRESS_ELEMENTS.map(([, column]) => [column, publisher[`address${n}_${column}`]] as const).filter(
+					([, v]) => v !== null && v !== undefined && v !== "",
+				),
+			),
+		)
+		.map((fields, i) => ({ number: i + 1, ...fields }));
+	return {
+		solutionDescription: text(record["description"]),
+		publisherDescription: text(publisher["description"]),
+		publisherEmail: text(publisher["emailaddress"]),
+		publisherWebsite: text(publisher["supportingwebsiteurl"]),
+		publisherOptionValuePrefix: prefix,
+		publisherAddresses: addresses.filter((a) => Object.keys(a).length > 1),
+	};
+}
+
+/** An attribute value keeping line breaks and tabs, which attribute normalisation turns into spaces. */
+const attributeXml = (value: string) =>
+	escapeXml(value).replace(/\r/g, "&#xD;").replace(/\n/g, "&#xA;").replace(/\t/g, "&#x9;");
+
+const descriptionsXml = (description: string, lang: number) =>
+	description
+		? `<Descriptions>\n        <Description description="${attributeXml(description)}" languagecode="${lang}"/>\n      </Descriptions>`
+		: "<Descriptions/>";
+
+const addressesXml = (addresses: Record<string, unknown>[]) =>
+	addresses.length === 0
+		? "<Addresses/>"
+		: `<Addresses>${addresses
+				.map(
+					(a) =>
+						`\n        <Address>\n          <AddressNumber>${a["number"]}</AddressNumber>${ADDRESS_ELEMENTS.filter(
+							([, column]) => column in a,
+						)
+							.map(([element, column]) => `\n          <${element}>${escapeXml(String(a[column]))}</${element}>`)
+							.join("")}\n        </Address>`,
+				)
+				.join("")}\n      </Addresses>`;
 
 function generateSolutionXml(input: SolutionXmlInput): string {
 	// Fall back to safe placeholders if the publisher fields are missing —
@@ -1157,7 +1519,7 @@ function generateSolutionXml(input: SolutionXmlInput): string {
     <LocalizedNames>
       <LocalizedName description="${escapeXml(friendly)}" languagecode="${lang}"/>
     </LocalizedNames>
-    <Descriptions/>
+    ${descriptionsXml(input.details.solutionDescription, lang)}
     <Version>${escapeXml(input.version)}</Version>
     <Managed>0</Managed>
     <Publisher>
@@ -1165,12 +1527,12 @@ function generateSolutionXml(input: SolutionXmlInput): string {
       <LocalizedNames>
         <LocalizedName description="${escapeXml(pubName)}" languagecode="${lang}"/>
       </LocalizedNames>
-      <Descriptions/>
-      <EMailAddress/>
-      <SupportingWebsiteUrl/>
+      ${descriptionsXml(input.details.publisherDescription, lang)}
+      <EMailAddress>${escapeXml(input.details.publisherEmail)}</EMailAddress>
+      <SupportingWebsiteUrl>${escapeXml(input.details.publisherWebsite)}</SupportingWebsiteUrl>
       <CustomizationPrefix>${escapeXml(pubPrefix)}</CustomizationPrefix>
-      <CustomizationOptionValuePrefix>${input.publisherOptionValuePrefix ?? 10000}</CustomizationOptionValuePrefix>
-      <Addresses/>
+      <CustomizationOptionValuePrefix>${input.details.publisherOptionValuePrefix}</CustomizationOptionValuePrefix>
+      ${addressesXml(input.details.publisherAddresses)}
     </Publisher>
     ${rootComponentsXml}
     <MissingDependencies/>

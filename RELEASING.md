@@ -111,12 +111,16 @@ Before promoting a beta to `latest`:
 
 - **The current stable release** (`main`) gets fixes as hotfixes.
 - **The previous minor release** gets **critical and security fixes for 30 days** after
-  the next minor ships. Command Bar Studio 0.6 requires PPTB 1.2.7 (0.5.x ran on 1.2.0),
-  so 0.5.x stays available for users who can't update PPTB yet. When such a fix is needed,
-  create `support/0.5` (0.5.2 was published before tags were used, so branch from `main`:
-  `git switch -c support/0.5 origin/main && git push -u origin support/0.5`), PR the fix
-  into it, set the version to `0.5.3`, and tag `v0.5.3` there. It publishes to the npm
-  `support-0.5` tag, never `latest`, and isn't marked as the latest GitHub Release.
+  the next minor ships. When such a fix is needed, create `support/X.Y` from its last tag
+  (for 0.7 after 0.8.0 ships: `git switch -c support/0.7 v0.7.0 && git push -u origin support/0.7`,
+  from 0.7's last tag),
+  PR the fix into it, bump the patch version, and tag `vX.Y.Z` there. It publishes to the npm
+  `support-X.Y` tag, never `latest`, and isn't marked as the latest GitHub Release.
+- **0.5.x is end of life** (decided 2026-10-22): every version before 0.6.2 is deprecated on
+  npm, since they bundle DOMPurify 3.2.7 (critical advisories), and 0.5.x gets no `support/0.5`
+  line. Users on PPTB before 1.2.7 need to update PPTB to use 0.6.2 or later.
+- **0.6.x is end of life at 0.7.0** (decided 2026-10-24): 0.6.2 is deprecated on npm and gets
+  no `support/0.6` line, since 0.7.0 needs the same PPTB (1.2.7).
 - Older versions aren't supported. `SECURITY.md` lists the supported versions.
 
 ## Milestones and tracking

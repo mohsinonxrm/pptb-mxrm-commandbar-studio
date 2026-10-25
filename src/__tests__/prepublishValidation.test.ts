@@ -188,6 +188,44 @@ describe("FlyoutAnchor / SplitButton without a Menu", () => {
 		).toEqual([]);
 	});
 
+	it("accepts a dynamic flyout, which its PopulateQueryCommand fills at runtime (#101)", () => {
+		const dynamic = ca(
+			"mxrm.F.CustomAction",
+			`${GROUP}.Controls._children`,
+			`<FlyoutAnchor Id="mxrm.F" Command="mxrm.F.Command" Sequence="10" TemplateAlias="o1" PopulateDynamically="True" PopulateQueryCommand="Mscrm.DynamicMenu.Grid.Flows.PopulateMenu" />`,
+		);
+		expect(codes(check({ customActions: [dynamic] }), "menu-missing")).toEqual([]);
+	});
+
+	it("still reports a flyout that isn't populated dynamically (#101)", () => {
+		const notDynamic = ca(
+			"mxrm.F.CustomAction",
+			`${GROUP}.Controls._children`,
+			`<FlyoutAnchor Id="mxrm.F" Command="mxrm.F.Command" Sequence="10" TemplateAlias="o1" PopulateDynamically="false" PopulateQueryCommand="mxrm.F.Populate" />`,
+		);
+		expect(only(check({ customActions: [notDynamic] }), "menu-missing").severity).toBe("error");
+	});
+
+	it("reads PopulateDynamically as a boolean: \"1\" and surrounding spaces count (#101)", () => {
+		const dynamic = ca(
+			"mxrm.F.CustomAction",
+			`${GROUP}.Controls._children`,
+			`<FlyoutAnchor Id="mxrm.F" Command="mxrm.F.Command" Sequence="10" TemplateAlias="o1" PopulateDynamically=" 1 " PopulateQueryCommand="mxrm.F.Populate" />`,
+		);
+		expect(codes(check({ customActions: [dynamic] }), "menu-missing")).toEqual([]);
+	});
+
+	it("only warns about a dynamic flyout without a PopulateQueryCommand (#101)", () => {
+		const dynamic = ca(
+			"mxrm.F.CustomAction",
+			`${GROUP}.Controls._children`,
+			`<SplitButton Id="mxrm.F" Command="mxrm.F.Command" Sequence="10" TemplateAlias="o1" PopulateDynamically="true" />`,
+		);
+		const f = only(check({ customActions: [dynamic] }), "menu-missing");
+		expect(f).toMatchObject({ severity: "warning", elementId: "mxrm.F" });
+		expect(f.message).toMatch(/populated dynamically but has no PopulateQueryCommand/);
+	});
+
 	it("is only a warning when the flyout is already published", () => {
 		const f = only(
 			check({ customActions: [flyout("FlyoutAnchor", "")] }, { changedKeys: [] }),
@@ -461,6 +499,12 @@ describe("$LocLabels references", () => {
 				"loclabel-missing",
 			),
 		).toHaveLength(1);
+	});
+
+	it("skips a label a loaded control already uses: a copy keeps another solution's label (#137)", () => {
+		// mxrm.B is the copy; msdyn.Orig was loaded with the same tooltip label.
+		const loadedAttributes = { "msdyn.Orig": { ToolTipTitle: "$LocLabels:mxrm.B.ToolTip" } };
+		expect(codes(check(spec([label("mxrm.B.LabelText")]), { loadedAttributes }), "loclabel-missing")).toEqual([]);
 	});
 
 	it("accepts references that all have a LocLabel", () => {

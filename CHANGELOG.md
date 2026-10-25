@@ -9,6 +9,199 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-24
+
+Publish safety and correctness. A publish follows the connection and names the environment it
+writes to. It keeps changes made or imported elsewhere and the publisher's details, and cleans up
+exactly what a delete leaves unused. **Show on Unified Interface** now targets Unified Interface.
+This release is 0.7.0-beta.1 to beta.3, and their notes below are the full list. Requires Power
+Platform ToolBox 1.2.7 or later, as 0.6 does.
+
+### Highlights
+
+- **Safety:**
+  - A publish follows a PPTB connection change and never continues into the newly selected
+    environment (#120).
+  - Every write names its environment, and Production asks for a typed confirmation (#121).
+  - Uploads ask before replacing a web resource.
+- **Changes made elsewhere are kept:**
+  - A change published elsewhere during a publish isn't overwritten; the publish stops and says
+    what changed (#102).
+  - Ribbon changes imported elsewhere but not published are published first and kept (#103).
+- **Correctness:**
+  - The publisher's e-mail, website and addresses are kept (#104).
+  - The base language is never assumed (#106).
+  - Deletes clean up exactly what they leave unused (#108).
+  - Copies keep labels other solutions define (#137).
+  - An unreadable layer is reported, with Retry (#110).
+  - Dynamic flyouts can be published (#101).
+- **Unified Interface filter (#152):** **Show on Unified Interface (Modern)** adds
+  `Type="Modern"`. The old filter added `Refresh`, which hid the button in Unified Interface.
+- **Editor:**
+  - XML drawer Copy and Download work in both hosts (#122).
+  - Shortcuts work with Shift, Caps Lock and other keyboard layouts (#123).
+  - Drafts (#129) and the Tables list (#5) are fixed.
+  - Rename is offered only where it can be published (#33).
+- **Dependencies:** `npm audit` reports 0 vulnerabilities (#117).
+
+### ⚠️ Upgrading from 0.6.x
+
+- If you used **Show on Unified Interface (Refresh)**, the command has a
+  `<command id>.Refresh.DisplayRule`, and the button is hidden in Unified Interface. Click
+  **Show on Unified Interface (Modern)** to replace it, then publish (#152).
+- Nothing else changes: the PPTB requirement and the published format are the same.
+- **0.6.x is end of life:** 0.6.2 is deprecated on npm and gets no support window, since 0.7.0
+  needs the same PPTB (see `SECURITY.md`).
+
+## [0.7.0-beta.3] - 2026-10-24
+
+The third beta of 0.7.0 (npm `beta`): one fix. The **Show on Unified Interface** filter added a
+rule that hid the button in Unified Interface. Requires Power Platform ToolBox 1.2.7 or later.
+
+### 🔧 Fixed
+
+- **Client-type filters target the right client (#152).** Unified Interface evaluates
+  `CommandClientTypeRule` as **`Modern`**: Microsoft's `Mscrm.ShowOnlyOnModern`
+  (`Type="Modern"`) shows a button there, and `Mscrm.HideOnModern` (`Type="Modern"` with
+  `InvertResult="true"`) hides it. CBS labelled `Refresh` as Unified Interface, so **Show on
+  Unified Interface (Refresh)** added a rule that **hid the button in Unified Interface**.
+  - The quick filter is now **Show on Unified Interface (Modern)**, and `Refresh` is labelled as
+    the legacy web client. New client-type steps default to `Modern`.
+  - A filter never reuses an inverted rule such as `Mscrm.HideOnModern`.
+  - Adding a filter replaces (unbinds) another client-type filter on the same command, because
+    display rules must all pass and two would hide the button everywhere.
+  - If you used the old filter, the command has a `<command id>.Refresh.DisplayRule` and the
+    button is hidden in Unified Interface. Click **Show on Unified Interface (Modern)** to replace
+    it, then publish. This affects 0.5.x–0.7.0-beta.2.
+
+## [0.7.0-beta.2] - 2026-10-23
+
+The second beta of 0.7.0 (npm `beta`): correctness. A publish keeps the publisher's details and
+never assumes the base language; deletes clean up exactly what they leave unused; copies keep
+other solutions' labels; an unreadable layer is reported; and the XML drawer, shortcuts, drafts
+and the Tables list are fixed. Requires Power Platform ToolBox 1.2.7 or later.
+
+### 🔧 Fixed
+
+- **A publish no longer clears the publisher's contact details (#104).** The solution package
+  CBS imports had empty publisher `<EMailAddress>`, `<SupportingWebsiteUrl>` and `<Addresses>`,
+  and an import clears what they leave empty (verified live: e-mail, website and address were
+  wiped). CBS now reads the solution and its publisher before importing and writes their
+  descriptions, e-mail, website, addresses and option-value prefix as they are; if it can't read
+  them, nothing is imported (the prefix no longer defaults to 10000).
+- **The system Default solution isn't offered as a publish target (#105)**; the Common Data
+  Services Default Solution still is.
+- **The organization's base language is never assumed (#106).** A failed read of
+  `organizations.languagecode` was taken as English (1033), so a package could be written in the
+  wrong language. It is read twice; a publish that still can't read it stops before writing
+  anything, and on load a warning says labels are shown in English.
+- **Deleting a control cleans up exactly what it leaves unused (#108).** Whether its command,
+  rules and labels are still used is read from the elements, not matched as text: a rule
+  referenced with `Id` after another attribute is now removed with its command, and a rule is
+  no longer kept by a rule of the other kind with the same id.
+- **An unmanaged layer that can't be read is reported (#110).** The ribbon still loads, but a
+  warning on the canvas says labels may show as ids and ownership is unknown, with Retry (which
+  asks first when you have unpublished changes). A ribbon response without its compressed XML
+  now fails with a clear error.
+- **Copies keep labels another solution defines (#137).** Duplicate button, Duplicate group and
+  Customise button published a copy of, say, an msdyn button with a new label reading the
+  original label's id. The copy now references the same label, as it does platform texts; if
+  you edit its text, it gets a label of its own and the shared one is left alone. The
+  Translations editor follows the same rule: another solution's label is read-only there, so it
+  is never overwritten in your layer for every control that uses it. While a layer can't be read
+  (#110), copies keep no label references, since they could be your own labels.
+- **The XML drawer's Copy and Download work in PPTB and report what happened (#122).** They go
+  through the host's clipboard and Save dialog (the browser's as a fallback) and say whether the
+  XML was copied, where it was saved, or why it couldn't be. The console's Copy log falls back to
+  the browser outside PPTB too, and Import XML from the command palette says when it couldn't
+  read the clipboard.
+- **Keyboard shortcuts work with Shift and Caps Lock (#123).** Ctrl+Shift+Z / Cmd+Shift+Z redoes,
+  and Ctrl+Z / Y / K / S / D work with Caps Lock on and on non-Latin keyboard layouts. AltGr
+  letters (Polish "ś" is AltGr+S) are typed, never taken as shortcuts.
+- **A restored draft that was undone isn't offered again after a publish (#129).** A redo of the
+  restore saves it again.
+- **The whole row of a table in the Tables list is clickable (#5)**, not just its name.
+
+## [0.7.0-beta.1] - 2026-10-23
+
+The first beta of 0.7.0 (npm `beta`): publish safety. A connection change, a Production target,
+a change published or imported elsewhere while you publish, and dynamic flyouts are now handled;
+renaming and duplicating groups are fixed. Requires Power Platform ToolBox 1.2.7 or later.
+
+### ✨ Added
+
+- **Every write names its target environment (#121).** Same safeguards as FetchXML Studio:
+  - the top bar shows the connection's name and type, with Production highlighted;
+  - the publish dialog shows the environment (name, type, URL), the solution, the tables and what
+    the publish writes; on a **Production** connection, **Publish** waits until you type the
+    table's logical name (or `application ribbon`), including when the connection is set to
+    Production while the dialog is open;
+  - an upload (web resource browser, icon picker SVG) over an existing web resource asks first:
+    **Replace**, **Keep existing** or **Cancel**; a managed one can only be kept;
+  - the command editor's **Save Web Resource** shows the environment it saves to;
+  - README: **What this tool changes** lists every write.
+
+### 🔧 Fixed
+
+- **Connection changes while the tool is open (#120).** Power Platform ToolBox can switch a running
+  tool to another connection (desktop app and VS Code extension). Command Bar Studio now follows:
+  - the solution and table loaded from the previous environment are closed, and their unpublished
+    changes are kept as a draft for that environment (offered again when the tool is back on it);
+  - the solutions and the current user load again for the new connection, and a banner names both
+    environments;
+  - a change of the connection's name or environment type only updates them;
+  - every write (import, publish, web resource save) first checks that the tool is still on the
+    connection it started on, so a publish never continues into the newly selected environment.
+    Token refreshes and edits to other connections change nothing.
+- **A publish no longer overwrites a change made elsewhere meanwhile (#102).** The import replaces
+  the table's whole unmanaged ribbon layer, and it can start minutes after the layer was read
+  (waiting for a busy environment, then a second import). The layer is now read again just before
+  each import, after any wait; if other ribbon changes for the table were published meanwhile
+  (another session, tool or solution import), nothing is imported and the message names the added,
+  removed or changed elements: reload the table and publish again. When that happens between the
+  two imports, your changes are already published, and the publish ends with a warning instead of
+  importing again. (Changes imported elsewhere but not published can't be seen by this check; see
+  #103 below.)
+- **Ribbon changes imported elsewhere but not published are kept (#103).** Dataverse shows only
+  published ribbon customizations, so a solution imported but not yet published was invisible to
+  the publish and was replaced by it (verified live: the layer tables, RetrieveEntityRibbon and a
+  solution export all show only the published state). A publish now publishes the table (or the
+  application ribbon) first, so those changes become part of the layer it merges into. The publish
+  at the end publishes everything pending for the table anyway, so nothing else changes. A publish
+  the pre-publish check refuses as loaded still writes nothing; if it fails after the table was
+  published first, the message says so. The publish first waits until no other solution operation
+  runs, and an import that has to wait for another import stops instead of importing over what
+  that import may have left unpublished.
+
+- **Dynamic flyouts can be published (#101).** A flyout or split button that is populated at
+  runtime (`PopulateDynamically` with a `PopulateQueryCommand`, e.g. a copy of the out-of-the-box
+  **Flow** flyout) has no static menu; the pre-publish check reported it as an empty drop-down and
+  blocked the publish. It is accepted now (a dynamic one without a `PopulateQueryCommand` is only
+  warned about), and `PopulateDynamically` is read as a boolean ("true" or "1") everywhere.
+
+- **Rename is offered only where it can be published (#33).** Renaming a tab or group publishes
+  when it is new, or your unmanaged customizations add it with a translatable title (its label's
+  text changes). For out-of-the-box and managed tabs and groups, **Rename…** in the group menu is
+  disabled and says why, and a tab can't be renamed in place — before, the rename was only refused
+  at publish. (Overriding those is #135; Unified Interface doesn't show group titles.)
+- **A duplicated group's title is text (#33).** Duplicating a group whose title is a label
+  (`$LocLabels:`) or a platform text (`$Resources:`) published the token with " (copy)" as its
+  title; the copy now gets the title's text, in the base language, with " (copy)".
+
+### 🏗️ Technical
+
+- **Dependency security (#117).** `npm audit` reports 0 vulnerabilities, runtime and dev.
+  - `monaco-editor` 0.55.1 → 0.57.0, now listed under `dependencies` (it ships in the bundle).
+    Its DOMPurify is overridden to 3.4.17, which clears the mutation-XSS advisories and three
+    critical ones published since (GHSA-cg2g-xh64-v4q7, GHSA-mrv2-3pqr-j5jr, GHSA-c6gr-qvv4-5v3f);
+    Monaco imports its own copy, so the build bundles the npm package in its place (0.6.2). The
+    Monaco worker imports follow 0.56's new package layout.
+  - `vitest` 3 → 5.0.3, which also replaces `@vitest/mocker` and drops `tinypool` (dev-only
+    advisories, one critical).
+  - CI's runtime audit fails on **moderate** findings and above (was high).
+  - Dependabot groups take minor and patch updates only; a major arrives as its own PR, and
+    eslint 10 waits for `eslint-plugin-jsx-a11y`.
+
 ## [0.6.2] - 2026-10-22
 
 A security hotfix: 0.6.1's DOMPurify fix didn't reach the shipped bundle.

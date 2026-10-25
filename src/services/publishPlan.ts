@@ -17,7 +17,7 @@ import type {
 } from "@/types/ribbon";
 import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
 import type { LayerOrphan } from "@/services/layerOrphans";
-import { groupControls, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
+import { groupControls, isDynamicMenuValue, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 import { CONTROL_TAG_BY_KIND, controlCommandIds, isReadOnlyControlKind } from "@/utils/controlKinds";
 import { isOwnControl } from "@/utils/ribbonProvenance";
 import { OPEN_RECORD_ITEM_COMMAND_ID, openRecordCommandProblem } from "@/utils/openRecordItem";
@@ -411,7 +411,7 @@ export function planScope(input: PlanInput): ScopePlan {
 					...(c.menu ? { controlsId: c.menu.controlsId } : {}),
 				});
 			}
-			const dynamic = c.button.source?.attributes["PopulateDynamically"]?.toLowerCase() === "true";
+			const dynamic = isDynamicMenuValue(c.button.source?.attributes["PopulateDynamically"]);
 			if (isMenuKind(c.button.kind) && !dynamic && !menuItemsOf(c.button).some((b) => !b.hidden)) {
 				newMenus.push({ id: c.button.id, label: c.button.label });
 			}

@@ -16,6 +16,13 @@ import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 // `$Resources:` / `$LocLabels:` tokens. #18 — rename, template and confirm
 // dialogs instead of window.prompt / window.confirm (no-ops in PPTB's Electron).
 
+// Whether the workspace has unpublished changes, for the layer warning's Retry (#110).
+const drafts = vi.hoisted(() => ({ unpublished: false }));
+vi.mock("@/store/draftStore", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/store/draftStore")>()),
+	hasUnpublishedChanges: () => drafts.unpublished,
+}));
+
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 // jsdom has no ResizeObserver; Fluent's MessageBar uses it for reflow.
 if (typeof window.ResizeObserver === "undefined") {
@@ -181,7 +188,10 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			],
 			// The canvas shows group titles in the organisation's base language.
 			baseLanguageCode: 1031,
-			layers: { entity: { controlIds: ["mxrm.Own.Button"], containerIds: [OWN], locLabelIds: [], hides: [] } },
+			// The layer adds OWN and defines its title label: renaming it publishes (#33).
+			layers: {
+				entity: { controlIds: ["mxrm.Own.Button"], containerIds: [OWN], locLabelIds: ["grp.Title"], hides: [] },
+			},
 		});
 		useSelectionStore.getState().setLocation("HomepageGrid");
 		useSelectionStore.getState().setTabId(MAIN);
@@ -271,19 +281,32 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 
 		it("the Rename button renames; an unchanged title keeps the label token", () => {
 			render(<Classic />);
-			openGroupMenu(MGMT);
+			openGroupMenu(OWN);
 			clickMenuItem("Rename");
-			expect(dialog()?.querySelector("input")?.value).toBe("Ribbon.HomepageGrid.MainTab.Management");
+			expect(dialog()?.querySelector("input")?.value).toBe("Meine Gruppe");
 			act(() => dialogButton("Rename").click());
 			expect(dialog()).toBeNull();
-			expect(group(MGMT)?.label).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
+			expect(group(OWN)?.label).toBe("$LocLabels:grp.Title");
 			expect(useRibbonStore.getState().past).toHaveLength(0);
 
-			openGroupMenu(MGMT);
+			openGroupMenu(OWN);
 			clickMenuItem("Rename");
 			typeInto(dialog()!.querySelector("input")!, "Manage");
 			act(() => dialogButton("Rename").click());
-			expect(group(MGMT)?.label).toBe("Manage");
+			expect(group(OWN)?.label).toBe("Manage");
+		});
+
+		it("an out-of-the-box group's Rename… is disabled and says why: it can't be published (#33)", () => {
+			render(<Classic />);
+			openGroupMenu(MGMT);
+			const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((el) =>
+				el.textContent?.includes("Rename"),
+			)!;
+			expect(item.getAttribute("aria-disabled")).toBe("true");
+			expect(item.getAttribute("title")).toMatch(/Only tabs and groups your unmanaged customizations add/);
+			act(() => item.click());
+			expect(dialog()).toBeNull();
+			expect(group(MGMT)?.label).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
 		});
 
 		it("Cancel and Escape change nothing", () => {
@@ -389,6 +412,57 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			act(() => container.querySelector<HTMLButtonElement>('[aria-label="Delete tab Fresh"]')!.click());
 			act(() => dialogButton("Delete tab").click());
 			expect(tabs()).not.toContain("mxrm.contact.NewTab");
+		});
+
+		it("an unread unmanaged layer is said on the canvas, with Retry (#110)", () => {
+			const retry = vi.fn();
+			render(<RibbonCanvas layerReadError="the contact table's customizations: 503" onRetryRibbonLoad={retry} />);
+			const bar = [...container.querySelectorAll<HTMLElement>(".fui-MessageBar")].find((b) =>
+				b.textContent?.includes("Couldn't read your unmanaged ribbon customizations"),
+			);
+			expect(bar?.textContent).toContain("the contact table's customizations: 503");
+			act(() => [...bar!.querySelectorAll("button")].find((b) => b.textContent === "Retry")!.click());
+			expect(retry).toHaveBeenCalledTimes(1);
+
+			// With unpublished changes, Retry asks first.
+			drafts.unpublished = true;
+			const retryButton = () => [...bar!.querySelectorAll("button")].find((b) => b.textContent === "Retry")!;
+			act(() => retryButton().click());
+			expect(dialog()?.textContent).toContain("You have unpublished changes");
+			act(() => dialogButton("Cancel").click());
+			expect(retry).toHaveBeenCalledTimes(1);
+			act(() => retryButton().click());
+			act(() => dialogButton("Reload").click());
+			expect(retry).toHaveBeenCalledTimes(2);
+			drafts.unpublished = false;
+
+			// Not while loading, nor on top of a load that failed outright.
+			render(<RibbonCanvas isLoadingRibbon layerReadError="x" onRetryRibbonLoad={retry} />);
+			expect(container.textContent).not.toContain("Couldn't read your unmanaged");
+			render(<RibbonCanvas ribbonLoadError="boom" layerReadError="x" onRetryRibbonLoad={retry} />);
+			expect(container.textContent).not.toContain("Couldn't read your unmanaged");
+		});
+
+		it("a tab is renamed in place only where the rename can be published (#33)", () => {
+			act(() => useRibbonStore.getState().createTab("HomepageGrid", { id: "mxrm.contact.NewTab", label: "Fresh" }));
+			useUIStore.setState({ ribbonViewStyle: "classic" });
+			render(<RibbonCanvas />);
+			const tabEl = (id: string) =>
+				[...container.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent?.includes(id))!;
+			const renameInput = () => container.querySelector<HTMLInputElement>('[aria-label="Rename tab"]');
+
+			// The out-of-the-box main tab: no editor, and the tooltip says why.
+			act(() => tabEl(MAIN).dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+			expect(renameInput()).toBeNull();
+			press(tabEl(MAIN), "F2");
+			expect(renameInput()).toBeNull();
+			expect(tabEl(MAIN).getAttribute("title")).toMatch(/Only tabs and groups your unmanaged customizations add/);
+
+			// A tab created this session: renamed in place.
+			const fresh = tabEl("mxrm.contact.NewTab");
+			expect(fresh.getAttribute("title")).toBeNull();
+			act(() => fresh.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+			expect(renameInput()?.value).toBe("Fresh");
 		});
 
 		it("discarding a customisation with unpublished edits asks first", () => {

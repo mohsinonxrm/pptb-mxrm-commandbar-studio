@@ -22,8 +22,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Audit runtime dependencies (no high or critical findings)
-        run: npm audit --omit=dev --audit-level=high
+      - name: Audit runtime dependencies (no moderate, high or critical findings)
+        run: npm audit --omit=dev --audit-level=moderate
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test

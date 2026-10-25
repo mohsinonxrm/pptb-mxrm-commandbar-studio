@@ -11,6 +11,8 @@ import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { App } from "./App";
 import { RootErrorBoundary } from "@/components/shared/RootErrorBoundary";
 import { connectToHost, renderStartupError } from "./startup";
+import { getPrimaryConnection, watchHostConnection } from "@/services/hostConnection";
+import { applyHostConnection } from "@/services/connectionSwitch";
 import "./index.css";
 
 async function bootstrap() {
@@ -24,13 +26,19 @@ async function bootstrap() {
 
 	const { setConnection } = useSessionStore.getState();
 	const { setThemeMode } = useUIStore.getState();
+	// The tool's own connection (slot 0) when the host has slots; the active one otherwise.
+	const primary = (await getPrimaryConnection().catch(() => null)) ?? connection;
 	setConnection(
-		connection.url,
-		connection.name,
-		connection.environment as "Dev" | "Test" | "UAT" | "Production",
+		primary.url,
+		primary.name,
+		primary.environment as "Dev" | "Test" | "UAT" | "Production",
+		primary.id,
 	);
 	setThemeMode(theme);
-	logInfo("startup", `Connected to ${connection.name} (${connection.environment}).`);
+	logInfo("startup", `Connected to ${primary.name} (${primary.environment}).`);
+
+	// The connection can change while the tool runs (#120): reset to the new one.
+	watchHostConnection((next) => applyHostConnection(next));
 
 	const refreshTheme = () => {
 		void toolboxAPI.utils

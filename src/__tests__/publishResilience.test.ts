@@ -163,10 +163,26 @@ const LAYER_XML = `<RibbonDiffXml><CustomActions>
 <LocLabels><LocLabel Id="cbs.Go.LabelText"><Titles><Title languagecode="1033" description="Go" /><Title languagecode="1031" description="Los" /></Titles></LocLabel></LocLabels>
 </RibbonDiffXml>`;
 
-function fakeEnvironment(opts: { busyImports?: number; busyHistory?: number; dropOnPublish?: string; languageCode?: number } = {}) {
+function fakeEnvironment(
+	opts: {
+		busyImports?: number;
+		busyHistory?: number;
+		/** An element the publish (every one, or only the n-th) leaves out of the published layer. */
+		dropOnPublish?: string;
+		dropOnPublishNumber?: number;
+		languageCode?: number;
+		/** Someone else writes to the layer just before its n-th read (#102). */
+		onLayerRead?: (n: number, server: RibbonDiffParts) => void;
+		/** The n-th read returns the layer as it was before any import: a read lagging behind the publish. */
+		staleRead?: number;
+	} = {},
+) {
 	let server = parseRibbonDiffParts(LAYER_XML);
+	let serving: RibbonDiffParts | null = null;
 	let busyImports = opts.busyImports ?? 0;
 	let busyHistory = opts.busyHistory ?? 0;
+	let layerReads = 0;
+	let publishes = 0;
 	const calls: string[] = [];
 	const api = {
 		calls,
@@ -176,6 +192,8 @@ function fakeEnvironment(opts: { busyImports?: number; busyHistory?: number; dro
 		queryData: vi.fn(async (q: string) => {
 			calls.push(`query ${q.split("?")[0]}`);
 			if (q.startsWith("organizations")) return { value: [{ languagecode: opts.languageCode ?? 1033 }] };
+			// The solution and its publisher, for the manifest (#104).
+			if (q.startsWith("solutions")) return { value: [{ description: "CBS Live Test", publisherid: { description: "Test publisher", emailaddress: "pub@example.com", supportingwebsiteurl: "https://example.com", customizationoptionvalueprefix: 31337, address1_line1: "1 Test Street", address1_city: "Testville" } }] };
 			if (q.startsWith("msdyn_solutionhistories")) {
 				return busyHistory-- > 0 ? { value: [{ msdyn_name: "X", msdyn_operation: 0, msdyn_status: 0 }] } : { value: [] };
 			}
@@ -185,8 +203,13 @@ function fakeEnvironment(opts: { busyImports?: number; busyHistory?: number; dro
 				return { CompressedEntityXml: btoa(b) };
 			}
 			const table = q.split("?")[0] as "ribbondiffs" | "ribboncommands" | "ribbonrules";
+			if (table === "ribbondiffs" && !q.includes("entity eq null")) {
+				layerReads++;
+				opts.onLayerRead?.(layerReads, server);
+				serving = layerReads === opts.staleRead ? parseRibbonDiffParts(LAYER_XML) : null;
+			}
 			if (q.includes("entity eq null")) return { value: [] };
-			return { value: rowsOf(server)[table] };
+			return { value: rowsOf(serving ?? server)[table] };
 		}),
 		importSolution: vi.fn(async (zip: string) => {
 			calls.push("import");
@@ -199,7 +222,8 @@ function fakeEnvironment(opts: { busyImports?: number; busyHistory?: number; dro
 		})),
 		publishXml: vi.fn(async () => {
 			calls.push("publish");
-			if (opts.dropOnPublish) server.customActions.delete(opts.dropOnPublish);
+			publishes++;
+			if (opts.dropOnPublish && (opts.dropOnPublishNumber ?? publishes) === publishes) server.customActions.delete(opts.dropOnPublish);
 		}),
 		execute: vi.fn(async (req: { operationName: string; parameters?: Record<string, string> }) => {
 			if (req.operationName === "ImportSolution") return api.importSolution(req.parameters!.CustomizationFile);
@@ -226,7 +250,7 @@ const SOLUTION = {
 	publisherPrefix: "cbstest",
 };
 
-async function publishUnhide(env: ReturnType<typeof fakeEnvironment>) {
+async function publishUnhide(env: ReturnType<typeof fakeEnvironment>, extra: { guard?: (action: string) => Promise<void> } = {}) {
 	vi.resetModules();
 	const { publishRibbon } = await import("@/services/dataverse/publishService");
 	const parsed = parseRibbonXml(MERGED, "HomepageGrid", T);
@@ -249,11 +273,36 @@ async function publishUnhide(env: ReturnType<typeof fakeEnvironment>) {
 			solution: SOLUTION,
 			busy: { sleep: async () => undefined },
 			verifyDelayMs: 0,
+			...extra,
 		},
 		(m) => progress.push(m),
 	);
 	return { result, progress, env };
 }
+
+describe("a publish run and a connection switch (#120)", () => {
+	it("a scope that starts after the switch imports nothing, even though the new connection is current by then", async () => {
+		const env = fakeEnvironment();
+		const host = await import("@/services/hostConnection");
+		const dev = { id: "c-dev", url: "https://dev.crm.dynamics.com" };
+		const prod = { id: "c-prod", url: "https://prod.crm.dynamics.com" };
+		let current = dev;
+		(window as unknown as { toolboxAPI: unknown }).toolboxAPI = { connections: { getConnection: async () => current } };
+		try {
+			host.setWorkspaceConnection(dev);
+			const runGuard = host.writeGuard(); // the publish dialog's run starts on Dev
+			// The table scope imports on Dev; then the tool switches to Prod and the switch is handled.
+			host.setWorkspaceConnection(prod);
+			current = prod;
+			// The application-ribbon scope of the same run starts now.
+			await expect(publishUnhide(env, { guard: runGuard })).rejects.toBeInstanceOf(host.ConnectionChangedError);
+			expect(env.calls).not.toContain("import");
+			expect(env.calls).not.toContain("publish");
+		} finally {
+			delete (window as unknown as { toolboxAPI?: unknown }).toolboxAPI;
+		}
+	});
+});
 
 describe("publishRibbon in a busy environment (#46)", () => {
 	it("waits for a running operation, retries a busy import, and verifies the published layer", async () => {
@@ -278,9 +327,13 @@ describe("publishRibbon in a busy environment (#46)", () => {
 			expect(r.parameters).toMatchObject({ OverwriteUnmanagedCustomizations: true, PublishWorkflows: false });
 			expect(r.parameters!.ImportJobId).toMatch(/^[0-9a-f-]{36}$/);
 		}
-		// A table publish after each import, never PublishAllXml.
+		// A table publish before reading the layer (#103) and after each import, never PublishAllXml.
 		const tablePublish = { ParameterXml: `<importexportxml><entities><entity>${T}</entity></entities></importexportxml>` };
-		expect(requests.filter((r) => r.operationName === "PublishXml").map((r) => r.parameters)).toEqual([tablePublish, tablePublish]);
+		expect(requests.filter((r) => r.operationName === "PublishXml").map((r) => r.parameters)).toEqual([
+			tablePublish,
+			tablePublish,
+			tablePublish,
+		]);
 		expect(requests.some((r) => r.operationName === "PublishAllXml")).toBe(false);
 	});
 
@@ -302,15 +355,373 @@ describe("publishRibbon in a busy environment (#46)", () => {
 			return publish();
 		});
 		await publishUnhide(env);
-		expect(env.publishXml).toHaveBeenCalledTimes(3);
+		// 1 busy attempt + the publish first (#103) + one after each import.
+		expect(env.publishXml).toHaveBeenCalledTimes(4);
 	});
 
 	it("reports a published layer that doesn't match what was imported", async () => {
-		const env = fakeEnvironment({ dropOnPublish: "ca:cbs.Go.CustomAction" });
+		// After the second import (the first one is checked before re-importing, #102; publish 1 is the one first, #103).
+		const env = fakeEnvironment({ dropOnPublish: "ca:cbs.Go.CustomAction", dropOnPublishNumber: 3 });
 		const { result } = await publishUnhide(env);
 		expect(result.verification?.ok).toBe(false);
 		expect(result.verification?.missing).toEqual(["customActions:ca:cbs.Go.CustomAction"]);
 		expect(result.verification?.message).toMatch(/doesn't match.*missing: customActions:ca:cbs\.Go\.CustomAction/);
+	});
+});
+
+describe("a change made elsewhere while publishing (#102)", () => {
+	const OTHER = "ca:other.Added.CustomAction";
+	const otherXml = `<CustomAction Id="other.Added.CustomAction" Location="Mscrm.HomepageGrid.${T}.MainTab.Management.Controls._children" Sequence="950"><CommandUIDefinition><Button Id="other.Added" Command="cbs.Go.Command" Sequence="950" LabelText="Other" TemplateAlias="o1" /></CommandUIDefinition></CustomAction>`;
+	const addOther = (server: RibbonDiffParts) => server.customActions.set(OTHER, otherXml);
+
+	it("imports nothing when the layer changed after it was read for the merge", async () => {
+		// Read 2 is the merge (read 1 the check before publishing first, #103); another session adds a
+		// button before read 3, the check before the import.
+		const env = fakeEnvironment({ onLayerRead: (n, server) => n === 3 && addOther(server) });
+		await expect(publishUnhide(env)).rejects.toThrow(
+			/changed in Dataverse since you started publishing \(added: customActions:ca:other\.Added\.CustomAction\).*nothing was imported/,
+		);
+		expect(env.calls).not.toContain("import");
+		// Only the publish first (#103).
+		expect(env.calls.filter((c) => c === "publish")).toHaveLength(1);
+		expect(env.server.customActions.has(OTHER)).toBe(true);
+	});
+
+	it("reads the layer again after waiting for a busy environment, before retrying the import", async () => {
+		// Read 3 is the check before the first (busy) attempt; the change lands during the wait.
+		const env = fakeEnvironment({ busyImports: 1, onLayerRead: (n, server) => n === 4 && addOther(server) });
+		const { RibbonLayerChangedError } = await import("@/services/dataverse/publishService");
+		const err = await publishUnhide(env).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(Error);
+		expect((err as Error).name).toBe(RibbonLayerChangedError.name);
+		// Only the busy attempt, which wrote nothing.
+		expect(env.calls.filter((c) => c === "import")).toHaveLength(1);
+		expect(env.server.customActions.has(OTHER)).toBe(true);
+	});
+
+	it("notices a changed element, not only an added or removed one", async () => {
+		const env = fakeEnvironment({
+			onLayerRead: (n, server) =>
+				n === 3 &&
+				server.commandDefinitions.set(
+					"cbs.Go.Command",
+					server.commandDefinitions.get("cbs.Go.Command")!.replace('FunctionName="go"', 'FunctionName="goElsewhere"'),
+				),
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(/changed: commandDefinitions:cbs\.Go\.Command/);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("doesn't import a second time when the layer changed after the first publish, and says so", async () => {
+		// Read 4 is the check before the second import.
+		const env = fakeEnvironment({ onLayerRead: (n, server) => n === 4 && addOther(server) });
+		const { result } = await publishUnhide(env);
+		// The changes are published: a result (the store marks them published), with a warning.
+		expect(result.verification?.ok).toBe(false);
+		expect(result.verification?.unexpected).toEqual([`customActions:${OTHER}`]);
+		expect(result.verification?.message).toMatch(
+			/imported and published, but .*changed in Dataverse after that \(added: customActions:ca:other\.Added\.CustomAction\).*weren't imported a second time/,
+		);
+		expect(env.calls.filter((c) => c === "import")).toHaveLength(1);
+		// The publish first (#103) and the one after the import.
+		expect(env.calls.filter((c) => c === "publish")).toHaveLength(2);
+		expect(env.server.customActions.has(OTHER)).toBe(true);
+	});
+
+	it("reads again when the layer lags behind the first publish, rather than stopping", async () => {
+		// Read 4, the check before the second import, still returns the layer from before the import.
+		const env = fakeEnvironment({ staleRead: 4 });
+		const { result } = await publishUnhide(env);
+		expect(env.calls.filter((c) => c === "import")).toHaveLength(2);
+		expect(result.verification?.ok).toBe(true);
+	});
+
+	it("compares the two reads before the first import exactly: a removed translation counts", async () => {
+		const env = fakeEnvironment({
+			onLayerRead: (n, server) =>
+				n === 3 &&
+				server.locLabels.set(
+					"cbs.Go.LabelText",
+					server.locLabels.get("cbs.Go.LabelText")!.replace(/<Title languagecode="1031"[^>]*>/, ""),
+				),
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(/changed: locLabels:cbs\.Go\.LabelText/);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("checks the connection before reading the layer again (#120)", async () => {
+		const env = fakeEnvironment();
+		const guard = vi.fn(async (action: string) => {
+			if (action === "Importing") throw new Error("The connection changed.");
+		});
+		await expect(publishUnhide(env, { guard })).rejects.toThrow("The connection changed.");
+		// Only the check before publishing first (#103) and the read for the merge.
+		expect(env.calls.filter((c) => c === "query ribbondiffs")).toHaveLength(2);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("publishes the table first, so a change imported elsewhere but not published is kept (#103)", async () => {
+		const env = fakeEnvironment();
+		// Another session imported a button and didn't publish it: the layer tables don't show it yet.
+		let pending: RibbonDiffParts | null = parseRibbonDiffParts(LAYER_XML);
+		pending.customActions.set(OTHER, otherXml);
+		const publish = env.publishXml;
+		env.publishXml = vi.fn(async () => {
+			if (pending) {
+				// PublishXml makes it part of the published layer.
+				const p = pending;
+				pending = null;
+				p.customActions.forEach((xml, id) => env.server.customActions.set(id, xml));
+			}
+			return publish();
+		});
+		// An import replaces what is pending (#103): only a publish before it keeps it.
+		const importSolution = env.importSolution;
+		env.importSolution = vi.fn(async (zip: string) => {
+			pending = null;
+			return importSolution(zip);
+		});
+		const { result } = await publishUnhide(env);
+		expect(env.calls.slice(0, env.calls.indexOf("import")).filter((c) => c === "publish")).toHaveLength(1);
+		// Merged in, not replaced: the other session's button and this session's unhide are both published.
+		expect(env.server.customActions.has(OTHER)).toBe(true);
+		expect(env.server.customActions.has("hide:cbs.HideEdit")).toBe(false);
+		expect(result.verification?.ok).toBe(true);
+	});
+
+	it("writes nothing, not even the publish first, when the merge refuses (#103)", async () => {
+		const env = fakeEnvironment();
+		// Unhiding a control the layer doesn't hide is refused before anything is written.
+		vi.resetModules();
+		const { publishRibbon } = await import("@/services/dataverse/publishService");
+		const parsed = parseRibbonXml(MERGED, "HomepageGrid", T);
+		await expect(
+			publishRibbon({
+				entity: { logicalName: T, schemaName: T },
+				locations: [{ current: parsed.ribbon, baseline: parsed.ribbon }],
+				commands: [],
+				enableRules: [],
+				displayRules: [],
+				locLabels: [],
+				plan: { editedCommandIds: [], editedEnableRuleIds: [], editedDisplayRuleIds: [], deletedButtonIds: ["cbs.NotInTheLayer"], unhiddenButtonIds: [] },
+				solution: SOLUTION,
+				busy: { sleep: async () => undefined },
+				verifyDelayMs: 0,
+			}),
+		).rejects.toThrow(/Can't delete cbs\.NotInTheLayer/);
+		expect(env.calls).not.toContain("publish");
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("waits for a running operation before publishing first, so an import still running is published (#103)", async () => {
+		const env = fakeEnvironment({ busyHistory: 1 });
+		await publishUnhide(env);
+		const firstPublish = env.calls.indexOf("publish");
+		expect(env.calls.lastIndexOf("query msdyn_solutionhistories", firstPublish)).toBeGreaterThanOrEqual(0);
+		expect(env.calls.slice(firstPublish).filter((c) => c === "query msdyn_solutionhistories")).toHaveLength(0);
+	});
+
+	it("imports nothing after waiting on another import: what it wrote may not be published yet (#103)", async () => {
+		const env = fakeEnvironment();
+		const importSolution = env.importSolution;
+		let busy = 1;
+		env.importSolution = vi.fn(async (zip: string) => {
+			env.calls.push("import");
+			if (busy-- > 0) throw new Error(BUSY_PREVIOUS);
+			return importSolution(zip);
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(
+			/may have changed in Dataverse since you started publishing: another solution import ran.*nothing was imported.*was published first/,
+		);
+		// Only the attempt that found the environment busy.
+		expect(env.importSolution).toHaveBeenCalledTimes(1);
+	});
+
+	it("doesn't import a second time after waiting on another import, and says so (#103)", async () => {
+		const env = fakeEnvironment();
+		const importSolution = env.importSolution;
+		let n = 0;
+		env.importSolution = vi.fn(async (zip: string) => {
+			if (++n === 2) throw new Error(BUSY_PREVIOUS);
+			return importSolution(zip);
+		});
+		const { result } = await publishUnhide(env);
+		expect(env.importSolution).toHaveBeenCalledTimes(2);
+		expect(result.verification?.ok).toBe(false);
+		expect(result.verification?.message).toMatch(/imported and published, but .*another solution import ran/);
+	});
+
+	it("says so when the publish first fails, and imports nothing (#103)", async () => {
+		const env = fakeEnvironment();
+		env.publishXml = vi.fn(async () => {
+			throw new Error("Publish went wrong.");
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(
+			/^Publishing cbstest_ribbontest first failed, so nothing was imported: Publish went wrong\.$/,
+		);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("explains a merge that fails only after the publish first (#103)", async () => {
+		const env = fakeEnvironment();
+		// Pending from elsewhere: the import removes the session's own button cbs.Go.
+		let pendingRemoval = true;
+		const publish = env.publishXml;
+		env.publishXml = vi.fn(async () => {
+			if (pendingRemoval) {
+				pendingRemoval = false;
+				env.server.customActions.delete("ca:cbs.Go.CustomAction");
+			}
+			return publish();
+		});
+		vi.resetModules();
+		const { publishRibbon } = await import("@/services/dataverse/publishService");
+		const parsed = parseRibbonXml(MERGED, "HomepageGrid", T);
+		await expect(
+			publishRibbon({
+				entity: { logicalName: T, schemaName: T },
+				locations: [{ current: parsed.ribbon, baseline: parsed.ribbon }],
+				commands: [],
+				enableRules: [],
+				displayRules: [],
+				locLabels: [],
+				plan: { editedCommandIds: [], editedEnableRuleIds: [], editedDisplayRuleIds: [], deletedButtonIds: ["cbs.Go"], unhiddenButtonIds: [] },
+				solution: SOLUTION,
+				busy: { sleep: async () => undefined },
+				verifyDelayMs: 0,
+			}),
+		).rejects.toThrow(
+			/cbstest_ribbontest's customizations changed when it was published first .*Can't delete cbs\.Go.*Reload the table.*was published first, so customizations imported elsewhere/,
+		);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("imports twice when nothing else changed the layer", async () => {
+		const env = fakeEnvironment();
+		const { result } = await publishUnhide(env);
+		expect(env.calls.filter((c) => c === "import")).toHaveLength(2);
+		expect(result.verification?.ok).toBe(true);
+	});
+});
+
+describe("the solution manifest keeps the solution's and publisher's details (#104)", () => {
+	const manifestOf = (base64Zip: string) => {
+		const bin = atob(base64Zip);
+		const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+		return new DOMParser().parseFromString(strFromU8(unzipSync(bytes)["solution.xml"]), "application/xml");
+	};
+
+	it("writes the description, e-mail, website, address and option-value prefix as they are", async () => {
+		const env = fakeEnvironment();
+		await publishUnhide(env);
+		const imports = env.execute.mock.calls
+			.map(([req]) => req as { operationName: string; parameters?: Record<string, string> })
+			.filter((r) => r.operationName === "ImportSolution");
+		expect(imports.length).toBeGreaterThan(0);
+		const doc = manifestOf(imports[0].parameters!.CustomizationFile);
+		const manifest = doc.querySelector("SolutionManifest")!;
+		const publisher = doc.querySelector("Publisher")!;
+		expect(manifest.querySelector(":scope > Descriptions > Description")?.getAttribute("description")).toBe("CBS Live Test");
+		expect(publisher.querySelector("Descriptions > Description")?.getAttribute("description")).toBe("Test publisher");
+		expect(publisher.querySelector("EMailAddress")?.textContent).toBe("pub@example.com");
+		expect(publisher.querySelector("SupportingWebsiteUrl")?.textContent).toBe("https://example.com");
+		expect(publisher.querySelector("CustomizationOptionValuePrefix")?.textContent).toBe("31337");
+		const address = publisher.querySelector("Addresses > Address")!;
+		expect(address.querySelector("AddressNumber")?.textContent).toBe("1");
+		expect(address.querySelector("Line1")?.textContent).toBe("1 Test Street");
+		expect(address.querySelector("City")?.textContent).toBe("Testville");
+		// Only one address has values.
+		expect(publisher.querySelectorAll("Addresses > Address")).toHaveLength(1);
+	});
+
+	it("keeps line breaks, special characters, number columns and address 2 as they are", async () => {
+		const env = fakeEnvironment();
+		const query = env.queryData.getMockImplementation()!;
+		env.queryData.mockImplementation((async (q: string) =>
+			q.startsWith("solutions")
+				? {
+						value: [
+							{
+								description: "Line 1\r\nLine 2\tend",
+								publisherid: {
+									description: "Pub",
+									emailaddress: "a&b@example.com",
+									supportingwebsiteurl: "https://example.com/?a=1&b=2",
+									customizationoptionvalueprefix: 31337,
+									address1_addresstypecode: 1,
+									address1_latitude: 47.6,
+									address1_line1: "1 \"Quoted\" Street",
+									address2_line1: "2 <Second> Road",
+									address2_city: "Otherton",
+								},
+							},
+						],
+					}
+				: query(q)) as never);
+		await publishUnhide(env);
+		const req = env.execute.mock.calls
+			.map(([r]) => r as { operationName: string; parameters?: Record<string, string> })
+			.find((r) => r.operationName === "ImportSolution")!;
+		const doc = manifestOf(req.parameters!.CustomizationFile);
+		expect(doc.querySelector("parsererror")).toBeNull();
+		expect(doc.querySelector("SolutionManifest > Descriptions > Description")?.getAttribute("description")).toBe(
+			"Line 1\r\nLine 2\tend",
+		);
+		const publisher = doc.querySelector("Publisher")!;
+		expect(publisher.querySelector("EMailAddress")?.textContent).toBe("a&b@example.com");
+		expect(publisher.querySelector("SupportingWebsiteUrl")?.textContent).toBe("https://example.com/?a=1&b=2");
+		const [one, two] = [...publisher.querySelectorAll("Addresses > Address")];
+		expect(one.querySelector("AddressTypeCode")?.textContent).toBe("1");
+		expect(one.querySelector("Latitude")?.textContent).toBe("47.6");
+		expect(one.querySelector("Line1")?.textContent).toBe('1 "Quoted" Street');
+		expect(two.querySelector("AddressNumber")?.textContent).toBe("2");
+		expect(two.querySelector("Line1")?.textContent).toBe("2 <Second> Road");
+		expect(two.querySelector("City")?.textContent).toBe("Otherton");
+	});
+
+	it("imports nothing when the solution and publisher can't be read", async () => {
+		const env = fakeEnvironment();
+		const query = env.queryData.getMockImplementation()!;
+		env.queryData.mockImplementation(async (q: string) => {
+			if (q.startsWith("solutions")) throw new Error("403 Forbidden");
+			return query(q);
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(
+			/Couldn't read solution CBSLiveTest and its publisher \(403 Forbidden\), so nothing was imported/,
+		);
+		expect(env.calls).not.toContain("import");
+		expect(env.calls).not.toContain("publish");
+	});
+
+	it("imports nothing when the solution isn't found, with a clear message", async () => {
+		const env = fakeEnvironment();
+		const query = env.queryData.getMockImplementation()!;
+		env.queryData.mockImplementation((async (q: string) => (q.startsWith("solutions") ? { value: [] } : query(q))) as never);
+		await expect(publishUnhide(env)).rejects.toThrow(/^Couldn't read solution CBSLiveTest and its publisher, so nothing was imported/);
+		expect(env.calls).not.toContain("import");
+	});
+
+	it("imports nothing when the publisher's option-value prefix is missing (never 10000)", async () => {
+		const env = fakeEnvironment();
+		const query = env.queryData.getMockImplementation()!;
+		env.queryData.mockImplementation((async (q: string) =>
+			q.startsWith("solutions") ? { value: [{ description: "", publisherid: { description: "" } }] } : query(q)) as never);
+		await expect(publishUnhide(env)).rejects.toThrow(/option-value prefix of publisher cbstest/);
+		expect(env.calls).not.toContain("import");
+	});
+});
+
+describe("the organization's base language is never assumed (#106)", () => {
+	it("a publish stops, writing nothing, when it can't be read", async () => {
+		const env = fakeEnvironment();
+		const query = env.queryData.getMockImplementation()!;
+		env.queryData.mockImplementation(async (q: string) => {
+			if (q.startsWith("organizations")) throw new Error("throttled");
+			return query(q);
+		});
+		await expect(publishUnhide(env)).rejects.toThrow(/Couldn't read the organization's base language \(throttled\)/);
+		expect(env.calls).not.toContain("import");
+		expect(env.calls).not.toContain("publish");
 	});
 });
 

@@ -1,3 +1,6 @@
+import type { LocLabel } from "@/types/ribbon";
+import { resolveDisplayLabel } from "@/utils/displayLabel";
+
 /**
  * Generates a $LocLabels: reference string for a LocLabel ID.
  */
@@ -82,6 +85,25 @@ export function buttonLocLabelIds(
 		tooltipTitle: refOr(source?.tooltipTitleToken, buttonTooltipTitleId(buttonId)),
 		tooltipBody: refOr(source?.tooltipBodyToken, buttonTooltipBodyId(buttonId)),
 	};
+}
+
+/**
+ * The LocLabel a text of a control is written to, as the generator writes it
+ * (#137): the label its `$LocLabels:` token names when that label is loaded;
+ * `null` for another solution's label (not loaded) while the text is as
+ * loaded — it's shared, and written back as it is; else the convention id.
+ */
+export function textLabelId(
+	token: string | undefined,
+	conventionId: string,
+	text: string | undefined,
+	locLabels: readonly LocLabel[],
+	lang = 1033,
+): string | null {
+	const id = token ? extractLocLabelId(token) : null;
+	if (!id) return conventionId;
+	if (locLabels.some((l) => l.id === id)) return id;
+	return (text ?? "") === resolveDisplayLabel(token, [...locLabels], lang) ? null : conventionId;
 }
 
 /**

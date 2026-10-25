@@ -46,17 +46,39 @@ function currentTheme(): "light" | "dark" {
 
 const dataverseAPI = createDataverseStub((input, init) => window.fetch(input, init));
 
+/** The harness org as a connection. */
+async function harnessConnection(): Promise<ToolBoxAPI.Connection> {
+	const { orgUrl } = await getHarnessInfo();
+	return {
+		id: "cbs-dev-harness",
+		name: `${new URL(orgUrl).hostname} (dev harness)`,
+		url: orgUrl,
+		environment: "Dev",
+	};
+}
+
+/**
+ * Simulating PPTB changing the tool's connection while it runs (#120): set via
+ * `window.cbsHarness.switchConnection({...})` in the browser console. The
+ * proxy still talks to the harness org, so use another id (and/or name,
+ * environment) for "another connection".
+ */
+let connectionOverride: ToolBoxAPI.Connection | null = null;
+const currentConnection = async () => connectionOverride ?? harnessConnection();
+type EventHandler = (
+	event: unknown,
+	payload: { event: string; data: unknown; timestamp: string },
+) => void;
+const eventHandlers = new Set<EventHandler>();
+function emitEvent(event: string, data: unknown = {}): void {
+	for (const handler of eventHandlers)
+		handler({}, { event, data, timestamp: new Date().toISOString() });
+}
+
 const toolboxAPI = {
 	connections: {
-		getActiveConnection: async (): Promise<ToolBoxAPI.Connection> => {
-			const { orgUrl } = await getHarnessInfo();
-			return {
-				id: "cbs-dev-harness",
-				name: `${new URL(orgUrl).hostname} (dev harness)`,
-				url: orgUrl,
-				environment: "Dev",
-			};
-		},
+		getActiveConnection: currentConnection,
+		getConnection: async (_slot: unknown) => currentConnection(),
 	},
 	utils: {
 		getCurrentTheme: async (): Promise<"light" | "dark"> => currentTheme(),
@@ -74,13 +96,37 @@ const toolboxAPI = {
 		},
 	},
 	events: {
-		on: (): (() => void) => () => undefined,
-		off: (): void => undefined,
+		on: (handler: EventHandler): void => {
+			eventHandlers.add(handler);
+		},
+		off: (handler: EventHandler): void => {
+			eventHandlers.delete(handler);
+		},
 	},
 };
 
 // The stubs implement only what CBS uses, so cast to the full host API types.
 window.toolboxAPI = toolboxAPI as unknown as ToolBoxAPI.API;
 window.dataverseAPI = dataverseAPI as unknown as DataverseAPI.API;
+
+/** Harness-only helpers for the browser console. */
+(window as unknown as { cbsHarness: unknown }).cbsHarness = {
+	/** As PPTB does when the tool's connection changes: the new connection, then `connection:updated`. */
+	async switchConnection(connection: Partial<ToolBoxAPI.Connection> | null): Promise<void> {
+		const harness = await harnessConnection();
+		connectionOverride = connection
+			? {
+					...harness,
+					id: "cbs-dev-harness-2",
+					name: "Other connection",
+					environment: "Production",
+					...connection,
+				}
+			: null;
+		emitEvent("connection:updated", { id: (connectionOverride ?? harness).id });
+	},
+	/** Raises any host event (e.g. a token refresh: "connection:updated"). */
+	emit: emitEvent,
+};
 
 console.info(LOG_PREFIX, "PPTB stub installed (toolboxAPI + dataverseAPI → /__dv proxy).");

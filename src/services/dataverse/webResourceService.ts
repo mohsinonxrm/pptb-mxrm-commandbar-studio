@@ -1,5 +1,6 @@
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { assertWorkspaceConnection, writeGuard, type WriteGuard } from "@/services/hostConnection";
 import type { WebResource, WebResourceType } from "@/types/webResource";
 import type { WebResourceStatus } from "@/services/xmlValidator";
 
@@ -94,6 +95,24 @@ export interface UpsertWebResourceOptions {
 	 * its content (it is still added to the solution).
 	 */
 	keepExisting?: boolean;
+	/**
+	 * Bound when the user acted (#120), so a connection switch while the
+	 * content is prepared can't send it to the new environment. Default: bound
+	 * when the save starts.
+	 */
+	guard?: WriteGuard;
+	/**
+	 * Asked when a web resource with this name already exists and `keepExisting`
+	 * isn't set (#121): replace its content, keep it as it is (it is still added
+	 * to the solution), or cancel (WebResourceSaveCancelled). A managed one can
+	 * only be kept or cancelled: replacing it is refused. Without this, an
+	 * existing one is replaced (the command editor saving the script it opened).
+	 */
+	onExisting?: (existing: {
+		id: string;
+		name: string;
+		managed: boolean;
+	}) => Promise<ExistingWebResourceChoice>;
 }
 
 export interface UpsertWebResourceResult {
@@ -118,7 +137,9 @@ export async function addWebResourceToSolution(
 	api: DataverseAPI.API,
 	webResourceId: string,
 	solutionUniqueName: string,
+	guard: WriteGuard = assertWorkspaceConnection,
 ): Promise<void> {
+	await guard("Adding the web resource to the solution");
 	await api.execute({
 		operationName: "AddSolutionComponent",
 		operationType: "action",
@@ -129,6 +150,17 @@ export async function addWebResourceToSolution(
 			AddRequiredComponents: false,
 		},
 	});
+}
+
+/** What to do with an existing web resource of the same name (#121). */
+export type ExistingWebResourceChoice = "replace" | "keep" | "cancel";
+
+/** The user chose not to replace an existing web resource: nothing was written. */
+export class WebResourceSaveCancelled extends Error {
+	constructor(name: string) {
+		super(`Web resource ${name} already exists; it was left as it is.`);
+		this.name = "WebResourceSaveCancelled";
+	}
 }
 
 /**
@@ -147,10 +179,13 @@ export async function upsertWebResource(
 	typeCode: number,
 	options: UpsertWebResourceOptions = {},
 ): Promise<UpsertWebResourceResult> {
-	const { displayName, solutionUniqueName, keepExisting = false } = options;
+	// The save and the add to the solution go to the connection the save started on (#120).
+	const guard = options.guard ?? writeGuard();
+	const { displayName, solutionUniqueName, onExisting } = options;
+	let keepExisting = options.keepExisting ?? false;
 	// Check whether it already exists
 	const existing = await api.queryData(
-		`webresourceset?$select=webresourceid&$filter=name eq '${name.replace(/'/g, "''")}'&$top=1`,
+		`webresourceset?$select=webresourceid,ismanaged&$filter=name eq '${name.replace(/'/g, "''")}'&$top=1`,
 	);
 
 	const payload: Record<string, unknown> = {
@@ -164,16 +199,32 @@ export async function upsertWebResource(
 	if (existing.value.length > 0) {
 		const rec = existing.value[0] as Record<string, unknown>;
 		const existingId = String(rec["webresourceid"] ?? "");
-		if (!keepExisting) await api.update("webresource", existingId, payload);
+		if (!keepExisting && onExisting) {
+			// An upload never replaces an existing web resource without asking (#121).
+			const managed = rec["ismanaged"] === true;
+			const choice = await onExisting({ id: existingId, name, managed });
+			if (choice === "cancel") throw new WebResourceSaveCancelled(name);
+			if (choice === "replace" && managed) {
+				throw new Error(
+					`A managed web resource named ${name} already exists, so it can't be replaced. Keep it, or rename the file and upload it again.`,
+				);
+			}
+			keepExisting = choice === "keep";
+		}
+		if (!keepExisting) {
+			await guard("Saving the web resource");
+			await api.update("webresource", existingId, payload);
+		}
 		result = { id: existingId, created: false, updated: !keepExisting };
 	} else {
+		await guard("Saving the web resource");
 		const created = await api.create("webresource", payload);
 		result = { id: String(created.id ?? ""), created: true, updated: false };
 	}
 
 	if (solutionUniqueName && result.id) {
 		try {
-			await addWebResourceToSolution(api, result.id, solutionUniqueName);
+			await addWebResourceToSolution(api, result.id, solutionUniqueName, guard);
 		} catch (err) {
 			throw new Error(
 				`Web resource ${name} was saved but could not be added to solution ` +
@@ -344,6 +395,7 @@ export async function saveWebResource(
 export async function addExistingWebResourceToActiveSolution(
 	name: string,
 	known?: { id: string; isCustom?: boolean },
+	guard: WriteGuard = assertWorkspaceConnection,
 ): Promise<{ solutionUniqueName?: string; solutionWarning?: string }> {
 	const found = known ?? (await loadWebResourceByName(name));
 	if (!found?.id) throw new Error(`No web resource named ${name} exists in this environment.`);
@@ -366,7 +418,7 @@ export async function addExistingWebResourceToActiveSolution(
 		useRuntimeLogStore.getState().logWarn("webresource", solutionWarning);
 		return { solutionWarning };
 	}
-	await addWebResourceToSolution(getHostDataverseApi(), id, active.uniqueName);
+	await addWebResourceToSolution(getHostDataverseApi(), id, active.uniqueName, guard);
 	return { solutionUniqueName: active.uniqueName };
 }
 
@@ -375,9 +427,13 @@ export async function addExistingWebResourceToActiveSolution(
  * created/updated icon is immediately live (and resolvable by a ribbon that
  * references it). Best-effort — callers should treat failure as non-fatal.
  */
-export async function publishWebResource(id: string): Promise<void> {
+export async function publishWebResource(
+	id: string,
+	guard: WriteGuard = assertWorkspaceConnection,
+): Promise<void> {
 	const api = getHostDataverseApi();
 	const parameterXml = `<importexportxml><webresources><webresource>${id}</webresource></webresources></importexportxml>`;
+	await guard("Publishing the web resource");
 	await api.execute({
 		operationName: "PublishXml",
 		operationType: "action",
