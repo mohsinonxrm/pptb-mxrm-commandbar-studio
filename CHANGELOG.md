@@ -150,6 +150,50 @@ It includes everything in 0.7.0-beta.3. Requires Power Platform ToolBox 1.2.7 or
 - **Command editor (#22):** removing an action no longer hands its card's state to the next
   one.
 
+## [0.7.0] - 2026-10-24
+
+Publish safety and correctness. A publish follows the connection and names the environment it
+writes to. It keeps changes made or imported elsewhere and the publisher's details, and cleans up
+exactly what a delete leaves unused. **Show on Unified Interface** now targets Unified Interface.
+This release is 0.7.0-beta.1 to beta.3, and their notes below are the full list. Requires Power
+Platform ToolBox 1.2.7 or later, as 0.6 does.
+
+### Highlights
+
+- **Safety:**
+  - A publish follows a PPTB connection change and never continues into the newly selected
+    environment (#120).
+  - Every write names its environment, and Production asks for a typed confirmation (#121).
+  - Uploads ask before replacing a web resource.
+- **Changes made elsewhere are kept:**
+  - A change published elsewhere during a publish isn't overwritten; the publish stops and says
+    what changed (#102).
+  - Ribbon changes imported elsewhere but not published are published first and kept (#103).
+- **Correctness:**
+  - The publisher's e-mail, website and addresses are kept (#104).
+  - The base language is never assumed (#106).
+  - Deletes clean up exactly what they leave unused (#108).
+  - Copies keep labels other solutions define (#137).
+  - An unreadable layer is reported, with Retry (#110).
+  - Dynamic flyouts can be published (#101).
+- **Unified Interface filter (#152):** **Show on Unified Interface (Modern)** adds
+  `Type="Modern"`. The old filter added `Refresh`, which hid the button in Unified Interface.
+- **Editor:**
+  - XML drawer Copy and Download work in both hosts (#122).
+  - Shortcuts work with Shift, Caps Lock and other keyboard layouts (#123).
+  - Drafts (#129) and the Tables list (#5) are fixed.
+  - Rename is offered only where it can be published (#33).
+- **Dependencies:** `npm audit` reports 0 vulnerabilities (#117).
+
+### ⚠️ Upgrading from 0.6.x
+
+- If you used **Show on Unified Interface (Refresh)**, the command has a
+  `<command id>.Refresh.DisplayRule`, and the button is hidden in Unified Interface. Click
+  **Show on Unified Interface (Modern)** to replace it, then publish (#152).
+- Nothing else changes: the PPTB requirement and the published format are the same.
+- **0.6.x is end of life:** 0.6.2 is deprecated on npm and gets no support window, since 0.7.0
+  needs the same PPTB (see `SECURITY.md`).
+
 ## [0.7.0-beta.3] - 2026-10-24
 
 The third beta of 0.7.0 (npm `beta`): one fix. The **Show on Unified Interface** filter added a
