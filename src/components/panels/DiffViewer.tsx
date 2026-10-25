@@ -16,7 +16,7 @@ import {
 } from "@fluentui/react-components";
 import { CheckmarkCircleRegular, DismissRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
-import { useRibbonStore } from "@/store/ribbonStore";
+import { hasPendingChanges, useRibbonStore } from "@/store/ribbonStore";
 import { generateRibbonDiffXml } from "@/services/xmlGenerator";
 import type { RibbonLocation } from "@/types/ribbon";
 
@@ -128,8 +128,19 @@ export const DiffViewer: React.FC = () => {
 	const closeDiffViewer = useUIStore((s) => s.closeDiffViewer);
 	const themeMode = useUIStore((s) => s.themeMode);
 	const [sideBySide, setSideBySide] = React.useState(true);
-	// Compare with nothing changed shows an empty state first (#195).
+	// Compare with nothing changed shows an empty state first (#195); the
+	// "show anyway" choice lasts for one opening.
 	const [showUnchanged, setShowUnchanged] = React.useState(false);
+	const [seenOpen, setSeenOpen] = React.useState(open);
+	if (seenOpen !== open) {
+		setSeenOpen(open);
+		if (open) setShowUnchanged(false);
+	}
+	// The generated XML can match while commands, rules or labels differ, so
+	// "no changes" comes from the store's own comparison with the baseline.
+	const nothingPending = useRibbonStore(
+		(s) => open && s.mutationsSincePublish === 0 && !hasPendingChanges(s),
+	);
 
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const baseline = useRibbonStore((s) => s.baseline);
@@ -216,7 +227,7 @@ export const DiffViewer: React.FC = () => {
 					overflow: "hidden",
 				}}
 			>
-				{mode === "compare" && !showUnchanged && baselineXml === currentXml ? (
+				{mode === "compare" && !showUnchanged && nothingPending ? (
 					<div className={styles.unchanged}>
 						<CheckmarkCircleRegular
 							fontSize={40}
