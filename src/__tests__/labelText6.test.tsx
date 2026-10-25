@@ -312,3 +312,52 @@ describe("#6: an imported group's caption comes from its Title token", () => {
 		]);
 	});
 });
+
+describe("#6 with a duplicated built-in group", () => {
+	it("the copy keeps the title token and reads like the original", async () => {
+		const { useRibbonStore } = await import("@/store/ribbonStore");
+		const MAIN = "Mscrm.HomepageGrid.contact.MainTab";
+		const empty = (location: "SubGrid" | "Form" | "Application") => ({
+			location,
+			entityLogicalName: "contact",
+			tabs: [],
+		});
+		const original = {
+			id: `${MAIN}.Actions`,
+			label: "$Resources:Ribbon.HomepageGrid.MainTab.Actions",
+			sequence: 10,
+			template: "Mscrm.Templates.Flexible2",
+			buttons: [],
+		};
+		useRibbonStore.getState().loadWorkspace({
+			ribbons: {
+				HomepageGrid: {
+					location: "HomepageGrid",
+					entityLogicalName: "contact",
+					tabs: [
+						{
+							id: MAIN,
+							label: "Main",
+							sequence: 10,
+							tabDisplayRules: [],
+							groups: [original],
+						},
+					],
+				},
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
+			commands: [],
+			displayRules: [],
+			enableRules: [],
+			locLabels: [],
+		});
+		useRibbonStore.getState().duplicateGroup("HomepageGrid", MAIN, original.id);
+		const [orig, copy] = useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups;
+		const caption = (g: typeof orig) =>
+			displayText(g.label, [], 1033, {}, g.source?.titleToken);
+		expect(caption(orig)).toBe("Actions");
+		expect(caption(copy)).toBe("Actions");
+	});
+});
