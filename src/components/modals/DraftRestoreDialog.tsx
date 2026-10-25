@@ -35,23 +35,32 @@ export function DraftRestoreDialog() {
 					<DialogTitle>Unpublished changes</DialogTitle>
 					<DialogContent>
 						<Text block>
-							You have unpublished changes to this table from a previous session (saved{" "}
-							{new Date(pending.savedAt).toLocaleString()}). Restore them on top of the ribbon as it is now, or
-							discard them?
+							You have unpublished changes to this table from a previous session
+							(saved {new Date(pending.savedAt).toLocaleString()}). Restore them on
+							top of the ribbon as it is now, or discard them?
 						</Text>
 						{baselineChanged && (
-							<MessageBar intent="warning" layout="multiline" style={{ marginTop: "12px" }}>
+							<MessageBar
+								intent="warning"
+								layout="multiline"
+								style={{ marginTop: "12px" }}
+							>
 								<MessageBarBody>
-									The table&apos;s ribbon has changed since then (published from another session, or by someone
-									else): review the publish plan before publishing.
+									The table&apos;s ribbon has changed since then (published from
+									another session, or by someone else): review the publish plan
+									before publishing.
 								</MessageBarBody>
 							</MessageBar>
 						)}
 						{restoreError && (
-							<MessageBar intent="error" layout="multiline" style={{ marginTop: "12px" }}>
+							<MessageBar
+								intent="error"
+								layout="multiline"
+								style={{ marginTop: "12px" }}
+							>
 								<MessageBarBody>
-									These changes couldn&apos;t be restored ({restoreError}). Discard them to continue; the details are
-									in the runtime log.
+									These changes couldn&apos;t be restored ({restoreError}).
+									Discard them to continue; the details are in the runtime log.
 								</MessageBarBody>
 							</MessageBar>
 						)}
@@ -60,7 +69,11 @@ export function DraftRestoreDialog() {
 						<Button appearance="secondary" onClick={discardDraft}>
 							Discard
 						</Button>
-						<Button appearance="primary" disabled={!!restoreError} onClick={() => restoreDraft()}>
+						<Button
+							appearance="primary"
+							disabled={!!restoreError}
+							onClick={() => restoreDraft()}
+						>
 							Restore
 						</Button>
 					</DialogActions>

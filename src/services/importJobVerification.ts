@@ -38,9 +38,16 @@ function summarize(results: string[]): RibbonImportVerification | null {
 	return null;
 }
 
-export function verifyRibbonImport(data: string | null | undefined, target: RibbonImportTarget): RibbonImportVerification {
+export function verifyRibbonImport(
+	data: string | null | undefined,
+	target: RibbonImportTarget,
+): RibbonImportVerification {
 	if (!data) {
-		return { ok: false, message: "The import job returned no result data, so the ribbon import could not be verified." };
+		return {
+			ok: false,
+			message:
+				"The import job returned no result data, so the ribbon import could not be verified.",
+		};
 	}
 
 	if (target.kind === "application") {
@@ -51,7 +58,12 @@ export function verifyRibbonImport(data: string | null | undefined, target: Ribb
 				message: "Import completed, but Dataverse did not process the application ribbon.",
 			};
 		}
-		return summarize(resultsAfter(data, i, "</ribbon>")) ?? { ok: true, message: "Application ribbon imported." };
+		return (
+			summarize(resultsAfter(data, i, "</ribbon>")) ?? {
+				ok: true,
+				message: "Application ribbon imported.",
+			}
+		);
 	}
 
 	const wanted = new Set(target.names.filter(Boolean).map((n) => n.toLowerCase()));
@@ -63,7 +75,12 @@ export function verifyRibbonImport(data: string | null | undefined, target: Ribb
 		if (attr(m[0], "processed") !== "true") {
 			return { ok: false, message: `Dataverse did not process the ribbon for ${id}.` };
 		}
-		return summarize(resultsAfter(data, m.index, "</entityRibbon>")) ?? { ok: true, message: `Ribbon for ${id} imported.` };
+		return (
+			summarize(resultsAfter(data, m.index, "</entityRibbon>")) ?? {
+				ok: true,
+				message: `Ribbon for ${id} imported.`,
+			}
+		);
 	}
 	return {
 		ok: false,

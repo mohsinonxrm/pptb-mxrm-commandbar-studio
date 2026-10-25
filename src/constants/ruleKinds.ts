@@ -167,7 +167,11 @@ export const DISPLAY_ONLY_RULE_TAGS = new Set<string>([
 export type RuleContainer = "enable" | "display";
 
 /** Whether a rule kind may be added to an enable / display rule (and inside an `<Or>`). */
-export function isRuleKindAllowed(kind: RuleKind, container: RuleContainer, insideOr = false): boolean {
+export function isRuleKindAllowed(
+	kind: RuleKind,
+	container: RuleContainer,
+	insideOr = false,
+): boolean {
 	if (kind === "RawRule") return false;
 	if (insideOr && kind === "OrRule") return false;
 	if (container === "enable") return !DISPLAY_ONLY_RULE_KINDS.has(kind);

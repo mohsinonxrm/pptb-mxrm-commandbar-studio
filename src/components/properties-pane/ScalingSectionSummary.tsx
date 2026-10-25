@@ -63,20 +63,25 @@ export const ScalingSectionSummary: React.FC = () => {
 				<Text size={200} weight="semibold">
 					Scaling
 				</Text>
-				<Button appearance="subtle" size="small" icon={<EditRegular />} onClick={openScalingEditor}>
+				<Button
+					appearance="subtle"
+					size="small"
+					icon={<EditRegular />}
+					onClick={openScalingEditor}
+				>
 					Edit scaling
 				</Button>
 			</div>
 
 			<div className={styles.warningNote}>
-				⚠ Scaling applies only to the Classic ribbon (Legacy client / Outlook list views). The
-				modern command bar (Unified Interface) ignores scaling.
+				⚠ Scaling applies only to the Classic ribbon (Legacy client / Outlook list views).
+				The modern command bar (Unified Interface) ignores scaling.
 			</div>
 
 			{tab ? (
 				<Text size={100} className={styles.note}>
-					Tab <strong>{tab.label}</strong> has {groupCount} group(s). Open the Scaling Editor to
-					configure MaxSize and Scale steps.
+					Tab <strong>{tab.label}</strong> has {groupCount} group(s). Open the Scaling
+					Editor to configure MaxSize and Scale steps.
 				</Text>
 			) : (
 				<Text size={100} className={styles.note}>

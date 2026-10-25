@@ -56,7 +56,11 @@ export interface RibbonTableRows {
 	/** `ribboncommands` */
 	commands: Array<{ command?: string | null; commanddefinition?: string | null }>;
 	/** `ribbonrules`: ruletype 1 Enable, 2 Trim (display), 3 Tab Selection (tab display). */
-	rules: Array<{ ruleid?: string | null; ruletype?: number | null; ruledefinition?: string | null }>;
+	rules: Array<{
+		ruleid?: string | null;
+		ruletype?: number | null;
+		ruledefinition?: string | null;
+	}>;
 }
 
 const serializer = () => new XMLSerializer();
@@ -200,7 +204,10 @@ export function partsFromRibbonTables(rows: RibbonTableRows): RibbonDiffParts {
  * keeps existing customizations (Ribbon Workbench, earlier CBS publishes, other
  * locations) alive across a publish.
  */
-export function mergeRibbonDiffParts(base: RibbonDiffParts, delta: RibbonDiffParts): RibbonDiffParts {
+export function mergeRibbonDiffParts(
+	base: RibbonDiffParts,
+	delta: RibbonDiffParts,
+): RibbonDiffParts {
 	const merged = emptyRibbonDiffParts();
 	for (const key of Object.keys(merged) as (keyof RibbonDiffParts)[]) {
 		for (const [id, xml] of base[key]) merged[key].set(id, xml);
@@ -273,13 +280,17 @@ export function stableElementXml(part: keyof RibbonDiffParts, xml: string): stri
 	if (part === "commandDefinitions") {
 		for (const fn of Array.from(el.getElementsByTagName("JavaScriptFunction"))) {
 			if (!isPlatformAction(fn)) continue;
-			fn.parentNode?.replaceChild(el.ownerDocument.createElement("PlatformJavaScriptFunction"), fn);
+			fn.parentNode?.replaceChild(
+				el.ownerDocument.createElement("PlatformJavaScriptFunction"),
+				fn,
+			);
 		}
 	}
 	if (part === "locLabels") {
 		for (const titles of Array.from(el.getElementsByTagName("Titles"))) {
 			const sorted = Array.from(titles.children).sort(
-				(a, b) => Number(a.getAttribute("languagecode")) - Number(b.getAttribute("languagecode")),
+				(a, b) =>
+					Number(a.getAttribute("languagecode")) - Number(b.getAttribute("languagecode")),
 			);
 			for (const t of sorted) titles.appendChild(t);
 		}
@@ -357,9 +368,11 @@ export function compareRibbonDiffParts(
 		for (const [id, xml] of expected[part]) {
 			const got = actual[part].get(id);
 			if (got === undefined) missing.push(`${part}:${id}`);
-			else if (content.has(`${part}:${id}`) && !landed(part, xml, got)) differing.push(`${part}:${id}`);
+			else if (content.has(`${part}:${id}`) && !landed(part, xml, got))
+				differing.push(`${part}:${id}`);
 		}
-		for (const id of actual[part].keys()) if (!expected[part].has(id)) unexpected.push(`${part}:${id}`);
+		for (const id of actual[part].keys())
+			if (!expected[part].has(id)) unexpected.push(`${part}:${id}`);
 	}
 	return { missing, unexpected, differing };
 }
@@ -450,11 +463,15 @@ const MENU_CONTAINER_TAGS = new Set(["Menu", "MenuSection", "Controls"]);
 function menuControlsWithin(ctrl: Element): Element[] {
 	if (ctrl.tagName === "Tab" || ctrl.tagName === "Group") return [];
 	return Array.from(ctrl.getElementsByTagName("*")).filter(
-		(d) => !MENU_CONTAINER_TAGS.has(d.tagName) && !!d.getAttribute("Id") && d.parentElement?.tagName === "Controls",
+		(d) =>
+			!MENU_CONTAINER_TAGS.has(d.tagName) &&
+			!!d.getAttribute("Id") &&
+			d.parentElement?.tagName === "Controls",
 	);
 }
 
-const isContainer = (el: Element | null | undefined): el is Element => el?.tagName === "Tab" || el?.tagName === "Group";
+const isContainer = (el: Element | null | undefined): el is Element =>
+	el?.tagName === "Tab" || el?.tagName === "Group";
 
 const escapeAttr = (v: string) =>
 	v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -465,13 +482,16 @@ const escapeAttr = (v: string) =>
  * with it inline — #58, #59).
  */
 function nestedControls(container: Element): Element[] {
-	return Array.from(container.getElementsByTagName("Controls")).flatMap((c) => Array.from(c.children));
+	return Array.from(container.getElementsByTagName("Controls")).flatMap((c) =>
+		Array.from(c.children),
+	);
 }
 
 /** The element with this Id inside `root` (including `root`). */
 function findById(root: Element, id: string): Element | null {
 	if (root.getAttribute("Id") === id) return root;
-	for (const d of Array.from(root.getElementsByTagName("*"))) if (d.getAttribute("Id") === id) return d;
+	for (const d of Array.from(root.getElementsByTagName("*")))
+		if (d.getAttribute("Id") === id) return d;
 	return null;
 }
 
@@ -494,7 +514,8 @@ export function ownControlIds(parts: RibbonDiffParts): Set<string> {
 	const out = new Set<string>();
 	for (const xml of parts.customActions.values()) {
 		const ca = elementOf(xml);
-		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location")))
+			continue;
 		const ctrl = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
 		const id = ctrl?.getAttribute("Id");
 		if (id) out.add(id);
@@ -525,19 +546,23 @@ export function ownControlIds(parts: RibbonDiffParts): Set<string> {
  * (#66 review m5); a container one child is folded into takes the rest of
  * its separate children too. Without `touched` everything is folded (reading).
  */
-export function foldIntoOwnContainers(customActions: ElementMap, touched?: ReadonlySet<string>): ElementMap {
+export function foldIntoOwnContainers(
+	customActions: ElementMap,
+	touched?: ReadonlySet<string>,
+): ElementMap {
 	const out = new Map(customActions);
 	const s = serializer();
 	// A container something is folded into is touched too, so the rest of its
 	// separate children follow (that repairs layers written before #59).
 	const hot = touched ? new Set(touched) : undefined;
-	for (let folded = true; folded; ) {
+	for (let folded = true; folded;) {
 		folded = false;
 		// Containers (tab / group id) → key of the CustomAction that adds them.
 		const host = new Map<string, string>();
 		for (const [key, xml] of out) {
 			const ca = elementOf(xml);
-			if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+			if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location")))
+				continue;
 			const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
 			if (!isContainer(root)) continue;
 			for (const el of [root, ...Array.from(root.getElementsByTagName("Group"))]) {
@@ -548,7 +573,9 @@ export function foldIntoOwnContainers(customActions: ElementMap, touched?: Reado
 		for (const [key, xml] of out) {
 			const ca = elementOf(xml);
 			if (ca.tagName !== "CustomAction") continue;
-			const m = /^(.+)\.(Controls|Groups|Scaling)\._children$/.exec(ca.getAttribute("Location") ?? "");
+			const m = /^(.+)\.(Controls|Groups|Scaling)\._children$/.exec(
+				ca.getAttribute("Location") ?? "",
+			);
 			const child = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
 			const hostKey = m ? host.get(m[1]) : undefined;
 			if (!m || !child || !hostKey || hostKey === key) continue;
@@ -556,7 +583,8 @@ export function foldIntoOwnContainers(customActions: ElementMap, touched?: Reado
 			const [, parentId, slot] = m;
 			const hostCa = elementOf(out.get(hostKey)!);
 			const container = findById(hostCa, parentId);
-			if (!container || container.tagName !== (slot === "Controls" ? "Group" : "Tab")) continue;
+			if (!container || container.tagName !== (slot === "Controls" ? "Group" : "Tab"))
+				continue;
 			const doc = hostCa.ownerDocument;
 			let slotEl = firstChild(container, slot);
 			if (!slotEl) {
@@ -570,7 +598,8 @@ export function foldIntoOwnContainers(customActions: ElementMap, touched?: Reado
 			const seq = ca.getAttribute("Sequence");
 			if (!imported.getAttribute("Sequence") && seq) imported.setAttribute("Sequence", seq);
 			// Scaling is applied in document order: every MaxSize before any Scale (#40).
-			const firstScale = imported.tagName === "MaxSize" ? firstChild(slotEl, "Scale") : undefined;
+			const firstScale =
+				imported.tagName === "MaxSize" ? firstChild(slotEl, "Scale") : undefined;
 			slotEl.insertBefore(imported, firstScale ?? null);
 			out.set(hostKey, s.serializeToString(hostCa));
 			hot?.add(hostKey);
@@ -602,7 +631,8 @@ export function ownContainerIds(parts: RibbonDiffParts): Set<string> {
 	const out = new Set<string>();
 	for (const xml of parts.customActions.values()) {
 		const ca = elementOf(xml);
-		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location")))
+			continue;
 		const ctrl = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
 		if (!ctrl || (ctrl.tagName !== "Tab" && ctrl.tagName !== "Group")) continue;
 		const id = ctrl.getAttribute("Id");
@@ -684,7 +714,10 @@ export function isPlatformRibbonId(id: string): boolean {
  * or one no control of the layer uses (so the controls using it come from
  * other solutions, which define it themselves).
  */
-export function canUncustomiseCommand(commandId: string, layerCommandRefIds: Iterable<string>): boolean {
+export function canUncustomiseCommand(
+	commandId: string,
+	layerCommandRefIds: Iterable<string>,
+): boolean {
 	if (isPlatformRibbonId(commandId)) return true;
 	for (const id of layerCommandRefIds) if (id === commandId) return false;
 	return true;
@@ -702,7 +735,8 @@ function childrenParent(location: string | null): string | null {
  * attribute edit doesn't delete the menu.
  */
 function withChildrenOf(replacement: Element, original: Element | null): Element {
-	if (!original || replacement.children.length > 0 || original.children.length === 0) return replacement;
+	if (!original || replacement.children.length > 0 || original.children.length === 0)
+		return replacement;
 	for (const child of Array.from(original.children)) {
 		replacement.appendChild(replacement.ownerDocument.importNode(child, true));
 	}
@@ -726,7 +760,11 @@ function copyAttributes(from: Element, to: Element): void {
  * commands and labels. Items for which `elsewhere(id)` holds are left out
  * (the layer adds them with CustomActions of their own).
  */
-function mergeMovedMenu(original: Element, imported: Element, elsewhere: (id: string) => boolean): Element {
+function mergeMovedMenu(
+	original: Element,
+	imported: Element,
+	elsewhere: (id: string) => boolean,
+): Element {
 	const layerMenu = directChildren(original, "Menu")[0];
 	const deltaMenu = directChildren(imported, "Menu")[0];
 	if (!layerMenu) {
@@ -738,7 +776,9 @@ function mergeMovedMenu(original: Element, imported: Element, elsewhere: (id: st
 	const menu = layerMenu.cloneNode(true) as Element;
 	const find = (tag: string | null, id: string) =>
 		[menu, ...Array.from(menu.getElementsByTagName("*"))].find(
-			(e) => e.getAttribute("Id") === id && (tag ? e.tagName === tag : e.parentElement?.tagName === "Controls"),
+			(e) =>
+				e.getAttribute("Id") === id &&
+				(tag ? e.tagName === tag : e.parentElement?.tagName === "Controls"),
 		);
 	if (deltaMenu) {
 		for (const section of Array.from(deltaMenu.getElementsByTagName("MenuSection"))) {
@@ -751,7 +791,10 @@ function mergeMovedMenu(original: Element, imported: Element, elsewhere: (id: st
 			if (!parentMenu) continue; // inside a new nested flyout: added with it below
 			const copy = section.cloneNode(true) as Element;
 			for (const item of Array.from(copy.getElementsByTagName("*"))) {
-				if (item.parentElement?.tagName === "Controls" && elsewhere(item.getAttribute("Id") ?? "")) {
+				if (
+					item.parentElement?.tagName === "Controls" &&
+					elsewhere(item.getAttribute("Id") ?? "")
+				) {
 					item.parentNode?.removeChild(item);
 				}
 			}
@@ -790,13 +833,16 @@ function labelsReferenced(customActions: Iterable<string>): Set<string> {
 		const root = elementOf(xml);
 		for (const el of [root, ...Array.from(root.getElementsByTagName("*"))])
 			for (const attr of Array.from(el.attributes))
-				if (attr.value.startsWith("$LocLabels:")) out.add(attr.value.slice("$LocLabels:".length));
+				if (attr.value.startsWith("$LocLabels:"))
+					out.add(attr.value.slice("$LocLabels:".length));
 	}
 	return out;
 }
 
 /** Rules the commands reference: `<EnableRule Id>` / `<DisplayRule Id>`, wherever `Id` sits (#108). */
-function rulesReferenced(commandDefinitions: Iterable<string>): Record<"EnableRule" | "DisplayRule", Set<string>> {
+function rulesReferenced(
+	commandDefinitions: Iterable<string>,
+): Record<"EnableRule" | "DisplayRule", Set<string>> {
 	const out = { EnableRule: new Set<string>(), DisplayRule: new Set<string>() };
 	for (const xml of commandDefinitions) {
 		const el = elementOf(xml);
@@ -878,7 +924,8 @@ export function mergeScopeChanges(
 		const ctrl = controlOf(xml);
 		const ctrlId = ctrl?.getAttribute("Id") ?? null;
 		const targetKey = ctrlId ? ownControl.get(ctrlId) : undefined;
-		const adds = ca.tagName === "CustomAction" && isChildrenLocation(ca.getAttribute("Location"));
+		const adds =
+			ca.tagName === "CustomAction" && isChildrenLocation(ca.getAttribute("Location"));
 		if (adds && ctrlId) readded.add(ctrlId);
 		const container = ctrl?.tagName === "Tab" || ctrl?.tagName === "Group";
 		if (adds && container) {
@@ -900,7 +947,8 @@ export function mergeScopeChanges(
 				}
 			}
 		}
-		const owned = ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !(adds && container);
+		const owned =
+			ca.tagName === "CustomAction" && ctrl && ctrlId && targetKey && !(adds && container);
 		const found = owned ? locate(targetKey!, ctrlId!) : null;
 		if (owned && found?.ca && found.el && found.nested) {
 			// A control written inside the layer's own tab / group. Edited → replaced
@@ -912,7 +960,10 @@ export function mergeScopeChanges(
 				el.parentNode!.removeChild(el);
 				merged.customActions.set(key, xml);
 			} else {
-				const imported = withChildrenOf(target.ownerDocument.importNode(ctrl!, true) as Element, el);
+				const imported = withChildrenOf(
+					target.ownerDocument.importNode(ctrl!, true) as Element,
+					el,
+				);
 				el.parentNode!.replaceChild(imported, el);
 			}
 			merged.customActions.set(targetKey!, s.serializeToString(target));
@@ -948,14 +999,16 @@ export function mergeScopeChanges(
 			original.parentNode!.replaceChild(imported, original);
 			if (!nested) {
 				if (adds) target.setAttribute("Location", ca.getAttribute("Location")!);
-				const seq = ctrl!.getAttribute("Sequence") ?? (adds ? ca.getAttribute("Sequence") : null);
+				const seq =
+					ctrl!.getAttribute("Sequence") ?? (adds ? ca.getAttribute("Sequence") : null);
 				if (seq) target.setAttribute("Sequence", seq);
 			}
 			merged.customActions.set(targetKey!, s.serializeToString(target));
 			continue;
 		}
 		const location = ca.getAttribute("Location");
-		const priorKey = ca.tagName === "CustomAction" && location ? overrideAt.get(location) : undefined;
+		const priorKey =
+			ca.tagName === "CustomAction" && location ? overrideAt.get(location) : undefined;
 		if (priorKey && ctrl) {
 			// The layer already overrides this control (e.g. a Ribbon Workbench
 			// customisation): replace that override instead of adding a second
@@ -993,7 +1046,9 @@ export function mergeScopeChanges(
 			// Already placed by the delta (written inside a new tab / group, #58).
 			if (readded.has(move.id)) continue;
 			// Never a silent no-op: the plan only moves controls the layer adds.
-			throw new Error(`Can't move ${move.id}: it isn't in this table's unmanaged customizations.`);
+			throw new Error(
+				`Can't move ${move.id}: it isn't in this table's unmanaged customizations.`,
+			);
 		}
 		const { ca, el: ctrl } = found;
 		const container = move.controlsId ?? `${move.groupId}.Controls`;
@@ -1007,7 +1062,9 @@ export function mergeScopeChanges(
 			// in the same CustomAction, otherwise into a CustomAction of its own
 			// (folded into the destination below when that is a container of the
 			// layer too).
-			const target = Array.from(ca.getElementsByTagName("Controls")).find((c) => c.getAttribute("Id") === container);
+			const target = Array.from(ca.getElementsByTagName("Controls")).find(
+				(c) => c.getAttribute("Id") === container,
+			);
 			ctrl.parentNode!.removeChild(ctrl);
 			if (target) target.appendChild(ctrl);
 			else {
@@ -1074,7 +1131,7 @@ export function mergeScopeChanges(
 		}
 		for (const m of xml.matchAll(LOC_LABEL_REF)) removedLabels.add(m[1]);
 	};
-	for (let changed = gone.size > 0; changed; ) {
+	for (let changed = gone.size > 0; changed;) {
 		changed = false;
 		for (const [key, xml] of Array.from(merged.customActions)) {
 			const el = elementOf(xml);
@@ -1105,7 +1162,10 @@ export function mergeScopeChanges(
 			// Groups (and their scaling) declared inline in a tab the layer adds.
 			const inline = Array.from(ctrl.getElementsByTagName("*")).filter((d) => {
 				if (d.tagName === "Group") return gone.has(d.getAttribute("Id") ?? "");
-				return (d.tagName === "MaxSize" || d.tagName === "Scale") && gone.has(d.getAttribute("GroupId") ?? "");
+				return (
+					(d.tagName === "MaxSize" || d.tagName === "Scale") &&
+					gone.has(d.getAttribute("GroupId") ?? "")
+				);
 			});
 			if (inline.length === 0) continue;
 			for (const d of inline) {
@@ -1120,10 +1180,14 @@ export function mergeScopeChanges(
 	// Children of the layer's own tabs / groups go inside them (#59) — only
 	// where this publish writes the child or its container (#66 review m5).
 	const touched = new Set<string>();
-	for (const [key, xml] of merged.customActions) if (existing.customActions.get(key) !== xml) touched.add(key);
+	for (const [key, xml] of merged.customActions)
+		if (existing.customActions.get(key) !== xml) touched.add(key);
 	merged.customActions = foldIntoOwnContainers(merged.customActions, touched);
 
-	const keepUnlessEdited = (key: "commandDefinitions" | "enableRules" | "displayRules", edited: Set<string>) => {
+	const keepUnlessEdited = (
+		key: "commandDefinitions" | "enableRules" | "displayRules",
+		edited: Set<string>,
+	) => {
 		for (const [id, xml] of delta[key]) {
 			if (existing[key].has(id) && !edited.has(id)) continue;
 			merged[key].set(id, xml);
@@ -1144,8 +1208,10 @@ export function mergeScopeChanges(
 		merged.commandDefinitions.delete(commandId);
 		const ownRules = rulesReferenced([cmdXml]);
 		const otherRules = rulesReferenced(merged.commandDefinitions.values());
-		for (const id of ownRules.EnableRule) if (!otherRules.EnableRule.has(id)) merged.enableRules.delete(id);
-		for (const id of ownRules.DisplayRule) if (!otherRules.DisplayRule.has(id)) merged.displayRules.delete(id);
+		for (const id of ownRules.EnableRule)
+			if (!otherRules.EnableRule.has(id)) merged.enableRules.delete(id);
+		for (const id of ownRules.DisplayRule)
+			if (!otherRules.DisplayRule.has(id)) merged.displayRules.delete(id);
 	}
 	// Uncustomised commands (#31): the layer's copy goes, and with it the
 	// layer's rules nothing else uses any more.
@@ -1165,7 +1231,9 @@ export function mergeScopeChanges(
 		for (const kind of ["EnableRule", "DisplayRule"] as const)
 			for (const id of ownRules[kind]) {
 				const rules = kind === "EnableRule" ? merged.enableRules : merged.displayRules;
-				const fromDelta = (kind === "EnableRule" ? delta.enableRules : delta.displayRules).has(id);
+				const fromDelta = (
+					kind === "EnableRule" ? delta.enableRules : delta.displayRules
+				).has(id);
 				if (fromDelta || retainedRules[kind].has(id) || otherRules[kind].has(id)) continue;
 				rules.delete(id);
 			}
@@ -1182,7 +1250,8 @@ export function mergeScopeChanges(
 	}
 	const tabCommandsInUse = commandsReferenced(merged.customActions.values());
 	for (const cmd of removedTabCommandCandidates) {
-		if (!delta.tabDisplayRules.has(cmd) && !tabCommandsInUse.has(cmd)) merged.tabDisplayRules.delete(cmd);
+		if (!delta.tabDisplayRules.has(cmd) && !tabCommandsInUse.has(cmd))
+			merged.tabDisplayRules.delete(cmd);
 	}
 	for (const cmd of options.removedTabCommands ?? []) {
 		if (!delta.tabDisplayRules.has(cmd)) merged.tabDisplayRules.delete(cmd);
@@ -1191,7 +1260,9 @@ export function mergeScopeChanges(
 	for (const [id, xml] of delta.locLabels) {
 		const prev = existing.locLabels.get(id);
 		if (prev) {
-			const titles = Array.from(elementOf(xml).querySelectorAll("Title")).map((t) => t.getAttribute("description"));
+			const titles = Array.from(elementOf(xml).querySelectorAll("Title")).map((t) =>
+				t.getAttribute("description"),
+			);
 			if (titles.length > 0 && titles.every((d) => d === id)) continue;
 		}
 		merged.locLabels.set(id, xml);
@@ -1207,11 +1278,16 @@ export function isOverrideCustomAction(xml: string): boolean {
 }
 
 /** Sets the Title of a tab / group the layer adds (inline in its CustomAction or a tab's). */
-export function setContainerTitle(parts: RibbonDiffParts, containerId: string, title: string): RibbonDiffParts {
+export function setContainerTitle(
+	parts: RibbonDiffParts,
+	containerId: string,
+	title: string,
+): RibbonDiffParts {
 	const out = mergeRibbonDiffParts(parts, emptyRibbonDiffParts());
 	for (const [key, xml] of out.customActions) {
 		const ca = elementOf(xml);
-		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location")))
+			continue;
 		const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
 		if (!isContainer(root)) continue;
 		const el = findById(root, containerId);
@@ -1253,11 +1329,13 @@ export function layerScalingSteps(parts: RibbonDiffParts): LayerScalingStep[] {
 		const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
 		if (!root) continue;
 		const m = /^(.+)\.Scaling\._children$/.exec(ca.getAttribute("Location") ?? "");
-		if (m && (root.tagName === "MaxSize" || root.tagName === "Scale")) out.push(step(root, m[1], key));
+		if (m && (root.tagName === "MaxSize" || root.tagName === "Scale"))
+			out.push(step(root, m[1], key));
 		if (root.tagName === "Tab" && isChildrenLocation(ca.getAttribute("Location"))) {
 			const tabId = root.getAttribute("Id") ?? "";
 			for (const el of Array.from(firstChild(root, "Scaling")?.children ?? [])) {
-				if (el.tagName === "MaxSize" || el.tagName === "Scale") out.push(step(el, tabId, key));
+				if (el.tagName === "MaxSize" || el.tagName === "Scale")
+					out.push(step(el, tabId, key));
 			}
 		}
 	}
@@ -1281,7 +1359,11 @@ export function normalizeLayerScaling(
 	const changes: ScalingChange[] = [];
 	const problems: string[] = [];
 	for (const [tabId, list] of byTab) {
-		const r = resequenceLayerScaling(tabId, platform[tabId] ?? { maxSizes: [], scales: [] }, list);
+		const r = resequenceLayerScaling(
+			tabId,
+			platform[tabId] ?? { maxSizes: [], scales: [] },
+			list,
+		);
 		changes.push(...r.changes);
 		problems.push(...r.problems);
 	}
@@ -1317,7 +1399,8 @@ export function applyPublishedLayer(def: RibbonDefinition, parts: RibbonDiffPart
 	const titles = new Map<string, string>();
 	for (const xml of parts.customActions.values()) {
 		const ca = elementOf(xml);
-		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location"))) continue;
+		if (ca.tagName !== "CustomAction" || !isChildrenLocation(ca.getAttribute("Location")))
+			continue;
 		const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
 		if (!isContainer(root)) continue;
 		for (const el of [root, ...Array.from(root.getElementsByTagName("Group"))]) {
@@ -1339,9 +1422,18 @@ export function applyPublishedLayer(def: RibbonDefinition, parts: RibbonDiffPart
 	for (const st of layerScalingSteps(parts)) {
 		if (!tabIds.has(st.tabId)) continue;
 		def.scalingByTab = def.scalingByTab ?? {};
-		const scaling = (def.scalingByTab[st.tabId] = def.scalingByTab[st.tabId] ?? { tabId: st.tabId, maxSizes: [], scales: [] });
+		const scaling = (def.scalingByTab[st.tabId] = def.scalingByTab[st.tabId] ?? {
+			tabId: st.tabId,
+			maxSizes: [],
+			scales: [],
+		});
 		const list = st.kind === "MaxSize" ? scaling.maxSizes : scaling.scales;
-		const step: ScaleStep = { id: st.id, groupId: st.groupId, size: st.size, sequence: st.sequence };
+		const step: ScaleStep = {
+			id: st.id,
+			groupId: st.groupId,
+			size: st.size,
+			sequence: st.sequence,
+		};
 		const i = list.findIndex((x) => x.id === st.id);
 		if (i >= 0) list[i] = step;
 		else list.push(step);

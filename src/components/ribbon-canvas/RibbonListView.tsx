@@ -167,7 +167,10 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 					<Text size={200} className={styles.clip} title={label}>
 						{label}
 					</Text>
-					<ClassicModernOverrideBadge overrides={modernOverrides.get(button.id)} appNames={modernAppNames} />
+					<ClassicModernOverrideBadge
+						overrides={modernOverrides.get(button.id)}
+						appNames={modernAppNames}
+					/>
 				</span>
 			),
 		}),
@@ -316,7 +319,11 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 						<DataGridRow<ButtonRow>
 							key={rowId}
 							style={style}
-							className={selectedButtonId === item.button.id ? styles.rowSelected : styles.row}
+							className={
+								selectedButtonId === item.button.id
+									? styles.rowSelected
+									: styles.row
+							}
 						>
 							{({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
 						</DataGridRow>

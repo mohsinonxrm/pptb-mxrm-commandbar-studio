@@ -161,8 +161,7 @@ export function TopBar() {
 				// fallback is only used by screen readers / option text.
 				children: sol.friendlyName || sol.uniqueName,
 				// Custom search text — friendly + unique names both searchable.
-				searchText:
-					`${sol.friendlyName ?? ""} ${sol.uniqueName ?? ""}`.toLowerCase(),
+				searchText: `${sol.friendlyName ?? ""} ${sol.uniqueName ?? ""}`.toLowerCase(),
 				solution: sol,
 			}));
 	}, [solutions]);
@@ -190,9 +189,7 @@ export function TopBar() {
 			</Option>
 		),
 		noOptionsMessage:
-			solutions.length === 0
-				? "Loading solutions…"
-				: "No solutions match the filter.",
+			solutions.length === 0 ? "Loading solutions…" : "No solutions match the filter.",
 	});
 
 	const handleOptionSelect: ComboboxProps["onOptionSelect"] = (_, data) => {
@@ -252,7 +249,10 @@ export function TopBar() {
 									appearance="tint"
 									color={activeSolution.isManaged ? "informative" : "success"}
 									size="small"
-									style={{ marginLeft: tokens.spacingHorizontalXS, flexShrink: 0 }}
+									style={{
+										marginLeft: tokens.spacingHorizontalXS,
+										flexShrink: 0,
+									}}
 								>
 									{activeSolution.isManaged ? "Managed" : "Unmanaged"}
 								</Badge>
@@ -266,7 +266,9 @@ export function TopBar() {
 									const prefix = activeSolution.publisherPrefix || "new";
 									const isDefault =
 										prefix === "new" ||
-										/^defaultpublisher/i.test(activeSolution.publisherUniqueName ?? "");
+										/^defaultpublisher/i.test(
+											activeSolution.publisherUniqueName ?? "",
+										);
 									return (
 										<Badge
 											appearance="tint"
@@ -277,7 +279,10 @@ export function TopBar() {
 													? `Imports will land under the org's default publisher "${prefix}". To use your own publisher, create a new solution in maker.powerapps.com bound to it.`
 													: `Publisher: ${activeSolution.publisherName || activeSolution.publisherUniqueName || prefix}`
 											}
-											style={{ marginLeft: tokens.spacingHorizontalXS, flexShrink: 0 }}
+											style={{
+												marginLeft: tokens.spacingHorizontalXS,
+												flexShrink: 0,
+											}}
 										>
 											{prefix}_
 										</Badge>

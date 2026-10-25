@@ -88,7 +88,8 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 	const button = findGroupControl(group, selectedButtonId);
 
 	const command = commands.find((c) => c.id === button?.commandId);
-	const ruleIds = kind === "display" ? (command?.displayRules ?? []) : (command?.enableRules ?? []);
+	const ruleIds =
+		kind === "display" ? (command?.displayRules ?? []) : (command?.enableRules ?? []);
 	const allRules = kind === "display" ? displayRules : enableRules;
 	const [selectedExistingRuleId, setSelectedExistingRuleId] = React.useState("");
 	const availableRules = allRules.filter((r) => !ruleIds.includes(r.id));
@@ -111,7 +112,11 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 
 		if (kind === "display") {
 			const existingIds = new Set(displayRules.map((r) => r.id));
-			const newRuleId = generateRuleId(ruleNameFromCommandId(command.id), "Display", existingIds);
+			const newRuleId = generateRuleId(
+				ruleNameFromCommandId(command.id),
+				"Display",
+				existingIds,
+			);
 			batch(() => {
 				upsertDisplayRule({ id: newRuleId, steps: [] });
 				upsertCommand({ ...command, displayRules: [...command.displayRules, newRuleId] });
@@ -137,7 +142,10 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 				displayRules: [...command.displayRules, selectedExistingRuleId],
 			});
 		} else {
-			upsertCommand({ ...command, enableRules: [...command.enableRules, selectedExistingRuleId] });
+			upsertCommand({
+				...command,
+				enableRules: [...command.enableRules, selectedExistingRuleId],
+			});
 		}
 		setSelectedExistingRuleId("");
 	};
@@ -164,7 +172,12 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 						<div key={ruleId} className={styles.pill}>
 							<span
 								className={styles.pillLabel}
-								onClick={() => openRuleEditor(ruleId, kind === "display" ? "display" : "enable")}
+								onClick={() =>
+									openRuleEditor(
+										ruleId,
+										kind === "display" ? "display" : "enable",
+									)
+								}
 								title={`${ruleId} — ${rule?.steps.length ?? 0} step(s)`}
 							>
 								{ruleId}
@@ -236,9 +249,9 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 
 			{kind === "enable" && (
 				<Text className={styles.note}>
-					Note: Disabled buttons are <strong>hidden</strong> in the modern command bar (Unified
-					Interface). In the classic ribbon (Legacy client), disabled buttons remain visible but do
-					not respond to clicks.
+					Note: Disabled buttons are <strong>hidden</strong> in the modern command bar
+					(Unified Interface). In the classic ribbon (Legacy client), disabled buttons
+					remain visible but do not respond to clicks.
 				</Text>
 			)}
 		</div>

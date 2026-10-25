@@ -1,6 +1,11 @@
 import { defaultTabId } from "@/utils/defaultTab";
 import { groupControls } from "@/utils/ribbonMenu";
-import type { CommandDefinition, RibbonButton, RibbonDefinition, RibbonLocation } from "@/types/ribbon";
+import type {
+	CommandDefinition,
+	RibbonButton,
+	RibbonDefinition,
+	RibbonLocation,
+} from "@/types/ribbon";
 
 /**
  * Overriding what opening a row of a table's grid does (#22): double-clicking
@@ -48,7 +53,8 @@ export function openRecordCommandUsers(ribbon: RibbonDefinition | undefined): Op
 	for (const tab of ribbon?.tabs ?? [])
 		for (const group of tab.groups)
 			for (const button of groupControls(group))
-				if (button.commandId === OPEN_RECORD_ITEM_COMMAND_ID) out.push({ tabId: tab.id, groupId: group.id, button });
+				if (button.commandId === OPEN_RECORD_ITEM_COMMAND_ID)
+					out.push({ tabId: tab.id, groupId: group.id, button });
 	return out;
 }
 
@@ -68,7 +74,9 @@ export function openRecordCarriers(ribbon: RibbonDefinition | undefined): OpenRe
  * publishing go by the origin the button was loaded with (#17), and the load
  * sets it for everything the layer adds (applyLayerOwnership).
  */
-export function openRecordCarrierOwnership(carrier: OpenRecordCarrier): "yours" | "unknown" | "theirs" {
+export function openRecordCarrierOwnership(
+	carrier: OpenRecordCarrier,
+): "yours" | "unknown" | "theirs" {
 	const origin = carrier.button.origin;
 	if (origin === "unmanaged") return "yours";
 	if (origin === undefined) return "unknown";
@@ -80,7 +88,9 @@ export function openRecordCarrierOwnership(carrier: OpenRecordCarrier): "yours" 
  * (where Microsoft's sample puts it) or else the tab's first group. Null when
  * the location has no group.
  */
-export function openRecordCarrierPlacement(ribbon: RibbonDefinition | undefined): { tabId: string; groupId: string } | null {
+export function openRecordCarrierPlacement(
+	ribbon: RibbonDefinition | undefined,
+): { tabId: string; groupId: string } | null {
 	const tabs = ribbon?.tabs ?? [];
 	const tabId = defaultTabId(tabs.filter((t) => t.groups.length > 0));
 	const tab = tabs.find((t) => t.id === tabId);
@@ -119,7 +129,10 @@ export function defaultOpenRecordCommand(): CommandDefinition {
 export function openRecordCommandProblem(cmd: CommandDefinition): string | null {
 	for (const a of cmd.actions) {
 		if (a.kind !== "javascript") continue;
-		const library = a.library.trim().replace(/^\$webresource:/i, "").trim();
+		const library = a.library
+			.trim()
+			.replace(/^\$webresource:/i, "")
+			.trim();
 		if (!library || !a.functionName.trim()) {
 			return `${OPEN_RECORD_ITEM_COMMAND_ID} has a JavaScript action without a web resource or function — set them in the Command Editor, or turn the override off`;
 		}

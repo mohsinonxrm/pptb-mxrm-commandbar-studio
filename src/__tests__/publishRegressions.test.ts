@@ -99,15 +99,20 @@ function buttonIn(def: RibbonDefinition, id: string) {
 	return def.tabs[0].groups[0].buttons.find((b) => b.id === id)!;
 }
 
-function publishXml(baseline: RibbonDefinition, current: RibbonDefinition, parsed = load(), plan = planScope({
-	locations: [{ current, baseline }],
-	commands: parsed.commands,
-	baselineCommands: load().commands,
-	enableRules: parsed.enableRules,
-	baselineEnableRules: load().enableRules,
-	displayRules: parsed.displayRules,
-	baselineDisplayRules: load().displayRules,
-})) {
+function publishXml(
+	baseline: RibbonDefinition,
+	current: RibbonDefinition,
+	parsed = load(),
+	plan = planScope({
+		locations: [{ current, baseline }],
+		commands: parsed.commands,
+		baselineCommands: load().commands,
+		enableRules: parsed.enableRules,
+		baselineEnableRules: load().enableRules,
+		displayRules: parsed.displayRules,
+		baselineDisplayRules: load().displayRules,
+	}),
+) {
 	const delta = parseRibbonDiffParts(
 		generateRibbonDiffXml({
 			current,
@@ -144,9 +149,13 @@ describe("D1 — captions survive an edit after reload", () => {
 		buttonIn(cur, "rw.contact.Existing.Button").tooltipTitle = "New tooltip";
 		const { doc } = publishXml(base, cur);
 		const btn = doc.querySelector('Button[Id="rw.contact.Existing.Button"]')!;
-		expect(btn.getAttribute("LabelText")).toBe("$LocLabels:rw.contact.Existing.Button.LabelText");
+		expect(btn.getAttribute("LabelText")).toBe(
+			"$LocLabels:rw.contact.Existing.Button.LabelText",
+		);
 		const loc = doc.querySelector('LocLabel[Id="rw.contact.Existing.Button.LabelText"]')!;
-		expect(loc.querySelector('Title[languagecode="1033"]')?.getAttribute("description")).toBe("Pre-existing (RW)");
+		expect(loc.querySelector('Title[languagecode="1033"]')?.getAttribute("description")).toBe(
+			"Pre-existing (RW)",
+		);
 		expect(loc.querySelector('Title[languagecode="1031"]')).not.toBeNull();
 	});
 
@@ -155,7 +164,9 @@ describe("D1 — captions survive an edit after reload", () => {
 			'<RibbonDiffXml><LocLabels><LocLabel Id="rw.contact.Existing.Button.LabelText"><Titles><Title languagecode="1033" description="rw.contact.Existing.Button.LabelText"/></Titles></LocLabel></LocLabels></RibbonDiffXml>',
 		);
 		const merged = mergeScopeChanges(LAYER, delta);
-		expect(merged.locLabels.get("rw.contact.Existing.Button.LabelText")).toContain("Pre-existing (RW)");
+		expect(merged.locLabels.get("rw.contact.Existing.Button.LabelText")).toContain(
+			"Pre-existing (RW)",
+		);
 	});
 
 	it("an out-of-the-box override keeps $Resources labels, icons and unmodelled attributes", () => {
@@ -177,8 +188,8 @@ describe("D2 — edits to own buttons replace them in place", () => {
 		const cur = clone(base);
 		buttonIn(cur, "rw.contact.Existing.Button").tooltipTitle = "New tooltip";
 		const { doc } = publishXml(base, cur);
-		const defining = Array.from(doc.querySelectorAll("CustomAction")).filter(
-			(ca) => ca.querySelector('Button[Id="rw.contact.Existing.Button"]'),
+		const defining = Array.from(doc.querySelectorAll("CustomAction")).filter((ca) =>
+			ca.querySelector('Button[Id="rw.contact.Existing.Button"]'),
 		);
 		expect(defining).toHaveLength(1);
 		expect(defining[0].getAttribute("Id")).toBe("rw.contact.Existing.Button.CustomAction");
@@ -193,7 +204,9 @@ describe("D2 — edits to own buttons replace them in place", () => {
 		const cur = clone(base);
 		buttonIn(cur, "Mscrm.HomepageGrid.contact.NewRecord").tooltipTitle = "x";
 		const { doc } = publishXml(base, cur);
-		const locs = Array.from(doc.querySelectorAll("CustomActions > CustomAction")).map((c) => c.getAttribute("Location")!);
+		const locs = Array.from(doc.querySelectorAll("CustomActions > CustomAction")).map((c) =>
+			c.getAttribute("Location")!,
+		);
 		const firstOverride = locs.findIndex((l) => !l.endsWith("._children"));
 		expect(locs.slice(firstOverride).every((l) => !l.endsWith("._children"))).toBe(true);
 	});
@@ -205,7 +218,9 @@ describe("D3/D5 — commands and rules", () => {
 		const cur = clone(base);
 		buttonIn(cur, "rw.contact.Existing.Button").tooltipTitle = "New tooltip";
 		const { doc } = publishXml(base, cur);
-		const rule = doc.querySelector('RuleDefinitions EnableRule[Id="rw.contact.Custom"] CustomRule')!;
+		const rule = doc.querySelector(
+			'RuleDefinitions EnableRule[Id="rw.contact.Custom"] CustomRule',
+		)!;
 		expect(rule.querySelector('StringParameter[Value="p"]')).not.toBeNull();
 		expect(rule.querySelector('CrmParameter[Value="PrimaryControl"]')).not.toBeNull();
 	});
@@ -215,18 +230,33 @@ describe("D3/D5 — commands and rules", () => {
 		const parsed = load();
 		parsed.commands = parsed.commands.map((c) =>
 			c.id === "rw.contact.Existing.Command"
-				? { ...c, actions: [{ kind: "javascript", library: "$webresource:x.js", functionName: "X.changed", params: [] }] }
+				? {
+						...c,
+						actions: [
+							{
+								kind: "javascript",
+								library: "$webresource:x.js",
+								functionName: "X.changed",
+								params: [],
+							},
+						],
+					}
 				: c,
 		);
-		const { doc, plan } = publishXml(base, clone(base), parsed, planScope({
-			locations: [{ current: base, baseline: base }],
-			commands: parsed.commands,
-			baselineCommands: load().commands,
-			enableRules: parsed.enableRules,
-			baselineEnableRules: load().enableRules,
-			displayRules: parsed.displayRules,
-			baselineDisplayRules: load().displayRules,
-		}));
+		const { doc, plan } = publishXml(
+			base,
+			clone(base),
+			parsed,
+			planScope({
+				locations: [{ current: base, baseline: base }],
+				commands: parsed.commands,
+				baselineCommands: load().commands,
+				enableRules: parsed.enableRules,
+				baselineEnableRules: load().enableRules,
+				displayRules: parsed.displayRules,
+				baselineDisplayRules: load().displayRules,
+			}),
+		);
 		expect(plan.hasChanges).toBe(true);
 		expect(plan.editedCommandIds).toEqual(["rw.contact.Existing.Command"]);
 		// The modal/publishService add edited commands to the delta; here we check
@@ -245,7 +275,9 @@ describe("D5 — deletes, un-hides and unsupported changes", () => {
 		const base = load().ribbon;
 		buttonIn(base, "rw.contact.Existing.Button").origin = "unmanaged";
 		const cur = clone(base);
-		cur.tabs[0].groups[0].buttons = cur.tabs[0].groups[0].buttons.filter((b) => b.id !== "rw.contact.Existing.Button");
+		cur.tabs[0].groups[0].buttons = cur.tabs[0].groups[0].buttons.filter(
+			(b) => b.id !== "rw.contact.Existing.Button",
+		);
 		const { doc, plan } = publishXml(base, cur);
 		expect(plan.deletedButtonIds).toEqual(["rw.contact.Existing.Button"]);
 		expect(doc.querySelector('Button[Id="rw.contact.Existing.Button"]')).toBeNull();
@@ -278,7 +310,9 @@ describe("D5 — deletes, un-hides and unsupported changes", () => {
 		const { plan } = publishXml(base, cur);
 		expect(plan.movedButtons.map((m) => m.id)).toEqual(["rw.contact.Existing.Button"]);
 		expect(plan.unsupported.some((u) => u.includes("re-ordering"))).toBe(false);
-		expect(plan.unsupported.some((u) => u.includes("Mscrm.HomepageGrid.contact.NewRecord"))).toBe(true);
+		expect(
+			plan.unsupported.some((u) => u.includes("Mscrm.HomepageGrid.contact.NewRecord")),
+		).toBe(true);
 	});
 
 	it("reports moves of buttons from other solutions as unsupported", () => {
@@ -311,7 +345,13 @@ describe("D6 — only published scopes are marked as published", () => {
 	it("keeps pending changes in locations that were not published", () => {
 		const s = useRibbonStore.getState();
 		const ribbons = clone(s.ribbons);
-		ribbons.Application.tabs.push({ id: "app.tab", label: "App", sequence: 1, tabDisplayRules: [], groups: [] });
+		ribbons.Application.tabs.push({
+			id: "app.tab",
+			label: "App",
+			sequence: 1,
+			tabDisplayRules: [],
+			groups: [],
+		});
 		buttonIn(ribbons.HomepageGrid, "rw.contact.Existing.Button").tooltipTitle = "x";
 		useRibbonStore.setState({ ribbons, mutationsSincePublish: 2 });
 
@@ -338,12 +378,36 @@ describe("phantom changes found in live testing", () => {
 			location: "Application",
 			entityLogicalName: "",
 			tabs: [
-				{ id: "Mscrm.GlobalTab", label: "Global", sequence: 1, tabDisplayRules: [], groups: [
-					{ id: "Mscrm.GlobalTab.New", label: "New", sequence: 1, template: "t", buttons: [btn("Email (global)")] },
-				] },
-				{ id: "Mscrm.QuickForm.MainTab", label: "Quick", sequence: 2, tabDisplayRules: [], groups: [
-					{ id: "Mscrm.QuickForm.MainTab.Actions", label: "Actions", sequence: 1, template: "t", buttons: [btn("Email (quick)")] },
-				] },
+				{
+					id: "Mscrm.GlobalTab",
+					label: "Global",
+					sequence: 1,
+					tabDisplayRules: [],
+					groups: [
+						{
+							id: "Mscrm.GlobalTab.New",
+							label: "New",
+							sequence: 1,
+							template: "t",
+							buttons: [btn("Email (global)")],
+						},
+					],
+				},
+				{
+					id: "Mscrm.QuickForm.MainTab",
+					label: "Quick",
+					sequence: 2,
+					tabDisplayRules: [],
+					groups: [
+						{
+							id: "Mscrm.QuickForm.MainTab.Actions",
+							label: "Actions",
+							sequence: 1,
+							template: "t",
+							buttons: [btn("Email (quick)")],
+						},
+					],
+				},
 			],
 		} as unknown as RibbonDefinition;
 	};
@@ -353,27 +417,73 @@ describe("phantom changes found in live testing", () => {
 		const cur = clone(base);
 		const plan = planScope({
 			locations: [{ current: cur, baseline: base }],
-			commands: [], baselineCommands: [], enableRules: [], baselineEnableRules: [], displayRules: [], baselineDisplayRules: [],
+			commands: [],
+			baselineCommands: [],
+			enableRules: [],
+			baselineEnableRules: [],
+			displayRules: [],
+			baselineDisplayRules: [],
 		});
 		expect(plan.hasChanges).toBe(false);
 		expect(plan.unsupported).toEqual([]);
 		const xml = generateRibbonDiffXml({
-			current: cur, baseline: base, commands: [], enableRules: [], displayRules: [], locLabels: [],
-			entityLogicalName: "", location: "Application",
+			current: cur,
+			baseline: base,
+			commands: [],
+			enableRules: [],
+			displayRules: [],
+			locLabels: [],
+			entityLogicalName: "",
+			location: "Application",
 		});
 		expect(xml).not.toContain("<CustomAction ");
 	});
 
 	it("an EnableRule and a DisplayRule sharing an id are not reported as edited", () => {
-		const enableRules = [{ id: "Mscrm.CanWritePrimary", steps: [{ kind: "RecordPrivilegeRule", privilegeType: "Write", appliesTo: "PrimaryEntity", invertResult: false }] }];
-		const displayRules = [{ id: "Mscrm.CanWritePrimary", steps: [{ kind: "EntityPrivilegeRule", privilegeType: "Write", privilegeDepth: "Basic", appliesTo: "PrimaryEntity", invertResult: false }] }];
+		const enableRules = [
+			{
+				id: "Mscrm.CanWritePrimary",
+				steps: [
+					{
+						kind: "RecordPrivilegeRule",
+						privilegeType: "Write",
+						appliesTo: "PrimaryEntity",
+						invertResult: false,
+					},
+				],
+			},
+		];
+		const displayRules = [
+			{
+				id: "Mscrm.CanWritePrimary",
+				steps: [
+					{
+						kind: "EntityPrivilegeRule",
+						privilegeType: "Write",
+						privilegeDepth: "Basic",
+						appliesTo: "PrimaryEntity",
+						invertResult: false,
+					},
+				],
+			},
+		];
 		const def = appRibbon();
-		const commands = [{ id: "MailApp.ViewEmailActivity", enableRules: ["Mscrm.CanWritePrimary"], displayRules: ["Mscrm.CanWritePrimary"], actions: [] }];
+		const commands = [
+			{
+				id: "MailApp.ViewEmailActivity",
+				enableRules: ["Mscrm.CanWritePrimary"],
+				displayRules: ["Mscrm.CanWritePrimary"],
+				actions: [],
+			},
+		];
 		const plan = planScope({
 			locations: [{ current: clone(def), baseline: def }],
-			commands: commands as never, baselineCommands: clone(commands) as never,
-			enableRules: enableRules as never, baselineEnableRules: clone(enableRules) as never,
-			displayRules: displayRules as never, baselineDisplayRules: clone(displayRules) as never,
+			commands: commands as never,
+			baselineCommands: clone(commands) as never,
+			enableRules: enableRules as never,
+			baselineEnableRules: clone(enableRules) as never,
+			displayRules: displayRules as never,
+			baselineDisplayRules: clone(displayRules) as never,
 		});
 		expect(plan.editedEnableRuleIds).toEqual([]);
 		expect(plan.editedDisplayRuleIds).toEqual([]);

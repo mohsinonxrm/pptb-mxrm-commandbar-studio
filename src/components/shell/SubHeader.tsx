@@ -78,7 +78,8 @@ export function SubHeader() {
 			{/* Dirty count */}
 			{mutationsSincePublish > 0 && (
 				<Badge appearance="tint" color="warning">
-					{mutationsSincePublish} change{mutationsSincePublish !== 1 ? "s" : ""} since publish
+					{mutationsSincePublish} change{mutationsSincePublish !== 1 ? "s" : ""} since
+					publish
 				</Badge>
 			)}
 
@@ -96,7 +97,12 @@ export function SubHeader() {
 			<Button appearance="subtle" size="small" icon={<CodeRegular />} onClick={openXmlDrawer}>
 				RibbonDiffXml
 			</Button>
-			<Button appearance="subtle" size="small" icon={<ArrowSwapRegular />} onClick={() => openImportXml()}>
+			<Button
+				appearance="subtle"
+				size="small"
+				icon={<ArrowSwapRegular />}
+				onClick={() => openImportXml()}
+			>
 				Import / Export
 			</Button>
 			<Button

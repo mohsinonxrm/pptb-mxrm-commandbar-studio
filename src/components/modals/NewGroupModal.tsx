@@ -72,7 +72,11 @@ export const NewGroupModal: React.FC = () => {
 						<Button appearance="secondary" onClick={closeNewGroup}>
 							Cancel
 						</Button>
-						<Button appearance="primary" onClick={handleCreate} disabled={!label.trim()}>
+						<Button
+							appearance="primary"
+							onClick={handleCreate}
+							disabled={!label.trim()}
+						>
 							Create group
 						</Button>
 					</DialogActions>

@@ -177,7 +177,9 @@ export function BottomPanel() {
 		const q = displayRulesFilter.toLowerCase().trim();
 		if (!q) return displayRules;
 		return displayRules.filter(
-			(r) => r.id.toLowerCase().includes(q) || r.steps.some((s) => s.kind.toLowerCase().includes(q)),
+			(r) =>
+				r.id.toLowerCase().includes(q) ||
+				r.steps.some((s) => s.kind.toLowerCase().includes(q)),
 		);
 	}, [displayRules, displayRulesFilter]);
 
@@ -185,7 +187,9 @@ export function BottomPanel() {
 		const q = enableRulesFilter.toLowerCase().trim();
 		if (!q) return enableRules;
 		return enableRules.filter(
-			(r) => r.id.toLowerCase().includes(q) || r.steps.some((s) => s.kind.toLowerCase().includes(q)),
+			(r) =>
+				r.id.toLowerCase().includes(q) ||
+				r.steps.some((s) => s.kind.toLowerCase().includes(q)),
 		);
 	}, [enableRules, enableRulesFilter]);
 
@@ -265,7 +269,8 @@ export function BottomPanel() {
 					selectedValue={activeBottomTab}
 					onTabSelect={(_, d) =>
 						setActiveBottomTab(
-							d.value as "commands" | "displayRules" | "enableRules" | "history" | "console",
+							d.value as
+								"commands" | "displayRules" | "enableRules" | "history" | "console",
 						)
 					}
 					size="small"
@@ -309,8 +314,12 @@ export function BottomPanel() {
 									style={{ minWidth: 0, flex: 1, maxWidth: 360 }}
 								/>
 								{commandsFilter && (
-									<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-										{filteredCommands.length} match{filteredCommands.length !== 1 ? "es" : ""}
+									<Text
+										size={100}
+										style={{ color: tokens.colorNeutralForeground3 }}
+									>
+										{filteredCommands.length} match
+										{filteredCommands.length !== 1 ? "es" : ""}
 									</Text>
 								)}
 							</div>
@@ -334,7 +343,10 @@ export function BottomPanel() {
 													onClick={() => openCommandEditor(cmd.id)}
 													role="button"
 													tabIndex={0}
-													onKeyDown={(e) => e.key === "Enter" && openCommandEditor(cmd.id)}
+													onKeyDown={(e) =>
+														e.key === "Enter" &&
+														openCommandEditor(cmd.id)
+													}
 												>
 													{cmd.id}
 												</span>
@@ -350,24 +362,39 @@ export function BottomPanel() {
 																	? "Fx"
 																	: a.kind === "customApi"
 																		? "API"
-																		: a.kind === "outlookCommand"
+																		: a.kind ===
+																			  "outlookCommand"
 																			? "Outlook"
 																			: "XML"}
 													</span>
 												))}
 												{cmd.actions.length === 0 && (
-													<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+													<Text
+														size={100}
+														style={{
+															color: tokens.colorNeutralForeground3,
+														}}
+													>
 														—
 													</Text>
 												)}
 											</td>
 											<td className={styles.td}>
 												{cmd.enableRules.map((r) => (
-													<Tooltip key={r} content={r} relationship="label">
+													<Tooltip
+														key={r}
+														content={r}
+														relationship="label"
+													>
 														<span
 															className={styles.chip}
-															style={{ cursor: "pointer", color: tokens.colorBrandForeground1 }}
-															onClick={() => openRuleEditor(r, "enable")}
+															style={{
+																cursor: "pointer",
+																color: tokens.colorBrandForeground1,
+															}}
+															onClick={() =>
+																openRuleEditor(r, "enable")
+															}
 														>
 															{r.split(".").pop()}
 														</span>
@@ -376,11 +403,20 @@ export function BottomPanel() {
 											</td>
 											<td className={styles.td}>
 												{cmd.displayRules.map((r) => (
-													<Tooltip key={r} content={r} relationship="label">
+													<Tooltip
+														key={r}
+														content={r}
+														relationship="label"
+													>
 														<span
 															className={styles.chip}
-															style={{ cursor: "pointer", color: tokens.colorBrandForeground1 }}
-															onClick={() => openRuleEditor(r, "display")}
+															style={{
+																cursor: "pointer",
+																color: tokens.colorBrandForeground1,
+															}}
+															onClick={() =>
+																openRuleEditor(r, "display")
+															}
 														>
 															{r.split(".").pop()}
 														</span>
@@ -391,7 +427,11 @@ export function BottomPanel() {
 												<Badge
 													size="small"
 													appearance="tint"
-													color={commandRefs[cmd.id] ? "brand" : "informative"}
+													color={
+														commandRefs[cmd.id]
+															? "brand"
+															: "informative"
+													}
 												>
 													{commandRefs[cmd.id] ?? 0}
 												</Badge>
@@ -433,7 +473,10 @@ export function BottomPanel() {
 									style={{ minWidth: 0, flex: 1, maxWidth: 360 }}
 								/>
 								{displayRulesFilter && (
-									<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+									<Text
+										size={100}
+										style={{ color: tokens.colorNeutralForeground3 }}
+									>
 										{filteredDisplayRules.length} match
 										{filteredDisplayRules.length !== 1 ? "es" : ""}
 									</Text>
@@ -470,7 +513,10 @@ export function BottomPanel() {
 									style={{ minWidth: 0, flex: 1, maxWidth: 360 }}
 								/>
 								{enableRulesFilter && (
-									<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+									<Text
+										size={100}
+										style={{ color: tokens.colorNeutralForeground3 }}
+									>
 										{filteredEnableRules.length} match
 										{filteredEnableRules.length !== 1 ? "es" : ""}
 									</Text>
@@ -500,8 +546,12 @@ export function BottomPanel() {
 										style={{ minWidth: 0, flex: 1, maxWidth: 360 }}
 									/>
 									{historyFilter && (
-										<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-											{filteredHistory.length} match{filteredHistory.length !== 1 ? "es" : ""}
+										<Text
+											size={100}
+											style={{ color: tokens.colorNeutralForeground3 }}
+										>
+											{filteredHistory.length} match
+											{filteredHistory.length !== 1 ? "es" : ""}
 										</Text>
 									)}
 								</div>
@@ -525,11 +575,19 @@ export function BottomPanel() {
 												<div className={styles.historyAvatar} aria-hidden>
 													<PersonRegular
 														fontSize={12}
-														style={{ color: tokens.colorBrandForeground1 }}
+														style={{
+															color: tokens.colorBrandForeground1,
+														}}
 													/>
 												</div>
 												<div className={styles.historyContent}>
-													<div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+													<div
+														style={{
+															display: "flex",
+															alignItems: "baseline",
+															gap: 6,
+														}}
+													>
 														<Text size={200} weight="semibold">
 															{entry.op}
 														</Text>
@@ -537,23 +595,42 @@ export function BottomPanel() {
 															— <strong>{entry.target}</strong>
 														</Text>
 														{entry.detail && (
-															<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+															<Text
+																size={100}
+																style={{
+																	color: tokens.colorNeutralForeground3,
+																}}
+															>
 																{entry.detail}
 															</Text>
 														)}
 													</div>
 													<div
-														style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}
+														style={{
+															display: "flex",
+															alignItems: "center",
+															gap: 8,
+															marginTop: 2,
+														}}
 													>
-														<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+														<Text
+															size={100}
+															style={{
+																color: tokens.colorNeutralForeground3,
+															}}
+														>
 															{resolveHistoryUserName(entry)} ·{" "}
-															{new Date(entry.ts).toLocaleTimeString()}
+															{new Date(
+																entry.ts,
+															).toLocaleTimeString()}
 														</Text>
 														<Button
 															appearance="subtle"
 															size="small"
 															icon={<BranchCompareRegular />}
-															onClick={() => openDiffViewer("history")}
+															onClick={() =>
+																openDiffViewer("history")
+															}
 														>
 															View diff
 														</Button>
@@ -592,13 +669,16 @@ export function BottomPanel() {
 											.slice()
 											.reverse()
 											.map((entry) => {
-												const time = new Date(entry.ts).toLocaleTimeString();
+												const time = new Date(
+													entry.ts,
+												).toLocaleTimeString();
 												return `${entry.scope} ${time}\n[${entry.level.toUpperCase()}]\n${entry.message}`;
 											})
 											.join("\n\n");
 										// Host first, browser fallback; a failure is logged (#122).
 										void copyText(text).then((r) => {
-											if (!r.ok) logWarn("ui", `Couldn't copy the log: ${r.error}.`);
+											if (!r.ok)
+												logWarn("ui", `Couldn't copy the log: ${r.error}.`);
 										});
 									}}
 									title="Copy all log entries to clipboard"
@@ -611,7 +691,10 @@ export function BottomPanel() {
 							</div>
 							<div>
 								{runtimeEntries.length === 0 ? (
-									<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+									<Text
+										size={200}
+										style={{ color: tokens.colorNeutralForeground3 }}
+									>
 										No runtime diagnostics yet.
 									</Text>
 								) : (
@@ -681,7 +764,10 @@ function RulesTable({ rules, kind, ruleRefs, onEdit, styles }: RulesTableProps) 
 								</span>
 							))}
 							{r.steps.length > 3 && (
-								<span className={styles.chip} style={{ color: tokens.colorNeutralForeground3 }}>
+								<span
+									className={styles.chip}
+									style={{ color: tokens.colorNeutralForeground3 }}
+								>
 									+{r.steps.length - 3}
 								</span>
 							)}

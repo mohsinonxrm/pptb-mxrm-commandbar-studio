@@ -95,13 +95,16 @@ describe("#151 provenance from the managed ribbondiffs", () => {
 					],
 				};
 			}
-			if (q.startsWith("solutions")) return { value: [{ solutionid: SALES, uniquename: "msdynce_Sales" }] };
+			if (q.startsWith("solutions"))
+				return { value: [{ solutionid: SALES, uniquename: "msdynce_Sales" }] };
 			throw new Error(`unexpected ${q}`);
 		};
 		const map = await fetchRibbonProvenance("account");
 		expect(map.get("AIBuilder.account.Flyout")?.solutionName).toBe("msdynce_Sales");
 		// The application ribbon keeps the token.
-		expect(map.get("AIBuilder.{!EntityLogicalName}.Flyout")?.solutionName).toBe("msdynce_Sales");
+		expect(map.get("AIBuilder.{!EntityLogicalName}.Flyout")?.solutionName).toBe(
+			"msdynce_Sales",
+		);
 	});
 
 	it("a control System adds and another managed solution redefines is that solution's", async () => {

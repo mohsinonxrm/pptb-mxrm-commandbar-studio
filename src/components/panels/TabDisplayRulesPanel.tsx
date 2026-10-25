@@ -130,7 +130,9 @@ export const TabDisplayRulesPanel: React.FC = () => {
 		}
 		for (const [index, step] of steps.entries()) {
 			if (step.kind === "PageRule" && !isApplication) {
-				setValidationError(`Step ${index + 1}: a page rule is only valid on application ribbon tabs.`);
+				setValidationError(
+					`Step ${index + 1}: a page rule is only valid on application ribbon tabs.`,
+				);
 				return;
 			}
 			if (step.kind === "PageRule" && !step.address.trim()) {
@@ -141,13 +143,19 @@ export const TabDisplayRulesPanel: React.FC = () => {
 
 		setValidationError(null);
 		// A new tab's rule without a TabCommand is bound to the tab's Command when it's published.
-		setTabDisplayRules(location, tabId, steps.length > 0 ? [{ tabCommand: tab.commandId ?? "", rules: steps }] : []);
+		setTabDisplayRules(
+			location,
+			tabId,
+			steps.length > 0 ? [{ tabCommand: tab.commandId ?? "", rules: steps }] : [],
+		);
 		closeTabDisplayRules();
 	};
 
 	// A table's tab is already limited to that table: it, or any.
 	const tableOptions = (step: EntityStep) => [
-		...new Set([ribbon.entityLogicalName, step.entityName].filter((n): n is string => Boolean(n))),
+		...new Set(
+			[ribbon.entityLogicalName, step.entityName].filter((n): n is string => Boolean(n)),
+		),
 	];
 
 	return (
@@ -182,8 +190,9 @@ export const TabDisplayRulesPanel: React.FC = () => {
 					<MessageBar intent="info">
 						<MessageBarBody>
 							<Text size={200}>
-								Tabs are <strong>hidden by default</strong>. A tab&apos;s display rule says where it&apos;s
-								shown, and is bound to the tab&apos;s Command.
+								Tabs are <strong>hidden by default</strong>. A tab&apos;s display
+								rule says where it&apos;s shown, and is bound to the tab&apos;s
+								Command.
 							</Text>
 						</MessageBarBody>
 					</MessageBar>
@@ -196,10 +205,15 @@ export const TabDisplayRulesPanel: React.FC = () => {
 							{tab.commandId && (
 								<Text
 									size={200}
-									style={{ color: tokens.colorNeutralForeground3, display: "block" }}
+									style={{
+										color: tokens.colorNeutralForeground3,
+										display: "block",
+									}}
 								>
 									Command ID:{" "}
-									<code style={{ fontFamily: tokens.fontFamilyMonospace }}>{tab.commandId}</code>
+									<code style={{ fontFamily: tokens.fontFamilyMonospace }}>
+										{tab.commandId}
+									</code>
 								</Text>
 							)}
 						</div>
@@ -209,15 +223,17 @@ export const TabDisplayRulesPanel: React.FC = () => {
 						<MessageBar intent="warning">
 							<MessageBarBody>
 								<Text size={200}>
-									This tab isn&apos;t added by your customizations, so its display rule can&apos;t be
-									changed here.
+									This tab isn&apos;t added by your customizations, so its display
+									rule can&apos;t be changed here.
 								</Text>
 							</MessageBarBody>
 						</MessageBar>
 					)}
 
 					{steps.length === 0 && (
-						<Text style={{ color: tokens.colorNeutralForeground3, textAlign: "center" }}>
+						<Text
+							style={{ color: tokens.colorNeutralForeground3, textAlign: "center" }}
+						>
 							{readOnly
 								? "This tab has no display rule of its own."
 								: isNewTab && !isApplication
@@ -253,7 +269,9 @@ export const TabDisplayRulesPanel: React.FC = () => {
 											}}
 										>
 											<option value="EntityRule">Entity Rule</option>
-											{isApplication && <option value="PageRule">Page Rule</option>}
+											{isApplication && (
+												<option value="PageRule">Page Rule</option>
+											)}
 										</Select>
 									</Field>
 
@@ -267,13 +285,18 @@ export const TabDisplayRulesPanel: React.FC = () => {
 													onChange={(_, d) =>
 														updateStep(si, {
 															...step,
-															appliesTo: (d.value || undefined) as EntityStep["appliesTo"],
+															appliesTo: (d.value ||
+																undefined) as EntityStep["appliesTo"],
 														})
 													}
 												>
 													<option value="">Any</option>
-													<option value="PrimaryEntity">Primary entity</option>
-													<option value="SelectedEntity">Selected entity</option>
+													<option value="PrimaryEntity">
+														Primary entity
+													</option>
+													<option value="SelectedEntity">
+														Selected entity
+													</option>
 												</Select>
 											</Field>
 											<Field label="Context" style={{ minWidth: "160px" }}>
@@ -284,15 +307,22 @@ export const TabDisplayRulesPanel: React.FC = () => {
 													onChange={(_, d) =>
 														updateStep(si, {
 															...step,
-															context: (d.value || undefined) as EntityStep["context"],
+															context: (d.value ||
+																undefined) as EntityStep["context"],
 														})
 													}
 												>
 													<option value="">Any</option>
 													<option value="Form">Form</option>
-													<option value="HomePageGrid">Home Page Grid</option>
-													<option value="SubGridStandard">SubGrid Standard</option>
-													<option value="SubGridAssociated">SubGrid Associated</option>
+													<option value="HomePageGrid">
+														Home Page Grid
+													</option>
+													<option value="SubGridStandard">
+														SubGrid Standard
+													</option>
+													<option value="SubGridAssociated">
+														SubGrid Associated
+													</option>
 												</Select>
 											</Field>
 											{isApplication ? (
@@ -301,7 +331,12 @@ export const TabDisplayRulesPanel: React.FC = () => {
 														size="small"
 														value={step.entityName ?? ""}
 														disabled={readOnly}
-														onChange={(_, d) => updateStep(si, { ...step, entityName: d.value || undefined })}
+														onChange={(_, d) =>
+															updateStep(si, {
+																...step,
+																entityName: d.value || undefined,
+															})
+														}
 														placeholder="any"
 													/>
 												</Field>
@@ -311,7 +346,12 @@ export const TabDisplayRulesPanel: React.FC = () => {
 														size="small"
 														value={step.entityName ?? ""}
 														disabled={readOnly}
-														onChange={(_, d) => updateStep(si, { ...step, entityName: d.value || undefined })}
+														onChange={(_, d) =>
+															updateStep(si, {
+																...step,
+																entityName: d.value || undefined,
+															})
+														}
 													>
 														<option value="">Any</option>
 														{tableOptions(step).map((name) => (
@@ -331,7 +371,9 @@ export const TabDisplayRulesPanel: React.FC = () => {
 												size="small"
 												value={step.address}
 												disabled={readOnly}
-												onChange={(_, d) => updateStep(si, { ...step, address: d.value })}
+												onChange={(_, d) =>
+													updateStep(si, { ...step, address: d.value })
+												}
 												placeholder="https://…"
 											/>
 										</Field>
@@ -350,7 +392,12 @@ export const TabDisplayRulesPanel: React.FC = () => {
 						</div>
 					)}
 
-					<Button appearance="subtle" icon={<AddRegular />} onClick={addStep} disabled={readOnly || !tab}>
+					<Button
+						appearance="subtle"
+						icon={<AddRegular />}
+						onClick={addStep}
+						disabled={readOnly || !tab}
+					>
 						Add step
 					</Button>
 

@@ -21,8 +21,12 @@ describe("fluentIconWebResourceName", () => {
 
 	it("keeps the names already created in the org for regular icons", () => {
 		expect(fluentIconWebResourceName("cbstest", "Add")).toBe("cbstest_/icons/cbs/add.svg");
-		expect(fluentIconWebResourceName("cbstest", "Shield")).toBe("cbstest_/icons/cbs/shield.svg");
-		expect(fluentIconWebResourceName("cbstest", "StarFilled")).toBe("cbstest_/icons/cbs/star_filled.svg");
+		expect(fluentIconWebResourceName("cbstest", "Shield")).toBe(
+			"cbstest_/icons/cbs/shield.svg",
+		);
+		expect(fluentIconWebResourceName("cbstest", "StarFilled")).toBe(
+			"cbstest_/icons/cbs/star_filled.svg",
+		);
 	});
 
 	it("never maps the filled variant of one icon onto another icon's regular name", () => {
@@ -55,7 +59,8 @@ describe("fluentIconWebResourceName", () => {
 
 describe("ensureFluentIconWebResource", () => {
 	const SVG = '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>';
-	const BUSY = "0x80071151: Cannot start another [Publish] because there is a previous [Import] running at this moment.";
+	const BUSY =
+		"0x80071151: Cannot start another [Publish] because there is a previous [Import] running at this moment.";
 	const setup = (created: boolean) => {
 		let clock = 0;
 		return {
@@ -106,7 +111,12 @@ describe("ensureFluentIconWebResource", () => {
 	it("does not republish a web resource already published in this session", async () => {
 		const { toSvg, deps } = setup(true);
 		await ensureFluentIconWebResource("Add", "regular", "cbstest", toSvg, deps);
-		deps.save.mockResolvedValueOnce({ id: "wr-1", created: false, updated: false, solutionUniqueName: "CBSLiveTest" });
+		deps.save.mockResolvedValueOnce({
+			id: "wr-1",
+			created: false,
+			updated: false,
+			solutionUniqueName: "CBSLiveTest",
+		});
 		await ensureFluentIconWebResource("Add", "regular", "cbstest", toSvg, deps);
 		expect(deps.save).toHaveBeenCalledTimes(2); // still re-added to the solution
 		expect(deps.publish).toHaveBeenCalledTimes(1);
@@ -134,7 +144,12 @@ describe("ensureFluentIconWebResource", () => {
 		// Next pick: the row exists (created=false) but was never published.
 		deps.publish.mockReset();
 		deps.publish.mockResolvedValue(undefined);
-		deps.save.mockResolvedValueOnce({ id: "wr-1", created: false, updated: false, solutionUniqueName: "CBSLiveTest" });
+		deps.save.mockResolvedValueOnce({
+			id: "wr-1",
+			created: false,
+			updated: false,
+			solutionUniqueName: "CBSLiveTest",
+		});
 		const second = await ensureFluentIconWebResource("Add", "regular", "cbstest", toSvg, deps);
 		expect(second.created).toBe(false);
 		expect(second.publishError).toBeUndefined();
@@ -144,14 +159,21 @@ describe("ensureFluentIconWebResource", () => {
 	it("publishes on the next pick when adding the new web resource to the solution failed", async () => {
 		const { toSvg, deps } = setup(true);
 		deps.save.mockRejectedValueOnce(
-			new Error("Web resource x was saved but could not be added to solution CBSLiveTest: 0x80040216"),
+			new Error(
+				"Web resource x was saved but could not be added to solution CBSLiveTest: 0x80040216",
+			),
 		);
-		await expect(ensureFluentIconWebResource("Add", "regular", "cbstest", toSvg, deps)).rejects.toThrow(
-			/could not be added to solution/,
-		);
+		await expect(
+			ensureFluentIconWebResource("Add", "regular", "cbstest", toSvg, deps),
+		).rejects.toThrow(/could not be added to solution/);
 		expect(deps.publish).not.toHaveBeenCalled();
 
-		deps.save.mockResolvedValueOnce({ id: "wr-1", created: false, updated: false, solutionUniqueName: "CBSLiveTest" });
+		deps.save.mockResolvedValueOnce({
+			id: "wr-1",
+			created: false,
+			updated: false,
+			solutionUniqueName: "CBSLiveTest",
+		});
 		const res = await ensureFluentIconWebResource("Add", "regular", "cbstest", toSvg, deps);
 		expect(res.created).toBe(false);
 		expect(deps.publish).toHaveBeenCalledWith("wr-1", undefined);
@@ -178,9 +200,18 @@ describe("ensureFluentIconWebResource", () => {
 
 	it("saves and publishes on the connection the icon was picked on (#120)", async () => {
 		const guard = vi.fn(async () => undefined);
-		const save = vi.fn(async (_n: string, _c: string, _t: number, _o: unknown) => ({ id: "wr-9", created: true, updated: false }));
+		const save = vi.fn(async (_n: string, _c: string, _t: number, _o: unknown) => ({
+			id: "wr-9",
+			created: true,
+			updated: false,
+		}));
 		const publish = vi.fn(async () => undefined);
-		await ensureFluentIconWebResource("Add", "regular", "cbs", async () => "<svg/>", { save, publish, guard, published: new Set() });
+		await ensureFluentIconWebResource("Add", "regular", "cbs", async () => "<svg/>", {
+			save,
+			publish,
+			guard,
+			published: new Set(),
+		});
 		expect(save.mock.calls[0][3]).toMatchObject({ guard });
 		expect(publish).toHaveBeenCalledWith("wr-9", guard);
 	});

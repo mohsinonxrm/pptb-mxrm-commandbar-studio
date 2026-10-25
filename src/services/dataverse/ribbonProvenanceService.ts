@@ -104,7 +104,11 @@ export async function fetchRibbonProvenance(
 				.map((solutionId) => solutionCache.get(solutionId))
 				.find((s) => s && s.uniqueName !== SYSTEM_SOLUTION);
 			if (!solution) continue;
-			result.set(id, { origin: "managed", solutionName: solution.uniqueName, publisherName: solution.publisherName });
+			result.set(id, {
+				origin: "managed",
+				solutionName: solution.uniqueName,
+				publisherName: solution.publisherName,
+			});
 		}
 		logs.logInfo(
 			"provenance",
@@ -163,7 +167,10 @@ export async function fetchManagedLocLabels(entityLogicalName: string): Promise<
 		}
 		useRuntimeLogStore
 			.getState()
-			.logInfo("provenance", `${labels.length} label text(s) from managed solutions for ${entityLogicalName}.`);
+			.logInfo(
+				"provenance",
+				`${labels.length} label text(s) from managed solutions for ${entityLogicalName}.`,
+			);
 		return labels;
 	} catch (e) {
 		useRuntimeLogStore

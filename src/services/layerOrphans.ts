@@ -54,7 +54,14 @@ export interface LayerOrphan {
 }
 
 /** Control elements the ribbon parser models (xmlParser CONTROL_TAGS): anything else is never on the canvas. */
-const CONTROL_TAGS = new Set(["Button", "FlyoutAnchor", "SplitButton", "TextBox", "ComboBox", "CheckBox"]);
+const CONTROL_TAGS = new Set([
+	"Button",
+	"FlyoutAnchor",
+	"SplitButton",
+	"TextBox",
+	"ComboBox",
+	"CheckBox",
+]);
 const CONTAINER_TAGS = new Set(["Tab", "Group"]);
 const CHILDREN = /^(.+)\._children$/;
 
@@ -79,16 +86,21 @@ export function resolveEntityToken(id: string, entityLogicalName: string | undef
  * doesn't keep their collections' ids; ribbonDiffMerge assumes the same).
  * With `entityLogicalName`, ids are keyed with the token resolved.
  */
-export function ribbonPlaces(defs: Iterable<RibbonDefinition>, entityLogicalName?: string): Map<string, string> {
+export function ribbonPlaces(
+	defs: Iterable<RibbonDefinition>,
+	entityLogicalName?: string,
+): Map<string, string> {
 	const places = new Map<string, string>();
-	const put = (id: string, tabId: string) => places.set(resolveEntityToken(id, entityLogicalName), tabId);
+	const put = (id: string, tabId: string) =>
+		places.set(resolveEntityToken(id, entityLogicalName), tabId);
 	for (const def of defs)
 		for (const tab of def.tabs) {
 			put(`${tab.id}.Groups`, tab.id);
 			for (const group of tab.groups) {
 				put(`${group.id}.Controls`, tab.id);
 				for (const control of groupControls(group))
-					for (const section of control.menu?.sections ?? []) put(section.controlsId, tab.id);
+					for (const section of control.menu?.sections ?? [])
+						put(section.controlsId, tab.id);
 			}
 		}
 	return places;
@@ -111,7 +123,9 @@ function loadedIds(defs: Iterable<RibbonDefinition>, entityLogicalName: string):
 
 /** Ids of every element inside `el`, itself included. */
 function idsWithin(el: Element): string[] {
-	return [el, ...Array.from(el.getElementsByTagName("*"))].flatMap((d) => d.getAttribute("Id") ?? []);
+	return [el, ...Array.from(el.getElementsByTagName("*"))].flatMap(
+		(d) => d.getAttribute("Id") ?? [],
+	);
 }
 
 interface Candidate {
@@ -151,7 +165,10 @@ export function findLayerOrphans(
 	const norm = (id: string) => resolveEntityToken(id, entityLogicalName);
 	const loaded = loadedIds(defs, entityLogicalName);
 	const places = ribbonPlaces(defs, entityLogicalName);
-	const hidden = [...hideActionsOf(parts).map((h) => h.location), ...(options.otherHides ?? [])].map(norm);
+	const hidden = [
+		...hideActionsOf(parts).map((h) => h.location),
+		...(options.otherHides ?? []),
+	].map(norm);
 	const hiddenSet = new Set(hidden);
 	// What is written inside an element the layer adds that is hidden (a group
 	// of a hidden tab keeps its own id, e.g. Ribbon Workbench's).
@@ -162,15 +179,23 @@ export function findLayerOrphans(
 	for (const ca of docs) {
 		if (ca.tagName !== "CustomAction") continue;
 		for (const el of Array.from(ca.getElementsByTagName("*"))) {
-			if (hiddenSet.has(norm(el.getAttribute("Id") ?? ""))) idsWithin(el).forEach((id) => insideHidden.add(norm(id)));
+			if (hiddenSet.has(norm(el.getAttribute("Id") ?? "")))
+				idsWithin(el).forEach((id) => insideHidden.add(norm(id)));
 		}
 	}
 	// Hidden, or inside something hidden: by the platform's naming (what is in
 	// X has an id starting with `X.`), or written inside it.
-	const underHide = (id: string) => insideHidden.has(id) || hidden.some((h) => id === h || id.startsWith(`${h}.`));
-	const tabCollections = new Set(["Mscrm.Tabs", `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs`]);
+	const underHide = (id: string) =>
+		insideHidden.has(id) || hidden.some((h) => id === h || id.startsWith(`${h}.`));
+	const tabCollections = new Set([
+		"Mscrm.Tabs",
+		`Mscrm.SubGrid.${entityLogicalName}.ContextualTabs`,
+	]);
 
-	const reasonFor = (element: string, parent: string): { reason: LayerOrphanReason; why: string } => {
+	const reasonFor = (
+		element: string,
+		parent: string,
+	): { reason: LayerOrphanReason; why: string } => {
 		const tab = places.get(parent);
 		if (tab && isHiddenOnUnifiedInterface(tab)) {
 			return {
@@ -199,7 +224,11 @@ export function findLayerOrphans(
 	};
 
 	const labelOf = (el: Element) => {
-		const token = el.getAttribute("LabelText") ?? el.getAttribute("Title") ?? el.getAttribute("Alt") ?? "";
+		const token =
+			el.getAttribute("LabelText") ??
+			el.getAttribute("Title") ??
+			el.getAttribute("Alt") ??
+			"";
 		return resolveDisplayLabel(token, locLabels, languageCode) || (el.getAttribute("Id") ?? "");
 	};
 
@@ -229,9 +258,16 @@ export function findLayerOrphans(
 		if (ca.tagName !== "CustomAction") continue;
 		const location = ca.getAttribute("Location") ?? "";
 		if (!CHILDREN.test(location) || /\.Scaling\._children$/.test(location)) continue;
-		const root = childElements(childElements(ca).find((c) => c.tagName === "CommandUIDefinition"))[0];
+		const root = childElements(
+			childElements(ca).find((c) => c.tagName === "CommandUIDefinition"),
+		)[0];
 		const rootId = root?.getAttribute("Id");
-		if (!root || !rootId || !(CONTAINER_TAGS.has(root.tagName) || CONTROL_TAGS.has(root.tagName))) continue;
+		if (
+			!root ||
+			!rootId ||
+			!(CONTAINER_TAGS.has(root.tagName) || CONTROL_TAGS.has(root.tagName))
+		)
+			continue;
 		const caId = ca.getAttribute("Id") ?? "";
 		if (!loaded.has(norm(rootId))) {
 			add(root, location, caId);
@@ -250,7 +286,8 @@ export function findLayerOrphans(
 	// What is placed inside another orphan goes with it: listed once, and its
 	// delete removes both (e.g. a button added in its own CustomAction to a
 	// group whose tab is gone).
-	const host = (c: Candidate) => candidates.find((o) => o !== c && o.inside.has(c.parent) && !c.inside.has(o.parent));
+	const host = (c: Candidate) =>
+		candidates.find((o) => o !== c && o.inside.has(c.parent) && !c.inside.has(o.parent));
 	const top = (c: Candidate) => {
 		const seen = new Set<Candidate>([c]);
 		let at = c;
@@ -264,7 +301,8 @@ export function findLayerOrphans(
 	for (const c of candidates) {
 		const t = top(c);
 		if (t === c || !listed.includes(t)) continue;
-		const merge = (into: string[], ids: string[]) => ids.forEach((id) => into.includes(id) || into.push(id));
+		const merge = (into: string[], ids: string[]) =>
+			ids.forEach((id) => into.includes(id) || into.push(id));
 		merge(t.orphan.deleteControlIds, c.orphan.deleteControlIds);
 		merge(t.orphan.deleteContainerIds, c.orphan.deleteContainerIds);
 	}

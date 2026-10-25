@@ -169,7 +169,10 @@ export const CommandEditorPanel: React.FC = () => {
 	const command = commands.find((c) => c.id === commandEditorId);
 	// Action cards keep their key when another action is removed (#22): an index
 	// key handed a card's local state (a half-typed number, …) to the next one.
-	const actionKeys = useStableKeys(`actions:${command?.id ?? ""}`, command?.actions ?? NO_ACTIONS);
+	const actionKeys = useStableKeys(
+		`actions:${command?.id ?? ""}`,
+		command?.actions ?? NO_ACTIONS,
+	);
 	// A command being uncustomised (#31) is removed from the layer on publish, and
 	// one uncustomised and published needs a reload: neither is editable.
 	const readOnly = isCommandReadOnly(useCommandProvenance(command?.id));
@@ -292,7 +295,9 @@ export const CommandEditorPanel: React.FC = () => {
 			const contentBase64 = await loadWebResourceContent(target.id);
 			setCodeValue(decodeBase64Utf8(contentBase64));
 		} catch (error: unknown) {
-			setCodeError(error instanceof Error ? error.message : "Failed to load web resource content.");
+			setCodeError(
+				error instanceof Error ? error.message : "Failed to load web resource content.",
+			);
 			setCodeValue("");
 		} finally {
 			setCodeLoading(false);
@@ -312,10 +317,14 @@ export const CommandEditorPanel: React.FC = () => {
 				inferWebResourceTypeCode(codeWebResourceName),
 				{ displayName: codeWebResourceName.split("/").pop(), guard },
 			);
-			setCodeWarning([saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null);
+			setCodeWarning(
+				[saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null,
+			);
 			setCodeDirty(false);
 		} catch (error: unknown) {
-			setCodeError(error instanceof Error ? error.message : "Failed to save web resource content.");
+			setCodeError(
+				error instanceof Error ? error.message : "Failed to save web resource content.",
+			);
 		} finally {
 			setCodeLoading(false);
 		}
@@ -336,7 +345,9 @@ export const CommandEditorPanel: React.FC = () => {
 		updateCommand({ actions: command.actions.filter((_, i) => i !== index) });
 		actionKeys.remove(index);
 		// The code panel stays with its action.
-		setCodeActionIndex((open) => (open === null || open === index ? null : open > index ? open - 1 : open));
+		setCodeActionIndex((open) =>
+			open === null || open === index ? null : open > index ? open - 1 : open,
+		);
 	};
 
 	const addAction = (kind: ActionKind) => {
@@ -376,7 +387,10 @@ export const CommandEditorPanel: React.FC = () => {
 										// Collapse a repeated `$webresource:` prefix (pasting a full
 										// reference into a pre-filled field produced
 										// `$webresource:$webresource:…`, which never resolves).
-										library: d.value.replace(/^(\s*\$webresource:\s*)+/i, "$webresource:"),
+										library: d.value.replace(
+											/^(\s*\$webresource:\s*)+/i,
+											"$webresource:",
+										),
 									})
 								}
 								placeholder="$webresource:publisher_/scripts/myfile.js"
@@ -401,14 +415,16 @@ export const CommandEditorPanel: React.FC = () => {
 					<Field label="Function name">
 						<Input
 							value={action.functionName}
-							onChange={(_, d) => updateAction(index, { ...action, functionName: d.value })}
+							onChange={(_, d) =>
+								updateAction(index, { ...action, functionName: d.value })
+							}
 							placeholder="MyNamespace.myFunction"
 						/>
 					</Field>
 					<MessageBar intent="info">
 						<MessageBarBody>
-							Read-only function preview and Monaco editing are available in the web resource
-							browser integration path.
+							Read-only function preview and Monaco editing are available in the web
+							resource browser integration path.
 						</MessageBarBody>
 					</MessageBar>
 					<Divider>Parameters (positional)</Divider>
@@ -440,9 +456,14 @@ export const CommandEditorPanel: React.FC = () => {
 					{showCodePanel && (
 						<div className={styles.codePanel}>
 							<div className={styles.row}>
-								<Text weight="semibold">{codeEditable ? "Monaco Editor" : "Function Preview"}</Text>
+								<Text weight="semibold">
+									{codeEditable ? "Monaco Editor" : "Function Preview"}
+								</Text>
 								{codeWebResourceName && (
-									<Text size={200} style={{ fontFamily: tokens.fontFamilyMonospace }}>
+									<Text
+										size={200}
+										style={{ fontFamily: tokens.fontFamilyMonospace }}
+									>
 										{codeWebResourceName}
 									</Text>
 								)}
@@ -458,7 +479,9 @@ export const CommandEditorPanel: React.FC = () => {
 								</MessageBar>
 							)}
 							{codeLoading ? (
-								<Text style={{ color: tokens.colorNeutralForeground3 }}>Loading source…</Text>
+								<Text style={{ color: tokens.colorNeutralForeground3 }}>
+									Loading source…
+								</Text>
 							) : (
 								<div style={{ height: 240 }}>
 									<MonacoEditor
@@ -524,18 +547,23 @@ export const CommandEditorPanel: React.FC = () => {
 					<MessageBar intent="warning">
 						<MessageBarBody>
 							<Text className={styles.securityNote}>
-								⚠ Ampersands in URLs are automatically escaped as &amp; in the generated XML.
+								⚠ Ampersands in URLs are automatically escaped as &amp; in the
+								generated XML.
 							</Text>
 						</MessageBarBody>
 					</MessageBar>
 					<Field
 						label="Address"
 						validationState={isHttpsAddress ? "none" : "error"}
-						validationMessage={isHttpsAddress ? undefined : "URL must start with https://"}
+						validationMessage={
+							isHttpsAddress ? undefined : "URL must start with https://"
+						}
 					>
 						<Input
 							value={action.address}
-							onChange={(_, d) => updateAction(index, { ...action, address: d.value })}
+							onChange={(_, d) =>
+								updateAction(index, { ...action, address: d.value })
+							}
 							placeholder="https://..."
 						/>
 					</Field>
@@ -543,7 +571,10 @@ export const CommandEditorPanel: React.FC = () => {
 						<Select
 							value={String(action.winMode ?? 0)}
 							onChange={(_, d) =>
-								updateAction(index, { ...action, winMode: parseInt(d.value) as 0 | 1 | 2 })
+								updateAction(index, {
+									...action,
+									winMode: parseInt(d.value) as 0 | 1 | 2,
+								})
 							}
 						>
 							<option value="0">Navigate (0)</option>
@@ -555,10 +586,15 @@ export const CommandEditorPanel: React.FC = () => {
 						<Button
 							appearance={action.passParams ? "primary" : "subtle"}
 							size="small"
-							onClick={() => updateAction(index, { ...action, passParams: action.passParams ? undefined : true })}
+							onClick={() =>
+								updateAction(index, {
+									...action,
+									passParams: action.passParams ? undefined : true,
+								})
+							}
 						>
-							{action.passParams ? "✓ PassParams ON" : "PassParams OFF"} — appends typename, type,
-							id, orgname…
+							{action.passParams ? "✓ PassParams ON" : "PassParams OFF"} — appends
+							typename, type, id, orgname…
 						</Button>
 					</Field>
 					<Divider>Parameters (named)</Divider>
@@ -591,10 +627,11 @@ export const CommandEditorPanel: React.FC = () => {
 					<MessageBar intent="error">
 						<MessageBarBody>
 							Classic ribbon commands can't run{" "}
-							{action.kind === "powerFx" ? "Power Fx" : "Custom API"} actions, so this command can't
-							be published while it has one. Remove it and use a JavaScript function instead (for
-							example, call the API with <code>Xrm.WebApi.online.execute</code>), or build the
-							command with modern commanding in the app designer.
+							{action.kind === "powerFx" ? "Power Fx" : "Custom API"} actions, so this
+							command can't be published while it has one. Remove it and use a
+							JavaScript function instead (for example, call the API with{" "}
+							<code>Xrm.WebApi.online.execute</code>), or build the command with
+							modern commanding in the app designer.
 						</MessageBarBody>
 					</MessageBar>
 				</div>
@@ -683,7 +720,10 @@ export const CommandEditorPanel: React.FC = () => {
 			</Field>
 			{commandIdError && (
 				<Text
-					style={{ color: tokens.colorPaletteRedForeground1, fontSize: tokens.fontSizeBase100 }}
+					style={{
+						color: tokens.colorPaletteRedForeground1,
+						fontSize: tokens.fontSizeBase100,
+					}}
 				>
 					{commandIdError}
 				</Text>
@@ -691,7 +731,9 @@ export const CommandEditorPanel: React.FC = () => {
 			<Button
 				appearance="secondary"
 				size="small"
-				disabled={!draftCommandId.trim() || !!commandIdError || draftCommandId === command.id}
+				disabled={
+					!draftCommandId.trim() || !!commandIdError || draftCommandId === command.id
+				}
 				onClick={() => {
 					if (!draftCommandId.trim() || commandIdError) return;
 					const nextId = draftCommandId.trim();
@@ -703,15 +745,18 @@ export const CommandEditorPanel: React.FC = () => {
 			>
 				Apply ID change
 			</Button>
-			<Text style={{ color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 }}>
+			<Text
+				style={{ color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 }}
+			>
 				Naming convention: Publisher.EntityName.ButtonName.Command
 			</Text>
 			<MessageBar intent="warning">
 				<MessageBarBody>
 					<Text className={styles.securityNote}>
-						⚠ <strong>Security:</strong> All command definitions are visible in browser source
-						regardless of button visibility. Do not embed sensitive logic, credentials, or
-						privileged information in command parameters or function names.
+						⚠ <strong>Security:</strong> All command definitions are visible in browser
+						source regardless of button visibility. Do not embed sensitive logic,
+						credentials, or privileged information in command parameters or function
+						names.
 					</Text>
 				</MessageBarBody>
 			</MessageBar>
@@ -729,7 +774,11 @@ export const CommandEditorPanel: React.FC = () => {
 				...enableRules.map((r) => r.id),
 				...displayRules.map((r) => r.id),
 			]);
-			const newId = generateRuleId("New", kind === "enable" ? "Enable" : "Display", existingIds);
+			const newId = generateRuleId(
+				"New",
+				kind === "enable" ? "Enable" : "Display",
+				existingIds,
+			);
 			if (kind === "enable") {
 				upsertEnableRule({ id: newId, steps: [] });
 			} else {
@@ -762,11 +811,15 @@ export const CommandEditorPanel: React.FC = () => {
 								onClick={() => {
 									if (kind === "enable") {
 										updateCommand({
-											enableRules: command.enableRules.filter((id) => id !== ruleId),
+											enableRules: command.enableRules.filter(
+												(id) => id !== ruleId,
+											),
 										});
 									} else {
 										updateCommand({
-											displayRules: command.displayRules.filter((id) => id !== ruleId),
+											displayRules: command.displayRules.filter(
+												(id) => id !== ruleId,
+											),
 										});
 									}
 								}}
@@ -784,7 +837,9 @@ export const CommandEditorPanel: React.FC = () => {
 						<Select
 							value={selectedBindRuleId}
 							onChange={(_, d) =>
-								kind === "enable" ? setBindEnableRuleId(d.value) : setBindDisplayRuleId(d.value)
+								kind === "enable"
+									? setBindEnableRuleId(d.value)
+									: setBindDisplayRuleId(d.value)
 							}
 						>
 							<option value="">Select a rule…</option>
@@ -802,10 +857,14 @@ export const CommandEditorPanel: React.FC = () => {
 						onClick={() => {
 							if (!selectedBindRuleId) return;
 							if (kind === "enable") {
-								updateCommand({ enableRules: [...command.enableRules, selectedBindRuleId] });
+								updateCommand({
+									enableRules: [...command.enableRules, selectedBindRuleId],
+								});
 								setBindEnableRuleId("");
 							} else {
-								updateCommand({ displayRules: [...command.displayRules, selectedBindRuleId] });
+								updateCommand({
+									displayRules: [...command.displayRules, selectedBindRuleId],
+								});
 								setBindDisplayRuleId("");
 							}
 						}}
@@ -819,9 +878,9 @@ export const CommandEditorPanel: React.FC = () => {
 				{kind === "enable" && (
 					<MessageBar intent="info">
 						<MessageBarBody>
-							Disabled buttons are <strong>hidden</strong> in the modern command bar (Unified
-							Interface). In the classic ribbon, disabled buttons remain visible but do not respond
-							to clicks.
+							Disabled buttons are <strong>hidden</strong> in the modern command bar
+							(Unified Interface). In the classic ribbon, disabled buttons remain
+							visible but do not respond to clicks.
 						</MessageBarBody>
 					</MessageBar>
 				)}
@@ -842,7 +901,10 @@ export const CommandEditorPanel: React.FC = () => {
 							className={styles.versionRow}
 						>
 							<div>
-								<Text weight="semibold" style={{ fontFamily: tokens.fontFamilyMonospace }}>
+								<Text
+									weight="semibold"
+									style={{ fontFamily: tokens.fontFamilyMonospace }}
+								>
 									{ref.button.id}
 								</Text>
 								<Text className={styles.versionMeta}>
@@ -875,7 +937,9 @@ export const CommandEditorPanel: React.FC = () => {
 								<Text weight="semibold">{entry.op}</Text>
 								<Text className={styles.versionMeta}>{entry.detail}</Text>
 							</div>
-							<Text className={styles.versionMeta}>{new Date(entry.ts).toLocaleString()}</Text>
+							<Text className={styles.versionMeta}>
+								{new Date(entry.ts).toLocaleString()}
+							</Text>
 						</div>
 					))}
 				</div>
@@ -901,14 +965,21 @@ export const CommandEditorPanel: React.FC = () => {
 						/>
 					}
 				>
-					<Text size={400} weight="semibold" style={{ fontFamily: tokens.fontFamilyMonospace }}>
+					<Text
+						size={400}
+						weight="semibold"
+						style={{ fontFamily: tokens.fontFamilyMonospace }}
+					>
 						{command.id}
 					</Text>
 				</DrawerHeaderTitle>
 			</DrawerHeader>
 
 			<DrawerBody className={styles.body}>
-				<TabList selectedValue={activeTab} onTabSelect={(_, d) => setActiveTab(d.value as string)}>
+				<TabList
+					selectedValue={activeTab}
+					onTabSelect={(_, d) => setActiveTab(d.value as string)}
+				>
 					<Tab value="actions">Actions</Tab>
 					<Tab value="enableRules">Enable rules</Tab>
 					<Tab value="displayRules">Display rules</Tab>

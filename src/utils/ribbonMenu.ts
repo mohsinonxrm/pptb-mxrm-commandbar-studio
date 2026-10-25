@@ -147,7 +147,9 @@ export function copyMenu(
 	const rebase = (id: string) => {
 		const known = rebased.get(id);
 		if (known) return known;
-		let next = id.startsWith(oldId) ? `${newId}${id.slice(oldId.length)}` : `${newId}.${id.split(".").pop() || "Item"}`;
+		let next = id.startsWith(oldId)
+			? `${newId}${id.slice(oldId.length)}`
+			: `${newId}.${id.split(".").pop() || "Item"}`;
 		for (let n = 2; used.has(next); n++) next = `${next.replace(/_\d+$/, "")}_${n}`;
 		used.add(next);
 		rebased.set(id, next);
@@ -181,8 +183,10 @@ export function copyMenu(
  * of its menu items.
  */
 function rebaseIds(xml: string, oldId: string, newId: string): string {
-	return xml.replace(/(\s(?:Id|InitialItem)=")([^"]*)(")/g, (_, a: string, id: string, b: string) =>
-		`${a}${id.startsWith(oldId) ? `${newId}${id.slice(oldId.length)}` : `${newId}.${id}`}${b}`,
+	return xml.replace(
+		/(\s(?:Id|InitialItem)=")([^"]*)(")/g,
+		(_, a: string, id: string, b: string) =>
+			`${a}${id.startsWith(oldId) ? `${newId}${id.slice(oldId.length)}` : `${newId}.${id}`}${b}`,
 	);
 }
 
@@ -193,15 +197,26 @@ const DYNAMIC_MENU_ATTRIBUTES = ["PopulateDynamically", "PopulateOnlyOnce", "Pop
  * A `$LocLabels:` text whose label the session doesn't have: another solution
  * defines it (often a managed one), so its text isn't known here (#137).
  */
-export function isOtherSolutionLabel(token: string | undefined, loadedLabelIds?: ReadonlySet<string>): boolean {
-	return !!loadedLabelIds && !!token?.startsWith("$LocLabels:") && !loadedLabelIds.has(token.slice("$LocLabels:".length));
+export function isOtherSolutionLabel(
+	token: string | undefined,
+	loadedLabelIds?: ReadonlySet<string>,
+): boolean {
+	return (
+		!!loadedLabelIds &&
+		!!token?.startsWith("$LocLabels:") &&
+		!loadedLabelIds.has(token.slice("$LocLabels:".length))
+	);
 }
 
 /**
  * A copy of a control as a new, unmanaged control with id `newId` (menu included).
  * `loadedLabelIds`: the session's LocLabels, to tell another solution's labels (#137).
  */
-export function copyControl(control: RibbonButton, newId: string, loadedLabelIds?: ReadonlySet<string>): RibbonButton {
+export function copyControl(
+	control: RibbonButton,
+	newId: string,
+	loadedLabelIds?: ReadonlySet<string>,
+): RibbonButton {
 	const dynamic = DYNAMIC_MENU_ATTRIBUTES.filter(
 		(a) => control.source?.attributes[a] !== undefined,
 	);

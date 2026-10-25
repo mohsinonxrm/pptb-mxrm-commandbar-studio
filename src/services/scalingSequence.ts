@@ -32,14 +32,20 @@ export interface ScalingChange {
  * (e.g. one an earlier CBS version wrote at its group's Sequence) is out of
  * band and ignored here — it doesn't make the band smaller (#66 review M2).
  */
-export function maxSizeBand(maxSizes: number[], scales: number[]): { after: number; before: number } {
+export function maxSizeBand(
+	maxSizes: number[],
+	scales: number[],
+): { after: number; before: number } {
 	const before = scales.length > 0 ? Math.min(...scales) : Infinity;
 	const inBand = maxSizes.filter((s) => s < before);
 	return { after: inBand.length > 0 ? Math.max(...inBand) : 0, before };
 }
 
 /** The first free Sequence in a tab's MaxSize band, or undefined when the band is full. */
-export function freeMaxSizeSequence(band: { after: number; before: number }, used: Set<number>): number | undefined {
+export function freeMaxSizeSequence(
+	band: { after: number; before: number },
+	used: Set<number>,
+): number | undefined {
 	let seq = band.after > 0 ? band.after + 1 : band.before > 10 ? 10 : 1;
 	while (used.has(seq)) seq++;
 	return seq < band.before ? seq : undefined;
@@ -76,7 +82,9 @@ export function resequenceLayerScaling(
 
 	const scaleSeqs = [
 		...platform.scales,
-		...scales.map((s) => changes.find((c) => c.id === s.id && c.kind === "Scale")?.to ?? s.sequence),
+		...scales.map(
+			(s) => changes.find((c) => c.id === s.id && c.kind === "Scale")?.to ?? s.sequence,
+		),
 	];
 	const band = maxSizeBand(platform.maxSizes, scaleSeqs);
 	const misplaced: LayerScaleStep[] = [];

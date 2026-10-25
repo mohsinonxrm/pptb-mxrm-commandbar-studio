@@ -36,9 +36,19 @@ beforeEach(() => {
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
-	useSelectionStore.setState({ location: "HomepageGrid", tabId: "", selectedButtonId: null, selectedGroupId: null });
+	useSelectionStore.setState({
+		location: "HomepageGrid",
+		tabId: "",
+		selectedButtonId: null,
+		selectedGroupId: null,
+	});
 	useRibbonStore.getState().loadWorkspace({
-		ribbons: { HomepageGrid: empty("HomepageGrid"), SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+		ribbons: {
+			HomepageGrid: empty("HomepageGrid"),
+			SubGrid: empty("SubGrid"),
+			Form: empty("Form"),
+			Application: empty("Application"),
+		},
 		commands: [],
 		displayRules: [],
 		enableRules: [],
@@ -78,7 +88,12 @@ describe("Orphaned customizations section", () => {
 
 	it("review 4: just published from here → Delete isn't offered; published recently → Delete asks first", () => {
 		const just: LayerOrphan = { ...ORPHAN, recentPublish: { minutesAgo: 2, published: true } };
-		const recent: LayerOrphan = { ...ORPHAN, id: "cbs.Other.Button", customActionId: "cbs.Other", recentPublish: { minutesAgo: 2, published: false } };
+		const recent: LayerOrphan = {
+			...ORPHAN,
+			id: "cbs.Other.Button",
+			customActionId: "cbs.Other",
+			recentPublish: { minutesAgo: 2, published: false },
+		};
 		useRibbonStore.setState({ orphans: { entity: [just, recent], application: [] } });
 		act(() =>
 			root.render(

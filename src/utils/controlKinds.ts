@@ -76,9 +76,12 @@ export function controlCommandIds(button: RibbonButton): string[] {
  * pointing at `newId` instead (a command rename, #42).
  */
 export function renameCommandInXml(xml: string, oldId: string, newId: string): string {
-	const escape = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+	const escape = (v: string) =>
+		v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 	return xml.replace(COMMAND_ATTRIBUTE_VALUE, (match, value: string) =>
-		value === oldId || value === escape(oldId) ? match.replace(`"${value}"`, `"${escape(newId)}"`) : match,
+		value === oldId || value === escape(oldId)
+			? match.replace(`"${value}"`, `"${escape(newId)}"`)
+			: match,
 	);
 }
 

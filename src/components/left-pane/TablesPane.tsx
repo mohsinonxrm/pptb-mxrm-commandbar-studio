@@ -110,7 +110,8 @@ export function TablesPane() {
 	const filtered = useMemo(() => {
 		const q = filter.toLowerCase();
 		return solutionMembers.filter(
-			(e) => e.displayName.toLowerCase().includes(q) || e.logicalName.toLowerCase().includes(q),
+			(e) =>
+				e.displayName.toLowerCase().includes(q) || e.logicalName.toLowerCase().includes(q),
 		);
 	}, [solutionMembers, filter]);
 
@@ -123,10 +124,21 @@ export function TablesPane() {
 	const rows = useMemo<TableRowItem[]>(
 		() => [
 			...(custom.length > 0
-				? [{ kind: "header" as const, id: "custom-header", label: "CUSTOM", count: custom.length }]
+				? [
+						{
+							kind: "header" as const,
+							id: "custom-header",
+							label: "CUSTOM",
+							count: custom.length,
+						},
+					]
 				: []),
 			...(customExpanded
-				? custom.map((e) => ({ kind: "entity" as const, id: `custom-${e.logicalName}`, entity: e }))
+				? custom.map((e) => ({
+						kind: "entity" as const,
+						id: `custom-${e.logicalName}`,
+						entity: e,
+					}))
 				: []),
 			...(standard.length > 0
 				? [
@@ -139,7 +151,11 @@ export function TablesPane() {
 					]
 				: []),
 			...(stdExpanded
-				? standard.map((e) => ({ kind: "entity" as const, id: `std-${e.logicalName}`, entity: e }))
+				? standard.map((e) => ({
+						kind: "entity" as const,
+						id: `std-${e.logicalName}`,
+						entity: e,
+					}))
 				: []),
 		],
 		[custom, customExpanded, standard, stdExpanded],
@@ -160,7 +176,9 @@ export function TablesPane() {
 						<div
 							className={styles.sectionHeader}
 							onClick={() =>
-								row.label === "CUSTOM" ? setCustomExpanded((v) => !v) : setStdExpanded((v) => !v)
+								row.label === "CUSTOM"
+									? setCustomExpanded((v) => !v)
+									: setStdExpanded((v) => !v)
 							}
 							role="button"
 							tabIndex={0}
@@ -172,7 +190,11 @@ export function TablesPane() {
 								else setStdExpanded((v) => !v);
 							}}
 						>
-							<Text size={100} weight="semibold" style={{ color: tokens.colorNeutralForeground3 }}>
+							<Text
+								size={100}
+								weight="semibold"
+								style={{ color: tokens.colorNeutralForeground3 }}
+							>
 								{expanded ? "▾" : "▸"} {row.label} ({row.count})
 							</Text>
 						</div>
@@ -218,20 +240,18 @@ export function TablesPane() {
 						<Spinner size="small" label="Loading solution tables…" />
 					</div>
 				)}
-				{activeSolution &&
-					solutionEntityIds !== null &&
-					solutionMembers.length === 0 && (
-						<div style={{ padding: 24, textAlign: "center" }}>
-							<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-								No tables to show for <em>{activeSolution.friendlyName}</em>.
-								<br />
-								<br />
-								Add a table to the solution in the maker portal (Solutions ›{" "}
-								<em>{activeSolution.friendlyName}</em> › Add existing › Table)
-								and reload.
-							</Text>
-						</div>
-					)}
+				{activeSolution && solutionEntityIds !== null && solutionMembers.length === 0 && (
+					<div style={{ padding: 24, textAlign: "center" }}>
+						<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
+							No tables to show for <em>{activeSolution.friendlyName}</em>.
+							<br />
+							<br />
+							Add a table to the solution in the maker portal (Solutions ›{" "}
+							<em>{activeSolution.friendlyName}</em> › Add existing › Table) and
+							reload.
+						</Text>
+					</div>
+				)}
 				{activeSolution && solutionEntityIds !== null && solutionMembers.length > 0 && (
 					<DataGrid
 						className={styles.gridWrap}
@@ -247,10 +267,18 @@ export function TablesPane() {
 								)}
 							</DataGridRow>
 						</DataGridHeader>
-						<DataGridBody<TableRowItem> itemSize={52} height={420} listProps={{ width: "100%" }}>
+						<DataGridBody<TableRowItem>
+							itemSize={52}
+							height={420}
+							listProps={{ width: "100%" }}
+						>
 							{({ item, rowId }, style) => (
 								<DataGridRow<TableRowItem> key={rowId} style={style}>
-									{({ renderCell }) => <DataGridCell className={styles.cell}>{renderCell(item)}</DataGridCell>}
+									{({ renderCell }) => (
+										<DataGridCell className={styles.cell}>
+											{renderCell(item)}
+										</DataGridCell>
+									)}
 								</DataGridRow>
 							)}
 						</DataGridBody>

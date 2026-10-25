@@ -90,7 +90,9 @@ export const XmlDrawer: React.FC = () => {
 
 	const [activeLocation, setActiveLocation] = useState<RibbonLocation>("HomepageGrid");
 	// What Copy / Download did (#122): they no longer fail silently.
-	const [status, setStatus] = useState<{ intent: "success" | "error"; text: string } | null>(null);
+	const [status, setStatus] = useState<{ intent: "success" | "error"; text: string } | null>(
+		null,
+	);
 	const [saving, setSaving] = useState(false);
 	// A result shows for the XML it was about: one that arrives after a switch is dropped.
 	const statusFor = useRef(0);
@@ -210,9 +212,17 @@ export const XmlDrawer: React.FC = () => {
 			if (asked !== statusFor.current) return;
 			if (r.ok && r.path) setStatus({ intent: "success", text: `Saved to ${r.path}.` });
 			// A browser download can't be confirmed, and some hosts block it.
-			else if (r.ok) setStatus({ intent: "success", text: `Started downloading ${name}. If no file appears, use Copy.` });
+			else if (r.ok)
+				setStatus({
+					intent: "success",
+					text: `Started downloading ${name}. If no file appears, use Copy.`,
+				});
 			else if (r.canceled) setStatus(null);
-			else setStatus({ intent: "error", text: `Couldn't save the file (${r.error}). Use Copy instead.` });
+			else
+				setStatus({
+					intent: "error",
+					text: `Couldn't save the file (${r.error}). Use Copy instead.`,
+				});
 		} finally {
 			setSaving(false);
 		}
@@ -243,9 +253,9 @@ export const XmlDrawer: React.FC = () => {
 			<DrawerBody className={styles.body}>
 				<MessageBar className={styles.infoBar} intent="info">
 					<MessageBarBody>
-						This is the <strong>RibbonDiffXml</strong> that will be packaged into your solution ZIP
-						and imported into Dataverse. It contains only the delta (your changes), not the full
-						ribbon.
+						This is the <strong>RibbonDiffXml</strong> that will be packaged into your
+						solution ZIP and imported into Dataverse. It contains only the delta (your
+						changes), not the full ribbon.
 					</MessageBarBody>
 				</MessageBar>
 
@@ -266,7 +276,11 @@ export const XmlDrawer: React.FC = () => {
 					<ToolbarButton icon={<CopyRegular />} onClick={() => void handleCopy()}>
 						Copy
 					</ToolbarButton>
-					<ToolbarButton icon={<ArrowDownloadRegular />} disabled={saving} onClick={() => void handleDownload()}>
+					<ToolbarButton
+						icon={<ArrowDownloadRegular />}
+						disabled={saving}
+						onClick={() => void handleDownload()}
+					>
 						Download
 					</ToolbarButton>
 					<ToolbarButton icon={<TextEditStyleRegular />} onClick={handleFormatXml}>

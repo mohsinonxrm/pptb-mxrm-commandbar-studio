@@ -24,7 +24,12 @@ import { generateRibbonId, validateRibbonId } from "@/utils/idGenerator";
 import { useSessionStore } from "@/store/sessionStore";
 import { UCI_TAB_NOTE } from "@/services/publishPlan";
 
-const LOCATION_NAMES = { HomepageGrid: "home grid", Form: "form", SubGrid: "sub-grid", Application: "" } as const;
+const LOCATION_NAMES = {
+	HomepageGrid: "home grid",
+	Form: "form",
+	SubGrid: "sub-grid",
+	Application: "",
+} as const;
 
 const useStyles = makeStyles({
 	surface: {
@@ -74,8 +79,14 @@ export const NewTabModal: React.FC = () => {
 	// {prefix}.{table}.{Location}.{Label}.Tab, sanitized and unique in the
 	// workspace — the location keeps the same name on the grid and the form
 	// apart, and a second tab with the same label gets its own id (#66 review M3, m6).
-	const ids = React.useMemo(() => workspaceIds({ baseline, layers }, ribbons), [baseline, layers, ribbons]);
-	const table = location === "Application" ? "global" : (activeEntity?.logicalName ?? ribbons[location].entityLogicalName);
+	const ids = React.useMemo(
+		() => workspaceIds({ baseline, layers }, ribbons),
+		[baseline, layers, ribbons],
+	);
+	const table =
+		location === "Application"
+			? "global"
+			: (activeEntity?.logicalName ?? ribbons[location].entityLogicalName);
 	const generatedId = generateRibbonId(table, `${location}.${label}`, "Tab", ids);
 	const custom = customId.trim();
 	const idError = !custom
@@ -136,7 +147,11 @@ export const NewTabModal: React.FC = () => {
 						</MessageBar>
 
 						<Field label="Tab label" required>
-							<Input value={label} onChange={(_, d) => setLabel(d.value)} placeholder="My Tab" />
+							<Input
+								value={label}
+								onChange={(_, d) => setLabel(d.value)}
+								placeholder="My Tab"
+							/>
 						</Field>
 
 						<Field
@@ -168,7 +183,11 @@ export const NewTabModal: React.FC = () => {
 						<Button appearance="secondary" onClick={closeNewTab}>
 							Cancel
 						</Button>
-						<Button appearance="primary" disabled={!label.trim() || !!idError} onClick={handleCreate}>
+						<Button
+							appearance="primary"
+							disabled={!label.trim() || !!idError}
+							onClick={handleCreate}
+						>
 							Create tab
 						</Button>
 					</DialogActions>

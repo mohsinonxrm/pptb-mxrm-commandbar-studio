@@ -194,9 +194,10 @@ export const ScalingEditorPanel: React.FC = () => {
 			<DrawerBody>
 				<div className={styles.body}>
 					<div className={styles.warningNote}>
-						⚠ <strong>Scaling applies ONLY to the Classic ribbon</strong> — forms NOT updated to
-						Unified Interface, and Dynamics 365 for Outlook list views. The modern command bar
-						(Unified Interface) ignores all MaxSize and Scale definitions entirely.
+						⚠ <strong>Scaling applies ONLY to the Classic ribbon</strong> — forms NOT
+						updated to Unified Interface, and Dynamics 365 for Outlook list views. The
+						modern command bar (Unified Interface) ignores all MaxSize and Scale
+						definitions entirely.
 					</div>
 
 					{tab && (
@@ -209,7 +210,9 @@ export const ScalingEditorPanel: React.FC = () => {
 
 					{/* MaxSize section */}
 					<div>
-						<Text className={styles.sectionLabel}>MaxSize (largest size, shown first)</Text>
+						<Text className={styles.sectionLabel}>
+							MaxSize (largest size, shown first)
+						</Text>
 						<Text
 							size={100}
 							style={{
@@ -236,7 +239,9 @@ export const ScalingEditorPanel: React.FC = () => {
 										appearance="subtle"
 										size="small"
 										icon={<DeleteRegular />}
-										onClick={() => setMaxSizes((p) => p.filter((_, idx) => idx !== i))}
+										onClick={() =>
+											setMaxSizes((p) => p.filter((_, idx) => idx !== i))
+										}
 									/>
 								</div>
 								<div className={styles.stepFields}>
@@ -244,9 +249,13 @@ export const ScalingEditorPanel: React.FC = () => {
 										<Select
 											size="small"
 											value={step.groupId}
-											onChange={(_, d) => updateMaxSize(i, { groupId: d.value })}
+											onChange={(_, d) =>
+												updateMaxSize(i, { groupId: d.value })
+											}
 										>
-											{groups.length === 0 && <option value="">— no groups —</option>}
+											{groups.length === 0 && (
+												<option value="">— no groups —</option>
+											)}
 											{groups.map((g) => (
 												<option key={g.id} value={g.id}>
 													{g.label || g.id}
@@ -273,7 +282,9 @@ export const ScalingEditorPanel: React.FC = () => {
 											type="number"
 											value={String(step.sequence)}
 											onChange={(_, d) =>
-												updateMaxSize(i, { sequence: parseInt(d.value, 10) || 0 })
+												updateMaxSize(i, {
+													sequence: parseInt(d.value, 10) || 0,
+												})
 											}
 										/>
 									</Field>
@@ -281,7 +292,12 @@ export const ScalingEditorPanel: React.FC = () => {
 							</div>
 						))}
 
-						<Button appearance="subtle" size="small" icon={<AddRegular />} onClick={addMaxSize}>
+						<Button
+							appearance="subtle"
+							size="small"
+							icon={<AddRegular />}
+							onClick={addMaxSize}
+						>
 							Add MaxSize
 						</Button>
 					</div>
@@ -290,7 +306,9 @@ export const ScalingEditorPanel: React.FC = () => {
 
 					{/* Scale section */}
 					<div>
-						<Text className={styles.sectionLabel}>Scale steps (collapse order — top-down)</Text>
+						<Text className={styles.sectionLabel}>
+							Scale steps (collapse order — top-down)
+						</Text>
 						<Text
 							size={100}
 							style={{
@@ -299,8 +317,9 @@ export const ScalingEditorPanel: React.FC = () => {
 								marginBottom: tokens.spacingHorizontalS,
 							}}
 						>
-							Scale elements are applied in document order (top-down when shrinking, bottom-up when
-							growing). Sequence numbers must be higher than all MaxSize sequence numbers.
+							Scale elements are applied in document order (top-down when shrinking,
+							bottom-up when growing). Sequence numbers must be higher than all
+							MaxSize sequence numbers.
 						</Text>
 
 						{scales.map((step, i) => (
@@ -318,7 +337,9 @@ export const ScalingEditorPanel: React.FC = () => {
 										appearance="subtle"
 										size="small"
 										icon={<DeleteRegular />}
-										onClick={() => setScales((p) => p.filter((_, idx) => idx !== i))}
+										onClick={() =>
+											setScales((p) => p.filter((_, idx) => idx !== i))
+										}
 									/>
 								</div>
 								<div className={styles.stepFields}>
@@ -326,9 +347,13 @@ export const ScalingEditorPanel: React.FC = () => {
 										<Select
 											size="small"
 											value={step.groupId}
-											onChange={(_, d) => updateScale(i, { groupId: d.value })}
+											onChange={(_, d) =>
+												updateScale(i, { groupId: d.value })
+											}
 										>
-											{groups.length === 0 && <option value="">— no groups —</option>}
+											{groups.length === 0 && (
+												<option value="">— no groups —</option>
+											)}
 											{groups.map((g) => (
 												<option key={g.id} value={g.id}>
 													{g.label || g.id}
@@ -354,14 +379,23 @@ export const ScalingEditorPanel: React.FC = () => {
 											size="small"
 											type="number"
 											value={String(step.sequence)}
-											onChange={(_, d) => updateScale(i, { sequence: parseInt(d.value, 10) || 0 })}
+											onChange={(_, d) =>
+												updateScale(i, {
+													sequence: parseInt(d.value, 10) || 0,
+												})
+											}
 										/>
 									</Field>
 								</div>
 							</div>
 						))}
 
-						<Button appearance="subtle" size="small" icon={<AddRegular />} onClick={addScale}>
+						<Button
+							appearance="subtle"
+							size="small"
+							icon={<AddRegular />}
+							onClick={addScale}
+						>
 							Add Scale step
 						</Button>
 					</div>

@@ -130,7 +130,12 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 								Enable rules:
 							</Text>
 							{command.enableRules.map((r) => (
-								<Tag key={r} size="extra-small" appearance="outline" color="success">
+								<Tag
+									key={r}
+									size="extra-small"
+									appearance="outline"
+									color="success"
+								>
 									{r}
 								</Tag>
 							))}
@@ -143,7 +148,12 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 								Display rules:
 							</Text>
 							{command.displayRules.map((r) => (
-								<Tag key={r} size="extra-small" appearance="outline" color="informative">
+								<Tag
+									key={r}
+									size="extra-small"
+									appearance="outline"
+									color="informative"
+								>
 									{r}
 								</Tag>
 							))}

@@ -149,11 +149,17 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 					<Field label="Type">
 						<Select
 							value={step.type}
-							onChange={(_, d) => setField({ type: d.value as "Modern" | "Refresh" | "Legacy" })}
+							onChange={(_, d) =>
+								setField({ type: d.value as "Modern" | "Refresh" | "Legacy" })
+							}
 						>
-							<option value="Modern">Modern (Unified Interface: web, tablets and phones)</option>
+							<option value="Modern">
+								Modern (Unified Interface: web, tablets and phones)
+							</option>
 							<option value="Refresh">Refresh (legacy updated web client)</option>
-							<option value="Legacy">Legacy (classic ribbon + Outlook list views)</option>
+							<option value="Legacy">
+								Legacy (classic ribbon + Outlook list views)
+							</option>
 						</Select>
 					</Field>
 				);
@@ -235,7 +241,10 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							<Select
 								value={step.appliesTo ?? ""}
 								onChange={(_, d) =>
-									setField({ appliesTo: d.value as "PrimaryEntity" | "SelectedEntity" | undefined })
+									setField({
+										appliesTo: d.value as
+											"PrimaryEntity" | "SelectedEntity" | undefined,
+									})
 								}
 							>
 								<option value="">Any</option>
@@ -259,7 +268,10 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							<Select
 								value={step.appliesTo ?? ""}
 								onChange={(_, d) =>
-									setField({ appliesTo: d.value as "PrimaryEntity" | "SelectedEntity" | undefined })
+									setField({
+										appliesTo: d.value as
+											"PrimaryEntity" | "SelectedEntity" | undefined,
+									})
 								}
 							>
 								<option value="">Any</option>
@@ -285,7 +297,10 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 			case "FormEntityContextRule":
 				return (
 					<Field label="Entity name">
-						<Input value={step.entityName} onChange={(_, d) => setField({ entityName: d.value })} />
+						<Input
+							value={step.entityName}
+							onChange={(_, d) => setField({ entityName: d.value })}
+						/>
 					</Field>
 				);
 
@@ -310,12 +325,15 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 						<Field label="Parameters">
 							<CrmParameterEditor
 								params={step.params ?? []}
-								onChange={(params) => setField({ params: params.length ? params : undefined })}
+								onChange={(params) =>
+									setField({ params: params.length ? params : undefined })
+								}
 							/>
 						</Field>
 						<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-							Async support: on Unified Interface, custom rules can return Promise&lt;boolean&gt;;
-							unresolved promises default to false after 10 seconds.
+							Async support: on Unified Interface, custom rules can return
+							Promise&lt;boolean&gt;; unresolved promises default to false after 10
+							seconds.
 						</Text>
 					</>
 				);
@@ -325,7 +343,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 					<Field label="State">
 						<Select
 							value={step.state}
-							onChange={(_, d) => setField({ state: d.value as "Offline" | "Online" })}
+							onChange={(_, d) =>
+								setField({ state: d.value as "Offline" | "Online" })
+							}
 						>
 							<option value="Online">Online</option>
 							<option value="Offline">Offline</option>
@@ -339,11 +359,15 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 						<Select
 							value={step.type}
 							onChange={(_, d) =>
-								setField({ type: d.value as "CrmForOutlook" | "CrmForOutlookOfflineAccess" })
+								setField({
+									type: d.value as "CrmForOutlook" | "CrmForOutlookOfflineAccess",
+								})
 							}
 						>
 							<option value="CrmForOutlook">CrmForOutlook</option>
-							<option value="CrmForOutlookOfflineAccess">CrmForOutlookOfflineAccess</option>
+							<option value="CrmForOutlookOfflineAccess">
+								CrmForOutlookOfflineAccess
+							</option>
 						</Select>
 					</Field>
 				);
@@ -355,7 +379,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							<Input
 								type="number"
 								value={String(step.major)}
-								onChange={(_, d) => setField({ major: toInt(d.value) ?? step.major })}
+								onChange={(_, d) =>
+									setField({ major: toInt(d.value) ?? step.major })
+								}
 								style={{ width: "84px" }}
 							/>
 						</Field>
@@ -418,9 +444,7 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 								onChange={(_, d) =>
 									setField({
 										appliesTo: (d.value || undefined) as
-											| "PrimaryEntity"
-											| "SelectedEntity"
-											| undefined,
+											"PrimaryEntity" | "SelectedEntity" | undefined,
 									})
 								}
 							>
@@ -433,7 +457,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							<Select
 								value={step.privilegeType}
 								onChange={(_, d) =>
-									setField({ privilegeType: d.value as typeof step.privilegeType })
+									setField({
+										privilegeType: d.value as typeof step.privilegeType,
+									})
 								}
 							>
 								{PRIVILEGE_TYPES.map((v) => (
@@ -447,7 +473,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							<Select
 								value={step.privilegeDepth}
 								onChange={(_, d) =>
-									setField({ privilegeDepth: d.value as typeof step.privilegeDepth })
+									setField({
+										privilegeDepth: d.value as typeof step.privilegeDepth,
+									})
 								}
 							>
 								{PRIVILEGE_DEPTHS.map((v) => (
@@ -475,9 +503,7 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 								onChange={(_, d) =>
 									setField({
 										appliesTo: (d.value || undefined) as
-											| "PrimaryEntity"
-											| "SelectedEntity"
-											| undefined,
+											"PrimaryEntity" | "SelectedEntity" | undefined,
 									})
 								}
 							>
@@ -489,7 +515,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 						<Field label="Property">
 							<Select
 								value={step.propertyName}
-								onChange={(_, d) => setField({ propertyName: d.value as EntityProperty })}
+								onChange={(_, d) =>
+									setField({ propertyName: d.value as EntityProperty })
+								}
 							>
 								{ENTITY_PROPERTIES.map((v) => (
 									<option key={v} value={v}>
@@ -510,10 +538,16 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 				return (
 					<div className={styles.row}>
 						<Field label="Field">
-							<Input value={step.field} onChange={(_, d) => setField({ field: d.value })} />
+							<Input
+								value={step.field}
+								onChange={(_, d) => setField({ field: d.value })}
+							/>
 						</Field>
 						<Field label="Value">
-							<Input value={step.value} onChange={(_, d) => setField({ value: d.value })} />
+							<Input
+								value={step.value}
+								onChange={(_, d) => setField({ value: d.value })}
+							/>
 						</Field>
 					</div>
 				);
@@ -540,7 +574,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 									setGroups(
 										target === "new"
 											? [...step.groups, [newStep]]
-											: step.groups.map((g, gi) => (gi === target ? [...g, newStep] : g)),
+											: step.groups.map((g, gi) =>
+													gi === target ? [...g, newStep] : g,
+												),
 									);
 									setOrPicker(null);
 								}}
@@ -564,7 +600,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 										onChange={(updated) =>
 											setGroups(
 												step.groups.map((g, i) =>
-													i === gi ? g.map((s, j) => (j === si ? updated : s)) : g,
+													i === gi
+														? g.map((s, j) => (j === si ? updated : s))
+														: g,
 												),
 											)
 										}
@@ -611,9 +649,12 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 				return (
 					<>
 						<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-							Command Bar Studio doesn&apos;t edit this rule; it is kept exactly as loaded.
+							Command Bar Studio doesn&apos;t edit this rule; it is kept exactly as
+							loaded.
 						</Text>
-						<pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: "11px" }}>{step.xml}</pre>
+						<pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: "11px" }}>
+							{step.xml}
+						</pre>
 					</>
 				);
 
@@ -622,7 +663,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 					<Field label="SKU">
 						<Select
 							value={step.sku}
-							onChange={(_, d) => setField({ sku: d.value as "OnPremise" | "Online" | "Spla" })}
+							onChange={(_, d) =>
+								setField({ sku: d.value as "OnPremise" | "Online" | "Spla" })
+							}
 						>
 							<option value="Online">Online</option>
 							<option value="OnPremise">OnPremise</option>
@@ -636,7 +679,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 					<Field label="Setting">
 						<Select
 							value={step.setting}
-							onChange={(_, d) => setField({ setting: d.value as typeof step.setting })}
+							onChange={(_, d) =>
+								setField({ setting: d.value as typeof step.setting })
+							}
 						>
 							{[
 								"IsSharepointEnabled",
@@ -673,7 +718,10 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							<Select
 								value={step.privilegeDepth ?? ""}
 								onChange={(_, d) =>
-									setField({ privilegeDepth: (d.value || undefined) as typeof step.privilegeDepth })
+									setField({
+										privilegeDepth: (d.value ||
+											undefined) as typeof step.privilegeDepth,
+									})
 								}
 							>
 								<option value="">Any</option>
@@ -691,10 +739,16 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 				return (
 					<div className={styles.row}>
 						<Field label="Option set">
-							<Input value={step.optionSet} onChange={(_, d) => setField({ optionSet: d.value })} />
+							<Input
+								value={step.optionSet}
+								onChange={(_, d) => setField({ optionSet: d.value })}
+							/>
 						</Field>
 						<Field label="State code">
-							<Input value={step.stateCode} onChange={(_, d) => setField({ stateCode: d.value })} />
+							<Input
+								value={step.stateCode}
+								onChange={(_, d) => setField({ stateCode: d.value })}
+							/>
 						</Field>
 						<Field label="Object type code">
 							<Input
@@ -716,7 +770,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 						<Field label="Applies To">
 							<Select
 								value={step.appliesTo ?? "PrimaryEntity"}
-								onChange={(_, d) => setField({ appliesTo: d.value as "PrimaryEntity" })}
+								onChange={(_, d) =>
+									setField({ appliesTo: d.value as "PrimaryEntity" })
+								}
 							>
 								<option value="PrimaryEntity">PrimaryEntity</option>
 							</Select>
@@ -742,7 +798,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 					<Field label="Outlook version">
 						<Select
 							value={step.version}
-							onChange={(_, d) => setField({ version: d.value as "2003" | "2007" | "2010" })}
+							onChange={(_, d) =>
+								setField({ version: d.value as "2003" | "2007" | "2010" })
+							}
 						>
 							<option value="2003">2003</option>
 							<option value="2007">2007</option>
@@ -769,7 +827,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							<Select
 								value={step.privilegeType}
 								onChange={(_, d) =>
-									setField({ privilegeType: d.value as typeof step.privilegeType })
+									setField({
+										privilegeType: d.value as typeof step.privilegeType,
+									})
 								}
 							>
 								{PRIVILEGE_TYPES.map((v) => (
@@ -783,7 +843,10 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							<Select
 								value={step.appliesTo ?? ""}
 								onChange={(_, d) =>
-									setField({ appliesTo: (d.value || undefined) as "PrimaryEntity" | undefined })
+									setField({
+										appliesTo: (d.value || undefined) as
+											"PrimaryEntity" | undefined,
+									})
 								}
 							>
 								<option value="">Default</option>
@@ -823,12 +886,16 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 						<Checkbox
 							label="Allow custom relationship"
 							checked={step.allowCustomRelationship === true}
-							onChange={(_, d) => setField({ allowCustomRelationship: d.checked === true })}
+							onChange={(_, d) =>
+								setField({ allowCustomRelationship: d.checked === true })
+							}
 						/>
 						<Checkbox
 							label="Allow system relationship"
 							checked={step.allowSystemRelationship === true}
-							onChange={(_, d) => setField({ allowSystemRelationship: d.checked === true })}
+							onChange={(_, d) =>
+								setField({ allowSystemRelationship: d.checked === true })
+							}
 						/>
 					</div>
 				);
@@ -861,11 +928,17 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 				<div className={styles.row}>
 					{hasStandardAttributes && (
 						<>
-							<Field label="Default" title="Value the rule returns when it cannot be evaluated.">
+							<Field
+								label="Default"
+								title="Value the rule returns when it cannot be evaluated."
+							>
 								<Select
 									value={defaultVal === undefined ? "" : String(defaultVal)}
 									onChange={(_, d) =>
-										setField({ default: d.value === "" ? undefined : d.value === "true" })
+										setField({
+											default:
+												d.value === "" ? undefined : d.value === "true",
+										})
 									}
 								>
 									<option value="">(not set)</option>
@@ -879,7 +952,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 								title="Reverse the evaluated result."
 								onChange={(_, d) =>
 									// Unchecked → no attribute (same meaning as false).
-									setField({ invertResult: d.checked === true ? true : undefined })
+									setField({
+										invertResult: d.checked === true ? true : undefined,
+									})
 								}
 							/>
 						</>

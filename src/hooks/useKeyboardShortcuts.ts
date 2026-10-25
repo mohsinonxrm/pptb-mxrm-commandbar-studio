@@ -24,7 +24,8 @@ const OVERLAY_SELECTOR =
 const DRAWER_SELECTOR = ".fui-OverlayDrawer, .fui-InlineDrawer";
 
 /** An OverlayDrawer is a modal dialog too, but an editor, not a question (#17 review). */
-const isDrawer = (el: Element) => !!el.closest(DRAWER_SELECTOR) && !el.matches('[role="alertdialog"]');
+const isDrawer = (el: Element) =>
+	!!el.closest(DRAWER_SELECTOR) && !el.matches('[role="alertdialog"]');
 
 /**
  * Focus in a dialog, popover or menu — or a modal dialog is open: no shortcut
@@ -151,9 +152,20 @@ export function useKeyboardShortcuts() {
 
 			// Duplicate: Ctrl+D / Cmd+D
 			if (plain && key === "d") {
-				if (!inTextField && selectedButtonId && selectedGroupId && selectedTabId && activeLocation) {
+				if (
+					!inTextField &&
+					selectedButtonId &&
+					selectedGroupId &&
+					selectedTabId &&
+					activeLocation
+				) {
 					e.preventDefault();
-					duplicateButton(activeLocation, selectedTabId, selectedGroupId, selectedButtonId);
+					duplicateButton(
+						activeLocation,
+						selectedTabId,
+						selectedGroupId,
+						selectedButtonId,
+					);
 					announce("Button duplicated");
 				}
 				return;
@@ -174,7 +186,9 @@ export function useKeyboardShortcuts() {
 						?.groups.find((g) => g.id === selectedGroupId);
 					if (group && menuItemPlace(group, selectedButtonId)) {
 						// Cut / paste moves top-level controls only (#62 review m5).
-						announce("Menu items can't be cut. Delete the item and add a new one to the other menu.");
+						announce(
+							"Menu items can't be cut. Delete the item and add a new one to the other menu.",
+						);
 						return;
 					}
 					cutBufferRef.current = {
@@ -191,13 +205,7 @@ export function useKeyboardShortcuts() {
 			// Paste cut button into focused/selected group: Ctrl+V / Cmd+V
 			if (ctrl && !altGr && key === "v") {
 				const cut = cutBufferRef.current;
-				if (
-					!inTextField &&
-					cut &&
-					selectedGroupId &&
-					selectedTabId &&
-					activeLocation
-				) {
+				if (!inTextField && cut && selectedGroupId && selectedTabId && activeLocation) {
 					e.preventDefault();
 					// A button that isn't yours moves as a copy with a new id (#26).
 					const movedId = moveButton(
@@ -219,7 +227,12 @@ export function useKeyboardShortcuts() {
 						return;
 					}
 					requestAnimationFrame(() => {
-						selectButtonInContext(activeLocation, selectedTabId, selectedGroupId, movedId);
+						selectButtonInContext(
+							activeLocation,
+							selectedTabId,
+							selectedGroupId,
+							movedId,
+						);
 						const targetTile = document.querySelector<HTMLButtonElement>(
 							`[data-ribbon-btn-id="${movedId}"]`,
 						);
@@ -243,7 +256,9 @@ export function useKeyboardShortcuts() {
 				activeLocation
 			) {
 				if (!inTextField) {
-					const activeTab = ribbons[activeLocation].tabs.find((t) => t.id === selectedTabId);
+					const activeTab = ribbons[activeLocation].tabs.find(
+						(t) => t.id === selectedTabId,
+					);
 					const selectedGroup = activeTab?.groups.find((g) => g.id === selectedGroupId);
 					const selected = findGroupControl(selectedGroup, selectedButtonId);
 					if (!selected) return;
@@ -256,9 +271,12 @@ export function useKeyboardShortcuts() {
 							selectedTabId === "Mscrm.GlobalTab" &&
 							selected.oob &&
 							!selected.custom;
-						if (readOnly) announce(`"${selected.label}" is read-only and can't be deleted.`);
+						if (readOnly)
+							announce(`"${selected.label}" is read-only and can't be deleted.`);
 						else if (selected.hidden)
-							announce(`"${selected.label}" can't be deleted — only your own buttons can. It is already hidden.`);
+							announce(
+								`"${selected.label}" can't be deleted — only your own buttons can. It is already hidden.`,
+							);
 						else
 							openHideInsteadOfDelete({
 								location: activeLocation,
@@ -271,13 +289,23 @@ export function useKeyboardShortcuts() {
 					// A menu item: select the next item of its section, else its flyout.
 					// A top-level control: the next top-level control — never an item of
 					// the menu being deleted with it (#62 review m5).
-					const place = selectedGroup ? menuItemPlace(selectedGroup, selectedButtonId) : undefined;
+					const place = selectedGroup
+						? menuItemPlace(selectedGroup, selectedButtonId)
+						: undefined;
 					const orderedButtons = place
-						? place.section.controls.map((button) => ({ groupId: selectedGroupId, buttonId: button.id }))
+						? place.section.controls.map((button) => ({
+								groupId: selectedGroupId,
+								buttonId: button.id,
+							}))
 						: (activeTab?.groups.flatMap((group) =>
-								group.buttons.map((button) => ({ groupId: group.id, buttonId: button.id })),
+								group.buttons.map((button) => ({
+									groupId: group.id,
+									buttonId: button.id,
+								})),
 							) ?? []);
-					const deletedIndex = orderedButtons.findIndex((btn) => btn.buttonId === selectedButtonId);
+					const deletedIndex = orderedButtons.findIndex(
+						(btn) => btn.buttonId === selectedButtonId,
+					);
 					const nextTarget =
 						orderedButtons[deletedIndex + 1] ??
 						orderedButtons[deletedIndex - 1] ??

@@ -48,7 +48,23 @@ const ribbon = (location: RibbonLocation): RibbonDefinition => ({
 	entityLogicalName: T,
 	tabs:
 		location === "HomepageGrid"
-			? [{ id: "Tab", label: "Tab", sequence: 10, tabDisplayRules: [], groups: [{ id: "G", label: "G", sequence: 10, template: "Flexible2", buttons: [button] }] }]
+			? [
+					{
+						id: "Tab",
+						label: "Tab",
+						sequence: 10,
+						tabDisplayRules: [],
+						groups: [
+							{
+								id: "G",
+								label: "G",
+								sequence: 10,
+								template: "Flexible2",
+								buttons: [button],
+							},
+						],
+					},
+				]
 			: [],
 });
 const entity = (logicalName: string): EntityMetadata => ({
@@ -62,7 +78,12 @@ const entity = (logicalName: string): EntityMetadata => ({
 function load() {
 	useDraftStore.getState().beginLoad();
 	useRibbonStore.getState().loadWorkspace({
-		ribbons: { HomepageGrid: ribbon("HomepageGrid"), SubGrid: ribbon("SubGrid"), Form: ribbon("Form"), Application: ribbon("Application") },
+		ribbons: {
+			HomepageGrid: ribbon("HomepageGrid"),
+			SubGrid: ribbon("SubGrid"),
+			Form: ribbon("Form"),
+			Application: ribbon("Application"),
+		},
 		commands: [],
 		enableRules: [],
 		displayRules: [],
@@ -71,9 +92,12 @@ function load() {
 	useDraftStore.getState().workspaceLoaded(KEY);
 }
 
-const buttonsNow = () => useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[0].buttons.map((b) => b.id);
+const buttonsNow = () =>
+	useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[0].buttons.map((b) => b.id);
 const findButton = (text: string) =>
-	Array.from(document.body.querySelectorAll("button")).find((b) => b.textContent?.trim() === text);
+	Array.from(document.body.querySelectorAll("button")).find(
+		(b) => b.textContent?.trim() === text,
+	);
 const click = (text: string) =>
 	act(() => {
 		const b = findButton(text);
@@ -87,10 +111,22 @@ let unsubscribe: () => void;
 
 beforeEach(() => {
 	localStorage.clear();
-	useDraftStore.setState({ target: null, pending: null, pendingBaselineChanged: false, pendingSwitch: null, saveFailed: false, lastSavedAt: null, restoreError: null });
+	useDraftStore.setState({
+		target: null,
+		pending: null,
+		pendingBaselineChanged: false,
+		pendingSwitch: null,
+		saveFailed: false,
+		lastSavedAt: null,
+		restoreError: null,
+	});
 	useSessionStore.setState({
 		connectionUrl: ORG,
-		activeSolution: { id: "sol-a", uniqueName: "SolutionA", friendlyName: "Solution A" } as Solution,
+		activeSolution: {
+			id: "sol-a",
+			uniqueName: "SolutionA",
+			friendlyName: "Solution A",
+		} as Solution,
 		activeEntity: entity(T),
 	});
 	unsubscribe = installDraftAutosave();
@@ -124,14 +160,18 @@ describe("#16 — restore dialog", () => {
 		expect(findButton("Restore")).toBeUndefined();
 
 		act(() => load());
-		expect(document.body.textContent).toContain("unpublished changes to this table from a previous session");
+		expect(document.body.textContent).toContain(
+			"unpublished changes to this table from a previous session",
+		);
 		expect(buttonsNow()).toEqual(["cbs.Mine"]);
 		click("Restore");
 		expect(buttonsNow()).toEqual([]);
 		expect(findButton("Restore")).toBeUndefined();
-		expect(useRibbonStore.getState().baseline.HomepageGrid.tabs[0].groups[0].buttons.map((b) => b.id)).toEqual([
-			"cbs.Mine",
-		]);
+		expect(
+			useRibbonStore
+				.getState()
+				.baseline.HomepageGrid.tabs[0].groups[0].buttons.map((b) => b.id),
+		).toEqual(["cbs.Mine"]);
 	});
 
 	it("Discard deletes the draft", () => {
@@ -151,7 +191,9 @@ describe("#16 — switching with unpublished changes", () => {
 		act(() => useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"));
 
 		act(() => useDraftStore.getState().requestEntitySwitch(entity("contact")));
-		expect(document.body.textContent).toContain("Account has changes that aren't published. Switch to table Contact?");
+		expect(document.body.textContent).toContain(
+			"Account has changes that aren't published. Switch to table Contact?",
+		);
 		click("Cancel");
 		expect(useSessionStore.getState().activeEntity?.logicalName).toBe(T);
 		expect(buttonsNow()).toEqual([]);
@@ -167,7 +209,11 @@ describe("#16 — switching with unpublished changes", () => {
 		act(() => load());
 		act(() => useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"));
 		act(() =>
-			useDraftStore.getState().requestSolutionSwitch({ id: "sol-b", uniqueName: "SolutionB", friendlyName: "Solution B" } as Solution),
+			useDraftStore.getState().requestSolutionSwitch({
+				id: "sol-b",
+				uniqueName: "SolutionB",
+				friendlyName: "Solution B",
+			} as Solution),
 		);
 		expect(document.body.textContent).toContain("Switch to solution Solution B?");
 		click("Discard");
@@ -197,11 +243,22 @@ describe("#16 — a draft that fails to restore", () => {
 		const pending = useDraftStore.getState().pending!;
 		act(() =>
 			useDraftStore.setState({
-				pending: { ...pending, delta: { ...pending.delta, lists: { ...pending.delta.lists, commands: { set: [null], drop: [], add: [] } } } },
+				pending: {
+					...pending,
+					delta: {
+						...pending.delta,
+						lists: {
+							...pending.delta.lists,
+							commands: { set: [null], drop: [], add: [] },
+						},
+					},
+				},
 			}),
 		);
 		click("Restore");
-		expect(document.body.querySelector('[aria-modal="true"]')?.textContent).toContain("couldn't be restored");
+		expect(document.body.querySelector('[aria-modal="true"]')?.textContent).toContain(
+			"couldn't be restored",
+		);
 		expect(findButton("Restore")?.disabled).toBe(true);
 		click("Discard");
 		expect(document.body.querySelector('[aria-modal="true"]')).toBeNull();
@@ -217,7 +274,9 @@ describe("#16 — a full browser storage", () => {
 			throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
 		});
 		try {
-			act(() => useRibbonStore.getState().hideOobButton("HomepageGrid", "Tab", "G", "cbs.Mine"));
+			act(() =>
+				useRibbonStore.getState().hideOobButton("HomepageGrid", "Tab", "G", "cbs.Mine"),
+			);
 			expect(document.body.textContent).toContain("The last saved draft is from");
 		} finally {
 			setItem.mockRestore();
@@ -230,8 +289,12 @@ describe("#16 — a full browser storage", () => {
 			throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
 		});
 		try {
-			act(() => useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"));
-			expect(document.body.textContent).toContain("can't be saved as a draft: the browser storage is full");
+			act(() =>
+				useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"),
+			);
+			expect(document.body.textContent).toContain(
+				"can't be saved as a draft: the browser storage is full",
+			);
 			act(() => useDraftStore.getState().requestEntitySwitch(entity("contact")));
 			expect(findButton("Keep as draft")?.disabled).toBe(true);
 			click("Cancel");

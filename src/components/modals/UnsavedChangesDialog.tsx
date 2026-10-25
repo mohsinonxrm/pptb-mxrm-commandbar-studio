@@ -49,21 +49,27 @@ export function UnsavedChangesDialog() {
 						<Text block style={{ marginTop: "8px" }}>
 							{earlierDraft ? (
 								<>
-									Changes made since opening {table} aren&apos;t saved: the unsaved changes of your previous session
-									are kept until you restore or discard them.
+									Changes made since opening {table} aren&apos;t saved: the
+									unsaved changes of your previous session are kept until you
+									restore or discard them.
 								</>
 							) : (
 								<>
-									<strong>Keep as draft</strong> saves them on this computer: they are offered again when you open {table}{" "}
-									in {solution}. <strong>Discard</strong> deletes them.
+									<strong>Keep as draft</strong> saves them on this computer: they
+									are offered again when you open {table} in {solution}.{" "}
+									<strong>Discard</strong> deletes them.
 								</>
 							)}
 						</Text>
 						{saveFailed && !earlierDraft && (
-							<MessageBar intent="error" layout="multiline" style={{ marginTop: "12px" }}>
+							<MessageBar
+								intent="error"
+								layout="multiline"
+								style={{ marginTop: "12px" }}
+							>
 								<MessageBarBody>
-									The changes can&apos;t be saved as a draft: the browser storage is full. Publish them first, or
-									discard them to switch.
+									The changes can&apos;t be saved as a draft: the browser storage
+									is full. Publish them first, or discard them to switch.
 								</MessageBarBody>
 							</MessageBar>
 						)}
@@ -76,7 +82,11 @@ export function UnsavedChangesDialog() {
 							Discard{earlierDraft ? " and switch" : ""}
 						</Button>
 						{!earlierDraft && (
-							<Button appearance="primary" disabled={saveFailed} onClick={() => resolveSwitch("keep")}>
+							<Button
+								appearance="primary"
+								disabled={saveFailed}
+								onClick={() => resolveSwitch("keep")}
+							>
 								Keep as draft
 							</Button>
 						)}

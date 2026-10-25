@@ -67,7 +67,8 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 	const [hideWarning, setHideWarning] = useState(false);
 	// As on the canvas: an out-of-the-box global command bar control can't be
 	// changed, and hiding another out-of-the-box control asks first.
-	const globalOob = location === "Application" && tabId === "Mscrm.GlobalTab" && button.oob && !button.custom;
+	const globalOob =
+		location === "Application" && tabId === "Mscrm.GlobalTab" && button.oob && !button.custom;
 	const kind = CONTROL_KIND_LABELS[button.kind];
 	const field = (label: string, value: string | undefined) =>
 		value ? (
@@ -84,10 +85,14 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 				<Subtitle2>{kind}</Subtitle2>
 			</div>
 			<Caption1>
-				Command Bar Studio shows this &lt;{CONTROL_TAG_BY_KIND[button.kind]}&gt; but doesn&apos;t edit it. You can hide it,
-				and move or delete it when your customizations add it; its XML is published as it was loaded.
+				Command Bar Studio shows this &lt;{CONTROL_TAG_BY_KIND[button.kind]}&gt; but
+				doesn&apos;t edit it. You can hide it, and move or delete it when your
+				customizations add it; its XML is published as it was loaded.
 			</Caption1>
-			{field("Label", captionOf(button.label, locLabels, undefined, button.source?.labelToken))}
+			{field(
+				"Label",
+				captionOf(button.label, locLabels, undefined, button.source?.labelToken),
+			)}
 			{field("Id", button.id)}
 			{field("Command", button.commandId || undefined)}
 			<div>
@@ -98,7 +103,9 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 					onClick={() =>
 						!button.hidden && button.oob
 							? setHideWarning(true)
-							: setButtonProp(location, tabId, groupId, button.id, { hidden: !button.hidden })
+							: setButtonProp(location, tabId, groupId, button.id, {
+									hidden: !button.hidden,
+								})
 					}
 				>
 					{button.hidden ? "Unhide" : "Hide"}
@@ -107,7 +114,12 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 			{hideWarning && (
 				<HideOobWarningModal
 					open
-					buttonLabel={captionOf(button.label, locLabels, undefined, button.source?.labelToken)}
+					buttonLabel={captionOf(
+						button.label,
+						locLabels,
+						undefined,
+						button.source?.labelToken,
+					)}
 					commandId={button.commandId}
 					onConfirmHide={() => {
 						hideOobButton(location, tabId, groupId, button.id);

@@ -88,7 +88,11 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const setBottomPanelHeight = useUIStore((s) => s.setBottomPanelHeight);
 	const announcement = useUIStore((s) => s.announcement);
 	const windowWidth = useWindowWidth();
-	const fitted = fitPaneWidths(windowWidth, leftPaneWidth, rightPaneMode === "docked" ? rightPaneWidth : 0);
+	const fitted = fitPaneWidths(
+		windowWidth,
+		leftPaneWidth,
+		rightPaneMode === "docked" ? rightPaneWidth : 0,
+	);
 	const anyOverlayOpen = useUIStore(
 		(s) =>
 			s.xmlDrawerOpen ||
@@ -160,7 +164,11 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 				<div className={styles.leftPane} style={{ width: fitted.left }}>
 					<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
 				</div>
-				<ResizableHandle direction="vertical" onResize={resizeLeft} aria-label="Resize left pane" />
+				<ResizableHandle
+					direction="vertical"
+					onResize={resizeLeft}
+					aria-label="Resize left pane"
+				/>
 				<ErrorBoundary label="Ribbon canvas">{children}</ErrorBoundary>
 				{rightPaneMode === "docked" && (
 					<>
