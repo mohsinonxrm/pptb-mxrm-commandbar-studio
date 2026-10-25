@@ -20,10 +20,12 @@ function fakeApi(existingId?: string) {
 		})),
 		create: vi.fn(async () => ({ id: "new-id" })),
 		update: vi.fn(async () => undefined),
-		execute: vi.fn(async () => ({})),
+		execute: vi.fn(async (_req?: unknown) => ({})),
 	};
 }
 const asApi = (api: ReturnType<typeof fakeApi>) => api as unknown as DataverseAPI.API;
+const operations = (api: ReturnType<typeof fakeApi>) =>
+	api.execute.mock.calls.map((c: unknown[]) => (c[0] as { operationName: string }).operationName);
 
 const addComponentCall = (id: string, solution: string) => [
 	{
@@ -155,7 +157,45 @@ describe("saveWebResource", () => {
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
 		useSessionStore.setState({ activeSolution: solution(true) });
 		await saveWebResource("cbstest_/x.js", "Ow==", 3);
-		expect(api.execute).not.toHaveBeenCalled();
+		expect(operations(api)).not.toContain("AddSolutionComponent");
+	});
+
+	it("publishes what it created or updated (#156)", async () => {
+		const api = fakeApi("wr-1");
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
+		const res = await saveWebResource("cbstest_/x.js", "Ow==", 3);
+		expect(res.updated).toBe(true);
+		expect(res.published).toBe(true);
+		expect(api.execute).toHaveBeenCalledWith({
+			operationName: "PublishXml",
+			operationType: "action",
+			parameters: {
+				ParameterXml: "<importexportxml><webresources><webresource>wr-1</webresource></webresources></importexportxml>",
+			},
+		});
+	});
+
+	it("doesn't publish what it kept, or when the caller publishes itself", async () => {
+		const api = fakeApi("wr-1");
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
+		await saveWebResource("cbstest_/x.js", "Ow==", 3, { keepExisting: true });
+		await saveWebResource("cbstest_/y.js", "Ow==", 3, { publish: false });
+		expect(operations(api)).not.toContain("PublishXml");
+	});
+
+	it("a publish that fails leaves the save and says so", async () => {
+		const api = fakeApi();
+		api.execute = vi.fn(async (req: unknown) => {
+			if ((req as { operationName: string }).operationName === "PublishXml") throw new Error("denied");
+			return {};
+		});
+		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
+		useRuntimeLogStore.getState().clear();
+		const res = await saveWebResource("cbstest_/x.js", "Ow==", 3);
+		expect(res.created).toBe(true);
+		expect(res.published).toBeUndefined();
+		expect(res.publishWarning).toMatch(/saved but not published \(denied\)/);
+		expect(useRuntimeLogStore.getState().entries.some((e) => e.message === res.publishWarning)).toBe(true);
 	});
 
 	it("warns when a managed active solution means the web resource lands in no solution", async () => {

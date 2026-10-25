@@ -308,7 +308,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 				onExisting: replaceConfirm.onExisting,
 			});
 			await reloadResources();
-			setWarning(saved.solutionWarning ?? null);
+			setWarning([saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null);
 		} catch (err) {
 			if (err instanceof WebResourceSaveCancelled) return;
 			const message = err instanceof Error ? err.message : String(err);

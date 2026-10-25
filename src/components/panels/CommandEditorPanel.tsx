@@ -312,7 +312,7 @@ export const CommandEditorPanel: React.FC = () => {
 				inferWebResourceTypeCode(codeWebResourceName),
 				{ displayName: codeWebResourceName.split("/").pop(), guard },
 			);
-			setCodeWarning(saved.solutionWarning ?? null);
+			setCodeWarning([saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null);
 			setCodeDirty(false);
 		} catch (error: unknown) {
 			setCodeError(error instanceof Error ? error.message : "Failed to save web resource content.");

@@ -100,6 +100,8 @@ export async function ensureFluentIconWebResource(
 		displayName: `${fluentIconFileName(pascalName, variant)} (CBS icon)`,
 		keepExisting: true,
 		guard: deps.guard,
+		// Published below, once per session, with its own busy wait.
+		publish: false,
 	});
 	const result: FluentIconWebResource = { name, id: saved.id, created: saved.created };
 	if (!published.has(saved.id)) {

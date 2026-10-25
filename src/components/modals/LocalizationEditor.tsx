@@ -19,6 +19,7 @@ import { DismissRegular, AddRegular, DeleteRegular, TextAddRegular } from "@flue
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { groupControls } from "@/utils/ribbonMenu";
+import type { RibbonButton, RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId, textLabelId } from "@/utils/locLabelRef";
 
 const KNOWN_LCIDS: Record<number, { name: string; flag: string }> = {
@@ -125,6 +126,7 @@ export const LocalizationEditor: React.FC = () => {
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const upsertLocLabel = useRibbonStore((s) => s.upsertLocLabel);
 	const batch = useRibbonStore((s) => s.batch);
+	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
 
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const baseLcid = useRibbonStore((s) => s.baseLanguageCode);
@@ -132,13 +134,16 @@ export const LocalizationEditor: React.FC = () => {
 	// keeps its own id (a Ribbon Workbench or solution label, #49), else the
 	// convention id. Another solution's label, shared and not loaded, isn't
 	// edited here (#137): its fields are read-only until the text changes.
-	const button = React.useMemo(() => {
+	const found = React.useMemo(() => {
 		if (!buttonId) return undefined;
-		for (const def of Object.values(ribbons))
+		for (const [location, def] of Object.entries(ribbons) as [RibbonLocation, RibbonDefinition][])
 			for (const tab of def.tabs)
-				for (const group of tab.groups) for (const b of groupControls(group)) if (b.id === buttonId) return b;
+				for (const group of tab.groups)
+					for (const b of groupControls(group))
+						if (b.id === buttonId) return { button: b, location, tabId: tab.id, groupId: group.id };
 		return undefined;
 	}, [ribbons, buttonId]);
+	const button = found?.button;
 	const source = button?.source;
 	const labelId = button
 		? textLabelId(source?.labelToken, buttonLabelId(button.id), button.label, locLabels, baseLcid)
@@ -172,13 +177,24 @@ export const LocalizationEditor: React.FC = () => {
 
 		return Array.from(lcidSet)
 			.sort((a, b) => (a === baseLcid ? -1 : b === baseLcid ? 1 : a - b))
-			.map((lcid) => ({
-				lcid,
-				label: labelRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
-				tooltipTitle: ttRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
-				tooltipBody: tbRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
-			}));
-	}, [locLabels, labelId, tooltipTitleId, tooltipBodyId, baseLcid]);
+			.map((lcid) =>
+				// The base language is the button's own text — what Properties edits and
+				// a publish writes as the base title (#157) — not a copy kept in the label.
+				lcid === baseLcid
+					? {
+							lcid,
+							label: button?.label ?? "",
+							tooltipTitle: button?.tooltipTitle ?? "",
+							tooltipBody: button?.tooltipBody ?? "",
+						}
+					: {
+							lcid,
+							label: labelRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
+							tooltipTitle: ttRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
+							tooltipBody: tbRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
+						},
+			);
+	}, [locLabels, labelId, tooltipTitleId, tooltipBodyId, baseLcid, button]);
 
 	const [entries, setEntries] = useState<LcidEntry[]>([]);
 	const [addingLcid, setAddingLcid] = useState<string>("");
@@ -225,8 +241,20 @@ export const LocalizationEditor: React.FC = () => {
 				.filter((e) => e[field])
 				.map((e) => ({ languageCode: e.lcid, description: e[field] as string }));
 
+		// The base-language texts are the button's own (#157): saved to it, so the
+		// canvas, Properties and the publish all use them. A label can't be emptied here.
+		const base = entries.find((e) => e.lcid === baseLcid);
+		const patch: Partial<RibbonButton> = {};
+		if (base && labelId && base.label && base.label !== button.label) patch.label = base.label;
+		if (base && tooltipTitleId && base.tooltipTitle !== (button.tooltipTitle ?? ""))
+			patch.tooltipTitle = base.tooltipTitle || undefined;
+		if (base && tooltipBodyId && base.tooltipBody !== (button.tooltipBody ?? ""))
+			patch.tooltipBody = base.tooltipBody || undefined;
+
 		// One undo step for the whole dialog (#34).
 		batch(() => {
+			if (found && Object.keys(patch).length > 0)
+				setButtonProp(found.location, found.tabId, found.groupId, button.id, patch);
 			if (labelId && toTitles("label").length > 0) {
 				upsertLocLabel({ id: labelId, titles: toTitles("label") });
 			}
