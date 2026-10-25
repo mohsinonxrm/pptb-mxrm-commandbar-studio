@@ -10,8 +10,7 @@ import {
 	Badge,
 	Text,
 	Divider,
-	MessageBar,
-	MessageBarBody,
+	InfoLabel,
 	Popover,
 	PopoverSurface,
 	PopoverTrigger,
@@ -281,16 +280,18 @@ export const RuleEditorPanel: React.FC = () => {
 				</div>
 				{idError && <Text className={styles.error}>{idError}</Text>}
 
-				{isEnable && (
-					<MessageBar intent="warning">
-						<MessageBarBody>
-							Enable rules have a restricted set of allowed step types. Display-only
-							rule kinds are disabled.
-						</MessageBarBody>
-					</MessageBar>
-				)}
-
-				<Divider>Steps (ALL must pass)</Divider>
+				<Divider>
+					{isEnable ? (
+						<InfoLabel
+							size="small"
+							info="Enable rules allow fewer step types than display rules; the ones they don't allow are disabled in Add step."
+						>
+							Steps (ALL must pass)
+						</InfoLabel>
+					) : (
+						"Steps (ALL must pass)"
+					)}
+				</Divider>
 
 				<DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
 					<SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>

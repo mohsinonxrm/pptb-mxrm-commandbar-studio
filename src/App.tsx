@@ -277,7 +277,7 @@ export function App() {
 
 				// Build ConflictEntry records for buttons whose provenance resolved
 				// to "managed" — i.e. they belong to a managed solution layer.
-				// The ConflictBanner uses these to surface a warning without any
+				// The Properties notices (ButtonNotices) use these to surface a warning without any
 				// additional API calls. The ConflictDrawer then fetches live layer
 				// detail on demand.
 				const conflictEntries: ConflictEntry[] = [];

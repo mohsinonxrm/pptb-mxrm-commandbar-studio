@@ -9,13 +9,13 @@ import { DisplayRulesSection } from "./DisplayRulesSection";
 import { EnableRulesSection } from "./EnableRulesSection";
 import { ScalingSectionSummary } from "./ScalingSectionSummary";
 import { AdvancedSection } from "./AdvancedSection";
-import { ConflictBanner } from "./ConflictBanner";
 import { HiddenByCustomizationsSection } from "./HiddenByCustomizationsSection";
 import { OrphanedCustomizationsSection } from "./OrphanedCustomizationsSection";
 import { ReadOnlyControlSection } from "./ReadOnlyControlSection";
 import { isReadOnlyControlKind } from "@/utils/controlKinds";
 import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
-import { ModernCommandProperties, ModernOverrideSection } from "./ModernCommandProperties";
+import { ModernCommandProperties } from "./ModernCommandProperties";
+import { ButtonNotices } from "./ButtonNotices";
 import { useClassicOverrides, useSelectedModernCommand } from "@/hooks/useModernCommands";
 
 const useStyles = makeStyles({
@@ -87,8 +87,13 @@ export function PropertiesPane() {
 				</>
 			) : (
 				<>
-					<ConflictBanner />
-					<ModernOverrideSection overrides={modernOverrides} />
+					<ButtonNotices
+						button={button}
+						location={location}
+						tabId={tabId}
+						groupId={selectedGroupId!}
+						overrides={modernOverrides}
+					/>
 					{place && (
 						<div className={styles.section}>
 							<Caption1>

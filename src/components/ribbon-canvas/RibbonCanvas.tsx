@@ -13,12 +13,12 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { useUIStore } from "@/store/uiStore";
-import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ClassicRibbon } from "./ClassicRibbon";
 import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
 import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
 import { LocationRow, RibbonTabStrip } from "./CanvasHeader";
+import { MessageSlot, type SlotMessage } from "@/components/shared/MessageSlot";
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
 import { hasUnpublishedChanges } from "@/store/draftStore";
 import { useState, useEffect } from "react";
@@ -31,6 +31,9 @@ const useStyles = makeStyles({
 		minWidth: 0,
 		overflow: "hidden",
 		backgroundColor: tokens.colorNeutralBackground1,
+	},
+	messages: {
+		padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM} 0`,
 	},
 	canvas: {
 		flex: 1,
@@ -103,100 +106,68 @@ export function RibbonCanvas({
 		}
 	}, [ribbon.tabs, tabId, setTabId]);
 
+	// Things to act on, one at a time (#181). What a location or tab is lives in
+	// About this location and the tab's info button instead of permanent banners.
+	const messages: SlotMessage[] = [];
+	if (layerReadError && !isLoadingRibbon && !ribbonLoadError) {
+		messages.push({
+			id: "layer-read",
+			intent: "warning",
+			title: "Couldn't read your unmanaged ribbon customizations",
+			body: `Labels may show as ids, and what you can edit or delete is unknown. Reload before editing. Details: ${layerReadError}`,
+			dismissible: false,
+			actions: onRetryRibbonLoad && (
+				<Button
+					size="small"
+					onClick={() =>
+						hasUnpublishedChanges() ? setConfirmingReload(true) : onRetryRibbonLoad()
+					}
+				>
+					Retry
+				</Button>
+			),
+		});
+	}
+	// Charts / AllEntities tabs: their buttons never show in Unified Interface (#64).
+	if (currentTab && isHiddenOnUnifiedInterface(currentTab.id)) {
+		messages.push({
+			id: `hidden-tab:${currentTab.id}`,
+			intent: "warning",
+			title: "Unified Interface doesn't show this tab's buttons",
+			body: "They don't come back when the table is reloaded either. Add buttons to the table's main tab instead.",
+		});
+	}
+	// The table's customizations the ribbon doesn't return anywhere (#64).
+	if (location !== "Application" && orphanCount > 0) {
+		messages.push({
+			id: "orphans",
+			intent: "warning",
+			signature: String(orphanCount),
+			title: `${orphanCount} of your customizations ${orphanCount !== 1 ? "aren't" : "isn't"} on the canvas`,
+			body: (
+				<>
+					The ribbon doesn&apos;t return {orphanCount !== 1 ? "them" : "it"}. See{" "}
+					<strong>Orphaned customizations</strong> in the Properties pane to delete{" "}
+					{orphanCount !== 1 ? "them" : "it"}.
+				</>
+			),
+			actions: (
+				<Button size="small" onClick={clearSelection}>
+					Show
+				</Button>
+			),
+		});
+	}
+
 	return (
 		<main className={styles.root} aria-label="Ribbon canvas">
 			<LocationRow />
 
-			{layerReadError && !isLoadingRibbon && !ribbonLoadError && (
-				<MessageBar intent="warning" layout="multiline" style={{ flexShrink: 0 }}>
-					<MessageBarBody>
-						Couldn&apos;t read your unmanaged ribbon customizations, so labels may show
-						as ids and ownership (what you can edit or delete) is unknown. Reload before
-						editing. Details: {layerReadError}
-					</MessageBarBody>
-					{onRetryRibbonLoad && (
-						<MessageBarActions>
-							<Button
-								size="small"
-								onClick={() =>
-									hasUnpublishedChanges()
-										? setConfirmingReload(true)
-										: onRetryRibbonLoad()
-								}
-							>
-								Retry
-							</Button>
-						</MessageBarActions>
-					)}
-				</MessageBar>
-			)}
-
-			{/* Location-specific info banners */}
-			{location === "Form" && (
-				<MessageBar intent="info" style={{ flexShrink: 0 }}>
-					<MessageBarBody>
-						Form ribbon customizations target the legacy web client. On Unified
-						Interface, form commands render in a flat command bar — tab layout and
-						scaling are ignored, but button visibility and command actions work as
-						configured (same behaviour as Ribbon Workbench). Microsoft does not
-						officially support the tabbed ribbon UI on Unified Interface.
-					</MessageBarBody>
-				</MessageBar>
-			)}
-			{location === "SubGrid" && (
-				<MessageBar intent="info" style={{ flexShrink: 0 }}>
-					<MessageBarBody>
-						Subgrid ribbons support only 3 native controls: Add, Show List, and Delete.
-						Their icons cannot be changed.
-					</MessageBarBody>
-				</MessageBar>
-			)}
-			{location === "Application" && (
-				<MessageBar intent="info" style={{ flexShrink: 0 }}>
-					<MessageBarBody>
-						Buttons added to GlobalTab appear in the persistent global command bar at
-						the top of every page. OOB GlobalTab buttons are read-only and cannot be
-						customized.
-					</MessageBarBody>
-				</MessageBar>
-			)}
-
-			{/* A custom tab: how Unified Interface shows it (#58). */}
-			{currentTab && !/^(Mscrm|Microsoft)\./.test(currentTab.id) && (
-				<MessageBar intent="info" style={{ flexShrink: 0 }}>
-					<MessageBarBody>{UCI_TAB_NOTE}</MessageBarBody>
-				</MessageBar>
-			)}
-
-			{/* Charts / AllEntities tabs: their buttons never show in Unified Interface (#64). */}
-			{currentTab && isHiddenOnUnifiedInterface(currentTab.id) && (
-				<MessageBar intent="warning" style={{ flexShrink: 0 }}>
-					<MessageBarBody>
-						Unified Interface doesn&apos;t show this tab&apos;s buttons on the command
-						bar, and they don&apos;t come back when the table is reloaded. Add buttons
-						to the table&apos;s main tab instead.
-					</MessageBarBody>
-				</MessageBar>
-			)}
-
-			{/* The table's customizations the ribbon doesn't return anywhere (#64). */}
-			{location !== "Application" && orphanCount > 0 && (
-				<MessageBar intent="warning" style={{ flexShrink: 0 }}>
-					<MessageBarBody>
-						{orphanCount} element{orphanCount !== 1 ? "s" : ""} of your customizations
-						for this table
-						{orphanCount !== 1 ? " aren't" : " isn't"} on the canvas: the ribbon
-						doesn&apos;t return {orphanCount !== 1 ? "them" : "it"}. See{" "}
-						<strong>Orphaned customizations</strong> in the Properties pane to delete{" "}
-						{orphanCount !== 1 ? "them" : "it"}.
-					</MessageBarBody>
-					<MessageBarActions>
-						<Button size="small" onClick={clearSelection}>
-							Show
-						</Button>
-					</MessageBarActions>
-				</MessageBar>
-			)}
+			<MessageSlot
+				messages={messages}
+				scope={`canvas:${location}`}
+				className={styles.messages}
+			/>
 
 			<RibbonTabStrip currentTab={currentTab} />
 

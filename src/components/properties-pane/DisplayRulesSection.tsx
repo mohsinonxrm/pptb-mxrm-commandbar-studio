@@ -1,5 +1,14 @@
 import React from "react";
-import { makeStyles, tokens, Button, Text, Badge, Field, Select } from "@fluentui/react-components";
+import {
+	makeStyles,
+	tokens,
+	Button,
+	Text,
+	Badge,
+	Field,
+	Select,
+	InfoLabel,
+} from "@fluentui/react-components";
 import { DismissRegular, AddRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
@@ -248,11 +257,12 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 			)}
 
 			{kind === "enable" && (
-				<Text className={styles.note}>
-					Note: Disabled buttons are <strong>hidden</strong> in the modern command bar
-					(Unified Interface). In the classic ribbon (Legacy client), disabled buttons
-					remain visible but do not respond to clicks.
-				</Text>
+				<InfoLabel
+					size="small"
+					info="Disabled buttons are hidden in the modern command bar (Unified Interface). In the classic ribbon, they stay visible but do nothing when clicked."
+				>
+					What a failing enable rule does
+				</InfoLabel>
 			)}
 		</div>
 	);

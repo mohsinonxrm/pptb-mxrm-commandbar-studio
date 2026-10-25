@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
 	Button,
 	CounterBadge,
+	InfoLabel,
 	Input,
 	Menu,
 	MenuDivider,
@@ -54,6 +55,7 @@ import { defaultTabId } from "@/utils/defaultTab";
 import { LOCATION_INFO } from "@/constants/locationInfo";
 import { LocationInfo } from "@/components/shared/LocationInfo";
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
+import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ModernAppFilter } from "./modern/ModernAppFilter";
 import type { RibbonLocation, RibbonTab } from "@/types/ribbon";
 
@@ -451,6 +453,14 @@ export function RibbonTabStrip({ currentTab }: { currentTab: RibbonTab | undefin
 						</MenuList>
 					</MenuPopover>
 				</Menu>
+			)}
+			{/* A custom tab: how Unified Interface shows it (#58), behind an info button (#181). */}
+			{currentTab && !/^(Mscrm|Microsoft)\./.test(currentTab.id) && (
+				<InfoLabel
+					size="small"
+					info={UCI_TAB_NOTE}
+					infoButton={{ "aria-label": "How Unified Interface shows this tab" }}
+				/>
 			)}
 			<Tooltip content="Add tab" relationship="label">
 				<Button

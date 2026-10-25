@@ -71,6 +71,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     way to reorder; dragging still works), and Delete tab….
   - **Add tab and Tab rules** (with its rule count) stay reachable however many tabs there are.
     When a rename isn't allowed, the reason is announced to screen readers.
+- **Fewer, readable messages (#181).** Up to five permanent banners used to stack above the
+  canvas, and two or three more above a built-in button's properties. The long ones were clipped
+  to one line.
+  - **Gone from the canvas:** the Form, Sub-grid and Application notes are now in **About this
+    location**. A custom tab's Unified Interface note is behind an info button in the tab strip.
+  - **One message at a time, with "+n more":** things you need to act on share a single slot.
+    These are the unread-layer warning (with Retry), the Charts-tab warning, and the orphans
+    message (with Show). Dismissing the orphans message is remembered until their number changes.
+  - **Properties shows one notice for a button that isn't yours** (out of the box, managed, or
+    customized by several solutions). It comes with Customise button, Create override and View
+    solution layers. A modern command that replaces the button is the second notice.
+  - **Explanations became info buttons or hints:**
+    - "Disabled buttons are hidden in Unified Interface" in the rules sections;
+    - "enable rules allow fewer step types" in the rule editor;
+    - the ampersand note on a URL action's address.
+  - **Removed:** the developer note about "Monaco editing … integration path", and the "Your own
+    command." bar (its badge says it).
 - **Confirmation dialogs** use the shared dialog shell: 440 px wide, with the confirm button
   red when it deletes or discards something.
 
