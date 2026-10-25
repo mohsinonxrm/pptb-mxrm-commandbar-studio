@@ -15,6 +15,7 @@ import { ChevronDownRegular } from "@fluentui/react-icons";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 
 const useStyles = makeStyles({
+	popover: { overflowY: "auto" },
 	trigger: { maxWidth: "200px", minWidth: 0 },
 	label: { color: tokens.colorNeutralForeground3, flexShrink: 0 },
 	value: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
@@ -54,6 +55,8 @@ export function ModernAppFilter() {
 			: (apps.find((a) => a.id === appFilter)?.name ?? "All apps");
 	return (
 		<Menu
+			// An org with many apps scrolls inside the window (#180 review).
+			positioning={{ autoSize: "height" }}
 			checkedValues={{ app: [appFilter] }}
 			onCheckedValueChange={(_, d) => setAppFilter(d.checkedItems[0] ?? "all")}
 		>
@@ -75,7 +78,7 @@ export function ModernAppFilter() {
 					</Button>
 				</Tooltip>
 			</MenuTrigger>
-			<MenuPopover>
+			<MenuPopover className={styles.popover}>
 				<MenuList>
 					<MenuItemRadio name="app" value="all">
 						All apps

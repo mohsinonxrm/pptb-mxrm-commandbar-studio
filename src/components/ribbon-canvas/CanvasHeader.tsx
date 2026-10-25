@@ -16,6 +16,7 @@ import {
 	Tab,
 	TabList,
 	Tooltip,
+	useFocusableGroup,
 	makeStyles,
 	tokens,
 	useIsOverflowItemVisible,
@@ -97,6 +98,18 @@ const useStyles = makeStyles({
 		whiteSpace: "nowrap",
 	},
 	muted: { color: tokens.colorNeutralForeground3, flexShrink: 0 },
+	/** The open table, which the location tabs belong to (#179 review). */
+	tableName: {
+		flex: "0 1 auto",
+		maxWidth: "200px",
+		minWidth: 0,
+		overflow: "hidden",
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
+		paddingRight: tokens.spacingHorizontalS,
+		borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
+		fontWeight: tokens.fontWeightSemibold,
+	},
 	tabScroller: {
 		flex: "0 1 auto",
 		minWidth: 0,
@@ -137,6 +150,7 @@ export function LocationRow() {
 	const setTabId = useSelectionStore((s) => s.setTabId);
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const table = useSessionStore((s) => s.activeEntity?.logicalName);
+	const tableName = useSessionStore((s) => s.activeEntity?.displayName);
 	const view = useUIStore((s) => s.ribbonViewStyle);
 	const setView = useUIStore((s) => s.setRibbonViewStyle);
 
@@ -148,6 +162,16 @@ export function LocationRow() {
 
 	return (
 		<div className={`${styles.row} ${styles.locationRow}`}>
+			{table && (
+				<Tooltip
+					content={`Table: ${tableName || table} (${table})`}
+					relationship="description"
+				>
+					<span className={styles.tableName} tabIndex={0}>
+						{tableName || table}
+					</span>
+				</Tooltip>
+			)}
 			{/* Padding leaves room for About this location, beside the tabs. */}
 			<Overflow minimumVisible={1} padding={48}>
 				<div className={styles.locationTabs}>
@@ -271,6 +295,12 @@ export function RibbonTabStrip({ currentTab }: { currentTab: RibbonTab | undefin
 	const [editingTabId, setEditingTabId] = useState<string | null>(null);
 	const [editValue, setEditValue] = useState("");
 	const inputRef = useRef<HTMLInputElement>(null);
+	// The TabList moves focus with the arrow keys, which in the rename box
+	// would leave it (and commit) at the end of the text (#180 review).
+	const renameKeys = useFocusableGroup({
+		tabBehavior: "unlimited",
+		ignoreDefaultKeydown: { ArrowLeft: true, ArrowRight: true, Home: true, End: true },
+	});
 	// Tab awaiting delete confirmation (#18: window.confirm doesn't work in PPTB).
 	const [deletingTabId, setDeletingTabId] = useState<string | null>(null);
 	/** The tab whose rename was just refused: it says why (#33), until another tab is picked. */
@@ -372,27 +402,28 @@ export function RibbonTabStrip({ currentTab }: { currentTab: RibbonTab | undefin
 						>
 							{tabs.map((tab) =>
 								tab.id === editingTabId ? (
-									<Input
-										key={tab.id}
-										ref={inputRef}
-										size="small"
-										className={styles.renameInput}
-										value={editValue}
-										aria-label="Rename tab"
-										onChange={(_, d) => setEditValue(d.value)}
-										onBlur={commitRename}
-										onKeyDown={(e) => {
-											if (e.key === "Enter") {
-												e.preventDefault();
-												commitRename();
-											}
-											if (e.key === "Escape") {
-												e.preventDefault();
-												setEditingTabId(null);
-											}
-											e.stopPropagation();
-										}}
-									/>
+									<span key={tab.id} {...renameKeys}>
+										<Input
+											ref={inputRef}
+											size="small"
+											className={styles.renameInput}
+											value={editValue}
+											aria-label="Rename tab"
+											onChange={(_, d) => setEditValue(d.value)}
+											onBlur={commitRename}
+											onKeyDown={(e) => {
+												if (e.key === "Enter") {
+													e.preventDefault();
+													commitRename();
+												}
+												if (e.key === "Escape") {
+													e.preventDefault();
+													setEditingTabId(null);
+												}
+												e.stopPropagation();
+											}}
+										/>
+									</span>
 								) : (
 									<SortableRibbonTab
 										key={tab.id}
