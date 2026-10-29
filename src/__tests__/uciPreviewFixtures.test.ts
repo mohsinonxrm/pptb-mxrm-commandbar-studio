@@ -17,6 +17,7 @@ interface Fixture {
 	location: string;
 	labels: Record<string, string>;
 	states: Record<string, State>;
+	rowMenu?: { items: string[] };
 }
 
 const dir = resolve(__dirname, "../__fixtures__/uci-preview");
@@ -66,6 +67,15 @@ describe("UCI preview fixtures (#192)", () => {
 						expect(order.at(-1), key).toBe("CommandChecker");
 				}
 			});
+
+			if (data.rowMenu)
+				it("lists the selected-row plain buttons in the row menu, in reverse order", () => {
+					const state = data.states["w1920.sel1"];
+					const buttons = [...state.visible, ...state.overflow].filter(
+						(e) => !e.includes("|") && e.startsWith("Mscrm."),
+					);
+					expect(data.rowMenu!.items).toEqual(buttons.reverse());
+				});
 		});
 	}
 });

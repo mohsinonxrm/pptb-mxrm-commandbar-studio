@@ -4,7 +4,7 @@
 		"app": "Sales Hub (msdynce_saleshub)",
 		"recorded": "2026-10-29",
 		"page": "Contacts sub-grid on the account main form (Summary tab), ribbondebug=true. data-id prefix contact|NoRelationship|SubGridStandard",
-		"notes": "Items are in rendered order. A '|split' or '|flyout' suffix gives the rendered kind. The bar's aria-label is 'Contact Commands'. How many items stay on the bar depends on the sub-grid card's width, not the viewport: at 1920 and 1280 px the card is a narrow third column, so everything is under the overflow; at 820 px the form is one column and one item fits. 'Contacts-navigateToAssociatedGrid-…' (See all records) and CommandChecker are not ribbon-defined. Not recorded: 2 rows selected (sub-grid row selection was unreliable in automation), and 1 row selected at 820 px."
+		"notes": "Items are in rendered order. A '|split' or '|flyout' suffix gives the rendered kind. The bar's aria-label is 'Contact Commands'. How many items stay on the bar depends on the sub-grid card's width, not the viewport: at 1920 and 1280 px the card is a narrow third column, so everything is under the overflow; at 820 px the form is one column and one item fits. 'Contacts-navigateToAssociatedGrid-…' (See all records) and CommandChecker are not ribbon-defined; its trailing index varies between page loads (-0, -2), so it is recorded as -0. In the narrow column the sub-grid is a card list (hover the avatar to get a row checkbox); at 820 px it is a grid with row checkboxes. Resizing re-renders the form and clears the selection, so each width was selected again by hand (sel2 and w820.sel1 on 2026-10-29, later the same day)."
 	},
 	"entity": "contact",
 	"location": "SubGridStandard",
@@ -128,6 +128,113 @@
 				"Contacts-navigateToAssociatedGrid-contact_customer_accounts-0",
 				"CommandChecker"
 			]
+		},
+		"w1920.sel2": {
+			"selected": 2,
+			"visible": ["Mscrm.SubGrid.contact.Edit"],
+			"overflow": [
+				"Mscrm.SubGrid.contact.Activate",
+				"Mscrm.SubGrid.contact.Deactivate",
+				"Mscrm.SubGrid.contact.Delete",
+				"Mscrm.SubGrid.contact.MergeRecords",
+				"Mscrm.SubGrid.contact.AddToList",
+				"Mscrm.SubGrid.contact.QuickCampaign|flyout",
+				"Mscrm.SubGrid.contact.Assign",
+				"Mscrm.SubGrid.contact.Sharing",
+				"Mscrm.SubGrid.contact.SendSelected",
+				"Mscrm.SubGrid.contact.FollowButton",
+				"Mscrm.SubGrid.contact.UnfollowButton",
+				"Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.SubGrid.contact.RunReport|flyout",
+				"Mscrm.SubGrid.contact.ExportSelectedToExcel",
+				"Contacts-navigateToAssociatedGrid-contact_customer_accounts-0",
+				"CommandChecker"
+			]
+		},
+		"w1280.sel2": {
+			"selected": 2,
+			"visible": [],
+			"overflow": [
+				"Mscrm.SubGrid.contact.Edit",
+				"Mscrm.SubGrid.contact.Activate",
+				"Mscrm.SubGrid.contact.Deactivate",
+				"Mscrm.SubGrid.contact.Delete",
+				"Mscrm.SubGrid.contact.MergeRecords",
+				"Mscrm.SubGrid.contact.AddToList",
+				"Mscrm.SubGrid.contact.QuickCampaign|flyout",
+				"Mscrm.SubGrid.contact.Assign",
+				"Mscrm.SubGrid.contact.Sharing",
+				"Mscrm.SubGrid.contact.SendSelected",
+				"Mscrm.SubGrid.contact.FollowButton",
+				"Mscrm.SubGrid.contact.UnfollowButton",
+				"Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.SubGrid.contact.RunReport|flyout",
+				"Mscrm.SubGrid.contact.ExportSelectedToExcel",
+				"Contacts-navigateToAssociatedGrid-contact_customer_accounts-0",
+				"CommandChecker"
+			]
+		},
+		"w820.sel1": {
+			"selected": 1,
+			"visible": ["Mscrm.SubGrid.contact.Edit"],
+			"overflow": [
+				"Mscrm.SubGrid.contact.Activate",
+				"Mscrm.SubGrid.contact.Deactivate",
+				"Mscrm.SubGrid.contact.Delete",
+				"Mscrm.SubGrid.contact.MergeRecords",
+				"Mscrm.SubGrid.contact.AddToList",
+				"Mscrm.SubGrid.contact.QuickCampaign|flyout",
+				"Mscrm.SubGrid.contact.Assign",
+				"Mscrm.SubGrid.contact.Sharing",
+				"Mscrm.SubGrid.contact.SendSelected",
+				"Mscrm.SubGrid.contact.FollowButton",
+				"Mscrm.SubGrid.contact.UnfollowButton",
+				"Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.SubGrid.contact.RunReport|flyout",
+				"Mscrm.SubGrid.contact.WordTemplate|flyout",
+				"Mscrm.SubGrid.contact.ExportSelectedToExcel",
+				"Contacts-navigateToAssociatedGrid-contact_customer_accounts-0",
+				"CommandChecker"
+			]
+		},
+		"w820.sel2": {
+			"selected": 2,
+			"visible": ["Mscrm.SubGrid.contact.Edit"],
+			"overflow": [
+				"Mscrm.SubGrid.contact.Activate",
+				"Mscrm.SubGrid.contact.Deactivate",
+				"Mscrm.SubGrid.contact.Delete",
+				"Mscrm.SubGrid.contact.MergeRecords",
+				"Mscrm.SubGrid.contact.AddToList",
+				"Mscrm.SubGrid.contact.QuickCampaign|flyout",
+				"Mscrm.SubGrid.contact.Assign",
+				"Mscrm.SubGrid.contact.Sharing",
+				"Mscrm.SubGrid.contact.SendSelected",
+				"Mscrm.SubGrid.contact.FollowButton",
+				"Mscrm.SubGrid.contact.UnfollowButton",
+				"Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.SubGrid.contact.RunReport|flyout",
+				"Mscrm.SubGrid.contact.ExportSelectedToExcel",
+				"Contacts-navigateToAssociatedGrid-contact_customer_accounts-0",
+				"CommandChecker"
+			]
 		}
+	},
+	"rowMenu": {
+		"note": "The ⋮ on each row of the card-list sub-grid (narrow form column; nothing selected). Same items in the same order whether the menu opens up or down. Labels only: the items carry no data-id.",
+		"items": [
+			"Mscrm.SubGrid.contact.ExportSelectedToExcel",
+			"Mscrm.SubGrid.contact.UnfollowButton",
+			"Mscrm.SubGrid.contact.FollowButton",
+			"Mscrm.SubGrid.contact.SendSelected",
+			"Mscrm.SubGrid.contact.Sharing",
+			"Mscrm.SubGrid.contact.Assign",
+			"Mscrm.SubGrid.contact.AddToList",
+			"Mscrm.SubGrid.contact.MergeRecords",
+			"Mscrm.SubGrid.contact.Delete",
+			"Mscrm.SubGrid.contact.Deactivate",
+			"Mscrm.SubGrid.contact.Activate",
+			"Mscrm.SubGrid.contact.Edit"
+		]
 	}
 }

@@ -9,7 +9,7 @@
 | Location | Fixture | Page | Bar `aria-label` | `data-id` prefix |
 |---|---|---|---|---|
 | Main grid | `contact.HomePageGrid.json`, `account.HomePageGrid.json` | My Active Contacts / Accounts | `<Table> Commands` | `contact\|NoRelationship\|HomePageGrid` |
-| Main form | `contact.Form.json` (existing and new record) | Contact form | `Commands` | `contact\|NoRelationship\|Form` |
+| Main form | `contact.Form.json` (existing, new and inactive record) | Contact form | `Commands` | `contact\|NoRelationship\|Form` |
 | Sub-grid | `contact.SubGridStandard.json` | Contacts sub-grid on the account form | `Contact Commands` | `contact\|NoRelationship\|SubGridStandard` |
 | Associated view | `contact.SubGridAssociated.json` | Account → Related → Contacts | `Contact Commands` | `contact\|NoRelationship\|SubGridAssociated` |
 
@@ -73,6 +73,21 @@ recorded instead.
      Templates, Export to Excel (selected), Quick Campaign.
    - **Two rows:** the same minus Open org chart and Word Templates (both
      `SelectionCountExactlyOne`).
+   - **Sub-grids and associated views:** two rows selected is one row minus Word Templates.
+8. **Row menus (quick actions):**
+   - **Card-list sub-grid:** each row has its own ⋮ (nothing needs to be selected). It lists
+     the selected-row commands that are **plain buttons**, in **reverse** bar order: Export to
+     Excel first, Edit last. Flyouts and split buttons (Quick Campaign, Run Flow, Run Report,
+     Word Templates) are left out. The order is the same whether the menu opens up or down,
+     and the items carry no `data-id`. Fixture: `rowMenu` in `contact.SubGridStandard.json`.
+   - **Main grid:** no row menu; right-click only focuses the cell.
+9. **Inactive (read-only) form:** the form shows "Read-only: This record's status: Inactive".
+   On the bar:
+   - Save and Save & Close are gone;
+   - Activate replaces Deactivate. Activate (Sequence 50) comes before Open org chart (52),
+     and Deactivate (60) after it, so document order still explains the position;
+   - Add to Marketing List and Sequences are hidden;
+   - everything else keeps its place.
 
 ## Against the documented behaviour (#191, #192 review comments)
 
@@ -96,12 +111,18 @@ recorded instead.
   Command Checker → Regenerate ribbon metadata plus a metadata version change. Before each
   recording, check the bar shows the expected state (#188, #192).
 
+- **Sub-grid layout depends on its width:** in a narrow form column the sub-grid is a card
+  list (hover an avatar to get its row checkbox; clicking the avatar opens the record). At
+  820 px it is a grid with row checkboxes. Resizing re-renders the form and clears the
+  selection.
+- **Unstable system id:** the trailing index of
+  `<Grid>-navigateToAssociatedGrid-<relationship>-N` changes between page loads (`-0`,
+  `-2`). The fixtures record it as `-0`; match it by prefix.
+
 ## Not recorded
 
-- **Sub-grid:** 2 rows selected (automated sub-grid row selection was unreliable), and 1 row
-  selected at 820 px.
-- **Quick actions:** the row-level commands in the grid.
-- **Read-only and inactive forms.**
+- **Forms the user can't edit for security reasons** (as opposed to inactive records): the
+  test user is a System Administrator.
 - **Interleaving of new modern commands with classic ones:** a modern command at sequence
   1,000,100,015 rendered between New (1,000,100,010) and Delete, but no classic-only position
   was mapped beyond that (#206).
