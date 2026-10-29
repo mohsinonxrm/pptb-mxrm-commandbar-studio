@@ -1,0 +1,133 @@
+{
+	"source": {
+		"org": "CRM279420 (org382cc706), Dataverse 9.2.26092.168",
+		"app": "Sales Hub (msdynce_saleshub)",
+		"recorded": "2026-10-29",
+		"page": "Contacts sub-grid on the account main form (Summary tab), ribbondebug=true. data-id prefix contact|NoRelationship|SubGridStandard",
+		"notes": "Items are in rendered order. A '|split' or '|flyout' suffix gives the rendered kind. The bar's aria-label is 'Contact Commands'. How many items stay on the bar depends on the sub-grid card's width, not the viewport: at 1920 and 1280 px the card is a narrow third column, so everything is under the overflow; at 820 px the form is one column and one item fits. 'Contacts-navigateToAssociatedGrid-…' (See all records) and CommandChecker are not ribbon-defined. Not recorded: 2 rows selected (sub-grid row selection was unreliable in automation), and 1 row selected at 820 px."
+	},
+	"entity": "contact",
+	"location": "SubGridStandard",
+	"parent": { "entity": "account", "form": "Account (Sales Hub main form)", "relationship": "contact_customer_accounts" },
+	"labels": {
+		"Mscrm.SubGrid.contact.AddNewStandard": "Add New Contact",
+		"Mscrm.SubGrid.contact.AddExistingAssoc": "Add Existing Contact",
+		"Mscrm.SubGrid.contact.RefreshButton": "Refresh",
+		"Mscrm.SubGrid.contact.QuickCampaign": "Quick Campaign",
+		"Mscrm.SubGrid.contact.Flows.RefreshCommandBar": "Run Flow",
+		"Mscrm.SubGrid.contact.RunReport": "Run Report",
+		"Mscrm.SubGrid.contact.DocumentTemplate": "Excel Templates",
+		"Mscrm.SubGrid.contact.ExportToExcel": "Export Contacts",
+		"Contacts-navigateToAssociatedGrid-contact_customer_accounts-0": "See the records associated with this view",
+		"CommandChecker": "Command checker",
+		"Mscrm.SubGrid.contact.Edit": "Edit",
+		"Mscrm.SubGrid.contact.Activate": "Activate",
+		"Mscrm.SubGrid.contact.Deactivate": "Deactivate",
+		"Mscrm.SubGrid.contact.Delete": "Delete Contact",
+		"Mscrm.SubGrid.contact.MergeRecords": "Merge",
+		"Mscrm.SubGrid.contact.AddToList": "Add to Marketing List",
+		"Mscrm.SubGrid.contact.Assign": "Assign Contacts",
+		"Mscrm.SubGrid.contact.Sharing": "Share",
+		"Mscrm.SubGrid.contact.SendSelected": "Email a Link",
+		"Mscrm.SubGrid.contact.FollowButton": "Follow",
+		"Mscrm.SubGrid.contact.UnfollowButton": "Unfollow",
+		"Mscrm.SubGrid.contact.WordTemplate": "Word Templates",
+		"Mscrm.SubGrid.contact.ExportSelectedToExcel": "Export to Excel"
+	},
+	"states": {
+		"w1920.sel0": {
+			"selected": 0,
+			"visible": [],
+			"overflow": [
+				"Mscrm.SubGrid.contact.AddNewStandard",
+				"Mscrm.SubGrid.contact.AddExistingAssoc",
+				"Mscrm.SubGrid.contact.RefreshButton",
+				"Mscrm.SubGrid.contact.QuickCampaign|flyout",
+				"Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.SubGrid.contact.RunReport|flyout",
+				"Mscrm.SubGrid.contact.DocumentTemplate|flyout",
+				"Mscrm.SubGrid.contact.ExportToExcel|split",
+				"Contacts-navigateToAssociatedGrid-contact_customer_accounts-0",
+				"CommandChecker"
+			]
+		},
+		"w1920.sel1": {
+			"selected": 1,
+			"visible": ["Mscrm.SubGrid.contact.Edit"],
+			"overflow": [
+				"Mscrm.SubGrid.contact.Activate",
+				"Mscrm.SubGrid.contact.Deactivate",
+				"Mscrm.SubGrid.contact.Delete",
+				"Mscrm.SubGrid.contact.MergeRecords",
+				"Mscrm.SubGrid.contact.AddToList",
+				"Mscrm.SubGrid.contact.QuickCampaign|flyout",
+				"Mscrm.SubGrid.contact.Assign",
+				"Mscrm.SubGrid.contact.Sharing",
+				"Mscrm.SubGrid.contact.SendSelected",
+				"Mscrm.SubGrid.contact.FollowButton",
+				"Mscrm.SubGrid.contact.UnfollowButton",
+				"Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.SubGrid.contact.RunReport|flyout",
+				"Mscrm.SubGrid.contact.WordTemplate|flyout",
+				"Mscrm.SubGrid.contact.ExportSelectedToExcel",
+				"Contacts-navigateToAssociatedGrid-contact_customer_accounts-0",
+				"CommandChecker"
+			]
+		},
+		"w1280.sel0": {
+			"selected": 0,
+			"visible": [],
+			"overflow": [
+				"Mscrm.SubGrid.contact.AddNewStandard",
+				"Mscrm.SubGrid.contact.AddExistingAssoc",
+				"Mscrm.SubGrid.contact.RefreshButton",
+				"Mscrm.SubGrid.contact.QuickCampaign|flyout",
+				"Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.SubGrid.contact.RunReport|flyout",
+				"Mscrm.SubGrid.contact.DocumentTemplate|flyout",
+				"Mscrm.SubGrid.contact.ExportToExcel|split",
+				"Contacts-navigateToAssociatedGrid-contact_customer_accounts-0",
+				"CommandChecker"
+			]
+		},
+		"w1280.sel1": {
+			"selected": 1,
+			"visible": [],
+			"overflow": [
+				"Mscrm.SubGrid.contact.Edit",
+				"Mscrm.SubGrid.contact.Activate",
+				"Mscrm.SubGrid.contact.Deactivate",
+				"Mscrm.SubGrid.contact.Delete",
+				"Mscrm.SubGrid.contact.MergeRecords",
+				"Mscrm.SubGrid.contact.AddToList",
+				"Mscrm.SubGrid.contact.QuickCampaign|flyout",
+				"Mscrm.SubGrid.contact.Assign",
+				"Mscrm.SubGrid.contact.Sharing",
+				"Mscrm.SubGrid.contact.SendSelected",
+				"Mscrm.SubGrid.contact.FollowButton",
+				"Mscrm.SubGrid.contact.UnfollowButton",
+				"Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.SubGrid.contact.RunReport|flyout",
+				"Mscrm.SubGrid.contact.WordTemplate|flyout",
+				"Mscrm.SubGrid.contact.ExportSelectedToExcel",
+				"Contacts-navigateToAssociatedGrid-contact_customer_accounts-0",
+				"CommandChecker"
+			]
+		},
+		"w820.sel0": {
+			"selected": 0,
+			"visible": ["Mscrm.SubGrid.contact.AddNewStandard"],
+			"overflow": [
+				"Mscrm.SubGrid.contact.AddExistingAssoc",
+				"Mscrm.SubGrid.contact.RefreshButton",
+				"Mscrm.SubGrid.contact.QuickCampaign|flyout",
+				"Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.SubGrid.contact.RunReport|flyout",
+				"Mscrm.SubGrid.contact.DocumentTemplate|flyout",
+				"Mscrm.SubGrid.contact.ExportToExcel|split",
+				"Contacts-navigateToAssociatedGrid-contact_customer_accounts-0",
+				"CommandChecker"
+			]
+		}
+	}
+}
