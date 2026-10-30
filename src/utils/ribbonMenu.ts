@@ -8,6 +8,7 @@ import type {
 	RibbonLocation,
 	RibbonMenu,
 	RibbonMenuSection,
+	RibbonTab,
 } from "@/types/ribbon";
 
 /**
@@ -56,6 +57,28 @@ export function groupControls(group: RibbonGroup): RibbonButton[] {
 	return withMenuItems(group.buttons);
 }
 
+/** A control that uses a command, and where it is. */
+export interface CommandUse {
+	location: RibbonLocation;
+	tab: RibbonTab;
+	group: RibbonGroup;
+	button: RibbonButton;
+}
+
+/** Every control that uses a command, menu items included, on every ribbon. */
+export function buttonsUsing(
+	ribbons: Record<RibbonLocation, RibbonDefinition>,
+	commandId: string,
+): CommandUse[] {
+	const uses: CommandUse[] = [];
+	for (const location of Object.keys(ribbons) as RibbonLocation[])
+		for (const tab of ribbons[location].tabs)
+			for (const group of tab.groups)
+				for (const button of groupControls(group))
+					if (button.commandId === commandId) uses.push({ location, tab, group, button });
+	return uses;
+}
+
 /**
  * The names of the other buttons that use a command, on every ribbon (#187).
  * One on another location than `here` says where, e.g. "Edit (main form)",
@@ -69,18 +92,15 @@ export function otherButtonsUsing(
 	here?: RibbonLocation,
 ): string[] {
 	const names: string[] = [];
-	for (const location of Object.keys(ribbons) as RibbonLocation[])
-		for (const tab of ribbons[location].tabs)
-			for (const group of tab.groups)
-				for (const b of groupControls(group))
-					if (b.commandId === commandId && b.id !== buttonId) {
-						const where =
-							here && location !== here
-								? ` (${LOCATION_INFO[location].label.toLowerCase()})`
-								: "";
-						const name = (nameOf(b) || b.id) + where;
-						if (!names.includes(name)) names.push(name);
-					}
+	for (const { location, button: b } of buttonsUsing(ribbons, commandId))
+		if (b.id !== buttonId) {
+			const where =
+				here && location !== here
+					? ` (${LOCATION_INFO[location].label.toLowerCase()})`
+					: "";
+			const name = (nameOf(b) || b.id) + where;
+			if (!names.includes(name)) names.push(name);
+		}
 	return names;
 }
 

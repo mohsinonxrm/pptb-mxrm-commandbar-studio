@@ -47,14 +47,17 @@ function whereText(info: CommandProvenanceInfo): string {
 
 /**
  * The command's provenance badge with its Customise / Uncustomise actions.
- * `compact` shows the badge and the action button only (properties pane).
+ * `compact` shows the badge and the action button only (properties pane);
+ * `hideBadge` leaves the badge to a header that already shows one (#186).
  */
 export function CommandProvenanceBar({
 	commandId,
 	compact = false,
+	hideBadge = false,
 }: {
 	commandId: string;
 	compact?: boolean;
+	hideBadge?: boolean;
 }) {
 	const styles = useStyles();
 	const info = useCommandProvenance(commandId);
@@ -157,9 +160,8 @@ export function CommandProvenanceBar({
 
 	const message: Record<CommandProvenance, string> = {
 		oob:
-			"Defined out of the box or by another solution. Customise it to copy the command — its actions, " +
-			`parameters and rule references — into ${whereText(info)}, where you can change it without touching ` +
-			"its buttons. Editing it customises it too.",
+			"Out of the box or from another solution, so it's read-only. Customise it to copy it — actions, " +
+			`parameters and rules — into ${whereText(info)} and change it there; its buttons keep using it.`,
 		customising:
 			`On publish, this command is copied into ${whereText(info)} and replaces the original there. ` +
 			"Rules keep their ids; a rule you edit is written to the layer as well.",
@@ -175,7 +177,8 @@ export function CommandProvenanceBar({
 			"removed copy: reload the table to load the original before changing or customising it again.",
 	};
 	// Your own command needs no notice: its badge says it (#181).
-	if (provenance === "custom") return <div className={styles.row}>{badge}</div>;
+	if (provenance === "custom")
+		return hideBadge ? null : <div className={styles.row}>{badge}</div>;
 	return (
 		<MessageBar
 			intent={
@@ -186,7 +189,7 @@ export function CommandProvenanceBar({
 		>
 			<MessageBarBody>
 				<div className={styles.row}>
-					{badge}
+					{!hideBadge && badge}
 					<Text size={200}>{message[provenance]}</Text>
 					{action}
 				</div>

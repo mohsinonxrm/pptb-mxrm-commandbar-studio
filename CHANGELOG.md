@@ -214,6 +214,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     undone with a single Ctrl Z.
   - The drawer's body is the only thing that scrolls; the editors' own padded scroll areas are
     gone.
+- **The command editor, redone (#186, part 2).**
+  - **Its tabs sit in the drawer's header**, so they never scroll away: Actions, Enable rules (n),
+    Display rules (n) and Used by (n). The tab you're on is kept while you look at a rule.
+  - **Out-of-the-box commands are read-only until you customise them.** Before, editing one
+    customised it without asking. The fields look read-only, one line says why, and
+    **Customise command** is next to it. Viewing the script and opening a rule still work.
+  - **One Add action menu** (Run JavaScript, Open a URL) instead of a dropdown and two buttons.
+  - **Each action is a card** with a drag handle, Move up / Move down in its ⋮ menu, and Remove.
+  - **View script / Edit script** open the script inside the drawer, filling its height, with
+    Back to the command. Edit script saves straight to Dataverse, and says so. The "Monaco"
+    wording and the "integration path" note are gone.
+  - **Pass parameters** is a labelled switch instead of a button reading "✓ PassParams ON".
+  - **Plain labels and hints:** Library, Function ("The function's full name, including its
+    namespace."), Parameters, in order; the address error is a field message.
+  - **Rename** is a pencil next to your own command's id, with the error under the field.
+    Settings and Versions are gone (History in the bottom panel covers the second).
+  - **Used by** names each button and where it is ("Main grid › Main › Management").
+  - **Rules are tags:** open one with a click, unbind it with its ×. **New enable rule** now also
+    adds the rule to the command.
 
 ### 🔧 Fixed
 

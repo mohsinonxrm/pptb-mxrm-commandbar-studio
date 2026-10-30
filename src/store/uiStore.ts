@@ -19,7 +19,13 @@ export interface ControlRef {
  * from the command editor adds a view, and Back returns to the command.
  */
 export type EditorView =
-	{ kind: "command"; id: string } | { kind: "rule"; id: string; ruleKind: "enable" | "display" };
+	| { kind: "command"; id: string }
+	| { kind: "rule"; id: string; ruleKind: "enable" | "display" }
+	/** A JavaScript action's web resource, `id` its name; `editable` saves it to Dataverse. */
+	| { kind: "script"; id: string; editable: boolean };
+
+/** The command editor's tabs, in the drawer's header (#186). */
+export type CommandEditorTab = "actions" | "enable" | "display" | "usedBy";
 
 /** The editor views and the flags derived from them, which callers read. */
 function editorState(editorStack: EditorView[]) {
@@ -63,6 +69,8 @@ export interface UIStore {
 	ruleEditorOpen: boolean;
 	ruleEditorId: string | null;
 	ruleEditorKind: "enable" | "display" | null;
+	/** The command editor's tab; kept while a rule or script is shown over it. */
+	commandEditorTab: CommandEditorTab;
 	xmlDrawerOpen: boolean;
 	bulkPublishOpen: boolean;
 	iconPickerOpen: boolean;
@@ -108,6 +116,9 @@ export interface UIStore {
 	closeCommandEditor(): void;
 	openRuleEditor(ruleId: string | null, kind: "enable" | "display"): void;
 	closeRuleEditor(): void;
+	setCommandEditorTab(tab: CommandEditorTab): void;
+	/** Shows a JavaScript action's web resource over the command (#186). */
+	openScriptView(webResourceName: string, editable: boolean): void;
 	/** Back to the editor drawer's previous view (#186). */
 	editorBack(): void;
 	/** Closes the editor drawer, every view (#186). */
@@ -171,6 +182,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	ruleEditorOpen: false,
 	ruleEditorId: null,
 	ruleEditorKind: null,
+	commandEditorTab: "actions",
 	xmlDrawerOpen: false,
 	bulkPublishOpen: false,
 	iconPickerOpen: false,
@@ -209,7 +221,11 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	setActiveBottomTab: (tab) => set({ activeBottomTab: tab }),
 
 	openCommandEditor: (id) =>
-		set((s) => editorState(id ? pushView(s.editorStack, { kind: "command", id }) : [])),
+		set((s) => ({
+			...editorState(id ? pushView(s.editorStack, { kind: "command", id }) : []),
+			// Another command opens on its actions.
+			commandEditorTab: id && id === s.commandEditorId ? s.commandEditorTab : "actions",
+		})),
 	// The command's editor closes with everything shown over it.
 	closeCommandEditor: () => set(editorState([])),
 	openRuleEditor: (id, kind) =>
@@ -226,6 +242,9 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 					: s.editorStack,
 			),
 		),
+	setCommandEditorTab: (tab) => set({ commandEditorTab: tab }),
+	openScriptView: (name, editable) =>
+		set((s) => editorState(pushView(s.editorStack, { kind: "script", id: name, editable }))),
 	editorBack: () => set((s) => editorState(s.editorStack.slice(0, -1))),
 	closeEditor: () => set(editorState([])),
 	openXmlDrawer: () => set({ xmlDrawerOpen: true }),
