@@ -251,6 +251,8 @@ npm run format
 npm run validate
 ```
 
+The one-off Prettier pass (#118) is listed in `.git-blame-ignore-revs`, which GitHub's blame view skips. To skip it in local `git blame` too, run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once.
+
 ### Standalone vs PPTB-embedded
 
 CBS runs in two modes:
