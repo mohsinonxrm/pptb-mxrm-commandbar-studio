@@ -615,4 +615,17 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			expect(rules()).toEqual([]);
 		});
 	});
+
+	describe("#182 badges never overlap the label", () => {
+		it("marks your own tile with a labelled dot, not text in the corner", () => {
+			render(<Classic />);
+			const tile = container.querySelector<HTMLElement>(
+				'[data-ribbon-btn-id="mxrm.Own.Button"]',
+			)!;
+			expect(tile.textContent).not.toContain("NEW");
+			const dot = tile.querySelector(".fui-Badge")!;
+			expect(dot.textContent).toBe("");
+			expect(dot.getAttribute("aria-label")).toBe("Yours: added by your customizations");
+		});
+	});
 });

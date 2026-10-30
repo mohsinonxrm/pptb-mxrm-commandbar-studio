@@ -86,6 +86,9 @@ const useStyles = makeStyles({
 		backgroundColor: "transparent",
 		color: tokens.colorNeutralForeground1,
 		whiteSpace: "nowrap",
+		// Keep the label and its badges at full width: the lane scrolls instead
+		// of squeezing a button until its badge text spills (#182).
+		flexShrink: 0,
 		position: "relative",
 		userSelect: "none",
 		":hover": {
@@ -385,7 +388,8 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									</Text>
 									{isReadOnlyKind(button) && (
 										<Badge
-											size="extra-small"
+											style={{ flexShrink: 0 }}
+											size="small"
 											appearance="outline"
 											color="informative"
 										>
@@ -399,7 +403,8 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									{button.hidden && <EyeOffRegular fontSize={12} aria-hidden />}
 									{button.custom && (
 										<Badge
-											size="extra-small"
+											style={{ flexShrink: 0 }}
+											size="small"
 											color="brand"
 											appearance="tint"
 											aria-label="Custom"

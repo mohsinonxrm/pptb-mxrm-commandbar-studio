@@ -1201,16 +1201,16 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 						/>
 					</span>
 				)}
+				{/* A dot, not text: the tile is 60 px wide and its label sits at the
+				    bottom, so a text badge in the corner would cover it (#182). */}
 				{button.custom && !button.managed && (
-					<Badge
-						size="extra-small"
-						color="brand"
-						appearance="tint"
-						style={{ position: "absolute", bottom: 2, right: 2 }}
-						aria-label="Custom"
-					>
-						NEW
-					</Badge>
+					<Tooltip content="Yours: added by your customizations" relationship="label">
+						<Badge
+							size="extra-small"
+							color="brand"
+							style={{ position: "absolute", bottom: 4, right: 4 }}
+						/>
+					</Tooltip>
 				)}
 				{(button.managed || isGlobalOobReadOnly) && (
 					<span
