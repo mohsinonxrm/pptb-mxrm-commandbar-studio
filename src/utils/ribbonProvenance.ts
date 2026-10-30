@@ -82,6 +82,17 @@ export function isOwnControl(button: Pick<RibbonButton, "origin">): boolean {
  * make the original yours), a new one by its own origin. A flyout / split
  * button is deleted with its menu, so every item must be deletable too.
  */
+/** Microsoft's buttons on the global command bar can't be changed, only yours (#182). */
+export function isGlobalOobReadOnly(
+	location: RibbonLocation,
+	tabId: string,
+	button: RibbonButton,
+): boolean {
+	return (
+		location === "Application" && tabId === "Mscrm.GlobalTab" && button.oob && !button.custom
+	);
+}
+
 export function canDeleteControl(button: RibbonButton, baseline: RibbonDefinition): boolean {
 	return deletableControls(loadedOwnership(baseline), [button]);
 }

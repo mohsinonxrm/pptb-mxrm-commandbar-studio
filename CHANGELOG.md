@@ -104,6 +104,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Publish with nothing to publish** is disabled with a reason (see the top bar above).
 - **Confirmation dialogs** use the shared dialog shell: 440 px wide, with the confirm button
   red when it deletes or discards something.
+- **Badges fit their text (#182).** Fluent's extra-small badge is a 10 px dot, so "NEW",
+  "Modern (migrated)", "Hidden by modern", control kinds and app names spilled over their
+  neighbours. Text badges are now the small size and never shrink below their text. On the
+  Modern command bar, buttons keep their full label and the row scrolls instead of squeezing
+  them. Your own Classic tiles are marked with a labelled dot ("Yours: added by your
+  customizations") instead of "NEW" text over the label.
+- **One button menu everywhere (#182).** Right-clicking a button on the Classic or Modern canvas
+  opens the same menu with the same items in the same order:
+  - Edit properties, Change icon, Edit labels;
+  - Hide or Show, Create override, Customise;
+  - Duplicate, **Move to ▸** (a submenu of groups, not one item per group);
+  - **Delete…** last, in red, and it asks first.
+
+  It opens at the button, so Shift+F10 and the Menu key work too; it used to open at the top
+  left from the keyboard. Notes such as "Microsoft's global command bar buttons can't be
+  changed" are headings in the menu, not greyed-out items.
+
+### 🔧 Fixed
+
+- **Compare's XML diff is coloured (#195).** With a table open and a change pending, Compare
+  showed most of the XML without syntax colours: the editor painted before the colours were
+  ready and didn't repaint. It now repaints when they arrive.
 
 ## [0.8.0-beta.1] - 2026-10-25
 

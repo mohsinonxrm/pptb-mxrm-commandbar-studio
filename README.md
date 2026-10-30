@@ -299,10 +299,11 @@ src/
                            ConflictDrawer, WebResourceBrowser, UrlComposer,
                            DiffViewer, XmlDrawer
     modals/              — BulkPublish, IconPicker, LocalizationEditor, NewButton/Group/Tab,
-                           HideOobWarning, ImportXml, MoveToFlyout
+                           HideOobWarning, ImportXml, ConfirmDialog
     command-palette/     — CommandPalette (Ctrl+K)
     shared/              — MonacoEditor, FluentIcon, CrmParameterEditor,
-                           RuleStepEditor, RuleStepPicker, ResizableHandle
+                           RuleStepEditor, RuleStepPicker, ResizableHandle,
+                           ButtonContextMenu (the one button menu, #182)
   services/
     xmlGenerator.ts      — RibbonDiffXml generator (all 30 rule kinds)
     xmlParser.ts         — Merged ribbon XML parser (all 30 rule kinds)
