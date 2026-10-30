@@ -4,10 +4,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
 	makeStyles,
 	tokens,
-	DrawerBody,
-	DrawerHeader,
-	DrawerHeaderTitle,
-	OverlayDrawer,
 	Button,
 	Badge,
 	Tab,
@@ -21,7 +17,7 @@ import {
 	MessageBar,
 	MessageBarBody,
 } from "@fluentui/react-components";
-import { DismissRegular, AddRegular } from "@fluentui/react-icons";
+import { AddRegular, DismissRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import type { CommandDefinition, RibbonAction } from "@/types/ribbon";
@@ -40,16 +36,11 @@ import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
 import { isCommandReadOnly, useCommandProvenance } from "@/hooks/useCommandProvenance";
 
 const useStyles = makeStyles({
-	drawer: {
-		width: "640px",
-		maxWidth: "90vw",
-	},
+	// The editor drawer's body scrolls and pads it (#186).
 	body: {
 		display: "flex",
 		flexDirection: "column",
 		gap: tokens.spacingVerticalS,
-		padding: tokens.spacingVerticalM,
-		overflowY: "auto",
 	},
 	actionCard: {
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
@@ -934,61 +925,34 @@ export const CommandEditorPanel: React.FC = () => {
 		</>
 	);
 
+	// A view of the editor drawer (#186): it shows the title, the id and Done.
 	return (
-		<OverlayDrawer
-			position="end"
-			open={commandEditorOpen}
-			onOpenChange={() => closeCommandEditor()}
-			className={styles.drawer}
-		>
-			<DrawerHeader>
-				<DrawerHeaderTitle
-					action={
-						<Button
-							appearance="subtle"
-							icon={<DismissRegular />}
-							onClick={closeCommandEditor}
-							aria-label="Close command editor"
-						/>
-					}
-				>
-					<Text
-						size={400}
-						weight="semibold"
-						style={{ fontFamily: tokens.fontFamilyMonospace }}
-					>
-						{command.id}
-					</Text>
-				</DrawerHeaderTitle>
-			</DrawerHeader>
+		<div className={styles.body}>
+			<TabList
+				selectedValue={activeTab}
+				onTabSelect={(_, d) => setActiveTab(d.value as string)}
+			>
+				<Tab value="actions">Actions</Tab>
+				<Tab value="enableRules">Enable rules</Tab>
+				<Tab value="displayRules">Display rules</Tab>
+				<Tab value="settings">Settings</Tab>
+				<Tab value="references">References ({refCount})</Tab>
+				<Tab value="versions">Versions</Tab>
+			</TabList>
 
-			<DrawerBody className={styles.body}>
-				<TabList
-					selectedValue={activeTab}
-					onTabSelect={(_, d) => setActiveTab(d.value as string)}
-				>
-					<Tab value="actions">Actions</Tab>
-					<Tab value="enableRules">Enable rules</Tab>
-					<Tab value="displayRules">Display rules</Tab>
-					<Tab value="settings">Settings</Tab>
-					<Tab value="references">References ({refCount})</Tab>
-					<Tab value="versions">Versions</Tab>
-				</TabList>
+			<Divider />
 
-				<Divider />
+			<CommandProvenanceBar commandId={command.id} />
 
-				<CommandProvenanceBar commandId={command.id} />
-
-				<fieldset disabled={readOnly} className={styles.readOnly}>
-					{activeTab === "actions" && renderActionsTab()}
-					{activeTab === "enableRules" && renderRulesTab("enable")}
-					{activeTab === "displayRules" && renderRulesTab("display")}
-					{activeTab === "settings" && renderSettingsTab()}
-				</fieldset>
-				{activeTab === "references" && renderReferencesTab()}
-				{activeTab === "versions" && renderVersionsTab()}
-			</DrawerBody>
-		</OverlayDrawer>
+			<fieldset disabled={readOnly} className={styles.readOnly}>
+				{activeTab === "actions" && renderActionsTab()}
+				{activeTab === "enableRules" && renderRulesTab("enable")}
+				{activeTab === "displayRules" && renderRulesTab("display")}
+				{activeTab === "settings" && renderSettingsTab()}
+			</fieldset>
+			{activeTab === "references" && renderReferencesTab()}
+			{activeTab === "versions" && renderVersionsTab()}
+		</div>
 	);
 };
 

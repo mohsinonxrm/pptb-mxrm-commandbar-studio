@@ -14,6 +14,34 @@ export interface ControlRef {
 	buttonId: string;
 }
 
+/**
+ * A view of the editor drawer (#186). The drawer never stacks: opening a rule
+ * from the command editor adds a view, and Back returns to the command.
+ */
+export type EditorView =
+	{ kind: "command"; id: string } | { kind: "rule"; id: string; ruleKind: "enable" | "display" };
+
+/** The editor views and the flags derived from them, which callers read. */
+function editorState(editorStack: EditorView[]) {
+	const command = editorStack.find((v) => v.kind === "command");
+	const top = editorStack[editorStack.length - 1];
+	const rule = top?.kind === "rule" ? top : null;
+	return {
+		editorStack,
+		commandEditorOpen: !!command,
+		commandEditorId: command?.id ?? null,
+		ruleEditorOpen: !!rule,
+		ruleEditorId: rule?.id ?? null,
+		ruleEditorKind: rule?.ruleKind ?? null,
+	};
+}
+
+/** Opens `view`: it replaces a view of the same kind on top, or goes on top of the others. */
+function pushView(stack: EditorView[], view: EditorView): EditorView[] {
+	const top = stack[stack.length - 1];
+	return top?.kind === view.kind ? [...stack.slice(0, -1), view] : [...stack, view];
+}
+
 export interface UIStore {
 	// Pane dimensions
 	leftPaneWidth: number;
@@ -28,6 +56,8 @@ export interface UIStore {
 	activeBottomTab: "commands" | "displayRules" | "enableRules" | "history" | "console";
 
 	// Modal / panel open states
+	/** The editor drawer's views, the one shown last (#186). Empty when it's closed. */
+	editorStack: EditorView[];
 	commandEditorOpen: boolean;
 	commandEditorId: string | null;
 	ruleEditorOpen: boolean;
@@ -78,6 +108,10 @@ export interface UIStore {
 	closeCommandEditor(): void;
 	openRuleEditor(ruleId: string | null, kind: "enable" | "display"): void;
 	closeRuleEditor(): void;
+	/** Back to the editor drawer's previous view (#186). */
+	editorBack(): void;
+	/** Closes the editor drawer, every view (#186). */
+	closeEditor(): void;
 	openXmlDrawer(): void;
 	closeXmlDrawer(): void;
 	openBulkPublish(): void;
@@ -131,6 +165,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	ribbonViewStyle: "modern",
 	activeBottomTab: "commands",
 
+	editorStack: [],
 	commandEditorOpen: false,
 	commandEditorId: null,
 	ruleEditorOpen: false,
@@ -173,11 +208,26 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	setRibbonViewStyle: (style) => set({ ribbonViewStyle: style }),
 	setActiveBottomTab: (tab) => set({ activeBottomTab: tab }),
 
-	openCommandEditor: (id) => set({ commandEditorOpen: true, commandEditorId: id }),
-	closeCommandEditor: () => set({ commandEditorOpen: false, commandEditorId: null }),
+	openCommandEditor: (id) =>
+		set((s) => editorState(id ? pushView(s.editorStack, { kind: "command", id }) : [])),
+	// The command's editor closes with everything shown over it.
+	closeCommandEditor: () => set(editorState([])),
 	openRuleEditor: (id, kind) =>
-		set({ ruleEditorOpen: true, ruleEditorId: id, ruleEditorKind: kind }),
-	closeRuleEditor: () => set({ ruleEditorOpen: false, ruleEditorId: null, ruleEditorKind: null }),
+		set((s) =>
+			editorState(
+				id ? pushView(s.editorStack, { kind: "rule", id, ruleKind: kind }) : s.editorStack,
+			),
+		),
+	closeRuleEditor: () =>
+		set((s) =>
+			editorState(
+				s.editorStack[s.editorStack.length - 1]?.kind === "rule"
+					? s.editorStack.slice(0, -1)
+					: s.editorStack,
+			),
+		),
+	editorBack: () => set((s) => editorState(s.editorStack.slice(0, -1))),
+	closeEditor: () => set(editorState([])),
 	openXmlDrawer: () => set({ xmlDrawerOpen: true }),
 	closeXmlDrawer: () => set({ xmlDrawerOpen: false }),
 	openBulkPublish: () => set({ bulkPublishOpen: true }),

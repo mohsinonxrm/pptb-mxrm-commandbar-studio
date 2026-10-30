@@ -2,12 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
 	makeStyles,
 	tokens,
-	DrawerBody,
-	DrawerHeader,
-	DrawerHeaderTitle,
-	OverlayDrawer,
 	Button,
-	Badge,
 	Text,
 	Divider,
 	InfoLabel,
@@ -16,7 +11,7 @@ import {
 	PopoverTrigger,
 	Input,
 } from "@fluentui/react-components";
-import { AddRegular, DismissRegular } from "@fluentui/react-icons";
+import { AddRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import type { RuleStep, EnableRule, DisplayRule } from "@/types/ribbon";
@@ -34,21 +29,11 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 const useStyles = makeStyles({
-	drawer: {
-		width: "560px",
-		maxWidth: "90vw",
-	},
+	// The editor drawer's body scrolls and pads it (#186).
 	body: {
 		display: "flex",
 		flexDirection: "column",
 		gap: tokens.spacingVerticalS,
-		padding: tokens.spacingVerticalM,
-		overflowY: "auto",
-	},
-	header: {
-		display: "flex",
-		alignItems: "center",
-		gap: tokens.spacingHorizontalS,
 	},
 	stepsList: {
 		display: "flex",
@@ -136,6 +121,12 @@ export const RuleEditorPanel: React.FC = () => {
 		if (activeRule) setDraftRuleId(activeRule.id);
 	}, [activeRule]);
 
+	// The rule went away while it was shown (an undo of the step that added it):
+	// back to the view below instead of an empty drawer (#186).
+	useEffect(() => {
+		if (ruleEditorOpen && ruleEditorId && !activeRule) closeRuleEditor();
+	}, [ruleEditorOpen, ruleEditorId, activeRule, closeRuleEditor]);
+
 	// Steps have no id: keys that stay with a step when another one is removed
 	// or moved, so its inputs and local state don't jump to a neighbour (#22).
 	// Steps changed from elsewhere (undo / redo) get new keys.
@@ -215,135 +206,99 @@ export const RuleEditorPanel: React.FC = () => {
 				? "A rule with this ID already exists."
 				: "";
 
+	// A view of the editor drawer (#186): it shows the title, the id and Done.
 	return (
-		<OverlayDrawer
-			position="end"
-			open={ruleEditorOpen}
-			onOpenChange={() => closeRuleEditor()}
-			className={styles.drawer}
-		>
-			<DrawerHeader>
-				<DrawerHeaderTitle
-					action={
-						<Button
-							appearance="subtle"
-							icon={<DismissRegular />}
-							onClick={closeRuleEditor}
-							aria-label="Close rule editor"
-						/>
-					}
+		<div className={styles.body}>
+			<Text className={styles.usedBy}>Used by {usedBy} command(s)</Text>
+			<div className={styles.ruleIdRow}>
+				<Input
+					className={styles.ruleIdInput}
+					value={draftRuleId}
+					onChange={(_, d) => setDraftRuleId(d.value)}
+					aria-label="Rule ID"
+				/>
+				<Button
+					appearance="secondary"
+					size="small"
+					disabled={!draftRuleId.trim() || !!idError || draftRuleId === activeRule.id}
+					onClick={() => {
+						const nextId = draftRuleId.trim();
+						const success = isEnable
+							? renameEnableRuleId(activeRule.id, nextId)
+							: renameDisplayRuleId(activeRule.id, nextId);
+						if (success) {
+							openRuleEditor(nextId, isEnable ? "enable" : "display");
+						}
+					}}
 				>
-					<div className={styles.header}>
-						<Badge
-							appearance="filled"
-							color={isEnable ? "success" : "informative"}
-							size="small"
-						>
-							{isEnable ? "Enable" : "Display"}
-						</Badge>
-						<Text
-							size={400}
-							weight="semibold"
-							style={{ fontFamily: tokens.fontFamilyMonospace }}
-						>
-							{activeRule.id}
-						</Text>
-					</div>
-				</DrawerHeaderTitle>
-			</DrawerHeader>
+					Apply ID change
+				</Button>
+			</div>
+			{idError && <Text className={styles.error}>{idError}</Text>}
 
-			<DrawerBody className={styles.body}>
-				<Text className={styles.usedBy}>Used by {usedBy} command(s)</Text>
-				<div className={styles.ruleIdRow}>
-					<Input
-						className={styles.ruleIdInput}
-						value={draftRuleId}
-						onChange={(_, d) => setDraftRuleId(d.value)}
-						aria-label="Rule ID"
-					/>
-					<Button
-						appearance="secondary"
+			<Divider>
+				{isEnable ? (
+					<InfoLabel
 						size="small"
-						disabled={!draftRuleId.trim() || !!idError || draftRuleId === activeRule.id}
-						onClick={() => {
-							const nextId = draftRuleId.trim();
-							const success = isEnable
-								? renameEnableRuleId(activeRule.id, nextId)
-								: renameDisplayRuleId(activeRule.id, nextId);
-							if (success) {
-								openRuleEditor(nextId, isEnable ? "enable" : "display");
-							}
-						}}
+						info="Enable rules allow fewer step types than display rules; the ones they don't allow are disabled in Add step."
 					>
-						Apply ID change
+						Steps (ALL must pass)
+					</InfoLabel>
+				) : (
+					"Steps (ALL must pass)"
+				)}
+			</Divider>
+
+			<DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+				<SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+					<ol className={styles.stepsList} role="list" aria-label="Rule steps">
+						{activeRule.steps.map((step, i) => (
+							<SortableRuleStep
+								key={sortableIds[i]}
+								id={sortableIds[i]}
+								styles={styles}
+							>
+								<RuleStepEditor
+									step={step}
+									onChange={(updated) => handleStepChange(i, updated)}
+									onRemove={() => handleStepRemove(i)}
+									container={isEnable ? "enable" : "display"}
+								/>
+							</SortableRuleStep>
+						))}
+						{activeRule.steps.length === 0 && (
+							<Text italic style={{ color: tokens.colorNeutralForeground3 }}>
+								No steps yet. A rule needs at least one step: add one before you
+								publish, or remove the rule from its commands.
+							</Text>
+						)}
+					</ol>
+				</SortableContext>
+			</DndContext>
+
+			<Popover open={pickerOpen} onOpenChange={(_, d) => setPickerOpen(d.open)}>
+				<PopoverTrigger>
+					<Button
+						icon={<AddRegular />}
+						appearance="secondary"
+						onClick={() => setPickerOpen(true)}
+					>
+						Add step
 					</Button>
-				</div>
-				{idError && <Text className={styles.error}>{idError}</Text>}
+				</PopoverTrigger>
+				<PopoverSurface className={styles.pickerPopover}>
+					<RuleStepPicker
+						onSelect={handleAddStep}
+						container={isEnable ? "enable" : "display"}
+					/>
+				</PopoverSurface>
+			</Popover>
 
-				<Divider>
-					{isEnable ? (
-						<InfoLabel
-							size="small"
-							info="Enable rules allow fewer step types than display rules; the ones they don't allow are disabled in Add step."
-						>
-							Steps (ALL must pass)
-						</InfoLabel>
-					) : (
-						"Steps (ALL must pass)"
-					)}
-				</Divider>
-
-				<DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-					<SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-						<ol className={styles.stepsList} role="list" aria-label="Rule steps">
-							{activeRule.steps.map((step, i) => (
-								<SortableRuleStep
-									key={sortableIds[i]}
-									id={sortableIds[i]}
-									styles={styles}
-								>
-									<RuleStepEditor
-										step={step}
-										onChange={(updated) => handleStepChange(i, updated)}
-										onRemove={() => handleStepRemove(i)}
-										container={isEnable ? "enable" : "display"}
-									/>
-								</SortableRuleStep>
-							))}
-							{activeRule.steps.length === 0 && (
-								<Text italic style={{ color: tokens.colorNeutralForeground3 }}>
-									No steps yet. A rule needs at least one step: add one before you
-									publish, or remove the rule from its commands.
-								</Text>
-							)}
-						</ol>
-					</SortableContext>
-				</DndContext>
-
-				<Popover open={pickerOpen} onOpenChange={(_, d) => setPickerOpen(d.open)}>
-					<PopoverTrigger>
-						<Button
-							icon={<AddRegular />}
-							appearance="secondary"
-							onClick={() => setPickerOpen(true)}
-						>
-							Add step
-						</Button>
-					</PopoverTrigger>
-					<PopoverSurface className={styles.pickerPopover}>
-						<RuleStepPicker
-							onSelect={handleAddStep}
-							container={isEnable ? "enable" : "display"}
-						/>
-					</PopoverSurface>
-				</Popover>
-
-				<Divider>Plain-English summary</Divider>
-				<div className={styles.summary} role="note" aria-label="Rule summary">
-					{summary}
-				</div>
-			</DrawerBody>
-		</OverlayDrawer>
+			<Divider>Plain-English summary</Divider>
+			<div className={styles.summary} role="note" aria-label="Rule summary">
+				{summary}
+			</div>
+		</div>
 	);
 };
 
