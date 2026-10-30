@@ -818,6 +818,8 @@ export const CommandEditorPanel: React.FC = () => {
 						style={{ flex: "1 1 260px", minWidth: 0 }}
 					>
 						<Select
+							// The longest rule id would size it past its field (#186).
+							style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}
 							value={selectedBindRuleId}
 							onChange={(_, d) =>
 								kind === "enable"
