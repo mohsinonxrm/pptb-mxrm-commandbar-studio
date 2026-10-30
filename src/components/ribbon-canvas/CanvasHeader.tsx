@@ -394,7 +394,10 @@ export function RibbonTabStrip({ currentTab }: { currentTab: RibbonTab | undefin
 							size="small"
 							className={styles.tabList}
 							aria-label="Ribbon tabs"
-							selectedValue={currentTab?.id}
+							// null, not undefined, while loading: Fluent decides on the first
+							// render whether the list is controlled and never re-checks, so
+							// an undefined start leaves it ignoring the current tab after.
+							selectedValue={currentTab?.id ?? null}
 							onTabSelect={(_, d) => {
 								setTabId(String(d.value));
 								if (renameRefusedTabId !== d.value) setRenameRefusedTabId(null);

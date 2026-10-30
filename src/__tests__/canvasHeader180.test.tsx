@@ -143,6 +143,21 @@ describe("#180 the ribbon tab strip", () => {
 		expect(t.textContent).not.toContain("cbs.account.Tab2");
 	});
 
+	it("marks the current tab selected, also when the strip first rendered without one", () => {
+		const tabs = useRibbonStore.getState().ribbons.HomepageGrid.tabs;
+		// While a table loads there is no current tab yet.
+		render(<RibbonTabStrip currentTab={undefined} />);
+		render(<RibbonTabStrip currentTab={tabs[1]} />);
+		const selected = () =>
+			[...container.querySelectorAll('[role="tab"][aria-selected="true"]')].map((t) =>
+				t.getAttribute("data-tab-id"),
+			);
+		expect(selected()).toEqual(["cbs.account.Tab2"]);
+		// Another location's default tab, without a click.
+		render(<RibbonTabStrip currentTab={tabs[0]} />);
+		expect(selected()).toEqual(["Mscrm.HomepageGrid.account.MainTab"]);
+	});
+
 	it("moves the current tab left and right from Tab options", () => {
 		render(strip());
 		click(byName("Tab options"));
