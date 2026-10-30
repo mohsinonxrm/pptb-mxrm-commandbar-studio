@@ -155,6 +155,23 @@ describe("#186 the editor drawer", () => {
 		expect(ui().editorStack).toEqual([]);
 	});
 
+	it("a rule opened from the command's rule list is a view on top, even when the command is read-only", async () => {
+		act(() => ui().openCommandEditor(CMD));
+		await flush();
+		const tab = [...document.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) =>
+			t.textContent?.startsWith("Enable rules"),
+		)!;
+		act(() => tab.click());
+		await flush();
+		const chip = [...document.querySelectorAll<HTMLElement>('[role="button"]')].find(
+			(e) => e.textContent?.trim() === RULE,
+		)!;
+		act(() => chip.click());
+		await flush();
+		expect(ui().editorStack.map((v) => v.kind)).toEqual(["command", "rule"]);
+		expect(drawer()?.textContent).toContain("Edit enable rule");
+	});
+
 	it("everything done between opening and Done is one undo step", async () => {
 		const before = store().past.length;
 		act(() => ui().openCommandEditor(CMD));

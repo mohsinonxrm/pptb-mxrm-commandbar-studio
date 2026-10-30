@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import {
 	Badge,
 	Button,
@@ -96,8 +96,12 @@ export function EditorDrawer() {
 	const editorBack = useUIStore((s) => s.editorBack);
 	const closeEditor = useUIStore((s) => s.closeEditor);
 	const open = stack.length > 0;
-	const view = stack[stack.length - 1];
-	const previous = stack[stack.length - 2];
+	// While it slides out, the drawer keeps showing what it showed.
+	const [lastStack, setLastStack] = useState(stack);
+	if (open && stack !== lastStack) setLastStack(stack);
+	const shown = open ? stack : lastStack;
+	const view = shown[shown.length - 1];
+	const previous = shown[shown.length - 2];
 
 	// One edit session from opening to closing: one Undo reverts it all.
 	useEffect(() => {
@@ -140,9 +144,9 @@ export function EditorDrawer() {
 				{view && (
 					<DrawerHeaderTitle>
 						<span className={styles.title}>
-							{stack.length > 1 && (
+							{shown.length > 1 && (
 								<Caption1 className={styles.trail}>
-									{stack.slice(0, -1).map(viewTitle).join(" › ")} ›
+									{shown.slice(0, -1).map(viewTitle).join(" › ")} ›
 								</Caption1>
 							)}
 							{viewTitle(view)}

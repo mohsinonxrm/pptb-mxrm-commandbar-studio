@@ -57,6 +57,7 @@ const useStyles = makeStyles({
 	},
 	row: {
 		display: "flex",
+		flexWrap: "wrap",
 		gap: tokens.spacingHorizontalS,
 		alignItems: "flex-end",
 	},
@@ -812,7 +813,10 @@ export const CommandEditorPanel: React.FC = () => {
 					)}
 				</div>
 				<div className={styles.row}>
-					<Field label={`Bind existing ${kind} rule`} style={{ minWidth: "260px" }}>
+					<Field
+						label={`Bind existing ${kind} rule`}
+						style={{ flex: "1 1 260px", minWidth: 0 }}
+					>
 						<Select
 							value={selectedBindRuleId}
 							onChange={(_, d) =>
