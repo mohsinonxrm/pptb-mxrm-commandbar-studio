@@ -385,7 +385,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									</Text>
 									{isReadOnlyKind(button) && (
 										<Badge
-											size="extra-small"
+											size="small"
 											appearance="outline"
 											color="informative"
 										>
@@ -399,7 +399,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									{button.hidden && <EyeOffRegular fontSize={12} aria-hidden />}
 									{button.custom && (
 										<Badge
-											size="extra-small"
+											size="small"
 											color="brand"
 											appearance="tint"
 											aria-label="Custom"

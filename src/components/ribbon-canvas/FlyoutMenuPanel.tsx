@@ -223,7 +223,7 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 						{item.menu && <ChevronDownRegular fontSize={12} aria-hidden />}
 						<ClassicModernOverrideBadge overrides={modern} appNames={modernAppNames} />
 						{item.custom && !loadedIds.has(item.id) && (
-							<Badge size="extra-small" color="brand" appearance="tint">
+							<Badge size="small" color="brand" appearance="tint">
 								NEW
 							</Badge>
 						)}

@@ -151,11 +151,7 @@ export function ModernCommandsTable({
 											{cmd.hidden && (
 												<EyeOffRegular fontSize={12} aria-label="hidden" />
 											)}
-											<Badge
-												size="extra-small"
-												appearance="tint"
-												color="important"
-											>
+											<Badge size="small" appearance="tint" color="important">
 												Modern
 											</Badge>
 										</span>

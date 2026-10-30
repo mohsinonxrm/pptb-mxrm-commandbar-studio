@@ -146,7 +146,7 @@ export function ModernCommandChip({
 				{hasMenu && <ChevronDownRegular fontSize={12} aria-hidden />}
 				{cmd.hidden && <EyeOffRegular fontSize={12} aria-hidden />}
 				<Badge
-					size="extra-small"
+					size="small"
 					appearance="tint"
 					color="important"
 					icon={<LockClosedRegular />}
@@ -154,7 +154,7 @@ export function ModernCommandChip({
 					Modern
 				</Badge>
 				{showApp && (
-					<Badge size="extra-small" appearance="outline" color="informative">
+					<Badge size="small" appearance="outline" color="informative">
 						{appLabel(cmd, appNames)}
 					</Badge>
 				)}

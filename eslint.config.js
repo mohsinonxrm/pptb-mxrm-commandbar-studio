@@ -62,9 +62,7 @@ export default tseslint.config(
 			"src/components/ribbon-canvas/ClassicRibbon.tsx",
 			"src/components/ribbon-canvas/FlyoutMenuPanel.tsx",
 			"src/components/ribbon-canvas/ModernCommandBar.tsx",
-			"src/components/ribbon-canvas/modern/ClassicModernOverrideBadge.tsx",
 			"src/components/ribbon-canvas/modern/ModernCommandChip.tsx",
-			"src/components/ribbon-canvas/modern/ModernCommandsTable.tsx",
 		],
 		rules: {
 			"no-restricted-syntax": "off",
