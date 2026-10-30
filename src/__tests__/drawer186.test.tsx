@@ -10,6 +10,7 @@ import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { EditorDrawer } from "@/components/panels/EditorDrawer";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
+import { ruleShortName } from "@/utils/ruleLabel";
 import type { CommandDefinition, EnableRule, RibbonLocation } from "@/types/ribbon";
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -163,9 +164,7 @@ describe("#186 the editor drawer", () => {
 		)!;
 		act(() => tab.click());
 		await flush();
-		const chip = [...document.querySelectorAll<HTMLElement>('[role="button"]')].find(
-			(e) => e.textContent?.trim() === RULE,
-		)!;
+		const chip = button(ruleShortName(RULE))!;
 		act(() => chip.click());
 		await flush();
 		expect(ui().editorStack.map((v) => v.kind)).toEqual(["command", "rule"]);

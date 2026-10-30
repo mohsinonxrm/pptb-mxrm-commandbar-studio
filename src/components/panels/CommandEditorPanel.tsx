@@ -1,37 +1,55 @@
-import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
-import { writeGuard } from "@/services/hostConnection";
 import React, { useEffect, useMemo, useState } from "react";
 import {
 	makeStyles,
 	tokens,
 	Button,
-	Badge,
-	Tab,
-	TabList,
-	Text,
-	Divider,
+	Caption1,
 	Field,
 	Input,
-	Select,
-	InfoLabel,
+	Label,
+	Menu,
+	MenuItem,
+	MenuList,
+	MenuPopover,
+	MenuTrigger,
 	MessageBar,
 	MessageBarBody,
+	Select,
+	Switch,
+	TagGroup,
+	Text,
+	Tooltip,
+	InfoLabel,
 } from "@fluentui/react-components";
-import { AddRegular, DismissRegular } from "@fluentui/react-icons";
+import {
+	AddRegular,
+	ArrowDownRegular,
+	ArrowUpRegular,
+	CodeRegular,
+	DeleteRegular,
+	EditRegular,
+	MoreVerticalRegular,
+	ReOrderDotsVerticalRegular,
+} from "@fluentui/react-icons";
+import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
+import {
+	SortableContext,
+	arrayMove,
+	useSortable,
+	verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import type { CommandDefinition, RibbonAction } from "@/types/ribbon";
 import CrmParameterEditor from "@/components/shared/CrmParameterEditor";
+import { RuleTag } from "@/components/shared/RuleTag";
 import { generateRuleId } from "@/utils/idGenerator";
-import MonacoEditor from "@/components/shared/MonacoEditor";
-import {
-	loadWebResourceByName,
-	loadWebResourceContent,
-	saveWebResource,
-} from "@/services/dataverse/webResourceService";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
-import { groupControls } from "@/utils/ribbonMenu";
+import { buttonsUsing } from "@/utils/ribbonMenu";
+import { LOCATION_INFO } from "@/constants/locationInfo";
 import { useStableKeys } from "@/hooks/useStableKeys";
+import { useDisplayText } from "@/hooks/useDisplayText";
 import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
 import { isCommandReadOnly, useCommandProvenance } from "@/hooks/useCommandProvenance";
 
@@ -40,11 +58,12 @@ const useStyles = makeStyles({
 	body: {
 		display: "flex",
 		flexDirection: "column",
-		gap: tokens.spacingVerticalS,
+		gap: tokens.spacingVerticalM,
 	},
 	actionCard: {
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
 		borderRadius: tokens.borderRadiusMedium,
+		backgroundColor: tokens.colorNeutralBackground1,
 		padding: tokens.spacingVerticalM,
 		display: "flex",
 		flexDirection: "column",
@@ -53,53 +72,42 @@ const useStyles = makeStyles({
 	actionHeader: {
 		display: "flex",
 		alignItems: "center",
-		justifyContent: "space-between",
+		gap: tokens.spacingHorizontalXS,
+		minWidth: 0,
 	},
+	actionTitle: { flex: 1, minWidth: 0 },
+	dragHandle: { cursor: "grab", touchAction: "none" },
 	row: {
 		display: "flex",
 		flexWrap: "wrap",
 		gap: tokens.spacingHorizontalS,
 		alignItems: "flex-end",
 	},
-	ruleRow: {
-		display: "inline-flex",
-		alignItems: "center",
-		gap: tokens.spacingHorizontalXS,
-	},
-	ruleRemoveBtn: {
-		minWidth: "20px",
-		width: "20px",
-		height: "20px",
-	},
-	ruleChip: {
-		cursor: "pointer",
-	},
-	rulePills: {
+	library: {
 		display: "flex",
-		flexWrap: "wrap",
 		gap: tokens.spacingHorizontalXS,
+		alignItems: "center",
 	},
-	versionsList: {
+	grow: { flex: 1, minWidth: 0 },
+	ruleTags: { flexWrap: "wrap" },
+	muted: { color: tokens.colorNeutralForeground3 },
+	usesList: {
+		listStyleType: "none",
+		margin: 0,
+		padding: 0,
 		display: "flex",
 		flexDirection: "column",
 		gap: tokens.spacingVerticalXS,
 	},
-	versionRow: {
+	use: {
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
 		borderRadius: tokens.borderRadiusMedium,
-		padding: tokens.spacingVerticalXS,
+		padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
 		display: "flex",
-		justifyContent: "space-between",
-		gap: tokens.spacingHorizontalS,
+		flexDirection: "column",
+		minWidth: 0,
 	},
-	versionMeta: {
-		fontSize: tokens.fontSizeBase100,
-		color: tokens.colorNeutralForeground3,
-	},
-	securityNote: {
-		fontSize: tokens.fontSizeBase100,
-	},
-	readOnly: {
+	fields: {
 		border: "none",
 		margin: 0,
 		padding: 0,
@@ -107,14 +115,34 @@ const useStyles = makeStyles({
 		display: "flex",
 		flexDirection: "column",
 		gap: tokens.spacingVerticalS,
-	},
-	codePanel: {
-		border: `1px solid ${tokens.colorNeutralStroke2}`,
-		borderRadius: tokens.borderRadiusMedium,
-		padding: tokens.spacingVerticalS,
-		display: "flex",
-		flexDirection: "column",
-		gap: tokens.spacingVerticalS,
+		// Fluent styles a control as disabled only through its own prop: make the
+		// fields of a read-only command look read-only, their values still legible.
+		"&:disabled .fui-Input, &:disabled .fui-Select__select, &:disabled .fui-Dropdown, &:disabled .fui-Combobox":
+			{
+				backgroundColor: tokens.colorNeutralBackground3,
+				borderTopColor: tokens.colorTransparentStroke,
+				borderRightColor: tokens.colorTransparentStroke,
+				borderBottomColor: tokens.colorTransparentStroke,
+				borderLeftColor: tokens.colorTransparentStroke,
+				color: tokens.colorNeutralForeground1,
+				cursor: "default",
+			},
+		"&:disabled .fui-Input::after, &:disabled .fui-Dropdown::after, &:disabled .fui-Combobox::after":
+			{ display: "none" },
+		"&:disabled input, &:disabled .fui-Dropdown__button": {
+			color: tokens.colorNeutralForeground1,
+			cursor: "default",
+		},
+		"&:disabled .fui-Select__icon, &:disabled .fui-Dropdown__expandIcon, &:disabled .fui-Combobox__expandIcon":
+			{ display: "none" },
+		"&:disabled .fui-Button": {
+			color: tokens.colorNeutralForegroundDisabled,
+			borderTopColor: tokens.colorNeutralStrokeDisabled,
+			borderRightColor: tokens.colorNeutralStrokeDisabled,
+			borderBottomColor: tokens.colorNeutralStrokeDisabled,
+			borderLeftColor: tokens.colorNeutralStrokeDisabled,
+			cursor: "not-allowed",
+		},
 	},
 });
 
@@ -127,37 +155,148 @@ type ActionKind = "javascript" | "url";
 
 const NO_ACTIONS: RibbonAction[] = [];
 
+const parseWebResourceName = (library: string): string => {
+	const trimmed = library.trim();
+	return trimmed.startsWith("$webresource:")
+		? trimmed.slice("$webresource:".length).trim()
+		: trimmed;
+};
+
+function actionTitle(action: RibbonAction): string {
+	switch (action.kind) {
+		case "javascript":
+			return "Run JavaScript";
+		case "url":
+			return "Open a URL";
+		case "powerFx":
+			return "Power Fx (not supported)";
+		case "customApi":
+			return "Custom API (not supported)";
+		case "outlookCommand":
+			return "Outlook command";
+		case "raw":
+			return action.tagName;
+		default:
+			return "Action";
+	}
+}
+
+interface ActionCardProps {
+	id: string;
+	index: number;
+	count: number;
+	title: string;
+	readOnly: boolean;
+	onMove: (from: number, to: number) => void;
+	onRemove: () => void;
+	children: React.ReactNode;
+}
+
+/** One action: drag handle, what it does, ⋮ (move up / down) and Remove. */
+function ActionCard({
+	id,
+	index,
+	count,
+	title,
+	readOnly,
+	onMove,
+	onRemove,
+	children,
+}: ActionCardProps) {
+	const styles = useStyles();
+	const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition } =
+		useSortable({ id, disabled: readOnly });
+	return (
+		<section
+			ref={setNodeRef}
+			style={{ transform: CSS.Transform.toString(transform), transition }}
+			className={styles.actionCard}
+			aria-label={`Action ${index + 1}: ${title}`}
+		>
+			<div className={styles.actionHeader}>
+				{!readOnly && count > 1 && (
+					<Button
+						ref={setActivatorNodeRef}
+						appearance="subtle"
+						size="small"
+						className={styles.dragHandle}
+						icon={<ReOrderDotsVerticalRegular />}
+						aria-label="Drag to reorder action"
+						{...attributes}
+						{...listeners}
+					/>
+				)}
+				<Text weight="semibold" className={styles.actionTitle} truncate wrap={false}>
+					{title}
+				</Text>
+				{!readOnly && count > 1 && (
+					<Menu>
+						<MenuTrigger disableButtonEnhancement>
+							<Button
+								appearance="subtle"
+								size="small"
+								icon={<MoreVerticalRegular />}
+								aria-label="More for this action"
+							/>
+						</MenuTrigger>
+						<MenuPopover>
+							<MenuList>
+								<MenuItem
+									icon={<ArrowUpRegular />}
+									disabled={index === 0}
+									onClick={() => onMove(index, index - 1)}
+								>
+									Move up
+								</MenuItem>
+								<MenuItem
+									icon={<ArrowDownRegular />}
+									disabled={index === count - 1}
+									onClick={() => onMove(index, index + 1)}
+								>
+									Move down
+								</MenuItem>
+							</MenuList>
+						</MenuPopover>
+					</Menu>
+				)}
+				{!readOnly && (
+					<Tooltip content="Remove action" relationship="label">
+						<Button
+							appearance="subtle"
+							size="small"
+							icon={<DeleteRegular />}
+							onClick={onRemove}
+						/>
+					</Tooltip>
+				)}
+			</div>
+			{children}
+		</section>
+	);
+}
+
 export const CommandEditorPanel: React.FC = () => {
 	const styles = useStyles();
 	const commandEditorOpen = useUIStore((s) => s.commandEditorOpen);
 	const commandEditorId = useUIStore((s) => s.commandEditorId);
 	const closeCommandEditor = useUIStore((s) => s.closeCommandEditor);
-	const openCommandEditor = useUIStore((s) => s.openCommandEditor);
 	const openRuleEditor = useUIStore((s) => s.openRuleEditor);
+	const openScriptView = useUIStore((s) => s.openScriptView);
 	const openWebResourceBrowser = useUIStore((s) => s.openWebResourceBrowser);
+	const tab = useUIStore((s) => s.commandEditorTab);
 
 	const commands = useRibbonStore((s) => s.commands);
 	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
-	const renameCommandId = useRibbonStore((s) => s.renameCommandId);
 	const ribbons = useRibbonStore((s) => s.ribbons);
+	const locLabels = useRibbonStore((s) => s.locLabels);
 	const displayRules = useRibbonStore((s) => s.displayRules);
 	const enableRules = useRibbonStore((s) => s.enableRules);
-	const past = useRibbonStore((s) => s.past);
 	const upsertEnableRule = useRibbonStore((s) => s.upsertEnableRule);
 	const upsertDisplayRule = useRibbonStore((s) => s.upsertDisplayRule);
+	const captionOf = useDisplayText();
 
-	const [activeTab, setActiveTab] = useState<string>("actions");
-	const [draftCommandId, setDraftCommandId] = useState("");
 	const [bindEnableRuleId, setBindEnableRuleId] = useState("");
 	const [bindDisplayRuleId, setBindDisplayRuleId] = useState("");
-	const [codeActionIndex, setCodeActionIndex] = useState<number | null>(null);
-	const [codeEditable, setCodeEditable] = useState(false);
-	const [codeLoading, setCodeLoading] = useState(false);
-	const [codeError, setCodeError] = useState<string | null>(null);
-	const [codeWarning, setCodeWarning] = useState<string | null>(null);
-	const [codeValue, setCodeValue] = useState("");
-	const [codeDirty, setCodeDirty] = useState(false);
-	const [codeWebResourceName, setCodeWebResourceName] = useState<string | null>(null);
 
 	const command = commands.find((c) => c.id === commandEditorId);
 	// Action cards keep their key when another action is removed (#22): an index
@@ -166,57 +305,9 @@ export const CommandEditorPanel: React.FC = () => {
 		`actions:${command?.id ?? ""}`,
 		command?.actions ?? NO_ACTIONS,
 	);
-	// A command being uncustomised (#31) is removed from the layer on publish, and
-	// one uncustomised and published needs a reload: neither is editable.
+	// Out-of-the-box commands are read-only until customised (#186); one being
+	// uncustomised (#31) or needing a reload isn't editable either.
 	const readOnly = isCommandReadOnly(useCommandProvenance(command?.id));
-
-	const parseWebResourceName = (library: string): string => {
-		const trimmed = library.trim();
-		if (trimmed.startsWith("$webresource:")) {
-			return trimmed.slice("$webresource:".length).trim();
-		}
-		return trimmed;
-	};
-
-	const decodeBase64Utf8 = (base64: string): string => {
-		if (!base64) return "";
-		const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-		return new TextDecoder().decode(bytes);
-	};
-
-	const encodeUtf8Base64 = (text: string): string => {
-		const bytes = new TextEncoder().encode(text);
-		let binary = "";
-		for (let i = 0; i < bytes.length; i += 1) {
-			binary += String.fromCharCode(bytes[i]);
-		}
-		return btoa(binary);
-	};
-
-	const inferWebResourceTypeCode = (name: string): number => {
-		const ext = name.split(".").pop()?.toLowerCase() ?? "";
-		return (
-			{
-				html: 1,
-				css: 2,
-				js: 3,
-				xml: 4,
-				png: 5,
-				jpg: 6,
-				gif: 7,
-				xsl: 9,
-				ico: 10,
-				svg: 11,
-				resx: 12,
-			}[ext] ?? 3
-		);
-	};
-
-	useEffect(() => {
-		if (command) {
-			setDraftCommandId(command.id);
-		}
-	}, [command]);
 
 	// The command went away while the editor was open (an undo of the step that
 	// added it, #22 review): close the editor instead of leaving it open on
@@ -225,103 +316,12 @@ export const CommandEditorPanel: React.FC = () => {
 		if (commandEditorOpen && commandEditorId && !command) closeCommandEditor();
 	}, [commandEditorOpen, commandEditorId, command, closeCommandEditor]);
 
-	const commandIdError = useMemo(() => {
-		if (!command) return "";
-		if (!draftCommandId.trim()) return "Command ID is required.";
-		if (/\s/.test(draftCommandId)) return "Command ID cannot contain whitespace.";
-		if (
-			draftCommandId !== command.id &&
-			commands.some((c) => c.id.toLowerCase() === draftCommandId.toLowerCase())
-		) {
-			return "A command with this ID already exists.";
-		}
-		return "";
-	}, [draftCommandId, command, commands]);
-
-	// Count references from buttons
-	const references = useMemo(() => {
-		return Object.entries(ribbons).flatMap(([location, ribbon]) =>
-			ribbon.tabs.flatMap((tab) =>
-				tab.groups.flatMap((group) =>
-					groupControls(group)
-						.filter((b) => b.commandId === commandEditorId)
-						.map((button) => ({ location, tab, group, button })),
-				),
-			),
-		);
-	}, [ribbons, commandEditorId]);
-	const refCount = references.length;
+	const uses = useMemo(
+		() => (commandEditorId ? buttonsUsing(ribbons, commandEditorId) : []),
+		[ribbons, commandEditorId],
+	);
 
 	if (!command) return null;
-
-	const openCodePanel = async (index: number, editable: boolean) => {
-		const action = command.actions[index];
-		if (!action || action.kind !== "javascript") return;
-		const wrName = parseWebResourceName(action.library);
-		if (!wrName) {
-			setCodeError("JavaScript library must be a valid $webresource path.");
-			setCodeActionIndex(index);
-			setCodeEditable(editable);
-			setCodeValue("");
-			setCodeWebResourceName(null);
-			return;
-		}
-
-		setCodeActionIndex(index);
-		setCodeEditable(editable);
-		setCodeLoading(true);
-		setCodeError(null);
-		setCodeWarning(null);
-		setCodeDirty(false);
-		setCodeWebResourceName(wrName);
-
-		try {
-			// Targeted query by name — much faster than loading all resources.
-			const target = await loadWebResourceByName(wrName);
-			if (!target) {
-				setCodeValue("");
-				setCodeError(`Web resource not found: ${wrName}`);
-				return;
-			}
-
-			// Use retrieve() under the hood — correct for single-record fetches.
-			const contentBase64 = await loadWebResourceContent(target.id);
-			setCodeValue(decodeBase64Utf8(contentBase64));
-		} catch (error: unknown) {
-			setCodeError(
-				error instanceof Error ? error.message : "Failed to load web resource content.",
-			);
-			setCodeValue("");
-		} finally {
-			setCodeLoading(false);
-		}
-	};
-
-	const saveCodePanel = async () => {
-		if (!codeEditable || codeActionIndex === null || !codeWebResourceName) return;
-		const guard = writeGuard(); // the script goes to the connection it was edited on (#120)
-		setCodeLoading(true);
-		setCodeError(null);
-		setCodeWarning(null);
-		try {
-			const saved = await saveWebResource(
-				codeWebResourceName,
-				encodeUtf8Base64(codeValue),
-				inferWebResourceTypeCode(codeWebResourceName),
-				{ displayName: codeWebResourceName.split("/").pop(), guard },
-			);
-			setCodeWarning(
-				[saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null,
-			);
-			setCodeDirty(false);
-		} catch (error: unknown) {
-			setCodeError(
-				error instanceof Error ? error.message : "Failed to save web resource content.",
-			);
-		} finally {
-			setCodeLoading(false);
-		}
-	};
 
 	const updateCommand = (patch: Partial<CommandDefinition>) => {
 		upsertCommand({ ...command, ...patch });
@@ -337,9 +337,19 @@ export const CommandEditorPanel: React.FC = () => {
 	const removeAction = (index: number) => {
 		updateCommand({ actions: command.actions.filter((_, i) => i !== index) });
 		actionKeys.remove(index);
-		// The code panel stays with its action.
-		setCodeActionIndex((open) =>
-			open === null || open === index ? null : open > index ? open - 1 : open,
+	};
+
+	const moveAction = (from: number, to: number) => {
+		if (to < 0 || to >= command.actions.length || from === to) return;
+		updateCommand({ actions: arrayMove(command.actions, from, to) });
+		actionKeys.move(from, to);
+	};
+
+	const handleDragEnd = (event: DragEndEvent) => {
+		if (!event.over) return;
+		moveAction(
+			actionKeys.keys.indexOf(String(event.active.id)),
+			actionKeys.keys.indexOf(String(event.over.id)),
 		);
 	};
 
@@ -352,191 +362,102 @@ export const CommandEditorPanel: React.FC = () => {
 		actionKeys.add();
 	};
 
-	const renderActionEditor = (action: RibbonAction, index: number) => {
-		const showCodePanel = codeActionIndex === index;
+	const renderActionBody = (action: RibbonAction, index: number) => {
 		if (action.kind === "javascript") {
+			const scriptName = parseWebResourceName(action.library);
 			return (
-				<div key={actionKeys.keys[index]} className={styles.actionCard}>
-					<div className={styles.actionHeader}>
-						<Badge appearance="filled" color="success" size="small">
-							JavaScript
-						</Badge>
-						<Button
-							appearance="subtle"
-							size="small"
-							icon={<DismissRegular />}
-							onClick={() => removeAction(index)}
-							aria-label="Remove action"
-						/>
-					</div>
-					<Field label="Library (Web Resource)">
-						<div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-							<Input
-								style={{ flex: 1 }}
-								value={action.library}
-								onChange={(_, d) =>
-									updateAction(index, {
-										...action,
-										// Collapse a repeated `$webresource:` prefix (pasting a full
-										// reference into a pre-filled field produced
-										// `$webresource:$webresource:…`, which never resolves).
-										library: d.value.replace(
-											/^(\s*\$webresource:\s*)+/i,
-											"$webresource:",
-										),
-									})
-								}
-								placeholder="$webresource:publisher_/scripts/myfile.js"
-							/>
-							<Button
-								appearance="subtle"
-								size="small"
-								onClick={() => {
-									webResourceBrowserCallbackRegistry.set((wr) => {
+				<>
+					<fieldset disabled={readOnly} className={styles.fields}>
+						<Field
+							label="Library"
+							hint="A JavaScript web resource, like $webresource:publisher_/scripts/file.js."
+						>
+							<div className={styles.library}>
+								<Input
+									className={styles.grow}
+									value={action.library}
+									onChange={(_, d) =>
 										updateAction(index, {
 											...action,
-											library: `$webresource:${wr.name}`,
-										});
-									});
-									openWebResourceBrowser();
-								}}
-							>
-								Browse…
-							</Button>
-						</div>
-					</Field>
-					<Field label="Function name">
-						<Input
-							value={action.functionName}
-							onChange={(_, d) =>
-								updateAction(index, { ...action, functionName: d.value })
-							}
-							placeholder="MyNamespace.myFunction"
-						/>
-					</Field>
-					<Divider>Parameters (positional)</Divider>
-					<CrmParameterEditor
-						params={action.params}
-						onChange={(p) => updateAction(index, { ...action, params: p })}
-						urlMode={false}
-					/>
-					<div className={styles.row}>
-						<Button
-							appearance="subtle"
-							size="small"
-							onClick={() => {
-								void openCodePanel(index, false);
-							}}
-						>
-							Function preview
-						</Button>
-						<Button
-							appearance="subtle"
-							size="small"
-							onClick={() => {
-								void openCodePanel(index, true);
-							}}
-						>
-							Open in Monaco
-						</Button>
-					</div>
-					{showCodePanel && (
-						<div className={styles.codePanel}>
-							<div className={styles.row}>
-								<Text weight="semibold">
-									{codeEditable ? "Monaco Editor" : "Function Preview"}
-								</Text>
-								{codeWebResourceName && (
-									<Text
-										size={200}
-										style={{ fontFamily: tokens.fontFamilyMonospace }}
-									>
-										{codeWebResourceName}
-									</Text>
-								)}
-							</div>
-							{codeError && (
-								<MessageBar intent="error">
-									<MessageBarBody>{codeError}</MessageBarBody>
-								</MessageBar>
-							)}
-							{codeWarning && (
-								<MessageBar intent="warning">
-									<MessageBarBody>{codeWarning}</MessageBarBody>
-								</MessageBar>
-							)}
-							{codeLoading ? (
-								<Text style={{ color: tokens.colorNeutralForeground3 }}>
-									Loading source…
-								</Text>
-							) : (
-								<div style={{ height: 240 }}>
-									<MonacoEditor
-										language="javascript"
-										value={codeValue}
-										readOnly={!codeEditable}
-										onChange={(next) => {
-											setCodeValue(next);
-											setCodeDirty(true);
-										}}
-										options={{ wordWrap: "on" }}
-									/>
-								</div>
-							)}
-							<div className={styles.row}>
+											// Collapse a repeated `$webresource:` prefix (pasting a full
+											// reference into a pre-filled field produced
+											// `$webresource:$webresource:…`, which never resolves).
+											library: d.value.replace(
+												/^(\s*\$webresource:\s*)+/i,
+												"$webresource:",
+											),
+										})
+									}
+									placeholder="$webresource:publisher_/scripts/file.js"
+								/>
 								<Button
-									appearance="subtle"
-									size="small"
 									onClick={() => {
-										setCodeActionIndex(null);
-										setCodeError(null);
-										setCodeDirty(false);
+										webResourceBrowserCallbackRegistry.set((wr) => {
+											updateAction(index, {
+												...action,
+												library: `$webresource:${wr.name}`,
+											});
+										});
+										openWebResourceBrowser();
 									}}
 								>
-									Close
+									Browse…
 								</Button>
-								{codeEditable && <EnvironmentBadge prefix="Saves to" />}
-								{codeEditable && (
-									<Button
-										appearance="primary"
-										size="small"
-										onClick={() => {
-											void saveCodePanel();
-										}}
-										disabled={!codeDirty || codeLoading || !!codeError}
-									>
-										Save Web Resource
-									</Button>
-								)}
 							</div>
-						</div>
-					)}
-				</div>
+						</Field>
+						<Field
+							label="Function"
+							hint="The function's full name, including its namespace."
+						>
+							<Input
+								value={action.functionName}
+								onChange={(_, d) =>
+									updateAction(index, { ...action, functionName: d.value })
+								}
+								placeholder="Contoso.Account.approve"
+							/>
+						</Field>
+						<Label weight="semibold">Parameters, in order</Label>
+						<CrmParameterEditor
+							params={action.params}
+							onChange={(p) => updateAction(index, { ...action, params: p })}
+							urlMode={false}
+						/>
+					</fieldset>
+					{/* Reading the script doesn't change the command: allowed when read-only. */}
+					<div className={styles.row}>
+						<Button
+							size="small"
+							icon={<CodeRegular />}
+							disabled={!scriptName}
+							onClick={() => openScriptView(scriptName, false)}
+						>
+							View script
+						</Button>
+						{!readOnly && (
+							<Button
+								size="small"
+								icon={<EditRegular />}
+								disabled={!scriptName}
+								onClick={() => openScriptView(scriptName, true)}
+							>
+								Edit script
+							</Button>
+						)}
+					</div>
+				</>
 			);
 		}
 
 		if (action.kind === "url") {
 			const isHttpsAddress = action.address.trim().startsWith("https://");
 			return (
-				<div key={actionKeys.keys[index]} className={styles.actionCard}>
-					<div className={styles.actionHeader}>
-						<Badge appearance="filled" color="informative" size="small">
-							URL
-						</Badge>
-						<Button
-							appearance="subtle"
-							size="small"
-							icon={<DismissRegular />}
-							onClick={() => removeAction(index)}
-							aria-label="Remove action"
-						/>
-					</div>
+				<fieldset disabled={readOnly} className={styles.fields}>
 					<Field
 						label="Address"
-						hint="Ampersands (&) are escaped as &amp; in the generated XML."
 						validationState={isHttpsAddress ? "none" : "error"}
 						validationMessage={
-							isHttpsAddress ? undefined : "URL must start with https://"
+							isHttpsAddress ? undefined : "The address must start with https://"
 						}
 					>
 						<Input
@@ -544,10 +465,10 @@ export const CommandEditorPanel: React.FC = () => {
 							onChange={(_, d) =>
 								updateAction(index, { ...action, address: d.value })
 							}
-							placeholder="https://..."
+							placeholder="https://"
 						/>
 					</Field>
-					<Field label="Open in (WinMode)">
+					<Field label="Open in">
 						<Select
 							value={String(action.winMode ?? 0)}
 							onChange={(_, d) =>
@@ -562,28 +483,25 @@ export const CommandEditorPanel: React.FC = () => {
 							<option value="2">Popup (2)</option>
 						</Select>
 					</Field>
-					<Field>
-						<Button
-							appearance={action.passParams ? "primary" : "subtle"}
-							size="small"
-							onClick={() =>
+					<Field hint="Adds the record's details to the address: typename, type, id, orgname and the user's languages.">
+						<Switch
+							label="Pass parameters"
+							checked={!!action.passParams}
+							onChange={(_, d) =>
 								updateAction(index, {
 									...action,
-									passParams: action.passParams ? undefined : true,
+									passParams: d.checked ? true : undefined,
 								})
 							}
-						>
-							{action.passParams ? "✓ PassParams ON" : "PassParams OFF"} — appends
-							typename, type, id, orgname…
-						</Button>
+						/>
 					</Field>
-					<Divider>Parameters (named)</Divider>
+					<Label weight="semibold">Query string parameters</Label>
 					<CrmParameterEditor
 						params={action.params}
 						onChange={(p) => updateAction(index, { ...action, params: p })}
 						urlMode={true}
 					/>
-				</div>
+				</fieldset>
 			);
 		}
 
@@ -591,55 +509,27 @@ export const CommandEditorPanel: React.FC = () => {
 			// Can't be added any more (#28); only reachable from a session saved by an
 			// older version. Publishing is blocked while the command has one.
 			return (
-				<div key={actionKeys.keys[index]} className={styles.actionCard}>
-					<div className={styles.actionHeader}>
-						<Badge appearance="filled" color="danger" size="small">
-							{action.kind === "powerFx" ? "Power Fx" : "Custom API"} — not supported
-						</Badge>
-						<Button
-							appearance="subtle"
-							size="small"
-							icon={<DismissRegular />}
-							onClick={() => removeAction(index)}
-							aria-label="Remove action"
-						/>
-					</div>
-					<MessageBar intent="error">
-						<MessageBarBody>
-							Classic ribbon commands can't run{" "}
-							{action.kind === "powerFx" ? "Power Fx" : "Custom API"} actions, so this
-							command can't be published while it has one. Remove it and use a
-							JavaScript function instead (for example, call the API with{" "}
-							<code>Xrm.WebApi.online.execute</code>), or build the command with
-							modern commanding in the app designer.
-						</MessageBarBody>
-					</MessageBar>
-				</div>
+				<MessageBar intent="error">
+					<MessageBarBody>
+						Classic ribbon commands can't run{" "}
+						{action.kind === "powerFx" ? "Power Fx" : "Custom API"} actions, so this
+						command can't be published while it has one. Remove it and use a JavaScript
+						function instead (for example, call the API with{" "}
+						<code>Xrm.WebApi.online.execute</code>), or build the command with modern
+						commanding in the app designer.
+					</MessageBarBody>
+				</MessageBar>
 			);
 		}
 
 		if (action.kind === "outlookCommand" || action.kind === "raw") {
 			// Not editable in CBS; kept exactly as loaded when the command is re-emitted.
 			return (
-				<div key={actionKeys.keys[index]} className={styles.actionCard}>
-					<div className={styles.actionHeader}>
-						<Badge appearance="outline" size="small">
-							{action.kind === "outlookCommand" ? "Outlook command" : action.tagName}
-						</Badge>
-						<Button
-							appearance="subtle"
-							size="small"
-							icon={<DismissRegular />}
-							onClick={() => removeAction(index)}
-							aria-label="Remove action"
-						/>
-					</div>
-					<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-						{action.kind === "outlookCommand"
-							? `ActionType="${action.actionType}"${action.data ? ` Data="${action.data}"` : ""}`
-							: action.xml}
-					</Text>
-				</div>
+				<Text size={200} className={styles.muted}>
+					{action.kind === "outlookCommand"
+						? `ActionType="${action.actionType}"${action.data ? ` Data="${action.data}"` : ""}`
+						: action.xml}
+				</Text>
 			);
 		}
 
@@ -648,98 +538,50 @@ export const CommandEditorPanel: React.FC = () => {
 
 	const renderActionsTab = () => (
 		<>
-			{command.actions.map((action, i) => renderActionEditor(action, i))}
+			<DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+				<SortableContext items={actionKeys.keys} strategy={verticalListSortingStrategy}>
+					{command.actions.map((action, i) => (
+						<ActionCard
+							key={actionKeys.keys[i]}
+							id={actionKeys.keys[i]}
+							index={i}
+							count={command.actions.length}
+							title={actionTitle(action)}
+							readOnly={readOnly}
+							onMove={moveAction}
+							onRemove={() => removeAction(i)}
+						>
+							{renderActionBody(action, i)}
+						</ActionCard>
+					))}
+				</SortableContext>
+			</DndContext>
 			{command.actions.length === 0 && (
-				<Text italic style={{ color: tokens.colorNeutralForeground3 }}>
-					No actions defined — button will do nothing when clicked.
+				<Text className={styles.muted}>
+					No actions yet. The button does nothing when it's clicked.
 				</Text>
 			)}
-			<div className={styles.row}>
-				<Field label="Action type" style={{ minWidth: "220px" }}>
-					<Select
-						onChange={(_, d) => {
-							const kind = d.value as ActionKind;
-							if (!kind) return;
-							addAction(kind);
-						}}
-						value=""
-					>
-						<option value="">Add action...</option>
-						<option value="javascript">JavaScript function</option>
-						<option value="url">URL action</option>
-					</Select>
-				</Field>
-				<Button
-					icon={<AddRegular />}
-					appearance="secondary"
-					size="small"
-					onClick={() => addAction("javascript")}
-				>
-					Add JavaScript function
-				</Button>
-				<Button
-					icon={<AddRegular />}
-					appearance="secondary"
-					size="small"
-					onClick={() => addAction("url")}
-				>
-					Add URL action
-				</Button>
-			</div>
-		</>
-	);
-
-	const renderSettingsTab = () => (
-		<>
-			<Field label="Command ID">
-				<Input
-					value={draftCommandId}
-					onChange={(_, d) => setDraftCommandId(d.value)}
-					style={{ fontFamily: tokens.fontFamilyMonospace }}
-				/>
-			</Field>
-			{commandIdError && (
-				<Text
-					style={{
-						color: tokens.colorPaletteRedForeground1,
-						fontSize: tokens.fontSizeBase100,
-					}}
-				>
-					{commandIdError}
-				</Text>
+			{!readOnly && (
+				<div>
+					<Menu>
+						<MenuTrigger disableButtonEnhancement>
+							<Button icon={<AddRegular />}>Add action</Button>
+						</MenuTrigger>
+						<MenuPopover>
+							<MenuList>
+								<MenuItem onClick={() => addAction("javascript")}>
+									Run JavaScript
+								</MenuItem>
+								<MenuItem onClick={() => addAction("url")}>Open a URL</MenuItem>
+							</MenuList>
+						</MenuPopover>
+					</Menu>
+				</div>
 			)}
-			<Button
-				appearance="secondary"
-				size="small"
-				disabled={
-					!draftCommandId.trim() || !!commandIdError || draftCommandId === command.id
-				}
-				onClick={() => {
-					if (!draftCommandId.trim() || commandIdError) return;
-					const nextId = draftCommandId.trim();
-					const success = renameCommandId(command.id, nextId);
-					if (success) {
-						openCommandEditor(nextId);
-					}
-				}}
-			>
-				Apply ID change
-			</Button>
-			<Text
-				style={{ color: tokens.colorNeutralForeground3, fontSize: tokens.fontSizeBase200 }}
-			>
-				Naming convention: Publisher.EntityName.ButtonName.Command
-			</Text>
-			<MessageBar intent="warning">
-				<MessageBarBody>
-					<Text className={styles.securityNote}>
-						⚠ <strong>Security:</strong> All command definitions are visible in browser
-						source regardless of button visibility. Do not embed sensitive logic,
-						credentials, or privileged information in command parameters or function
-						names.
-					</Text>
-				</MessageBarBody>
-			</MessageBar>
+			<Caption1 className={styles.muted}>
+				Every user's browser gets the command's definition, even when the button is hidden.
+				Don't put secrets in function names or parameters.
+			</Caption1>
 		</>
 	);
 
@@ -749,6 +591,8 @@ export const CommandEditorPanel: React.FC = () => {
 			.map((r) => r.id)
 			.filter((id) => !ruleIds.includes(id));
 		const selectedBindRuleId = kind === "enable" ? bindEnableRuleId : bindDisplayRuleId;
+		const setRules = (ids: string[]) =>
+			updateCommand(kind === "enable" ? { enableRules: ids } : { displayRules: ids });
 		const createRule = () => {
 			const existingIds = new Set([
 				...enableRules.map((r) => r.id),
@@ -764,102 +608,77 @@ export const CommandEditorPanel: React.FC = () => {
 			} else {
 				upsertDisplayRule({ id: newId, steps: [] });
 			}
+			setRules([...ruleIds, newId]);
 			openRuleEditor(newId, kind);
 		};
 
 		return (
 			<>
-				<div className={styles.rulePills}>
-					{ruleIds.map((ruleId) => (
-						<div key={ruleId} className={styles.ruleRow}>
-							<Badge
-								appearance="outline"
-								size="medium"
-								className={styles.ruleChip}
-								onClick={() => openRuleEditor(ruleId, kind)}
-								role="button"
-								tabIndex={0}
-							>
-								{ruleId}
-							</Badge>
-							<Button
-								appearance="subtle"
-								size="small"
-								className={styles.ruleRemoveBtn}
-								icon={<DismissRegular />}
-								aria-label={`Unbind ${ruleId}`}
-								onClick={() => {
-									if (kind === "enable") {
-										updateCommand({
-											enableRules: command.enableRules.filter(
-												(id) => id !== ruleId,
-											),
-										});
-									} else {
-										updateCommand({
-											displayRules: command.displayRules.filter(
-												(id) => id !== ruleId,
-											),
-										});
-									}
-								}}
+				{ruleIds.length > 0 ? (
+					<TagGroup
+						className={styles.ruleTags}
+						aria-label={kind === "enable" ? "Enable rules" : "Display rules"}
+					>
+						{ruleIds.map((ruleId) => (
+							<RuleTag
+								key={ruleId}
+								ruleId={ruleId}
+								kind={kind}
+								onOpen={() => openRuleEditor(ruleId, kind)}
+								onRemove={
+									readOnly
+										? undefined
+										: () => setRules(ruleIds.filter((id) => id !== ruleId))
+								}
 							/>
-						</div>
-					))}
-					{ruleIds.length === 0 && (
-						<Text italic style={{ color: tokens.colorNeutralForeground3 }}>
-							No {kind} rules — always {kind === "enable" ? "enabled" : "visible"}.
-						</Text>
-					)}
-				</div>
-				<div className={styles.row}>
-					<Field
-						label={`Bind existing ${kind} rule`}
-						style={{ flex: "1 1 260px", minWidth: 0 }}
-					>
-						<Select
-							// The longest rule id would size it past its field (#186).
-							style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}
-							value={selectedBindRuleId}
-							onChange={(_, d) =>
-								kind === "enable"
-									? setBindEnableRuleId(d.value)
-									: setBindDisplayRuleId(d.value)
-							}
+						))}
+					</TagGroup>
+				) : (
+					<Text className={styles.muted}>
+						No {kind} rules, so the button is always{" "}
+						{kind === "enable" ? "enabled" : "shown"}.
+					</Text>
+				)}
+				{!readOnly && (
+					<div className={styles.row}>
+						<Field
+							label={`Add an existing ${kind} rule`}
+							style={{ flex: "1 1 260px", minWidth: 0 }}
 						>
-							<option value="">Select a rule…</option>
-							{availableRules.map((ruleId) => (
-								<option key={ruleId} value={ruleId}>
-									{ruleId}
-								</option>
-							))}
-						</Select>
-					</Field>
-					<Button
-						appearance="secondary"
-						size="small"
-						disabled={!selectedBindRuleId}
-						onClick={() => {
-							if (!selectedBindRuleId) return;
-							if (kind === "enable") {
-								updateCommand({
-									enableRules: [...command.enableRules, selectedBindRuleId],
-								});
-								setBindEnableRuleId("");
-							} else {
-								updateCommand({
-									displayRules: [...command.displayRules, selectedBindRuleId],
-								});
-								setBindDisplayRuleId("");
-							}
-						}}
-					>
-						Bind selected
-					</Button>
-					<Button appearance="subtle" size="small" onClick={createRule}>
-						Create new {kind} rule
-					</Button>
-				</div>
+							<Select
+								// The longest rule id would size it past its field (#186).
+								style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}
+								value={selectedBindRuleId}
+								onChange={(_, d) =>
+									kind === "enable"
+										? setBindEnableRuleId(d.value)
+										: setBindDisplayRuleId(d.value)
+								}
+							>
+								<option value="">Select a rule…</option>
+								{availableRules.map((ruleId) => (
+									<option key={ruleId} value={ruleId}>
+										{ruleId}
+									</option>
+								))}
+							</Select>
+						</Field>
+						<Button
+							disabled={!selectedBindRuleId}
+							onClick={() => {
+								if (!selectedBindRuleId) return;
+								setRules([...ruleIds, selectedBindRuleId]);
+								if (kind === "enable") setBindEnableRuleId("");
+								else setBindDisplayRuleId("");
+							}}
+						>
+							Add
+						</Button>
+						<Button appearance="subtle" icon={<AddRegular />} onClick={createRule}>
+							New {kind} rule
+						</Button>
+					</div>
+				)}
 				{kind === "enable" && (
 					<InfoLabel
 						size="small"
@@ -872,92 +691,41 @@ export const CommandEditorPanel: React.FC = () => {
 		);
 	};
 
-	const renderReferencesTab = () => (
-		<>
-			<Text>
-				Referenced by <strong>{refCount}</strong> button(s).
-			</Text>
-			{references.length > 0 && (
-				<div className={styles.versionsList}>
-					{references.map((ref) => (
-						<div
-							key={`${ref.location}:${ref.tab.id}:${ref.group.id}:${ref.button.id}`}
-							className={styles.versionRow}
-						>
-							<div>
-								<Text
-									weight="semibold"
-									style={{ fontFamily: tokens.fontFamilyMonospace }}
-								>
-									{ref.button.id}
-								</Text>
-								<Text className={styles.versionMeta}>
-									{ref.location} → {ref.tab.label} → {ref.group.label}
-								</Text>
-							</div>
-						</div>
-					))}
-				</div>
-			)}
-		</>
-	);
+	const renderUsedByTab = () =>
+		uses.length === 0 ? (
+			<Text className={styles.muted}>No button uses this command.</Text>
+		) : (
+			<ul className={styles.usesList} aria-label="Buttons using this command">
+				{uses.map(({ location, tab: t, group, button }) => (
+					<li key={`${location}:${t.id}:${group.id}:${button.id}`} className={styles.use}>
+						<Text weight="semibold" truncate wrap={false}>
+							{captionOf(
+								button.label,
+								locLabels,
+								undefined,
+								button.source?.labelToken,
+							) || button.id}
+						</Text>
+						<Caption1 className={styles.muted}>
+							{[
+								LOCATION_INFO[location].label,
+								captionOf(t.label, locLabels) || t.id,
+								captionOf(group.label, locLabels) || group.id,
+							].join(" › ")}
+						</Caption1>
+					</li>
+				))}
+			</ul>
+		);
 
-	const commandVersions = past
-		.filter((entry) => entry.target === command.id || entry.detail.includes(command.id))
-		.slice()
-		.reverse();
-
-	const renderVersionsTab = () => (
-		<>
-			{commandVersions.length === 0 ? (
-				<Text style={{ color: tokens.colorNeutralForeground3 }}>
-					No command-specific history entries yet.
-				</Text>
-			) : (
-				<div className={styles.versionsList}>
-					{commandVersions.map((entry, idx) => (
-						<div key={`${entry.ts}-${idx}`} className={styles.versionRow}>
-							<div>
-								<Text weight="semibold">{entry.op}</Text>
-								<Text className={styles.versionMeta}>{entry.detail}</Text>
-							</div>
-							<Text className={styles.versionMeta}>
-								{new Date(entry.ts).toLocaleString()}
-							</Text>
-						</div>
-					))}
-				</div>
-			)}
-		</>
-	);
-
-	// A view of the editor drawer (#186): it shows the title, the id and Done.
+	// A view of the editor drawer (#186): the header shows the id and the tabs.
 	return (
 		<div className={styles.body}>
-			<TabList
-				selectedValue={activeTab}
-				onTabSelect={(_, d) => setActiveTab(d.value as string)}
-			>
-				<Tab value="actions">Actions</Tab>
-				<Tab value="enableRules">Enable rules</Tab>
-				<Tab value="displayRules">Display rules</Tab>
-				<Tab value="settings">Settings</Tab>
-				<Tab value="references">References ({refCount})</Tab>
-				<Tab value="versions">Versions</Tab>
-			</TabList>
-
-			<Divider />
-
-			<CommandProvenanceBar commandId={command.id} />
-
-			<fieldset disabled={readOnly} className={styles.readOnly}>
-				{activeTab === "actions" && renderActionsTab()}
-				{activeTab === "enableRules" && renderRulesTab("enable")}
-				{activeTab === "displayRules" && renderRulesTab("display")}
-				{activeTab === "settings" && renderSettingsTab()}
-			</fieldset>
-			{activeTab === "references" && renderReferencesTab()}
-			{activeTab === "versions" && renderVersionsTab()}
+			<CommandProvenanceBar commandId={command.id} hideBadge />
+			{tab === "actions" && renderActionsTab()}
+			{tab === "enable" && renderRulesTab("enable")}
+			{tab === "display" && renderRulesTab("display")}
+			{tab === "usedBy" && renderUsedByTab()}
 		</div>
 	);
 };

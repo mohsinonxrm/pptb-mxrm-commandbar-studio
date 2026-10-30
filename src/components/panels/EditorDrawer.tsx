@@ -1,6 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from "react";
 import {
-	Badge,
 	Button,
 	Caption1,
 	DrawerBody,
@@ -15,17 +14,16 @@ import {
 	makeStyles,
 	mergeClasses,
 	tokens,
-	type BadgeProps,
 } from "@fluentui/react-components";
 import { ArrowLeftRegular, DismissRegular } from "@fluentui/react-icons";
 import { IdField } from "@/components/shared/IdField";
-import { useCommandProvenance } from "@/hooks/useCommandProvenance";
+import { CommandHeader } from "@/components/panels/CommandHeader";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore, type EditorView } from "@/store/uiStore";
-import type { CommandProvenance } from "@/utils/commandProvenance";
 
 const CommandEditorPanel = lazy(() => import("@/components/panels/CommandEditorPanel"));
 const RuleEditorPanel = lazy(() => import("@/components/panels/RuleEditorPanel"));
+const ScriptView = lazy(() => import("@/components/panels/ScriptView"));
 
 /**
  * The editor drawer (#186): one drawer that navigates instead of drawers on
@@ -38,6 +36,8 @@ const RuleEditorPanel = lazy(() => import("@/components/panels/RuleEditorPanel")
 const useStyles = makeStyles({
 	drawer: { width: "560px", maxWidth: "90vw" },
 	wide: { width: "640px" },
+	// The script fills the drawer instead of a fixed-height box.
+	fill: { display: "flex", flexDirection: "column" },
 	navigation: { justifyContent: "space-between" },
 	title: {
 		display: "flex",
@@ -54,7 +54,6 @@ const useStyles = makeStyles({
 		marginTop: tokens.spacingVerticalXS,
 	},
 	id: { flex: 1, minWidth: 0 },
-	badge: { flexShrink: 0 },
 	footer: {
 		display: "flex",
 		alignItems: "center",
@@ -65,29 +64,9 @@ const useStyles = makeStyles({
 });
 
 function viewTitle(view: EditorView): string {
-	return view.kind === "command" ? "Edit command" : `Edit ${view.ruleKind} rule`;
-}
-
-const PROVENANCE_BADGE: Record<CommandProvenance, { text: string; color: BadgeProps["color"] }> = {
-	custom: { text: "Yours", color: "success" },
-	customising: { text: "Your copy", color: "brand" },
-	customised: { text: "Your copy", color: "brand" },
-	oob: { text: "Read-only", color: "informative" },
-	uncustomising: { text: "Read-only", color: "informative" },
-	reloadRequired: { text: "Read-only", color: "informative" },
-};
-
-/** Whose command it is, next to its id. */
-function CommandBadge({ commandId }: { commandId: string }) {
-	const styles = useStyles();
-	const provenance = useCommandProvenance(commandId);
-	if (!provenance) return null;
-	const badge = PROVENANCE_BADGE[provenance.provenance];
-	return (
-		<Badge appearance="tint" color={badge.color} size="small" className={styles.badge}>
-			{badge.text}
-		</Badge>
-	);
+	if (view.kind === "command") return "Edit command";
+	if (view.kind === "rule") return `Edit ${view.ruleKind} rule`;
+	return view.editable ? "Edit script" : "View script";
 }
 
 export function EditorDrawer() {
@@ -116,7 +95,7 @@ export function EditorDrawer() {
 			position="end"
 			open={open}
 			onOpenChange={(_, d) => !d.open && closeEditor()}
-			className={mergeClasses(styles.drawer, view?.kind === "command" && styles.wide)}
+			className={mergeClasses(styles.drawer, view?.kind !== "rule" && styles.wide)}
 			aria-label={view ? viewTitle(view) : "Editor"}
 		>
 			<DrawerHeader>
@@ -153,28 +132,35 @@ export function EditorDrawer() {
 						</span>
 					</DrawerHeaderTitle>
 				)}
-				{view && (
+				{view?.kind === "command" && <CommandHeader key={view.id} commandId={view.id} />}
+				{view && view.kind !== "command" && (
 					<div className={styles.idRow}>
 						<div className={styles.id}>
 							<IdField
-								label={view.kind === "command" ? "Command ID" : "Rule ID"}
+								label={view.kind === "rule" ? "Rule ID" : "Web resource"}
 								value={view.id}
 								hideLabel
 							/>
 						</div>
-						{view.kind === "command" && <CommandBadge commandId={view.id} />}
 					</div>
 				)}
 			</DrawerHeader>
-			<DrawerBody>
+			<DrawerBody className={mergeClasses(view?.kind === "script" && styles.fill)}>
 				<Suspense fallback={<Spinner size="small" label="Loading…" />}>
 					{view?.kind === "command" && <CommandEditorPanel />}
 					{view?.kind === "rule" && <RuleEditorPanel />}
+					{view?.kind === "script" && (
+						<ScriptView key={view.id} name={view.id} editable={view.editable} />
+					)}
 				</Suspense>
 			</DrawerBody>
 			<DrawerFooter className={styles.footer}>
 				<Caption1 className={styles.hint}>
-					Changes apply as you edit · Ctrl Z to undo
+					{view?.kind === "script"
+						? view.editable
+							? "Save writes the script to Dataverse · Undo doesn't revert it"
+							: ""
+						: "Changes apply as you edit · Ctrl Z to undo"}
 				</Caption1>
 				<Button appearance="primary" onClick={closeEditor}>
 					Done
