@@ -212,9 +212,14 @@ export function SolutionElementsPane() {
 									<span className={styles.gripHandle}>⋮⋮</span>
 									<AppsAddInRegular
 										fontSize={14}
-										style={{ color: tokens.colorNeutralForeground3, flexShrink: 0 }}
+										style={{
+											color: tokens.colorNeutralForeground3,
+											flexShrink: 0,
+										}}
 									/>
-									<Text className={styles.itemName}>{button.label || button.id}</Text>
+									<Text className={styles.itemName}>
+										{button.label || button.id}
+									</Text>
 									<Badge size="small" appearance="outline">
 										{LOCATION_SHORT[location]}
 									</Badge>
@@ -236,9 +241,9 @@ export function SolutionElementsPane() {
 								}}
 							>
 								No custom buttons yet. Add one from the ribbon canvas — in{" "}
-								<strong>Modern command bar</strong> use the <strong>+ Add</strong> button at the
-								end of the bar; in <strong>Classic ribbon</strong> use the <strong>+</strong>{" "}
-								inside any group.
+								<strong>Modern command bar</strong> use the <strong>+ Add</strong>{" "}
+								button at the end of the bar; in <strong>Classic ribbon</strong> use
+								the <strong>+</strong> inside any group.
 							</Text>
 						)}
 					</>
@@ -265,7 +270,10 @@ export function SolutionElementsPane() {
 								tabIndex={0}
 								onKeyDown={(e) => e.key === "Enter" && openCommandEditor(cmd.id)}
 							>
-								<CodeRegular fontSize={14} style={{ color: tokens.colorNeutralForeground3 }} />
+								<CodeRegular
+									fontSize={14}
+									style={{ color: tokens.colorNeutralForeground3 }}
+								/>
 								<Text className={styles.itemName}>{cmd.id}</Text>
 								<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
 									{cmd.actions.length} action{cmd.actions.length !== 1 ? "s" : ""}
@@ -275,7 +283,11 @@ export function SolutionElementsPane() {
 						{commands.length === 0 && (
 							<Text
 								size={200}
-								style={{ color: tokens.colorNeutralForeground3, padding: 8, display: "block" }}
+								style={{
+									color: tokens.colorNeutralForeground3,
+									padding: 8,
+									display: "block",
+								}}
 							>
 								No commands yet
 							</Text>
@@ -302,7 +314,9 @@ export function SolutionElementsPane() {
 								onClick={() => openRuleEditor(r.id, "enable")}
 								role="button"
 								tabIndex={0}
-								onKeyDown={(e) => e.key === "Enter" && openRuleEditor(r.id, "enable")}
+								onKeyDown={(e) =>
+									e.key === "Enter" && openRuleEditor(r.id, "enable")
+								}
 							>
 								<Text className={styles.itemName}>{r.id}</Text>
 								<Badge size="small" color="success" appearance="tint">
@@ -317,7 +331,9 @@ export function SolutionElementsPane() {
 								onClick={() => openRuleEditor(r.id, "display")}
 								role="button"
 								tabIndex={0}
-								onKeyDown={(e) => e.key === "Enter" && openRuleEditor(r.id, "display")}
+								onKeyDown={(e) =>
+									e.key === "Enter" && openRuleEditor(r.id, "display")
+								}
 							>
 								<Text className={styles.itemName}>{r.id}</Text>
 								<Badge size="small" color="informative" appearance="tint">
@@ -328,7 +344,11 @@ export function SolutionElementsPane() {
 						{enableRules.length === 0 && displayRules.length === 0 && (
 							<Text
 								size={200}
-								style={{ color: tokens.colorNeutralForeground3, padding: 8, display: "block" }}
+								style={{
+									color: tokens.colorNeutralForeground3,
+									padding: 8,
+									display: "block",
+								}}
 							>
 								No rules yet
 							</Text>
@@ -351,7 +371,11 @@ export function SolutionElementsPane() {
 						{templates.length === 0 && (
 							<Text
 								size={200}
-								style={{ color: tokens.colorNeutralForeground3, padding: 8, display: "block" }}
+								style={{
+									color: tokens.colorNeutralForeground3,
+									padding: 8,
+									display: "block",
+								}}
 							>
 								No templates defined
 							</Text>

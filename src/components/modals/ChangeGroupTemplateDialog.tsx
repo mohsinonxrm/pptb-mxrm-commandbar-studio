@@ -73,8 +73,9 @@ export const ChangeGroupTemplateDialog: React.FC<ChangeGroupTemplateDialogProps>
 						{loadedGroup && (
 							<MessageBar intent="warning" style={{ marginTop: "12px" }}>
 								<MessageBarBody>
-									This group was loaded from the environment. Publishing can&apos;t change an existing
-									group&apos;s template yet (it&apos;s reported as not supported); groups you add publish
+									This group was loaded from the environment. Publishing
+									can&apos;t change an existing group&apos;s template yet
+									(it&apos;s reported as not supported); groups you add publish
 									theirs.
 								</MessageBarBody>
 							</MessageBar>

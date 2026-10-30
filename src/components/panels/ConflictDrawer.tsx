@@ -92,7 +92,9 @@ export const ConflictDrawer: React.FC = () => {
 			})
 			.catch((error: unknown) => {
 				if (cancelled) return;
-				setLoadError(error instanceof Error ? error.message : "Failed to load conflict layers");
+				setLoadError(
+					error instanceof Error ? error.message : "Failed to load conflict layers",
+				);
 			})
 			.finally(() => {
 				if (!cancelled) setIsLoading(false);
@@ -152,8 +154,8 @@ export const ConflictDrawer: React.FC = () => {
 					<MessageBar intent="warning">
 						<MessageBarBody>
 							<Text size={200}>
-								Multiple solutions customize this element. Dataverse applies them in solution import
-								order — the most recently imported solution wins.
+								Multiple solutions customize this element. Dataverse applies them in
+								solution import order — the most recently imported solution wins.
 							</Text>
 						</MessageBarBody>
 					</MessageBar>
@@ -161,9 +163,10 @@ export const ConflictDrawer: React.FC = () => {
 					<MessageBar intent="info">
 						<MessageBarBody>
 							<Text size={200}>
-								<strong>To resolve:</strong> Merge changes into one solution, or use solution
-								layering to control evaluation order. Managed solutions appear as read-only layers —
-								to resolve, merge the customization into your unmanaged solution.
+								<strong>To resolve:</strong> Merge changes into one solution, or use
+								solution layering to control evaluation order. Managed solutions
+								appear as read-only layers — to resolve, merge the customization
+								into your unmanaged solution.
 							</Text>
 						</MessageBarBody>
 					</MessageBar>
@@ -187,7 +190,9 @@ export const ConflictDrawer: React.FC = () => {
 					)}
 
 					{!isLoading && sortedLayers.length === 0 && (
-						<Text style={{ color: tokens.colorNeutralForeground3, textAlign: "center" }}>
+						<Text
+							style={{ color: tokens.colorNeutralForeground3, textAlign: "center" }}
+						>
 							No conflict details available from environment layers.
 						</Text>
 					)}
@@ -205,8 +210,13 @@ export const ConflictDrawer: React.FC = () => {
 									</Badge>
 								)}
 								{layer.managed && (
-									<Tooltip content="Managed solution — read-only" relationship="label">
-										<LockClosedRegular style={{ color: tokens.colorNeutralForeground3 }} />
+									<Tooltip
+										content="Managed solution — read-only"
+										relationship="label"
+									>
+										<LockClosedRegular
+											style={{ color: tokens.colorNeutralForeground3 }}
+										/>
 									</Tooltip>
 								)}
 								<Badge appearance="outline" size="small">
@@ -221,7 +231,13 @@ export const ConflictDrawer: React.FC = () => {
 									Imported: {new Date(layer.importedOn).toLocaleString()}
 								</Text>
 							)}
-							<div style={{ display: "flex", gap: tokens.spacingHorizontalS, flexWrap: "wrap" }}>
+							<div
+								style={{
+									display: "flex",
+									gap: tokens.spacingHorizontalS,
+									flexWrap: "wrap",
+								}}
+							>
 								<Button
 									appearance="subtle"
 									size="small"

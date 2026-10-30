@@ -67,14 +67,27 @@ function ribbon(location: RibbonLocation): RibbonDefinition {
 						sequence: 10,
 						template: "Flexible2",
 						// Your own group and button (#17: only those can be deleted).
-						buttons: [{ ...button("mxrm.Own.Button", "$LocLabels:btn.Label", 10), oob: false, custom: true, origin: "unmanaged" as const }],
+						buttons: [
+							{
+								...button("mxrm.Own.Button", "$LocLabels:btn.Label", 10),
+								oob: false,
+								custom: true,
+								origin: "unmanaged" as const,
+							},
+						],
 					},
 					{
 						id: MGMT,
 						label: "$Resources:Ribbon.HomepageGrid.MainTab.Management",
 						sequence: 20,
 						template: "Mscrm.Templates.Flexible2",
-						buttons: [button("Mscrm.HomepageGrid.contact.Edit", "$Resources:Ribbon.HomepageGrid.Edit", 10)],
+						buttons: [
+							button(
+								"Mscrm.HomepageGrid.contact.Edit",
+								"$Resources:Ribbon.HomepageGrid.Edit",
+								10,
+							),
+						],
 					},
 				],
 			},
@@ -108,7 +121,14 @@ function openGroupMenu(groupId: string) {
 	const el = container.querySelector(`[role="rowgroup"][data-ribbon-group-id="${groupId}"]`);
 	if (!el) throw new Error(`group ${groupId} not rendered`);
 	act(() => {
-		el.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 5, clientY: 5 }));
+		el.dispatchEvent(
+			new MouseEvent("contextmenu", {
+				bubbles: true,
+				cancelable: true,
+				clientX: 5,
+				clientY: 5,
+			}),
+		);
 	});
 }
 
@@ -148,7 +168,9 @@ function selectOption(select: HTMLSelectElement, value: string) {
 
 const press = (target: Element, key: string) =>
 	act(() => {
-		target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+		target.dispatchEvent(
+			new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+		);
 	});
 
 /** Every accessible name and tooltip under the canvas. */
@@ -172,7 +194,9 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 				Form: empty("Form"),
 				Application: empty("Application"),
 			},
-			commands: [{ id: "Mscrm.EditSelectedRecord", enableRules: [], displayRules: [], actions: [] }],
+			commands: [
+				{ id: "Mscrm.EditSelectedRecord", enableRules: [], displayRules: [], actions: [] },
+			],
 			displayRules: [],
 			enableRules: [],
 			locLabels: [
@@ -190,7 +214,12 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			baseLanguageCode: 1031,
 			// The layer adds OWN and defines its title label: renaming it publishes (#33).
 			layers: {
-				entity: { controlIds: ["mxrm.Own.Button"], containerIds: [OWN], locLabelIds: ["grp.Title"], hides: [] },
+				entity: {
+					controlIds: ["mxrm.Own.Button"],
+					containerIds: [OWN],
+					locLabelIds: ["grp.Title"],
+					hides: [],
+				},
 			},
 		});
 		useSelectionStore.getState().setLocation("HomepageGrid");
@@ -211,36 +240,56 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 	describe("#75 resolved labels", () => {
 		it("per-group Add buttons and group regions use the resolved title", () => {
 			render(<Classic />);
-			const add = container.querySelector<HTMLButtonElement>(`[data-add-btn-group-id="${OWN}"]`)!;
+			const add = container.querySelector<HTMLButtonElement>(
+				`[data-add-btn-group-id="${OWN}"]`,
+			)!;
 			expect(add.getAttribute("aria-label")).toBe("Add button to Meine Gruppe");
 			expect(add.getAttribute("title")).toBe("Add button to Meine Gruppe");
-			const mgmtAdd = container.querySelector<HTMLButtonElement>(`[data-add-btn-group-id="${MGMT}"]`)!;
+			const mgmtAdd = container.querySelector<HTMLButtonElement>(
+				`[data-add-btn-group-id="${MGMT}"]`,
+			)!;
 			// A platform key the tool can't resolve is shown by its last segment (#6).
 			expect(mgmtAdd.getAttribute("aria-label")).toBe("Add button to Management");
 			expect(
-				container.querySelector(`[role="rowgroup"][data-ribbon-group-id="${OWN}"]`)?.getAttribute("aria-label"),
+				container
+					.querySelector(`[role="rowgroup"][data-ribbon-group-id="${OWN}"]`)
+					?.getAttribute("aria-label"),
 			).toBe("Meine Gruppe");
-			for (const v of namesAndTitles(container)) expect(v).not.toMatch(/\$(Resources|LocLabels):/);
+			for (const v of namesAndTitles(container))
+				expect(v).not.toMatch(/\$(Resources|LocLabels):/);
 		});
 
 		it("Move to menu items name the resolved group and leave out the button's own", () => {
 			render(<Classic />);
-			const tile = container.querySelector<HTMLElement>('[data-ribbon-btn-id="mxrm.Own.Button"]')!;
+			const tile = container.querySelector<HTMLElement>(
+				'[data-ribbon-btn-id="mxrm.Own.Button"]',
+			)!;
 			act(() => {
-				tile.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+				tile.dispatchEvent(
+					new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
+				);
 			});
-			const items = [...document.querySelectorAll('[role="menuitem"]')].map((el) => el.textContent ?? "");
+			const items = [...document.querySelectorAll('[role="menuitem"]')].map(
+				(el) => el.textContent ?? "",
+			);
 			const moves = items.filter((t) => t.startsWith("Move to:"));
 			expect(moves).toEqual(["Move to: Management"]);
 			expect(items.join("\n")).not.toMatch(/\$(Resources|LocLabels):/);
 		});
 
 		it("the modern bar's Move to items are resolved and leave out the button's own group", () => {
-			render(<ModernCommandBar tab={useRibbonStore.getState().ribbons.HomepageGrid.tabs[0]} location="HomepageGrid" />);
+			render(
+				<ModernCommandBar
+					tab={useRibbonStore.getState().ribbons.HomepageGrid.tabs[0]}
+					location="HomepageGrid"
+				/>,
+			);
 			const tile = container.querySelector<HTMLElement>('[aria-label^="Edit"]');
 			expect(tile).not.toBeNull();
 			act(() => {
-				tile!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+				tile!.dispatchEvent(
+					new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
+				);
 			});
 			const moves = [...document.querySelectorAll('[role="menuitem"]')]
 				.map((el) => el.textContent ?? "")
@@ -249,7 +298,12 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 		});
 
 		it("the list view's tooltips and switch names are resolved", () => {
-			render(<RibbonListView tab={useRibbonStore.getState().ribbons.HomepageGrid.tabs[0]} location="HomepageGrid" />);
+			render(
+				<RibbonListView
+					tab={useRibbonStore.getState().ribbons.HomepageGrid.tabs[0]}
+					location="HomepageGrid"
+				/>,
+			);
 			const names = namesAndTitles(container);
 			expect(names).toContain("Toggle visibility of My Button");
 			expect(names).toContain("Meine Gruppe");
@@ -257,8 +311,14 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 		});
 
 		it("the modern bar's accessible names are resolved", () => {
-			render(<ModernCommandBar tab={useRibbonStore.getState().ribbons.HomepageGrid.tabs[0]} location="HomepageGrid" />);
-			for (const v of namesAndTitles(container)) expect(v).not.toMatch(/\$(Resources|LocLabels):/);
+			render(
+				<ModernCommandBar
+					tab={useRibbonStore.getState().ribbons.HomepageGrid.tabs[0]}
+					location="HomepageGrid"
+				/>,
+			);
+			for (const v of namesAndTitles(container))
+				expect(v).not.toMatch(/\$(Resources|LocLabels):/);
 		});
 	});
 
@@ -300,11 +360,13 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 		it("an out-of-the-box group's Rename… is disabled and says why: it can't be published (#33)", () => {
 			render(<Classic />);
 			openGroupMenu(MGMT);
-			const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((el) =>
-				el.textContent?.includes("Rename"),
+			const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+				(el) => el.textContent?.includes("Rename"),
 			)!;
 			expect(item.getAttribute("aria-disabled")).toBe("true");
-			expect(item.getAttribute("title")).toMatch(/Only tabs and groups your unmanaged customizations add/);
+			expect(item.getAttribute("title")).toMatch(
+				/Only tabs and groups your unmanaged customizations add/,
+			);
 			act(() => item.click());
 			expect(dialog()).toBeNull();
 			expect(group(MGMT)?.label).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
@@ -353,7 +415,11 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			const values = [...select.options].map((o) => o.value);
 			expect(select.value).toBe("Mscrm.Templates.Flexible2");
 			expect(values).toEqual(
-				expect.arrayContaining(["Mscrm.Templates.Flexible2", "Mscrm.Templates.Flexible", "Mscrm.Templates.OneLargeTwoMedium"]),
+				expect.arrayContaining([
+					"Mscrm.Templates.Flexible2",
+					"Mscrm.Templates.Flexible",
+					"Mscrm.Templates.OneLargeTwoMedium",
+				]),
 			);
 			// Unchanged: nothing to apply.
 			expect(dialogButton("Change template").disabled).toBe(true);
@@ -366,7 +432,9 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 
 		it("keeps an unknown current template selectable; Cancel changes nothing", () => {
 			act(() =>
-				useRibbonStore.getState().setGroupTemplate("HomepageGrid", MAIN, OWN, "mxrm.Templates.Custom"),
+				useRibbonStore
+					.getState()
+					.setGroupTemplate("HomepageGrid", MAIN, OWN, "mxrm.Templates.Custom"),
 			);
 			render(<Classic />);
 			openGroupMenu(OWN);
@@ -398,11 +466,17 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 		});
 
 		it("delete tab asks first", () => {
-			act(() => useRibbonStore.getState().createTab("HomepageGrid", { id: "mxrm.contact.NewTab", label: "Fresh" }));
+			act(() =>
+				useRibbonStore
+					.getState()
+					.createTab("HomepageGrid", { id: "mxrm.contact.NewTab", label: "Fresh" }),
+			);
 			useSelectionStore.getState().setTabId("mxrm.contact.NewTab");
 			useUIStore.setState({ ribbonViewStyle: "classic" });
 			render(<RibbonCanvas />);
-			const del = container.querySelector<HTMLButtonElement>('[aria-label="Delete tab Fresh"]');
+			const del = container.querySelector<HTMLButtonElement>(
+				'[aria-label="Delete tab Fresh"]',
+			);
 			expect(del).not.toBeNull();
 			act(() => del!.click());
 			expect(dialog()?.textContent).toContain("Fresh");
@@ -410,13 +484,23 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			const tabs = () => useRibbonStore.getState().ribbons.HomepageGrid.tabs.map((t) => t.id);
 			expect(tabs()).toContain("mxrm.contact.NewTab");
 
-			act(() => container.querySelector<HTMLButtonElement>('[aria-label="Delete tab Fresh"]')!.click());
+			act(() =>
+				container
+					.querySelector<HTMLButtonElement>('[aria-label="Delete tab Fresh"]')!
+					.click(),
+			);
 			act(() => dialogButton("Delete tab").click());
 			expect(tabs()).not.toContain("mxrm.contact.NewTab");
 		});
 
 		it("the loading spinner names the table and the step (#4)", () => {
-			render(<RibbonCanvas isLoadingRibbon loadingTable="Account" loadingStep="Reading your customizations…" />);
+			render(
+				<RibbonCanvas
+					isLoadingRibbon
+					loadingTable="Account"
+					loadingStep="Reading your customizations…"
+				/>,
+			);
 			const spinner = container.querySelector(".fui-Spinner")!;
 			expect(spinner.textContent).toContain("Loading Account");
 			expect(spinner.textContent).toContain("Reading your customizations…");
@@ -424,17 +508,27 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 
 		it("an unread unmanaged layer is said on the canvas, with Retry (#110)", () => {
 			const retry = vi.fn();
-			render(<RibbonCanvas layerReadError="the contact table's customizations: 503" onRetryRibbonLoad={retry} />);
+			render(
+				<RibbonCanvas
+					layerReadError="the contact table's customizations: 503"
+					onRetryRibbonLoad={retry}
+				/>,
+			);
 			const bar = [...container.querySelectorAll<HTMLElement>(".fui-MessageBar")].find((b) =>
 				b.textContent?.includes("Couldn't read your unmanaged ribbon customizations"),
 			);
 			expect(bar?.textContent).toContain("the contact table's customizations: 503");
-			act(() => [...bar!.querySelectorAll("button")].find((b) => b.textContent === "Retry")!.click());
+			act(() =>
+				[...bar!.querySelectorAll("button")]
+					.find((b) => b.textContent === "Retry")!
+					.click(),
+			);
 			expect(retry).toHaveBeenCalledTimes(1);
 
 			// With unpublished changes, Retry asks first.
 			drafts.unpublished = true;
-			const retryButton = () => [...bar!.querySelectorAll("button")].find((b) => b.textContent === "Retry")!;
+			const retryButton = () =>
+				[...bar!.querySelectorAll("button")].find((b) => b.textContent === "Retry")!;
 			act(() => retryButton().click());
 			expect(dialog()?.textContent).toContain("You have unpublished changes");
 			act(() => dialogButton("Cancel").click());
@@ -447,24 +541,39 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			// Not while loading, nor on top of a load that failed outright.
 			render(<RibbonCanvas isLoadingRibbon layerReadError="x" onRetryRibbonLoad={retry} />);
 			expect(container.textContent).not.toContain("Couldn't read your unmanaged");
-			render(<RibbonCanvas ribbonLoadError="boom" layerReadError="x" onRetryRibbonLoad={retry} />);
+			render(
+				<RibbonCanvas
+					ribbonLoadError="boom"
+					layerReadError="x"
+					onRetryRibbonLoad={retry}
+				/>,
+			);
 			expect(container.textContent).not.toContain("Couldn't read your unmanaged");
 		});
 
 		it("a tab is renamed in place only where the rename can be published (#33)", () => {
-			act(() => useRibbonStore.getState().createTab("HomepageGrid", { id: "mxrm.contact.NewTab", label: "Fresh" }));
+			act(() =>
+				useRibbonStore
+					.getState()
+					.createTab("HomepageGrid", { id: "mxrm.contact.NewTab", label: "Fresh" }),
+			);
 			useUIStore.setState({ ribbonViewStyle: "classic" });
 			render(<RibbonCanvas />);
 			const tabEl = (id: string) =>
-				[...container.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) => t.textContent?.includes(id))!;
-			const renameInput = () => container.querySelector<HTMLInputElement>('[aria-label="Rename tab"]');
+				[...container.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) =>
+					t.textContent?.includes(id),
+				)!;
+			const renameInput = () =>
+				container.querySelector<HTMLInputElement>('[aria-label="Rename tab"]');
 
 			// The out-of-the-box main tab: no editor, and the tooltip says why.
 			act(() => tabEl(MAIN).dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
 			expect(renameInput()).toBeNull();
 			press(tabEl(MAIN), "F2");
 			expect(renameInput()).toBeNull();
-			expect(tabEl(MAIN).getAttribute("title")).toMatch(/Only tabs and groups your unmanaged customizations add/);
+			expect(tabEl(MAIN).getAttribute("title")).toMatch(
+				/Only tabs and groups your unmanaged customizations add/,
+			);
 
 			// A tab created this session: renamed in place.
 			const fresh = tabEl("mxrm.contact.NewTab");
@@ -483,10 +592,13 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 					actions: [],
 				}),
 			);
-			const rules = () => useRibbonStore.getState().commands.find((c) => c.id === cmd)?.enableRules;
+			const rules = () =>
+				useRibbonStore.getState().commands.find((c) => c.id === cmd)?.enableRules;
 			render(<CommandProvenanceBar commandId={cmd} />);
 			const discard = () =>
-				[...container.querySelectorAll("button")].find((b) => b.textContent === "Discard customisation")!;
+				[...container.querySelectorAll("button")].find(
+					(b) => b.textContent === "Discard customisation",
+				)!;
 			act(() => discard().click());
 			expect(dialog()?.textContent).toContain("discards your unpublished changes");
 			act(() => dialogButton("Cancel").click());

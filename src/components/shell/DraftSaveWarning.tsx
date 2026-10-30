@@ -20,8 +20,9 @@ export function DraftSaveWarning() {
 				Your latest changes can&apos;t be saved as a draft: the browser storage is full.{" "}
 				{lastSavedAt ? (
 					<>
-						The last saved draft is from {new Date(lastSavedAt).toLocaleString()}; publish your changes, or the
-						ones made since are lost when Command Bar Studio closes.
+						The last saved draft is from {new Date(lastSavedAt).toLocaleString()};
+						publish your changes, or the ones made since are lost when Command Bar
+						Studio closes.
 					</>
 				) : (
 					<>Publish them, or they are lost when Command Bar Studio closes.</>

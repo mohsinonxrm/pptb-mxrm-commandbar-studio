@@ -170,7 +170,8 @@ describe("saveWebResource", () => {
 			operationName: "PublishXml",
 			operationType: "action",
 			parameters: {
-				ParameterXml: "<importexportxml><webresources><webresource>wr-1</webresource></webresources></importexportxml>",
+				ParameterXml:
+					"<importexportxml><webresources><webresource>wr-1</webresource></webresources></importexportxml>",
 			},
 		});
 	});
@@ -186,7 +187,8 @@ describe("saveWebResource", () => {
 	it("a publish that fails leaves the save and says so", async () => {
 		const api = fakeApi();
 		api.execute = vi.fn(async (req: unknown) => {
-			if ((req as { operationName: string }).operationName === "PublishXml") throw new Error("denied");
+			if ((req as { operationName: string }).operationName === "PublishXml")
+				throw new Error("denied");
 			return {};
 		});
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
@@ -195,7 +197,9 @@ describe("saveWebResource", () => {
 		expect(res.created).toBe(true);
 		expect(res.published).toBeUndefined();
 		expect(res.publishWarning).toMatch(/saved but not published \(denied\)/);
-		expect(useRuntimeLogStore.getState().entries.some((e) => e.message === res.publishWarning)).toBe(true);
+		expect(
+			useRuntimeLogStore.getState().entries.some((e) => e.message === res.publishWarning),
+		).toBe(true);
 	});
 
 	it("warns when a managed active solution means the web resource lands in no solution", async () => {
@@ -204,7 +208,9 @@ describe("saveWebResource", () => {
 		useSessionStore.setState({ activeSolution: solution(true) });
 		useRuntimeLogStore.getState().clear();
 		const res = await saveWebResource("cbstest_/x.js", "Ow==", 3);
-		expect(res.solutionWarning).toMatch(/cbstest_\/x\.js .*not added to any solution.*CBSLiveTest is managed/);
+		expect(res.solutionWarning).toMatch(
+			/cbstest_\/x\.js .*not added to any solution.*CBSLiveTest is managed/,
+		);
 		const warns = useRuntimeLogStore.getState().entries.filter((e) => e.level === "warn");
 		expect(warns.map((e) => e.message)).toEqual([res.solutionWarning]);
 	});
@@ -251,14 +257,19 @@ describe("addExistingWebResourceToActiveSolution (#61)", () => {
 		const api = fakeApi();
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
 		useSessionStore.setState({ activeSolution: solution(false) });
-		const res = await addExistingWebResourceToActiveSolution("cbstest_/icons/x.svg", { id: "wr-1", isCustom: true });
+		const res = await addExistingWebResourceToActiveSolution("cbstest_/icons/x.svg", {
+			id: "wr-1",
+			isCustom: true,
+		});
 		expect(res.solutionUniqueName).toBe("CBSLiveTest");
 		expect(api.execute.mock.calls[0]).toEqual(addComponentCall("wr-1", "CBSLiveTest"));
 	});
 
 	it("looks a typed name up, and fails when it doesn't exist", async () => {
 		const api = fakeApi("wr-2");
-		api.queryData.mockResolvedValue({ value: [{ webresourceid: "wr-2", ismanaged: false }] } as never);
+		api.queryData.mockResolvedValue({
+			value: [{ webresourceid: "wr-2", ismanaged: false }],
+		} as never);
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
 		useSessionStore.setState({ activeSolution: solution(false) });
 		await addExistingWebResourceToActiveSolution("cbstest_/icons/y.svg");
@@ -266,9 +277,9 @@ describe("addExistingWebResourceToActiveSolution (#61)", () => {
 
 		const missing = fakeApi();
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = missing;
-		await expect(addExistingWebResourceToActiveSolution("cbstest_/icons/none.svg")).rejects.toThrow(
-			/No web resource named cbstest_\/icons\/none\.svg/,
-		);
+		await expect(
+			addExistingWebResourceToActiveSolution("cbstest_/icons/none.svg"),
+		).rejects.toThrow(/No web resource named cbstest_\/icons\/none\.svg/);
 		expect(missing.execute).not.toHaveBeenCalled();
 	});
 
@@ -276,7 +287,10 @@ describe("addExistingWebResourceToActiveSolution (#61)", () => {
 		const api = fakeApi();
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
 		useSessionStore.setState({ activeSolution: solution(false) });
-		const res = await addExistingWebResourceToActiveSolution("msdyn_/icons/x.svg", { id: "wr-9", isCustom: false });
+		const res = await addExistingWebResourceToActiveSolution("msdyn_/icons/x.svg", {
+			id: "wr-9",
+			isCustom: false,
+		});
 		expect(res.solutionUniqueName).toBeUndefined();
 		expect(res.solutionWarning).toMatch(/is managed, so it isn't added to your solution/);
 		expect(api.execute).not.toHaveBeenCalled();
@@ -286,8 +300,13 @@ describe("addExistingWebResourceToActiveSolution (#61)", () => {
 		const api = fakeApi();
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = api;
 		useSessionStore.setState({ activeSolution: solution(true) });
-		const res = await addExistingWebResourceToActiveSolution("cbstest_/icons/x.svg", { id: "wr-1", isCustom: true });
-		expect(res.solutionWarning).toMatch(/not added to any solution because the active solution CBSLiveTest is managed/);
+		const res = await addExistingWebResourceToActiveSolution("cbstest_/icons/x.svg", {
+			id: "wr-1",
+			isCustom: true,
+		});
+		expect(res.solutionWarning).toMatch(
+			/not added to any solution because the active solution CBSLiveTest is managed/,
+		);
 		expect(api.execute).not.toHaveBeenCalled();
 	});
 });

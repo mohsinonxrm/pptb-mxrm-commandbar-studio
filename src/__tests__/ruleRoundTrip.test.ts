@@ -55,20 +55,75 @@ const fixture = (name: string) =>
 
 // ── Rule kinds: table-driven round trip ────────────────────────────────────
 
-type RuleCase = [name: string, container: "enable" | "display", xml: string, kind: RuleStep["kind"]];
+type RuleCase = [
+	name: string,
+	container: "enable" | "display",
+	xml: string,
+	kind: RuleStep["kind"],
+];
 
 const RULE_CASES: RuleCase[] = [
 	// Every modelled kind, with and without StandardRuleAttributes.
-	["CommandClientTypeRule", "display", `<CommandClientTypeRule Type="Modern"/>`, "CommandClientTypeRule"],
-	["CommandClientTypeRule + InvertResult", "display", `<CommandClientTypeRule Type="Refresh" InvertResult="true"/>`, "CommandClientTypeRule"],
-	["CommandClientTypeRule + Default", "enable", `<CommandClientTypeRule Type="Legacy" Default="true"/>`, "CommandClientTypeRule"],
-	["CrmClientTypeRule", "enable", `<CrmClientTypeRule Type="Web" InvertResult="true"/>`, "CrmClientTypeRule"],
-	["CrmOfflineAccessStateRule", "display", `<CrmOfflineAccessStateRule State="Offline" InvertResult="true"/>`, "CrmOfflineAccessStateRule"],
-	["CrmOutlookClientTypeRule", "enable", `<CrmOutlookClientTypeRule Type="CrmForOutlookOfflineAccess"/>`, "CrmOutlookClientTypeRule"],
-	["CrmOutlookClientVersionRule", "display", `<CrmOutlookClientVersionRule Major="5" Minor="0" Build="2" Revision="3" InvertResult="true"/>`, "CrmOutlookClientVersionRule"],
-	["CrmOutlookClientVersionRule major only", "display", `<CrmOutlookClientVersionRule Major="9"/>`, "CrmOutlookClientVersionRule"],
-	["CustomRule", "enable", `<CustomRule FunctionName="Contoso.isOk" Library="$webresource:new_/rules.js"/>`, "CustomRule"],
-	["CustomRule Default=false InvertResult=false", "enable", `<CustomRule FunctionName="f" Library="$webresource:a.js" Default="false" InvertResult="false"/>`, "CustomRule"],
+	[
+		"CommandClientTypeRule",
+		"display",
+		`<CommandClientTypeRule Type="Modern"/>`,
+		"CommandClientTypeRule",
+	],
+	[
+		"CommandClientTypeRule + InvertResult",
+		"display",
+		`<CommandClientTypeRule Type="Refresh" InvertResult="true"/>`,
+		"CommandClientTypeRule",
+	],
+	[
+		"CommandClientTypeRule + Default",
+		"enable",
+		`<CommandClientTypeRule Type="Legacy" Default="true"/>`,
+		"CommandClientTypeRule",
+	],
+	[
+		"CrmClientTypeRule",
+		"enable",
+		`<CrmClientTypeRule Type="Web" InvertResult="true"/>`,
+		"CrmClientTypeRule",
+	],
+	[
+		"CrmOfflineAccessStateRule",
+		"display",
+		`<CrmOfflineAccessStateRule State="Offline" InvertResult="true"/>`,
+		"CrmOfflineAccessStateRule",
+	],
+	[
+		"CrmOutlookClientTypeRule",
+		"enable",
+		`<CrmOutlookClientTypeRule Type="CrmForOutlookOfflineAccess"/>`,
+		"CrmOutlookClientTypeRule",
+	],
+	[
+		"CrmOutlookClientVersionRule",
+		"display",
+		`<CrmOutlookClientVersionRule Major="5" Minor="0" Build="2" Revision="3" InvertResult="true"/>`,
+		"CrmOutlookClientVersionRule",
+	],
+	[
+		"CrmOutlookClientVersionRule major only",
+		"display",
+		`<CrmOutlookClientVersionRule Major="9"/>`,
+		"CrmOutlookClientVersionRule",
+	],
+	[
+		"CustomRule",
+		"enable",
+		`<CustomRule FunctionName="Contoso.isOk" Library="$webresource:new_/rules.js"/>`,
+		"CustomRule",
+	],
+	[
+		"CustomRule Default=false InvertResult=false",
+		"enable",
+		`<CustomRule FunctionName="f" Library="$webresource:a.js" Default="false" InvertResult="false"/>`,
+		"CustomRule",
+	],
 	[
 		"CustomRule with every parameter type",
 		"enable",
@@ -84,37 +139,177 @@ const RULE_CASES: RuleCase[] = [
 		</CustomRule>`,
 		"CustomRule",
 	],
-	["DeviceTypeRule", "display", `<DeviceTypeRule Type="Phone" InvertResult="true"/>`, "DeviceTypeRule"],
-	["EntityPrivilegeRule", "display", `<EntityPrivilegeRule PrivilegeType="Create" PrivilegeDepth="Basic" EntityName="contact"/>`, "EntityPrivilegeRule"],
-	["EntityPrivilegeRule AppliesTo", "display", `<EntityPrivilegeRule AppliesTo="SelectedEntity" PrivilegeType="AppendTo" PrivilegeDepth="Global" InvertResult="true"/>`, "EntityPrivilegeRule"],
-	["EntityPropertyRule", "display", `<EntityPropertyRule AppliesTo="PrimaryEntity" PropertyName="HasStateCode" PropertyValue="true" Default="false"/>`, "EntityPropertyRule"],
-	["EntityPropertyRule false", "display", `<EntityPropertyRule EntityName="account" PropertyName="IsBPFEntity" PropertyValue="false"/>`, "EntityPropertyRule"],
-	["EntityRule", "enable", `<EntityRule EntityName="contact" AppliesTo="SelectedEntity" Context="SubGridStandard" Default="false" InvertResult="true"/>`, "EntityRule"],
+	[
+		"DeviceTypeRule",
+		"display",
+		`<DeviceTypeRule Type="Phone" InvertResult="true"/>`,
+		"DeviceTypeRule",
+	],
+	[
+		"EntityPrivilegeRule",
+		"display",
+		`<EntityPrivilegeRule PrivilegeType="Create" PrivilegeDepth="Basic" EntityName="contact"/>`,
+		"EntityPrivilegeRule",
+	],
+	[
+		"EntityPrivilegeRule AppliesTo",
+		"display",
+		`<EntityPrivilegeRule AppliesTo="SelectedEntity" PrivilegeType="AppendTo" PrivilegeDepth="Global" InvertResult="true"/>`,
+		"EntityPrivilegeRule",
+	],
+	[
+		"EntityPropertyRule",
+		"display",
+		`<EntityPropertyRule AppliesTo="PrimaryEntity" PropertyName="HasStateCode" PropertyValue="true" Default="false"/>`,
+		"EntityPropertyRule",
+	],
+	[
+		"EntityPropertyRule false",
+		"display",
+		`<EntityPropertyRule EntityName="account" PropertyName="IsBPFEntity" PropertyValue="false"/>`,
+		"EntityPropertyRule",
+	],
+	[
+		"EntityRule",
+		"enable",
+		`<EntityRule EntityName="contact" AppliesTo="SelectedEntity" Context="SubGridStandard" Default="false" InvertResult="true"/>`,
+		"EntityRule",
+	],
 	["EntityRule bare", "display", `<EntityRule/>`, "EntityRule"],
-	["FeatureControlRule", "display", `<FeatureControlRule FeatureControlBit="FCB.ExportToExcelOnline" ExpectedValue="true"/>`, "FeatureControlRule"],
-	["FeatureControlRule full", "display", `<FeatureControlRule FeatureControlBit="FCB.X" ExpectedValue="false" InvertResult="true" Default="false"/>`, "FeatureControlRule"],
-	["FormEntityContextRule", "display", `<FormEntityContextRule EntityName="contact" Default="false" InvertResult="true"/>`, "FormEntityContextRule"],
-	["FormStateRule", "enable", `<FormStateRule State="Create" InvertResult="true"/>`, "FormStateRule"],
-	["FormTypeRule", "display", `<FormTypeRule Type="QuickCreate" InvertResult="true"/>`, "FormTypeRule"],
-	["HideForTabletExperienceRule", "display", `<HideForTabletExperienceRule/>`, "HideForTabletExperienceRule"],
-	["MiscellaneousPrivilegeRule", "display", `<MiscellaneousPrivilegeRule PrivilegeName="ExportToExcel"/>`, "MiscellaneousPrivilegeRule"],
-	["MiscellaneousPrivilegeRule PrivilegeDepth", "display", `<MiscellaneousPrivilegeRule PrivilegeName="BulkDelete" PrivilegeDepth="Global" Default="false" InvertResult="false"/>`, "MiscellaneousPrivilegeRule"],
-	["OptionSetRule", "display", `<OptionSetRule OptionSet="statuscode" StateCode="1" ObjectTypeCode="2"/>`, "OptionSetRule"],
-	["OrganizationSettingRule", "display", `<OrganizationSettingRule Setting="IsSOPIntegrationEnabled" InvertResult="true"/>`, "OrganizationSettingRule"],
-	["OutlookItemTrackingRule", "enable", `<OutlookItemTrackingRule TrackedInCrm="false" AppliesTo="PrimaryEntity"/>`, "OutlookItemTrackingRule"],
-	["OutlookRenderTypeRule", "display", `<OutlookRenderTypeRule Type="Web"/>`, "OutlookRenderTypeRule"],
-	["OutlookVersionRule", "enable", `<OutlookVersionRule Version="2007" InvertResult="true"/>`, "OutlookVersionRule"],
-	["PageRule", "enable", `<PageRule Address="/main.aspx?a=1&amp;b=2" InvertResult="true"/>`, "PageRule"],
-	["RecordPrivilegeRule", "enable", `<RecordPrivilegeRule PrivilegeType="Write" AppliesTo="PrimaryEntity"/>`, "RecordPrivilegeRule"],
-	["ReferencingAttributeRequiredRule", "display", `<ReferencingAttributeRequiredRule Default="false" InvertResult="true"/>`, "ReferencingAttributeRequiredRule"],
-	["RelationshipTypeRule", "display", `<RelationshipTypeRule AppliesTo="SelectedEntity" RelationshipType="ManyToMany" AllowCustomRelationship="false" InvertResult="true"/>`, "RelationshipTypeRule"],
-	["RelationshipTypeRule both flags", "display", `<RelationshipTypeRule AppliesTo="SelectedEntity" AllowCustomRelationship="true" AllowSystemRelationship="false"/>`, "RelationshipTypeRule"],
-	["SelectionCountRule", "enable", `<SelectionCountRule AppliesTo="SelectedEntity" Minimum="1" Maximum="250"/>`, "SelectionCountRule"],
-	["SelectionCountRule min only + Default", "enable", `<SelectionCountRule AppliesTo="SelectedEntity" Minimum="0" Default="false" InvertResult="true"/>`, "SelectionCountRule"],
+	[
+		"FeatureControlRule",
+		"display",
+		`<FeatureControlRule FeatureControlBit="FCB.ExportToExcelOnline" ExpectedValue="true"/>`,
+		"FeatureControlRule",
+	],
+	[
+		"FeatureControlRule full",
+		"display",
+		`<FeatureControlRule FeatureControlBit="FCB.X" ExpectedValue="false" InvertResult="true" Default="false"/>`,
+		"FeatureControlRule",
+	],
+	[
+		"FormEntityContextRule",
+		"display",
+		`<FormEntityContextRule EntityName="contact" Default="false" InvertResult="true"/>`,
+		"FormEntityContextRule",
+	],
+	[
+		"FormStateRule",
+		"enable",
+		`<FormStateRule State="Create" InvertResult="true"/>`,
+		"FormStateRule",
+	],
+	[
+		"FormTypeRule",
+		"display",
+		`<FormTypeRule Type="QuickCreate" InvertResult="true"/>`,
+		"FormTypeRule",
+	],
+	[
+		"HideForTabletExperienceRule",
+		"display",
+		`<HideForTabletExperienceRule/>`,
+		"HideForTabletExperienceRule",
+	],
+	[
+		"MiscellaneousPrivilegeRule",
+		"display",
+		`<MiscellaneousPrivilegeRule PrivilegeName="ExportToExcel"/>`,
+		"MiscellaneousPrivilegeRule",
+	],
+	[
+		"MiscellaneousPrivilegeRule PrivilegeDepth",
+		"display",
+		`<MiscellaneousPrivilegeRule PrivilegeName="BulkDelete" PrivilegeDepth="Global" Default="false" InvertResult="false"/>`,
+		"MiscellaneousPrivilegeRule",
+	],
+	[
+		"OptionSetRule",
+		"display",
+		`<OptionSetRule OptionSet="statuscode" StateCode="1" ObjectTypeCode="2"/>`,
+		"OptionSetRule",
+	],
+	[
+		"OrganizationSettingRule",
+		"display",
+		`<OrganizationSettingRule Setting="IsSOPIntegrationEnabled" InvertResult="true"/>`,
+		"OrganizationSettingRule",
+	],
+	[
+		"OutlookItemTrackingRule",
+		"enable",
+		`<OutlookItemTrackingRule TrackedInCrm="false" AppliesTo="PrimaryEntity"/>`,
+		"OutlookItemTrackingRule",
+	],
+	[
+		"OutlookRenderTypeRule",
+		"display",
+		`<OutlookRenderTypeRule Type="Web"/>`,
+		"OutlookRenderTypeRule",
+	],
+	[
+		"OutlookVersionRule",
+		"enable",
+		`<OutlookVersionRule Version="2007" InvertResult="true"/>`,
+		"OutlookVersionRule",
+	],
+	[
+		"PageRule",
+		"enable",
+		`<PageRule Address="/main.aspx?a=1&amp;b=2" InvertResult="true"/>`,
+		"PageRule",
+	],
+	[
+		"RecordPrivilegeRule",
+		"enable",
+		`<RecordPrivilegeRule PrivilegeType="Write" AppliesTo="PrimaryEntity"/>`,
+		"RecordPrivilegeRule",
+	],
+	[
+		"ReferencingAttributeRequiredRule",
+		"display",
+		`<ReferencingAttributeRequiredRule Default="false" InvertResult="true"/>`,
+		"ReferencingAttributeRequiredRule",
+	],
+	[
+		"RelationshipTypeRule",
+		"display",
+		`<RelationshipTypeRule AppliesTo="SelectedEntity" RelationshipType="ManyToMany" AllowCustomRelationship="false" InvertResult="true"/>`,
+		"RelationshipTypeRule",
+	],
+	[
+		"RelationshipTypeRule both flags",
+		"display",
+		`<RelationshipTypeRule AppliesTo="SelectedEntity" AllowCustomRelationship="true" AllowSystemRelationship="false"/>`,
+		"RelationshipTypeRule",
+	],
+	[
+		"SelectionCountRule",
+		"enable",
+		`<SelectionCountRule AppliesTo="SelectedEntity" Minimum="1" Maximum="250"/>`,
+		"SelectionCountRule",
+	],
+	[
+		"SelectionCountRule min only + Default",
+		"enable",
+		`<SelectionCountRule AppliesTo="SelectedEntity" Minimum="0" Default="false" InvertResult="true"/>`,
+		"SelectionCountRule",
+	],
 	["SkuRule", "display", `<SkuRule Sku="OnPremise" InvertResult="true"/>`, "SkuRule"],
-	["ValueRule", "enable", `<ValueRule Field="statecode" Value="0" InvertResult="true"/>`, "ValueRule"],
+	[
+		"ValueRule",
+		"enable",
+		`<ValueRule Field="statecode" Value="0" InvertResult="true"/>`,
+		"ValueRule",
+	],
 	// xs:boolean "1"/"0" lexical forms are accepted (and written back as true/false).
-	["InvertResult=1", "enable", `<FormStateRule State="Existing" InvertResult="1"/>`, "FormStateRule"],
+	[
+		"InvertResult=1",
+		"enable",
+		`<FormStateRule State="Existing" InvertResult="1"/>`,
+		"FormStateRule",
+	],
 	["Default=0", "display", `<EntityRule EntityName="contact" Default="0"/>`, "EntityRule"],
 	// OrRule: AND-groups inside each <Or>, InvertResult on nested steps (#29).
 	[
@@ -153,19 +348,64 @@ const RULE_CASES: RuleCase[] = [
 	],
 	// Unmodelled elements → verbatim RawRule.
 	["HideIf* rule", "display", `<HideIfNetBreezeNotAvailableRule/>`, "RawRule"],
-	["HideIfSolutionNotInstalledRule (not in XSD)", "display", `<HideIfSolutionNotInstalledRule SolutionName="msdynce_Sales"/>`, "RawRule"],
-	["IsExportToExcelOnlineEnabledRule", "display", `<IsExportToExcelOnlineEnabledRule InvertResult="true"/>`, "RawRule"],
-	["ContextTypeRule (not in XSD)", "enable", `<ContextTypeRule ContextType="QuickActionCommand"/>`, "RawRule"],
+	[
+		"HideIfSolutionNotInstalledRule (not in XSD)",
+		"display",
+		`<HideIfSolutionNotInstalledRule SolutionName="msdynce_Sales"/>`,
+		"RawRule",
+	],
+	[
+		"IsExportToExcelOnlineEnabledRule",
+		"display",
+		`<IsExportToExcelOnlineEnabledRule InvertResult="true"/>`,
+		"RawRule",
+	],
+	[
+		"ContextTypeRule (not in XSD)",
+		"enable",
+		`<ContextTypeRule ContextType="QuickActionCommand"/>`,
+		"RawRule",
+	],
 	["ShowOnGridRule pseudo-rule", "enable", `<ShowOnGridRule/>`, "RawRule"],
 	// Known kinds the model can't reproduce exactly → verbatim RawRule.
 	["unknown attribute", "enable", `<FormStateRule State="Create" Foo="bar"/>`, "RawRule"],
-	["missing required PrivilegeDepth", "display", `<EntityPrivilegeRule PrivilegeType="Read"/>`, "RawRule"],
-	["missing required AppliesTo", "display", `<RelationshipTypeRule RelationshipType="OneToMany"/>`, "RawRule"],
+	[
+		"missing required PrivilegeDepth",
+		"display",
+		`<EntityPrivilegeRule PrivilegeType="Read"/>`,
+		"RawRule",
+	],
+	[
+		"missing required AppliesTo",
+		"display",
+		`<RelationshipTypeRule RelationshipType="OneToMany"/>`,
+		"RawRule",
+	],
 	["non-canonical integer", "enable", `<SelectionCountRule Minimum="01"/>`, "RawRule"],
-	["non-boolean InvertResult", "enable", `<FormStateRule State="Create" InvertResult="yes"/>`, "RawRule"],
-	["Name on a CustomRule parameter", "enable", `<CustomRule FunctionName="f" Library="$webresource:a.js"><StringParameter Name="x" Value="y"/></CustomRule>`, "RawRule"],
-	["unknown CustomRule child", "enable", `<CustomRule FunctionName="f" Library="$webresource:a.js"><EnumParameter Value="A"/></CustomRule>`, "RawRule"],
-	["decimal with trailing zero", "enable", `<CustomRule FunctionName="f" Library="$webresource:a.js"><DecimalParameter Value="1.50"/></CustomRule>`, "RawRule"],
+	[
+		"non-boolean InvertResult",
+		"enable",
+		`<FormStateRule State="Create" InvertResult="yes"/>`,
+		"RawRule",
+	],
+	[
+		"Name on a CustomRule parameter",
+		"enable",
+		`<CustomRule FunctionName="f" Library="$webresource:a.js"><StringParameter Name="x" Value="y"/></CustomRule>`,
+		"RawRule",
+	],
+	[
+		"unknown CustomRule child",
+		"enable",
+		`<CustomRule FunctionName="f" Library="$webresource:a.js"><EnumParameter Value="A"/></CustomRule>`,
+		"RawRule",
+	],
+	[
+		"decimal with trailing zero",
+		"enable",
+		`<CustomRule FunctionName="f" Library="$webresource:a.js"><DecimalParameter Value="1.50"/></CustomRule>`,
+		"RawRule",
+	],
 ];
 
 describe("rule round trip — every rule kind", () => {
@@ -225,7 +465,7 @@ describe("rule model semantics", () => {
 		expect(xml).not.toContain("InvertResult=");
 	});
 
-	it("keeps an explicit false (Default=\"false\" / InvertResult=\"false\")", () => {
+	it('keeps an explicit false (Default="false" / InvertResult="false")', () => {
 		const { enableRules } = parse(
 			ribbonDoc({
 				enable: `<EnableRule Id="r"><CustomRule FunctionName="f" Library="$webresource:a.js" Default="false" InvertResult="false"/></EnableRule>`,
@@ -277,7 +517,9 @@ describe("rule model semantics", () => {
 
 	it("re-emits a RawRule byte-for-byte", () => {
 		const raw = `<HideIfSolutionNotInstalledRule SolutionName="msdynce_Sales"/>`;
-		const { displayRules } = parse(ribbonDoc({ display: `<DisplayRule Id="r">${raw}</DisplayRule>` }));
+		const { displayRules } = parse(
+			ribbonDoc({ display: `<DisplayRule Id="r">${raw}</DisplayRule>` }),
+		);
 		expect(generateRuleStep(displayRules[0].steps[0])).toBe(raw);
 	});
 });
@@ -322,7 +564,11 @@ const ACTION_CASES: ActionCase[] = [
 	],
 	["Url with only an Address", `<Url Address="https://contoso.example/x"/>`, ["url"]],
 	["OutlookCommand", `<OutlookCommand ActionType="GoOffline"/>`, ["outlookCommand"]],
-	["OutlookCommand with Data", `<OutlookCommand ActionType="OpenOlkForm" Data="x"/>`, ["outlookCommand"]],
+	[
+		"OutlookCommand with Data",
+		`<OutlookCommand ActionType="OpenOlkForm" Data="x"/>`,
+		["outlookCommand"],
+	],
 	[
 		"mixed actions keep their order",
 		`<Url Address="/a.aspx" WinMode="0"/>
@@ -391,7 +637,9 @@ describe("command round trip — every action and parameter kind", () => {
 		expect(xml).toContain('<StringParameter Name="" Value="v"/>');
 		expect(xml).toContain('Library="$webresource:new_/a.js"');
 		// The validator flags the missing Url parameter name.
-		const errors = validateRibbonDiffXml(`<RibbonDiffXml><CommandDefinitions>${xml}</CommandDefinitions></RibbonDiffXml>`);
+		const errors = validateRibbonDiffXml(
+			`<RibbonDiffXml><CommandDefinitions>${xml}</CommandDefinitions></RibbonDiffXml>`,
+		);
 		expect(errors.some((e) => e.message.includes("requires a Name"))).toBe(true);
 	});
 
@@ -412,7 +660,11 @@ const UNMODELLED_RULE_TAG = /^(HideIf\w+Rule|IsExportToExcelOnlineEnabledRule|Co
 
 function rawRuleTags(steps: RuleStep[]): string[] {
 	return steps.flatMap((s) =>
-		s.kind === "RawRule" ? [s.tagName] : s.kind === "OrRule" ? s.groups.flatMap(rawRuleTags) : [],
+		s.kind === "RawRule"
+			? [s.tagName]
+			: s.kind === "OrRule"
+				? s.groups.flatMap(rawRuleTags)
+				: [],
 	);
 }
 
@@ -431,7 +683,8 @@ describe.each([
 		const sources = sourceElements(xml, "CommandDefinitions > CommandDefinition");
 		expect(sources).toHaveLength(parsed.commands.length);
 		const mismatches = parsed.commands.filter(
-			(c, i) => !sameXml(generateCommandDefinition(c), sources[i], { normalizeCommands: true }),
+			(c, i) =>
+				!sameXml(generateCommandDefinition(c), sources[i], { normalizeCommands: true }),
 		);
 		expect(mismatches.map((c) => c.id)).toEqual([]);
 	});
@@ -447,14 +700,20 @@ describe.each([
 		expect(enableSources).toHaveLength(parsed.enableRules.length);
 		expect(displaySources).toHaveLength(parsed.displayRules.length);
 		const bad = [
-			...parsed.enableRules.filter((r, i) => !sameXml(generateEnableRule(r), enableSources[i])),
-			...parsed.displayRules.filter((r, i) => !sameXml(generateDisplayRule(r), displaySources[i])),
+			...parsed.enableRules.filter(
+				(r, i) => !sameXml(generateEnableRule(r), enableSources[i]),
+			),
+			...parsed.displayRules.filter(
+				(r, i) => !sameXml(generateDisplayRule(r), displaySources[i]),
+			),
 		];
 		expect(bad.map((r) => r.id)).toEqual([]);
 	});
 
 	it("only keeps genuinely unmodelled rule elements raw", () => {
-		const tags = [...parsed.enableRules, ...parsed.displayRules].flatMap((r) => rawRuleTags(r.steps));
+		const tags = [...parsed.enableRules, ...parsed.displayRules].flatMap((r) =>
+			rawRuleTags(r.steps),
+		);
 		expect(tags.filter((t) => !UNMODELLED_RULE_TAG.test(t))).toEqual([]);
 	});
 });
@@ -462,7 +721,9 @@ describe.each([
 describe("real ribbon round trip — specific out-of-the-box constructs", () => {
 	const parsed = parse(fixture("contact-oob-commands-rules.xml"));
 	const allSteps = (rules: EnableRule[]) =>
-		rules.flatMap((r) => r.steps.flatMap((s) => (s.kind === "OrRule" ? [s, ...s.groups.flat()] : [s])));
+		rules.flatMap((r) =>
+			r.steps.flatMap((s) => (s.kind === "OrRule" ? [s, ...s.groups.flat()] : [s])),
+		);
 
 	it("contains OrRules whose <Or> holds several ANDed rules", () => {
 		const multi = allSteps([...parsed.enableRules, ...parsed.displayRules]).filter(
@@ -473,7 +734,9 @@ describe("real ribbon round trip — specific out-of-the-box constructs", () => 
 
 	it("contains CustomRules with parameters and FeatureControlRules", () => {
 		const steps = allSteps([...parsed.enableRules, ...parsed.displayRules]);
-		expect(steps.some((s) => s.kind === "CustomRule" && (s.params?.length ?? 0) > 0)).toBe(true);
+		expect(steps.some((s) => s.kind === "CustomRule" && (s.params?.length ?? 0) > 0)).toBe(
+			true,
+		);
 		expect(steps.some((s) => s.kind === "FeatureControlRule")).toBe(true);
 	});
 });

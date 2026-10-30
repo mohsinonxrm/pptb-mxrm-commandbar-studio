@@ -79,7 +79,8 @@ export function buttonLocLabelIds(
 	buttonId: string,
 	source?: { labelToken?: string; tooltipTitleToken?: string; tooltipBodyToken?: string },
 ): { label: string; tooltipTitle: string; tooltipBody: string } {
-	const refOr = (token: string | undefined, fallback: string) => (token ? extractLocLabelId(token) : null) ?? fallback;
+	const refOr = (token: string | undefined, fallback: string) =>
+		(token ? extractLocLabelId(token) : null) ?? fallback;
 	return {
 		label: refOr(source?.labelToken, buttonLabelId(buttonId)),
 		tooltipTitle: refOr(source?.tooltipTitleToken, buttonTooltipTitleId(buttonId)),
@@ -112,12 +113,18 @@ export function textLabelId(
  * the base language first.
  */
 export function buttonTranslationLcids(
-	button: { id: string; source?: { labelToken?: string; tooltipTitleToken?: string; tooltipBodyToken?: string } },
+	button: {
+		id: string;
+		source?: { labelToken?: string; tooltipTitleToken?: string; tooltipBodyToken?: string };
+	},
 	locLabels: readonly { id: string; titles: readonly { languageCode: number }[] }[],
 	baseLanguageCode = 1033,
 ): number[] {
 	const ids = new Set(Object.values(buttonLocLabelIds(button.id, button.source)));
 	const lcids = new Set<number>();
-	for (const label of locLabels) if (ids.has(label.id)) label.titles.forEach((t) => lcids.add(t.languageCode));
-	return [...lcids].sort((a, b) => (a === baseLanguageCode ? -1 : b === baseLanguageCode ? 1 : a - b));
+	for (const label of locLabels)
+		if (ids.has(label.id)) label.titles.forEach((t) => lcids.add(t.languageCode));
+	return [...lcids].sort((a, b) =>
+		a === baseLanguageCode ? -1 : b === baseLanguageCode ? 1 : a - b,
+	);
 }

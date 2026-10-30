@@ -77,7 +77,9 @@ export function displayText(
 ): string {
 	const resolved = resolveDisplayLabel(value, locLabels, languageCode);
 	if (!resolved) return resolved;
-	const unchanged = token !== undefined && resolveDisplayLabel(token, locLabels, languageCode) === (value ?? "");
+	const unchanged =
+		token !== undefined &&
+		resolveDisplayLabel(token, locLabels, languageCode) === (value ?? "");
 	if (!REFERENCE.test(unchanged ? token : (value ?? ""))) return resolved;
 	const fromManaged = managed[resolved];
 	if (fromManaged) return titleIn(fromManaged, languageCode) ?? resolved;

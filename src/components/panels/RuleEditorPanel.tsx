@@ -26,7 +26,12 @@ import RuleStepPicker from "@/components/shared/RuleStepPicker";
 import { summarizeRule } from "@/utils/ruleEngine";
 import { useStableKeys } from "@/hooks/useStableKeys";
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import {
+	SortableContext,
+	useSortable,
+	verticalListSortingStrategy,
+	arrayMove,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
 const useStyles = makeStyles({
@@ -135,7 +140,10 @@ export const RuleEditorPanel: React.FC = () => {
 	// Steps have no id: keys that stay with a step when another one is removed
 	// or moved, so its inputs and local state don't jump to a neighbour (#22).
 	// Steps changed from elsewhere (undo / redo) get new keys.
-	const stepKeys = useStableKeys(`${ruleEditorKind}:${activeRule?.id ?? ""}`, activeRule?.steps ?? NO_STEPS);
+	const stepKeys = useStableKeys(
+		`${ruleEditorKind}:${activeRule?.id ?? ""}`,
+		activeRule?.steps ?? NO_STEPS,
+	);
 	const sortableIds = stepKeys.keys;
 
 	const usedBy = commands.filter((c) =>
@@ -227,10 +235,18 @@ export const RuleEditorPanel: React.FC = () => {
 					}
 				>
 					<div className={styles.header}>
-						<Badge appearance="filled" color={isEnable ? "success" : "informative"} size="small">
+						<Badge
+							appearance="filled"
+							color={isEnable ? "success" : "informative"}
+							size="small"
+						>
 							{isEnable ? "Enable" : "Display"}
 						</Badge>
-						<Text size={400} weight="semibold" style={{ fontFamily: tokens.fontFamilyMonospace }}>
+						<Text
+							size={400}
+							weight="semibold"
+							style={{ fontFamily: tokens.fontFamilyMonospace }}
+						>
 							{activeRule.id}
 						</Text>
 					</div>
@@ -268,8 +284,8 @@ export const RuleEditorPanel: React.FC = () => {
 				{isEnable && (
 					<MessageBar intent="warning">
 						<MessageBarBody>
-							Enable rules have a restricted set of allowed step types. Display-only rule kinds are
-							disabled.
+							Enable rules have a restricted set of allowed step types. Display-only
+							rule kinds are disabled.
 						</MessageBarBody>
 					</MessageBar>
 				)}
@@ -293,11 +309,12 @@ export const RuleEditorPanel: React.FC = () => {
 									/>
 								</SortableRuleStep>
 							))}
-					{activeRule.steps.length === 0 && (
-						<Text italic style={{ color: tokens.colorNeutralForeground3 }}>
-							No steps yet. A rule needs at least one step: add one before you publish, or remove the rule from its commands.
-						</Text>
-					)}
+							{activeRule.steps.length === 0 && (
+								<Text italic style={{ color: tokens.colorNeutralForeground3 }}>
+									No steps yet. A rule needs at least one step: add one before you
+									publish, or remove the rule from its commands.
+								</Text>
+							)}
 						</ol>
 					</SortableContext>
 				</DndContext>
@@ -313,7 +330,10 @@ export const RuleEditorPanel: React.FC = () => {
 						</Button>
 					</PopoverTrigger>
 					<PopoverSurface className={styles.pickerPopover}>
-						<RuleStepPicker onSelect={handleAddStep} container={isEnable ? "enable" : "display"} />
+						<RuleStepPicker
+							onSelect={handleAddStep}
+							container={isEnable ? "enable" : "display"}
+						/>
 					</PopoverSurface>
 				</Popover>
 
@@ -337,9 +357,10 @@ function SortableRuleStep({
 	children: React.ReactNode;
 	styles: ReturnType<typeof useStyles>;
 }) {
-	const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition } = useSortable({
-		id,
-	});
+	const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition } =
+		useSortable({
+			id,
+		});
 
 	return (
 		<li

@@ -43,7 +43,8 @@ self.MonacoEnvironment = {
 		if (label === "json") return new jsonWorker();
 		if (label === "typescript" || label === "javascript") return new tsWorker();
 		if (label === "css" || label === "scss" || label === "less") return new cssWorker();
-		if (label === "html" || label === "handlebars" || label === "razor") return new htmlWorker();
+		if (label === "html" || label === "handlebars" || label === "razor")
+			return new htmlWorker();
 		// xml, plaintext, diff, and any unknown label fall through to the base editor worker.
 		return new editorWorker();
 	},

@@ -20,7 +20,12 @@ import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { groupControls } from "@/utils/ribbonMenu";
 import type { RibbonButton, RibbonDefinition, RibbonLocation } from "@/types/ribbon";
-import { buttonLabelId, buttonTooltipBodyId, buttonTooltipTitleId, textLabelId } from "@/utils/locLabelRef";
+import {
+	buttonLabelId,
+	buttonTooltipBodyId,
+	buttonTooltipTitleId,
+	textLabelId,
+} from "@/utils/locLabelRef";
 
 const KNOWN_LCIDS: Record<number, { name: string; flag: string }> = {
 	1033: { name: "English (US)", flag: "🇺🇸" },
@@ -136,23 +141,45 @@ export const LocalizationEditor: React.FC = () => {
 	// edited here (#137): its fields are read-only until the text changes.
 	const found = React.useMemo(() => {
 		if (!buttonId) return undefined;
-		for (const [location, def] of Object.entries(ribbons) as [RibbonLocation, RibbonDefinition][])
+		for (const [location, def] of Object.entries(ribbons) as [
+			RibbonLocation,
+			RibbonDefinition,
+		][])
 			for (const tab of def.tabs)
 				for (const group of tab.groups)
 					for (const b of groupControls(group))
-						if (b.id === buttonId) return { button: b, location, tabId: tab.id, groupId: group.id };
+						if (b.id === buttonId)
+							return { button: b, location, tabId: tab.id, groupId: group.id };
 		return undefined;
 	}, [ribbons, buttonId]);
 	const button = found?.button;
 	const source = button?.source;
 	const labelId = button
-		? textLabelId(source?.labelToken, buttonLabelId(button.id), button.label, locLabels, baseLcid)
+		? textLabelId(
+				source?.labelToken,
+				buttonLabelId(button.id),
+				button.label,
+				locLabels,
+				baseLcid,
+			)
 		: null;
 	const tooltipTitleId = button
-		? textLabelId(source?.tooltipTitleToken, buttonTooltipTitleId(button.id), button.tooltipTitle, locLabels, baseLcid)
+		? textLabelId(
+				source?.tooltipTitleToken,
+				buttonTooltipTitleId(button.id),
+				button.tooltipTitle,
+				locLabels,
+				baseLcid,
+			)
 		: null;
 	const tooltipBodyId = button
-		? textLabelId(source?.tooltipBodyToken, buttonTooltipBodyId(button.id), button.tooltipBody, locLabels, baseLcid)
+		? textLabelId(
+				source?.tooltipBodyToken,
+				buttonTooltipBodyId(button.id),
+				button.tooltipBody,
+				locLabels,
+				baseLcid,
+			)
 		: null;
 	const shared = button
 		? [
@@ -189,9 +216,15 @@ export const LocalizationEditor: React.FC = () => {
 						}
 					: {
 							lcid,
-							label: labelRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
-							tooltipTitle: ttRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
-							tooltipBody: tbRecord?.titles.find((t) => t.languageCode === lcid)?.description ?? "",
+							label:
+								labelRecord?.titles.find((t) => t.languageCode === lcid)
+									?.description ?? "",
+							tooltipTitle:
+								ttRecord?.titles.find((t) => t.languageCode === lcid)
+									?.description ?? "",
+							tooltipBody:
+								tbRecord?.titles.find((t) => t.languageCode === lcid)
+									?.description ?? "",
 						},
 			);
 	}, [locLabels, labelId, tooltipTitleId, tooltipBodyId, baseLcid, button]);
@@ -257,7 +290,8 @@ export const LocalizationEditor: React.FC = () => {
 		// the publish plan then refused it).
 		const write = (id: string | null, field: keyof Omit<LcidEntry, "lcid">) =>
 			!!id &&
-			(locLabels.some((l) => l.id === id) || toTitles(field).some((t) => t.languageCode !== baseLcid));
+			(locLabels.some((l) => l.id === id) ||
+				toTitles(field).some((t) => t.languageCode !== baseLcid));
 
 		// One undo step for the whole dialog (#34).
 		batch(() => {
@@ -266,10 +300,18 @@ export const LocalizationEditor: React.FC = () => {
 			if (labelId && write(labelId, "label") && toTitles("label").length > 0) {
 				upsertLocLabel({ id: labelId, titles: toTitles("label") });
 			}
-			if (tooltipTitleId && write(tooltipTitleId, "tooltipTitle") && toTitles("tooltipTitle").length > 0) {
+			if (
+				tooltipTitleId &&
+				write(tooltipTitleId, "tooltipTitle") &&
+				toTitles("tooltipTitle").length > 0
+			) {
 				upsertLocLabel({ id: tooltipTitleId, titles: toTitles("tooltipTitle") });
 			}
-			if (tooltipBodyId && write(tooltipBodyId, "tooltipBody") && toTitles("tooltipBody").length > 0) {
+			if (
+				tooltipBodyId &&
+				write(tooltipBodyId, "tooltipBody") &&
+				toTitles("tooltipBody").length > 0
+			) {
 				upsertLocLabel({ id: tooltipBodyId, titles: toTitles("tooltipBody") });
 			}
 		});
@@ -292,7 +334,9 @@ export const LocalizationEditor: React.FC = () => {
 							/>
 						}
 					>
-						<Subtitle2>Translations — {baseEntry?.label || buttonId || "Button"}</Subtitle2>
+						<Subtitle2>
+							Translations — {baseEntry?.label || buttonId || "Button"}
+						</Subtitle2>
 						<Badge appearance="tint" size="small" style={{ marginLeft: 8 }}>
 							{entries.length} language{entries.length !== 1 ? "s" : ""}
 						</Badge>
@@ -314,7 +358,11 @@ export const LocalizationEditor: React.FC = () => {
 										{info?.flag ?? "🌐"} {info?.name ?? `LCID ${e.lcid}`}
 										{e.lcid !== baseLcid && (
 											<span
-												style={{ marginLeft: 4, cursor: "pointer", opacity: 0.7 }}
+												style={{
+													marginLeft: 4,
+													cursor: "pointer",
+													opacity: 0.7,
+												}}
 												onClick={() => removeEntry(e.lcid)}
 												aria-label={`Remove ${info?.name}`}
 											>
@@ -336,7 +384,9 @@ export const LocalizationEditor: React.FC = () => {
 									onKeyDown={(e) => e.key === "Enter" && addLanguage()}
 								/>
 								<datalist id="lcid-list">
-									{ALL_LCIDS.filter((l) => !entries.find((e) => e.lcid === l)).map((l) => (
+									{ALL_LCIDS.filter(
+										(l) => !entries.find((e) => e.lcid === l),
+									).map((l) => (
 										<option key={l} value={String(l)}>
 											{KNOWN_LCIDS[l]?.flag} {KNOWN_LCIDS[l]?.name} ({l})
 										</option>
@@ -353,15 +403,20 @@ export const LocalizationEditor: React.FC = () => {
 						</div>
 
 						<div className={styles.noteBar}>
-							💡 LCID {baseLcid} ({KNOWN_LCIDS[baseLcid]?.name ?? "base language"}) is the organisation's base language and cannot be removed. Use "Insert
+							💡 LCID {baseLcid} ({KNOWN_LCIDS[baseLcid]?.name ?? "base language"}) is
+							the organisation's base language and cannot be removed. Use "Insert
 							&#x200b;&#x200b;" to force a line break in long labels.
 						</div>
 
 						{shared.length > 0 && (
 							<div className={styles.noteBar}>
-								{shared.join(", ")} {shared.length === 1 ? "is a label" : "are labels"} of another solution, shared
-								with the controls that use {shared.length === 1 ? "it" : "them"}, so {shared.length === 1 ? "it isn't" : "they aren't"} edited
-								here. Change the text in Properties to give this button a label of its own, then add translations.
+								{shared.join(", ")}{" "}
+								{shared.length === 1 ? "is a label" : "are labels"} of another
+								solution, shared with the controls that use{" "}
+								{shared.length === 1 ? "it" : "them"}, so{" "}
+								{shared.length === 1 ? "it isn't" : "they aren't"} edited here.
+								Change the text in Properties to give this button a label of its
+								own, then add translations.
 							</div>
 						)}
 
@@ -385,10 +440,16 @@ export const LocalizationEditor: React.FC = () => {
 										<tr key={entry.lcid}>
 											<td className={`${styles.td} ${styles.langCell}`}>
 												<Text size={200}>
-													{info?.flag ?? "🌐"} {info?.name ?? `LCID ${entry.lcid}`}
+													{info?.flag ?? "🌐"}{" "}
+													{info?.name ?? `LCID ${entry.lcid}`}
 												</Text>
 												<br />
-												<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+												<Text
+													size={100}
+													style={{
+														color: tokens.colorNeutralForeground3,
+													}}
+												>
 													{entry.lcid}
 												</Text>
 											</td>
@@ -396,28 +457,41 @@ export const LocalizationEditor: React.FC = () => {
 												<LabelCellInput
 													value={entry.label}
 													disabled={!labelId}
-													onChange={(v) => updateEntry(entry.lcid, "label", v)}
-													onInsertBreak={(el) => insertBreak(entry.lcid, "label", el)}
+													onChange={(v) =>
+														updateEntry(entry.lcid, "label", v)
+													}
+													onInsertBreak={(el) =>
+														insertBreak(entry.lcid, "label", el)
+													}
 												/>
 											</td>
 											<td className={styles.td}>
 												<LabelCellInput
 													value={entry.tooltipTitle}
 													disabled={!tooltipTitleId}
-													onChange={(v) => updateEntry(entry.lcid, "tooltipTitle", v)}
-													onInsertBreak={(el) => insertBreak(entry.lcid, "tooltipTitle", el)}
+													onChange={(v) =>
+														updateEntry(entry.lcid, "tooltipTitle", v)
+													}
+													onInsertBreak={(el) =>
+														insertBreak(entry.lcid, "tooltipTitle", el)
+													}
 												/>
 											</td>
 											<td className={styles.td}>
 												<BodyCellInput
 													value={entry.tooltipBody}
 													disabled={!tooltipBodyId}
-													onChange={(v) => updateEntry(entry.lcid, "tooltipBody", v)}
+													onChange={(v) =>
+														updateEntry(entry.lcid, "tooltipBody", v)
+													}
 												/>
 											</td>
 											<td className={`${styles.td} ${styles.actionCell}`}>
 												{entry.lcid !== baseLcid && (
-													<Tooltip content="Remove this language" relationship="label">
+													<Tooltip
+														content="Remove this language"
+														relationship="label"
+													>
 														<Button
 															appearance="subtle"
 															size="small"

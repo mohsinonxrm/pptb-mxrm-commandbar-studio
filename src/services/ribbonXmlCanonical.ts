@@ -52,7 +52,13 @@ function escapeAttr(v: string): string {
 
 function canonicalElement(el: Element, opts: CanonicalOptions, indent: string): string {
 	const attrs = Array.from(el.attributes)
-		.map((a) => [a.name, isBooleanAttribute(el, a.name) ? normalizeBoolean(a.value) : a.value] as const)
+		.map(
+			(a) =>
+				[
+					a.name,
+					isBooleanAttribute(el, a.name) ? normalizeBoolean(a.value) : a.value,
+				] as const,
+		)
 		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
 		.map(([k, v]) => ` ${k}="${escapeAttr(v)}"`)
 		.join("");
@@ -98,7 +104,11 @@ export function canonicalXml(input: string | Element, opts: CanonicalOptions = {
 }
 
 /** True when two pieces of XML are equal in canonical form. */
-export function sameXml(a: string | Element, b: string | Element, opts: CanonicalOptions = {}): boolean {
+export function sameXml(
+	a: string | Element,
+	b: string | Element,
+	opts: CanonicalOptions = {},
+): boolean {
 	try {
 		return canonicalXml(a, opts) === canonicalXml(b, opts);
 	} catch {

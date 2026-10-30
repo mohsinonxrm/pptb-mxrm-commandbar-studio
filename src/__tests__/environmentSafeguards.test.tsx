@@ -285,7 +285,9 @@ describe("the publish dialog names its target and guards Production (#121)", () 
 		useRibbonStore.setState({ baseLanguageUnknown: true });
 		try {
 			await openPublishDialog();
-			expect(document.body.textContent).toContain("base language couldn't be read when the table loaded");
+			expect(document.body.textContent).toContain(
+				"base language couldn't be read when the table loaded",
+			);
 			expect(publishButton()?.disabled).toBe(true);
 		} finally {
 			useRibbonStore.setState({ baseLanguageUnknown: false });
@@ -316,10 +318,16 @@ describe("the publish dialog names its target and guards Production (#121)", () 
 		)!;
 		act(() => option.click());
 		await flush();
-		expect(document.body.textContent).toContain("This publishes every unpublished customization in Contoso");
+		expect(document.body.textContent).toContain(
+			"This publishes every unpublished customization in Contoso",
+		);
 		expect(publishButton()?.disabled).toBe(true);
-		const checkbox = [...document.querySelectorAll<HTMLInputElement>("input[type=checkbox]")].find((c) =>
-			c.closest("label, div")?.textContent?.includes("Publish all unpublished customizations in Contoso"),
+		const checkbox = [
+			...document.querySelectorAll<HTMLInputElement>("input[type=checkbox]"),
+		].find((c) =>
+			c
+				.closest("label, div")
+				?.textContent?.includes("Publish all unpublished customizations in Contoso"),
 		)!;
 		act(() => checkbox.click());
 		await flush();
@@ -330,7 +338,10 @@ describe("the publish dialog names its target and guards Production (#121)", () 
 		environment = "Dev";
 		await openPublishDialog();
 		const comment = document.querySelector<HTMLTextAreaElement>("textarea")!;
-		const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+		const setter = Object.getOwnPropertyDescriptor(
+			HTMLTextAreaElement.prototype,
+			"value",
+		)!.set!;
 		act(() => {
 			setter.call(comment, "Adds the New one button");
 			comment.dispatchEvent(new Event("input", { bubbles: true }));
@@ -343,7 +354,9 @@ describe("the publish dialog names its target and guards Production (#121)", () 
 			"Publish comment: Adds the New one button",
 		);
 		// Closing clears it: it isn't logged again with the next publish.
-		const cancel = [...document.querySelectorAll("button")].find((b) => /^(Cancel|Close)$/.test(b.textContent?.trim() ?? ""))!;
+		const cancel = [...document.querySelectorAll("button")].find((b) =>
+			/^(Cancel|Close)$/.test(b.textContent?.trim() ?? ""),
+		)!;
 		act(() => cancel.click());
 		act(() => useUIStore.setState({ bulkPublishOpen: true }));
 		await flush();

@@ -22,7 +22,13 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
-import { groupControls, isDynamicMenuValue, isMenuKind, menuItemsOf, rootControlOf } from "@/utils/ribbonMenu";
+import {
+	groupControls,
+	isDynamicMenuValue,
+	isMenuKind,
+	menuItemsOf,
+	rootControlOf,
+} from "@/utils/ribbonMenu";
 import { canDeleteControl } from "@/utils/ribbonProvenance";
 import { newButtonIds } from "@/utils/idGenerator";
 import { useModernAppNames, useModernLocation } from "@/hooks/useModernCommands";
@@ -133,7 +139,8 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 
 	if (!group || !root || (!root.menu && !isMenuKind(root.kind))) return null;
 	const groupId = group.id;
-	const label = (b: RibbonButton) => captionOf(b.label, locLabels, undefined, b.source?.labelToken);
+	const label = (b: RibbonButton) =>
+		captionOf(b.label, locLabels, undefined, b.source?.labelToken);
 	const dynamicQuery = (b: RibbonButton) =>
 		isDynamicMenuValue(b.source?.attributes["PopulateDynamically"])
 			? (b.source?.attributes["PopulateQueryCommand"] ?? "a command")
@@ -313,7 +320,14 @@ function MenuSectionView({
 					</>
 				) : (
 					// A loaded section's Title can be a `$LocLabels:` / `$Resources:` token (#75).
-					<Caption1>{captionOf(section.title, locLabels, undefined, section.attributes?.["Title"]) || section.id}</Caption1>
+					<Caption1>
+						{captionOf(
+							section.title,
+							locLabels,
+							undefined,
+							section.attributes?.["Title"],
+						) || section.id}
+					</Caption1>
 				)}
 			</div>
 			{items.map((item) => renderItem(item))}

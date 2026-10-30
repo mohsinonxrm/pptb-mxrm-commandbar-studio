@@ -236,8 +236,9 @@ export function RibbonCanvas({
 	// just published from here (most likely not loaded yet, #64 review).
 	const orphanCount = useRibbonStore(
 		(s) =>
-			s.orphans.entity.filter((o) => !s.pendingOrphanDeletes.entity.includes(o.id) && !o.recentPublish?.published)
-				.length,
+			s.orphans.entity.filter(
+				(o) => !s.pendingOrphanDeletes.entity.includes(o.id) && !o.recentPublish?.published,
+			).length,
 	);
 	const clearSelection = useSelectionStore((s) => s.clearSelection);
 	const reorderTabs = useRibbonStore((s) => s.reorderTabs);
@@ -256,7 +257,9 @@ export function RibbonCanvas({
 	const [deletingTabId, setDeletingTabId] = useState<string | null>(null);
 	// Retry of an unread layer replaces the canvas: unpublished changes are asked about first (#110).
 	const [confirmingReload, setConfirmingReload] = useState(false);
-	const deletingTab = deletingTabId ? ribbons[location].tabs.find((t) => t.id === deletingTabId) : undefined;
+	const deletingTab = deletingTabId
+		? ribbons[location].tabs.find((t) => t.id === deletingTabId)
+		: undefined;
 
 	useEffect(() => {
 		if (editingTabId && inputRef.current) inputRef.current.focus();
@@ -266,7 +269,11 @@ export function RibbonCanvas({
 		const tab = ribbons[location].tabs.find((t) => t.id === editingTabId);
 		// The editor starts from the display text, not a `$LocLabels:` token;
 		// committing it unchanged must not turn the token into literal text.
-		if (tab && editValue.trim() && editValue.trim() !== resolveDisplayLabel(tab.label, locLabels, lang)) {
+		if (
+			tab &&
+			editValue.trim() &&
+			editValue.trim() !== resolveDisplayLabel(tab.label, locLabels, lang)
+		) {
 			renameTab(location, tab.id, editValue.trim());
 		}
 		setEditingTabId(null);
@@ -278,12 +285,21 @@ export function RibbonCanvas({
 	 * and so is everything in it (#17 review).
 	 */
 	function canDeleteTab(tab: RibbonTab): boolean {
-		return canDeleteTabWithContents(tab, baseline[location], ownContainerIds({ layers }, location));
+		return canDeleteTabWithContents(
+			tab,
+			baseline[location],
+			ownContainerIds({ layers }, location),
+		);
 	}
 
 	/** Whether renaming the tab can be published (#33): new, or yours with a translatable title. */
 	function canRenameTab(tab: RibbonTab): boolean {
-		return canRenameContainer("tab", tab.id, baseline[location], scopeLayer({ layers }, location));
+		return canRenameContainer(
+			"tab",
+			tab.id,
+			baseline[location],
+			scopeLayer({ layers }, location),
+		);
 	}
 
 	/** The tab whose rename was just refused: it says why (#33), until another tab is picked. */
@@ -291,7 +307,9 @@ export function RibbonCanvas({
 	function startTabRename(tab: RibbonTab) {
 		if (!canRenameTab(tab)) {
 			setRenameRefusedTabId(tab.id);
-			useRuntimeLogStore.getState().logInfo("canvas", `Tab ${tab.id} can't be renamed: ${RENAME_NOT_PUBLISHABLE}.`);
+			useRuntimeLogStore
+				.getState()
+				.logInfo("canvas", `Tab ${tab.id} can't be renamed: ${RENAME_NOT_PUBLISHABLE}.`);
 			return;
 		}
 		setEditingTabId(tab.id);
@@ -323,7 +341,8 @@ export function RibbonCanvas({
 
 	const ribbon = ribbons[location];
 	const currentTab =
-		ribbon.tabs.find((t) => t.id === tabId) ?? ribbon.tabs.find((t) => t.id === defaultTabId(ribbon.tabs));
+		ribbon.tabs.find((t) => t.id === tabId) ??
+		ribbon.tabs.find((t) => t.id === defaultTabId(ribbon.tabs));
 
 	useEffect(() => {
 		if (!ribbon.tabs.length) return;
@@ -357,14 +376,22 @@ export function RibbonCanvas({
 					</div>
 				))}
 				<div className={styles.spacer} />
-				<div style={{ display: "flex", alignItems: "center", gap: tokens.spacingHorizontalS }}>
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: tokens.spacingHorizontalS,
+					}}
+				>
 					<ModernAppFilter />
 					<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
 						View as:
 					</Text>
 					<Select
 						value={ribbonViewStyle}
-						onChange={(_, d) => setRibbonViewStyle(d.value as "classic" | "modern" | "list")}
+						onChange={(_, d) =>
+							setRibbonViewStyle(d.value as "classic" | "modern" | "list")
+						}
 						size="small"
 						style={{ height: "26px", width: "170px" }}
 					>
@@ -372,7 +399,12 @@ export function RibbonCanvas({
 						<option value="modern">Modern command bar</option>
 						<option value="list">List view</option>
 					</Select>
-					<Button appearance="subtle" size="small" icon={<CodeRegular />} onClick={openXmlDrawer}>
+					<Button
+						appearance="subtle"
+						size="small"
+						icon={<CodeRegular />}
+						onClick={openXmlDrawer}
+					>
 						XML
 					</Button>
 				</div>
@@ -381,15 +413,19 @@ export function RibbonCanvas({
 			{layerReadError && !isLoadingRibbon && !ribbonLoadError && (
 				<MessageBar intent="warning" layout="multiline" style={{ flexShrink: 0 }}>
 					<MessageBarBody>
-						Couldn&apos;t read your unmanaged ribbon customizations, so labels may show as ids and
-						ownership (what you can edit or delete) is unknown. Reload before editing. Details:{" "}
-						{layerReadError}
+						Couldn&apos;t read your unmanaged ribbon customizations, so labels may show
+						as ids and ownership (what you can edit or delete) is unknown. Reload before
+						editing. Details: {layerReadError}
 					</MessageBarBody>
 					{onRetryRibbonLoad && (
 						<MessageBarActions>
 							<Button
 								size="small"
-								onClick={() => (hasUnpublishedChanges() ? setConfirmingReload(true) : onRetryRibbonLoad())}
+								onClick={() =>
+									hasUnpublishedChanges()
+										? setConfirmingReload(true)
+										: onRetryRibbonLoad()
+								}
 							>
 								Retry
 							</Button>
@@ -402,26 +438,28 @@ export function RibbonCanvas({
 			{location === "Form" && (
 				<MessageBar intent="info" style={{ flexShrink: 0 }}>
 					<MessageBarBody>
-						Form ribbon customizations target the legacy web client. On Unified Interface, form
-						commands render in a flat command bar — tab layout and scaling are ignored, but button
-						visibility and command actions work as configured (same behaviour as Ribbon Workbench).
-						Microsoft does not officially support the tabbed ribbon UI on Unified Interface.
+						Form ribbon customizations target the legacy web client. On Unified
+						Interface, form commands render in a flat command bar — tab layout and
+						scaling are ignored, but button visibility and command actions work as
+						configured (same behaviour as Ribbon Workbench). Microsoft does not
+						officially support the tabbed ribbon UI on Unified Interface.
 					</MessageBarBody>
 				</MessageBar>
 			)}
 			{location === "SubGrid" && (
 				<MessageBar intent="info" style={{ flexShrink: 0 }}>
 					<MessageBarBody>
-						Subgrid ribbons support only 3 native controls: Add, Show List, and Delete. Their icons
-						cannot be changed.
+						Subgrid ribbons support only 3 native controls: Add, Show List, and Delete.
+						Their icons cannot be changed.
 					</MessageBarBody>
 				</MessageBar>
 			)}
 			{location === "Application" && (
 				<MessageBar intent="info" style={{ flexShrink: 0 }}>
 					<MessageBarBody>
-						Buttons added to GlobalTab appear in the persistent global command bar at the top of
-						every page. OOB GlobalTab buttons are read-only and cannot be customized.
+						Buttons added to GlobalTab appear in the persistent global command bar at
+						the top of every page. OOB GlobalTab buttons are read-only and cannot be
+						customized.
 					</MessageBarBody>
 				</MessageBar>
 			)}
@@ -437,9 +475,9 @@ export function RibbonCanvas({
 			{currentTab && isHiddenOnUnifiedInterface(currentTab.id) && (
 				<MessageBar intent="warning" style={{ flexShrink: 0 }}>
 					<MessageBarBody>
-						Unified Interface doesn&apos;t show this tab&apos;s buttons on the command bar, and they
-						don&apos;t come back when the table is reloaded. Add buttons to the table&apos;s main tab
-						instead.
+						Unified Interface doesn&apos;t show this tab&apos;s buttons on the command
+						bar, and they don&apos;t come back when the table is reloaded. Add buttons
+						to the table&apos;s main tab instead.
 					</MessageBarBody>
 				</MessageBar>
 			)}
@@ -448,10 +486,12 @@ export function RibbonCanvas({
 			{location !== "Application" && orphanCount > 0 && (
 				<MessageBar intent="warning" style={{ flexShrink: 0 }}>
 					<MessageBarBody>
-						{orphanCount} element{orphanCount !== 1 ? "s" : ""} of your customizations for this table
-						{orphanCount !== 1 ? " aren't" : " isn't"} on the canvas: the ribbon doesn&apos;t return{" "}
-						{orphanCount !== 1 ? "them" : "it"}. See <strong>Orphaned customizations</strong> in the
-						Properties pane to delete {orphanCount !== 1 ? "them" : "it"}.
+						{orphanCount} element{orphanCount !== 1 ? "s" : ""} of your customizations
+						for this table
+						{orphanCount !== 1 ? " aren't" : " isn't"} on the canvas: the ribbon
+						doesn&apos;t return {orphanCount !== 1 ? "them" : "it"}. See{" "}
+						<strong>Orphaned customizations</strong> in the Properties pane to delete{" "}
+						{orphanCount !== 1 ? "them" : "it"}.
 					</MessageBarBody>
 					<MessageBarActions>
 						<Button size="small" onClick={clearSelection}>
@@ -516,8 +556,16 @@ export function RibbonCanvas({
 						>
 							Tab rules
 							{currentTab && currentTab.tabDisplayRules.length > 0 && (
-								<Badge size="small" appearance="tint" color="brand" style={{ marginLeft: 4 }}>
-									{currentTab.tabDisplayRules.reduce((n, r) => n + r.rules.length, 0)}
+								<Badge
+									size="small"
+									appearance="tint"
+									color="brand"
+									style={{ marginLeft: 4 }}
+								>
+									{currentTab.tabDisplayRules.reduce(
+										(n, r) => n + r.rules.length,
+										0,
+									)}
 								</Badge>
 							)}
 						</Button>
@@ -539,11 +587,15 @@ export function RibbonCanvas({
 						<Spinner
 							label={
 								<>
-									{loadingTable ? `Loading ${loadingTable}` : "Loading the ribbon"}
+									{loadingTable
+										? `Loading ${loadingTable}`
+										: "Loading the ribbon"}
 									{loadingStep && (
 										<>
 											<br />
-											<span style={{ fontSize: "12px", opacity: 0.8 }}>{loadingStep}</span>
+											<span style={{ fontSize: "12px", opacity: 0.8 }}>
+												{loadingStep}
+											</span>
 										</>
 									)}
 								</>
@@ -552,11 +604,17 @@ export function RibbonCanvas({
 					</div>
 				) : ribbonLoadError ? (
 					<MessageBar intent="error">
-						<MessageBarBody>Failed to load ribbon definition. {ribbonLoadError}</MessageBarBody>
+						<MessageBarBody>
+							Failed to load ribbon definition. {ribbonLoadError}
+						</MessageBarBody>
 						{onRetryRibbonLoad && (
 							<MessageBarActions
 								containerAction={
-									<Button appearance="primary" size="small" onClick={onRetryRibbonLoad}>
+									<Button
+										appearance="primary"
+										size="small"
+										onClick={onRetryRibbonLoad}
+									>
 										Retry
 									</Button>
 								}
@@ -590,9 +648,10 @@ export function RibbonCanvas({
 					}}
 					onCancel={() => setConfirmingReload(false)}
 				>
-					You have unpublished changes. Reloading replaces the canvas; your changes are kept in a draft that
-					is offered after the reload. They were made while your labels weren&apos;t loaded, so check their
-					texts before you publish: a text can read a label&apos;s id.
+					You have unpublished changes. Reloading replaces the canvas; your changes are
+					kept in a draft that is offered after the reload. They were made while your
+					labels weren&apos;t loaded, so check their texts before you publish: a text can
+					read a label&apos;s id.
 				</ConfirmDialog>
 			)}
 			{deletingTab && (
@@ -607,8 +666,9 @@ export function RibbonCanvas({
 					}}
 					onCancel={() => setDeletingTabId(null)}
 				>
-					Delete the tab &ldquo;{captionOf(deletingTab.label, locLabels, lang, deletingTab.source?.titleToken)}&rdquo; and its
-					groups and buttons?
+					Delete the tab &ldquo;
+					{captionOf(deletingTab.label, locLabels, lang, deletingTab.source?.titleToken)}
+					&rdquo; and its groups and buttons?
 				</ConfirmDialog>
 			)}
 		</main>

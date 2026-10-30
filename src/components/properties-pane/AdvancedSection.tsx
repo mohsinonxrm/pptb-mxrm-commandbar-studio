@@ -1,11 +1,5 @@
 import React from "react";
-import {
-	makeStyles,
-	tokens,
-	Text,
-	Switch,
-	Badge,
-} from "@fluentui/react-components";
+import { makeStyles, tokens, Text, Switch, Badge } from "@fluentui/react-components";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
@@ -86,11 +80,14 @@ export const AdvancedSection: React.FC = () => {
 	const openRecordUnknown = !openRecordTheirs && ownership.includes("unknown");
 	const openRecordNoGroup = !hasOpenRecordOverride && !openRecordCarrierPlacement(ribbon);
 	// Other buttons (e.g. your own) using the command: turning off keeps them and the command.
-	const otherOpenRecordUsers = openRecordCommandUsers(ribbon).filter((c) => !isOpenRecordCarrier(c.button));
+	const otherOpenRecordUsers = openRecordCommandUsers(ribbon).filter(
+		(c) => !isOpenRecordCarrier(c.button),
+	);
 
 	const handleOpenRecordToggle = (checked: boolean) => {
 		const prefix = activeSolution?.publisherPrefix?.trim() || sessionPrefix?.trim() || "new";
-		if (!checked && openRecordCarrierList.some((c) => c.button.id === selectedButtonId)) clearSelection();
+		if (!checked && openRecordCarrierList.some((c) => c.button.id === selectedButtonId))
+			clearSelection();
 		if (!setOpenRecordOverride(location, checked, prefix) || !checked) return;
 		// Open the Command Editor immediately so the user can set the real
 		// library path and function name.
@@ -145,14 +142,22 @@ export const AdvancedSection: React.FC = () => {
 		const isOtherFilter = (id: string) => {
 			const r = displayRules.find((d) => d.id === id);
 			const s = r?.steps.length === 1 ? r.steps[0] : undefined;
-			return s?.kind === "CommandClientTypeRule" && s.type !== type && !s.invertResult && s.default === undefined;
+			return (
+				s?.kind === "CommandClientTypeRule" &&
+				s.type !== type &&
+				!s.invertResult &&
+				s.default === undefined
+			);
 		};
 		// The new rule and its binding are one undo step (#34).
 		const boundRuleId = ruleId;
 		const kept = selectedCommand.displayRules.filter((id) => !isOtherFilter(id));
 		batch(() => {
 			if (rule) upsertDisplayRule(rule);
-			if (!kept.includes(boundRuleId) || kept.length !== selectedCommand.displayRules.length) {
+			if (
+				!kept.includes(boundRuleId) ||
+				kept.length !== selectedCommand.displayRules.length
+			) {
 				upsertCommand({
 					...selectedCommand,
 					displayRules: kept.includes(boundRuleId) ? kept : [...kept, boundRuleId],
@@ -184,34 +189,38 @@ export const AdvancedSection: React.FC = () => {
 						onChange={(_, d) => handleOpenRecordToggle(d.checked)}
 					/>
 					<Text size={100} className={styles.note}>
-						When enabled, the table gets a CommandDefinition with Id=&quot;Mscrm.OpenRecordItem&quot;
-						whose action runs instead of opening the record when a user double-clicks a row of this
-						table&apos;s {location === "SubGrid" ? "sub-grids (on any form)" : "home grid"}, selects
-						its primary column link or presses Enter on it. As in Microsoft&apos;s recipe, an
-						&quot;Open record&quot; button using the command is added to this location&apos;s
-						command bar — the override only reaches a grid through a button there; don&apos;t
-						hide that button. <strong>Unified Interface only.</strong> The Command Editor will open
-						so you can set the real web resource and function name; Publish is blocked until you
-						do. Turning it off removes that button, and the command once no button uses it.
+						When enabled, the table gets a CommandDefinition with
+						Id=&quot;Mscrm.OpenRecordItem&quot; whose action runs instead of opening the
+						record when a user double-clicks a row of this table&apos;s{" "}
+						{location === "SubGrid" ? "sub-grids (on any form)" : "home grid"}, selects
+						its primary column link or presses Enter on it. As in Microsoft&apos;s
+						recipe, an &quot;Open record&quot; button using the command is added to this
+						location&apos;s command bar — the override only reaches a grid through a
+						button there; don&apos;t hide that button.{" "}
+						<strong>Unified Interface only.</strong> The Command Editor will open so you
+						can set the real web resource and function name; Publish is blocked until
+						you do. Turning it off removes that button, and the command once no button
+						uses it.
 					</Text>
 					{openRecordTheirs && (
 						<Text size={100} className={styles.note}>
-							The &quot;Open record&quot; button here comes from another solution, so the override
-							can&apos;t be turned off from your customizations.
+							The &quot;Open record&quot; button here comes from another solution, so
+							the override can&apos;t be turned off from your customizations.
 						</Text>
 					)}
 					{openRecordUnknown && (
 						<Text size={100} className={styles.note}>
-							CBS doesn&apos;t know yet which solution the &quot;Open record&quot; button here comes
-							from (its solution layers haven&apos;t loaded), so it isn&apos;t removed — reload the
-							table if this doesn&apos;t clear.
+							CBS doesn&apos;t know yet which solution the &quot;Open record&quot;
+							button here comes from (its solution layers haven&apos;t loaded), so it
+							isn&apos;t removed — reload the table if this doesn&apos;t clear.
 						</Text>
 					)}
 					{otherOpenRecordUsers.length > 0 && (
 						<Text size={100} className={styles.note}>
 							Also using Mscrm.OpenRecordItem here:{" "}
-							{otherOpenRecordUsers.map((c) => c.button.id).join(", ")}. Turning the override off
-							keeps {otherOpenRecordUsers.length === 1 ? "it" : "them"} and the command.
+							{otherOpenRecordUsers.map((c) => c.button.id).join(", ")}. Turning the
+							override off keeps {otherOpenRecordUsers.length === 1 ? "it" : "them"}{" "}
+							and the command.
 						</Text>
 					)}
 					{openRecordNoGroup && (
@@ -226,8 +235,8 @@ export const AdvancedSection: React.FC = () => {
 				<Text size={100} className={styles.note}>
 					Form command bar changes apply to every main form of this table
 					(ImportExportXml/Entities/Entity/RibbonDiffXml). Form-specific ribbons
-					(systemform/form/RibbonDiffXml) aren&apos;t supported on Unified Interface, so CBS
-					doesn&apos;t write them (#14).
+					(systemform/form/RibbonDiffXml) aren&apos;t supported on Unified Interface, so
+					CBS doesn&apos;t write them (#14).
 				</Text>
 			)}
 
@@ -237,8 +246,8 @@ export const AdvancedSection: React.FC = () => {
 				</Text>
 				<Text size={100} className={styles.note}>
 					<strong>Modern</strong> = Unified Interface (web, tablets and phones) |{" "}
-					<strong>Refresh</strong> = legacy updated web client | <strong>Legacy</strong> = classic
-					ribbon / Outlook
+					<strong>Refresh</strong> = legacy updated web client | <strong>Legacy</strong> =
+					classic ribbon / Outlook
 				</Text>
 				<div className={styles.row} style={{ marginTop: "4px" }}>
 					{CLIENT_TYPE_RULES.map((rule) => (
@@ -247,7 +256,9 @@ export const AdvancedSection: React.FC = () => {
 							appearance="outline"
 							style={{ cursor: "pointer" }}
 							title={`Add CommandClientTypeRule: ${rule.value}`}
-							onClick={() => addClientTypeFilter(rule.value as "Refresh" | "Legacy" | "Modern")}
+							onClick={() =>
+								addClientTypeFilter(rule.value as "Refresh" | "Legacy" | "Modern")
+							}
 						>
 							{rule.label}
 						</Badge>

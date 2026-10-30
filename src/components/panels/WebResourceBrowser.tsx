@@ -38,7 +38,11 @@ import {
 } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import type { WebResource } from "@/types/webResource";
-import { loadWebResources, saveWebResource, WebResourceSaveCancelled } from "@/services/dataverse/webResourceService";
+import {
+	loadWebResources,
+	saveWebResource,
+	WebResourceSaveCancelled,
+} from "@/services/dataverse/webResourceService";
 import { useReplaceWebResourceConfirm } from "@/hooks/useReplaceWebResourceConfirm";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
@@ -308,13 +312,17 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 				onExisting: replaceConfirm.onExisting,
 			});
 			await reloadResources();
-			setWarning([saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null);
+			setWarning(
+				[saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null,
+			);
 		} catch (err) {
 			if (err instanceof WebResourceSaveCancelled) return;
 			const message = err instanceof Error ? err.message : String(err);
 			setError(message);
 			// Also logged: after a connection change (#120) the browser is closed.
-			useRuntimeLogStore.getState().logError("webresource", `Upload of ${file.name} failed: ${message}`);
+			useRuntimeLogStore
+				.getState()
+				.logError("webresource", `Upload of ${file.name} failed: ${message}`);
 		} finally {
 			setUploading(false);
 		}
@@ -332,188 +340,206 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 
 	return (
 		<>
-		{replaceConfirm.dialog}
-		<Dialog
-			open={open}
-			onOpenChange={(_, d) => {
-				if (!d.open) {
-					webResourceBrowserCallbackRegistry.clear();
-					closeWebResourceBrowser();
-				}
-			}}
-		>
-			<DialogSurface className={styles.surface}>
-				<DialogBody style={{ height: "100%" }}>
-					<DialogTitle
-						action={
+			{replaceConfirm.dialog}
+			<Dialog
+				open={open}
+				onOpenChange={(_, d) => {
+					if (!d.open) {
+						webResourceBrowserCallbackRegistry.clear();
+						closeWebResourceBrowser();
+					}
+				}}
+			>
+				<DialogSurface className={styles.surface}>
+					<DialogBody style={{ height: "100%" }}>
+						<DialogTitle
+							action={
+								<Button
+									appearance="subtle"
+									icon={<DismissRegular />}
+									onClick={closeWebResourceBrowser}
+									aria-label="Close"
+								/>
+							}
+						>
+							<Subtitle2>Web Resource Browser</Subtitle2>
+						</DialogTitle>
+
+						<DialogContent className={styles.body}>
+							<input
+								ref={uploadInputRef}
+								type="file"
+								accept=".js,.html,.svg,.png,.css,.xml,.resx,.jpg,.gif,.ico,.xsl"
+								style={{ display: "none" }}
+								onChange={(e) => {
+									const file = e.target.files?.[0];
+									e.currentTarget.value = "";
+									if (file) void handleUpload(file);
+								}}
+							/>
+							<div className={styles.toolbar}>
+								<Input
+									contentBefore={<SearchRegular />}
+									placeholder="Search by name…"
+									value={search}
+									onChange={(_, d) => setSearch(d.value)}
+									size="small"
+									style={{ flex: 1 }}
+								/>
+								<Select
+									size="small"
+									value={typeFilter}
+									onChange={(_, d) => setTypeFilter(d.value)}
+									style={{ width: "100px" }}
+								>
+									{TYPE_OPTIONS.map((o) => (
+										<option key={o.value} value={o.value}>
+											{o.label}
+										</option>
+									))}
+								</Select>
+								<Checkbox
+									label="Custom only"
+									checked={customOnly}
+									onChange={(_, d) => setCustomOnly(d.checked === true)}
+								/>
+							</div>
+
+							{error && (
+								<MessageBar intent="error">
+									<MessageBarBody>{error}</MessageBarBody>
+								</MessageBar>
+							)}
+							{warning && (
+								<MessageBar intent="warning">
+									<MessageBarBody>{warning}</MessageBarBody>
+								</MessageBar>
+							)}
+
+							<div className={styles.grid}>
+								{loading && (
+									<Text
+										style={{
+											color: tokens.colorNeutralForeground3,
+											padding: tokens.spacingHorizontalM,
+										}}
+									>
+										Loading web resources…
+									</Text>
+								)}
+								{!loading && filtered.length === 0 && (
+									<Text
+										style={{
+											color: tokens.colorNeutralForeground3,
+											padding: tokens.spacingHorizontalM,
+											textAlign: "center",
+										}}
+									>
+										No web resources found.
+									</Text>
+								)}
+								{!loading && filtered.length > 0 && (
+									<DataGrid
+										className={styles.gridWrap}
+										items={filtered}
+										columns={columns}
+										getRowId={(item) => item.id}
+										focusMode="composite"
+										selectionMode="single"
+										subtleSelection
+										selectedItems={
+											selectedId ? new Set([selectedId]) : new Set()
+										}
+										onSelectionChange={(_, data) => {
+											const id = [...data.selectedItems][0] as
+												string | undefined;
+											setSelectedId(id ?? null);
+										}}
+									>
+										<DataGridHeader>
+											<DataGridRow>
+												{({ renderHeaderCell }) => (
+													<DataGridHeaderCell>
+														{renderHeaderCell()}
+													</DataGridHeaderCell>
+												)}
+											</DataGridRow>
+										</DataGridHeader>
+										<DataGridBody<WebResource>
+											itemSize={56}
+											height={360}
+											listProps={{ width: "100%" }}
+										>
+											{({ item, rowId }, style) => (
+												<DataGridRow<WebResource>
+													key={rowId}
+													style={style}
+													className={`${styles.gridRow} ${item.id === selectedId ? styles.gridRowSelected : ""}`}
+													onDoubleClick={() => {
+														setSelectedId(item.id);
+														webResourceBrowserCallbackRegistry.invoke(
+															item,
+														);
+														onSelect?.(item);
+														closeWebResourceBrowser();
+													}}
+												>
+													{({ renderCell }) => (
+														<DataGridCell>
+															{renderCell(item)}
+														</DataGridCell>
+													)}
+												</DataGridRow>
+											)}
+										</DataGridBody>
+									</DataGrid>
+								)}
+							</div>
+
+							{selectedWr && (
+								<div
+									style={{
+										padding: tokens.spacingHorizontalXS,
+										backgroundColor: tokens.colorNeutralBackground3,
+										borderRadius: tokens.borderRadiusMedium,
+										flexShrink: 0,
+									}}
+								>
+									<Text
+										size={200}
+										style={{ fontFamily: tokens.fontFamilyMonospace }}
+									>
+										$webresource:{selectedWr.name}
+									</Text>
+								</div>
+							)}
+						</DialogContent>
+
+						<DialogActions fluid>
 							<Button
 								appearance="subtle"
-								icon={<DismissRegular />}
-								onClick={closeWebResourceBrowser}
-								aria-label="Close"
-							/>
-						}
-					>
-						<Subtitle2>Web Resource Browser</Subtitle2>
-					</DialogTitle>
-
-					<DialogContent className={styles.body}>
-						<input
-							ref={uploadInputRef}
-							type="file"
-							accept=".js,.html,.svg,.png,.css,.xml,.resx,.jpg,.gif,.ico,.xsl"
-							style={{ display: "none" }}
-							onChange={(e) => {
-								const file = e.target.files?.[0];
-								e.currentTarget.value = "";
-								if (file) void handleUpload(file);
-							}}
-						/>
-						<div className={styles.toolbar}>
-							<Input
-								contentBefore={<SearchRegular />}
-								placeholder="Search by name…"
-								value={search}
-								onChange={(_, d) => setSearch(d.value)}
-								size="small"
-								style={{ flex: 1 }}
-							/>
-							<Select
-								size="small"
-								value={typeFilter}
-								onChange={(_, d) => setTypeFilter(d.value)}
-								style={{ width: "100px" }}
+								icon={<ArrowUploadRegular />}
+								disabled={uploading}
+								onClick={() => uploadInputRef.current?.click()}
 							>
-								{TYPE_OPTIONS.map((o) => (
-									<option key={o.value} value={o.value}>
-										{o.label}
-									</option>
-								))}
-							</Select>
-							<Checkbox
-								label="Custom only"
-								checked={customOnly}
-								onChange={(_, d) => setCustomOnly(d.checked === true)}
-							/>
-						</div>
-
-						{error && (
-							<MessageBar intent="error">
-								<MessageBarBody>{error}</MessageBarBody>
-							</MessageBar>
-						)}
-						{warning && (
-							<MessageBar intent="warning">
-								<MessageBarBody>{warning}</MessageBarBody>
-							</MessageBar>
-						)}
-
-						<div className={styles.grid}>
-							{loading && (
-								<Text
-									style={{
-										color: tokens.colorNeutralForeground3,
-										padding: tokens.spacingHorizontalM,
-									}}
-								>
-									Loading web resources…
-								</Text>
-							)}
-							{!loading && filtered.length === 0 && (
-								<Text
-									style={{
-										color: tokens.colorNeutralForeground3,
-										padding: tokens.spacingHorizontalM,
-										textAlign: "center",
-									}}
-								>
-									No web resources found.
-								</Text>
-							)}
-							{!loading && filtered.length > 0 && (
-								<DataGrid
-									className={styles.gridWrap}
-									items={filtered}
-									columns={columns}
-									getRowId={(item) => item.id}
-									focusMode="composite"
-									selectionMode="single"
-									subtleSelection
-									selectedItems={selectedId ? new Set([selectedId]) : new Set()}
-									onSelectionChange={(_, data) => {
-										const id = [...data.selectedItems][0] as string | undefined;
-										setSelectedId(id ?? null);
-									}}
-								>
-									<DataGridHeader>
-										<DataGridRow>
-											{({ renderHeaderCell }) => (
-												<DataGridHeaderCell>{renderHeaderCell()}</DataGridHeaderCell>
-											)}
-										</DataGridRow>
-									</DataGridHeader>
-									<DataGridBody<WebResource>
-										itemSize={56}
-										height={360}
-										listProps={{ width: "100%" }}
-									>
-										{({ item, rowId }, style) => (
-											<DataGridRow<WebResource>
-												key={rowId}
-												style={style}
-												className={`${styles.gridRow} ${item.id === selectedId ? styles.gridRowSelected : ""}`}
-												onDoubleClick={() => {
-													setSelectedId(item.id);
-													webResourceBrowserCallbackRegistry.invoke(item);
-													onSelect?.(item);
-													closeWebResourceBrowser();
-												}}
-											>
-												{({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
-											</DataGridRow>
-										)}
-									</DataGridBody>
-								</DataGrid>
-							)}
-						</div>
-
-						{selectedWr && (
-							<div
-								style={{
-									padding: tokens.spacingHorizontalXS,
-									backgroundColor: tokens.colorNeutralBackground3,
-									borderRadius: tokens.borderRadiusMedium,
-									flexShrink: 0,
-								}}
+								{uploading ? "Uploading…" : "Upload"}
+							</Button>
+							<EnvironmentBadge prefix="Uploads to" />
+							<div style={{ flex: 1 }} />
+							<Button appearance="secondary" onClick={closeWebResourceBrowser}>
+								Cancel
+							</Button>
+							<Button
+								appearance="primary"
+								disabled={!selectedWr}
+								onClick={handleSelect}
 							>
-								<Text size={200} style={{ fontFamily: tokens.fontFamilyMonospace }}>
-									$webresource:{selectedWr.name}
-								</Text>
-							</div>
-						)}
-					</DialogContent>
-
-					<DialogActions fluid>
-						<Button
-							appearance="subtle"
-							icon={<ArrowUploadRegular />}
-							disabled={uploading}
-							onClick={() => uploadInputRef.current?.click()}
-						>
-							{uploading ? "Uploading…" : "Upload"}
-						</Button>
-						<EnvironmentBadge prefix="Uploads to" />
-						<div style={{ flex: 1 }} />
-						<Button appearance="secondary" onClick={closeWebResourceBrowser}>
-							Cancel
-						</Button>
-						<Button appearance="primary" disabled={!selectedWr} onClick={handleSelect}>
-							Select
-						</Button>
-					</DialogActions>
-				</DialogBody>
-			</DialogSurface>
-		</Dialog>
+								Select
+							</Button>
+						</DialogActions>
+					</DialogBody>
+				</DialogSurface>
+			</Dialog>
 		</>
 	);
 };

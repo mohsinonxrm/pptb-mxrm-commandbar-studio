@@ -109,7 +109,10 @@ function attributeProblems(el: Element, where: string, isStep: boolean): string[
 			);
 		}
 	}
-	if ((tag === "JavaScriptFunction" || tag === "CustomRule") && /^\$webresource:\s*$/i.test(el.getAttribute("Library") ?? "")) {
+	if (
+		(tag === "JavaScriptFunction" || tag === "CustomRule") &&
+		/^\$webresource:\s*$/i.test(el.getAttribute("Library") ?? "")
+	) {
 		out.push(`${where}: ${tag} Library names no web resource`);
 	}
 	if (tag === "EntityRule") {

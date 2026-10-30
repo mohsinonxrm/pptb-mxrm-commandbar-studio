@@ -43,7 +43,10 @@ describe("withCloseGuard (#10)", () => {
 	it("doesn't wait more than a moment for a host that never answers", async () => {
 		vi.useFakeTimers();
 		try {
-			setApi({ preventClose: () => new Promise<boolean>(() => {}), releasePreventClose: () => new Promise<boolean>(() => {}) });
+			setApi({
+				preventClose: () => new Promise<boolean>(() => {}),
+				releasePreventClose: () => new Promise<boolean>(() => {}),
+			});
 			const work = vi.fn(async () => "done");
 			const run = withCloseGuard(work);
 			await vi.advanceTimersByTimeAsync(2000);

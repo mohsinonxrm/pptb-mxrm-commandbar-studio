@@ -118,7 +118,9 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 				?.buttons.some((b) => b.id === button.id),
 	);
 	const kindLocked = useRibbonStore((s) => isLoadedControl(s, location, button.id));
-	const kindOptions = [...new Set([...(isMenuItem ? MENU_ITEM_KINDS : BUTTON_KINDS), button.kind])];
+	const kindOptions = [
+		...new Set([...(isMenuItem ? MENU_ITEM_KINDS : BUTTON_KINDS), button.kind]),
+	];
 
 	function patch(update: Partial<RibbonButton>) {
 		setButtonProp(location, tabId, groupId, button.id, update);
@@ -138,8 +140,8 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 						<Text size={200}>
 							{button.origin === "oob" ? (
 								<>
-									This is an <strong>out-of-the-box</strong> (system) button. To change it, create
-									an override.
+									This is an <strong>out-of-the-box</strong> (system) button. To
+									change it, create an override.
 								</>
 							) : (
 								<>
@@ -150,14 +152,16 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 											(<strong>{button.solutionName}</strong>)
 										</>
 									) : null}
-									{button.publisherName ? <> by {button.publisherName}</> : null}. You can't edit it
-									directly — create an override to change it.
+									{button.publisherName ? <> by {button.publisherName}</> : null}.
+									You can't edit it directly — create an override to change it.
 								</>
 							)}{" "}
 							<Button
 								size="small"
 								appearance="subtle"
-								onClick={() => customizeOobButton(location, tabId, groupId, button.id)}
+								onClick={() =>
+									customizeOobButton(location, tabId, groupId, button.id)
+								}
 							>
 								Create override
 							</Button>
@@ -167,8 +171,17 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 									appearance="subtle"
 									title="Copy the button into your solution and hide the original, so the copy can be changed and moved"
 									onClick={() => {
-										const prefix = activeSolution?.publisherPrefix?.trim() || sessionPrefix?.trim() || "new";
-										const id = customiseButton(location, tabId, groupId, button.id, prefix);
+										const prefix =
+											activeSolution?.publisherPrefix?.trim() ||
+											sessionPrefix?.trim() ||
+											"new";
+										const id = customiseButton(
+											location,
+											tabId,
+											groupId,
+											button.id,
+											prefix,
+										);
 										if (id) selectButtonInContext(location, tabId, groupId, id);
 									}}
 								>
@@ -244,7 +257,12 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 							<ImageRegular style={{ color: tokens.colorNeutralForeground3 }} />
 						)}
 					</div>
-					<Button appearance="subtle" size="small" icon={<ImageRegular />} onClick={openIconPicker}>
+					<Button
+						appearance="subtle"
+						size="small"
+						icon={<ImageRegular />}
+						onClick={openIconPicker}
+					>
 						Change…
 					</Button>
 				</div>

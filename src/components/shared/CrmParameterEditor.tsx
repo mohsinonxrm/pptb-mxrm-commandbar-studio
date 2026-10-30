@@ -133,7 +133,12 @@ function NumberParamInput({
 				setText(d.value);
 				const n = Number(d.value);
 				// Written as String(n): 1e-7 would be exponent form, which xs:decimal doesn't allow.
-				if (d.value.trim() !== "" && Number.isFinite(n) && (!integer || Number.isInteger(n)) && !/e/i.test(String(n)))
+				if (
+					d.value.trim() !== "" &&
+					Number.isFinite(n) &&
+					(!integer || Number.isInteger(n)) &&
+					!/e/i.test(String(n))
+				)
 					onChange(n);
 			}}
 			onBlur={() => setText(Number.isFinite(value) ? String(value) : "")}
@@ -179,8 +184,10 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 							value={param.kind}
 							onChange={(_, d) => {
 								const kind = d.value as ActionParameter["kind"];
-								if (kind === "CrmParameter") setParam(i, { kind, value: "PrimaryControl" });
-								else if (kind === "BoolParameter") setParam(i, { kind, value: false });
+								if (kind === "CrmParameter")
+									setParam(i, { kind, value: "PrimaryControl" });
+								else if (kind === "BoolParameter")
+									setParam(i, { kind, value: false });
 								else if (kind === "IntParameter" || kind === "DecimalParameter")
 									setParam(i, { kind, value: 0 });
 								else setParam(i, { kind: "StringParameter", value: "" });
@@ -195,10 +202,15 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 					</div>
 
 					{urlMode && (
-						<Field label="Name (querystring key)" style={{ width: "130px", flexShrink: 0 }}>
+						<Field
+							label="Name (querystring key)"
+							style={{ width: "130px", flexShrink: 0 }}
+						>
 							<Input
 								value={param.name ?? ""}
-								onChange={(_, d) => setParam(i, { ...param, name: d.value || undefined })}
+								onChange={(_, d) =>
+									setParam(i, { ...param, name: d.value || undefined })
+								}
 								placeholder="key"
 							/>
 						</Field>
@@ -208,32 +220,45 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 						{param.kind === "CrmParameter" ? (
 							<Select
 								value={param.value as string}
-								onChange={(_, d) => setParam(i, { ...param, value: d.value as CrmParameterValue })}
+								onChange={(_, d) =>
+									setParam(i, { ...param, value: d.value as CrmParameterValue })
+								}
 							>
 								{CRM_PARAM_GROUPED.map((group) =>
 									group.values
 										// Url parameters take CrmNamedParameterValue (no …ItemReferences) — #41.
-										.filter((v) => !urlMode || !URL_INVALID_CRM_PARAMETER_VALUES.has(v))
+										.filter(
+											(v) =>
+												!urlMode ||
+												!URL_INVALID_CRM_PARAMETER_VALUES.has(v),
+										)
 										.map((v) => (
-										<option key={v} value={v}>
-											{v}
-										</option>
-									)),
+											<option key={v} value={v}>
+												{v}
+											</option>
+										)),
 								)}
 							</Select>
 						) : param.kind === "BoolParameter" ? (
 							<Checkbox
 								checked={param.value as boolean}
-								onChange={(_, d) => setParam(i, { ...param, value: d.checked as boolean })}
+								onChange={(_, d) =>
+									setParam(i, { ...param, value: d.checked as boolean })
+								}
 								label="true"
 							/>
 						) : param.kind === "StringParameter" ? (
-							<Input value={String(param.value)} onChange={(_, d) => setParam(i, { ...param, value: d.value })} />
+							<Input
+								value={String(param.value)}
+								onChange={(_, d) => setParam(i, { ...param, value: d.value })}
+							/>
 						) : (
 							<NumberParamInput
 								value={param.value as number}
 								integer={param.kind === "IntParameter"}
-								onChange={(value) => setParam(i, { ...param, value } as ActionParameter)}
+								onChange={(value) =>
+									setParam(i, { ...param, value } as ActionParameter)
+								}
 							/>
 						)}
 					</div>
@@ -277,8 +302,8 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 
 			{urlMode && (
 				<Text className={styles.hint}>
-					For URL actions, each CrmParameter must have a <code>name</code> attribute (querystring
-					key).
+					For URL actions, each CrmParameter must have a <code>name</code> attribute
+					(querystring key).
 				</Text>
 			)}
 

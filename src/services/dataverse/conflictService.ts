@@ -7,11 +7,12 @@ function getDataverseAPI() {
 function parseSolutions(rows: Record<string, unknown>[]): ConflictSolutionLayer[] {
 	const mapped = rows.map((row) => {
 		const publisher = row["publisherid"] as
-			| { friendlyname?: string; customizationprefix?: string }
-			| undefined;
+			{ friendlyname?: string; customizationprefix?: string } | undefined;
 		const versionNumberRaw = row["versionnumber"];
 		const versionNumber =
-			typeof versionNumberRaw === "number" ? versionNumberRaw : Number(versionNumberRaw ?? 0) || 0;
+			typeof versionNumberRaw === "number"
+				? versionNumberRaw
+				: Number(versionNumberRaw ?? 0) || 0;
 
 		return {
 			solutionId: String(row["solutionid"] ?? ""),

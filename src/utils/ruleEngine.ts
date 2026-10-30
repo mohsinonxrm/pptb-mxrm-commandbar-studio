@@ -22,7 +22,8 @@ export interface RuleContext {
  * Produces a human-readable English summary of a rule (all steps joined with AND).
  */
 export function summarizeRule(steps: RuleStep[]): string {
-	if (steps.length === 0) return "No steps defined — a rule needs at least one before it can be published.";
+	if (steps.length === 0)
+		return "No steps defined — a rule needs at least one before it can be published.";
 	return steps.map(summarizeStep).join(" AND ");
 }
 
@@ -73,7 +74,9 @@ function evaluateStep(step: RuleStep, context: RuleContext): boolean {
 		}
 		case "OrRule": {
 			// Each <Or> group is an AND of its steps; the OrRule is any group.
-			result = step.groups.some((group) => group.every((nested) => evaluateStep(nested, context)));
+			result = step.groups.some((group) =>
+				group.every((nested) => evaluateStep(nested, context)),
+			);
 			break;
 		}
 		default:
@@ -114,7 +117,9 @@ function summarizeStep(step: RuleStep): string {
 		case "OrRule": {
 			const nested = step.groups
 				.map((group) =>
-					group.length === 1 ? summarizeStep(group[0]) : `(${group.map(summarizeStep).join(" AND ")})`,
+					group.length === 1
+						? summarizeStep(group[0])
+						: `(${group.map(summarizeStep).join(" AND ")})`,
 				)
 				.join(" OR ");
 			return `(${nested})`;

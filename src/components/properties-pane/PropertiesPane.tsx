@@ -92,8 +92,14 @@ export function PropertiesPane() {
 					{place && (
 						<div className={styles.section}>
 							<Caption1>
-								Menu item of “{captionOf(place.parent.label, locLabels, undefined, place.parent.source?.labelToken)}”
-								{place.section.title ? ` — section “${place.section.title}”` : ""}
+								Menu item of “
+								{captionOf(
+									place.parent.label,
+									locLabels,
+									undefined,
+									place.parent.source?.labelToken,
+								)}
+								”{place.section.title ? ` — section “${place.section.title}”` : ""}
 							</Caption1>
 						</div>
 					)}

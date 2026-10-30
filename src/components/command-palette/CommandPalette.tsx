@@ -150,7 +150,10 @@ export const CommandPalette: React.FC = () => {
 		const targetGroupId = selectedGroupId ?? fallbackGroupId;
 		// ToggleButton, Label, DropDown, …: their labels aren't edited (#42).
 		const selectedReadOnly = isReadOnlyControlKind(
-			findGroupControl(activeTab?.groups.find((g) => g.id === selectedGroupId), selectedButtonId)?.kind,
+			findGroupControl(
+				activeTab?.groups.find((g) => g.id === selectedGroupId),
+				selectedButtonId,
+			)?.kind,
 		);
 
 		// Actions
@@ -184,14 +187,18 @@ export const CommandPalette: React.FC = () => {
 					close();
 					// Opens with the clipboard's XML; empty, and saying why, when it
 					// can't be read (PPTB has no clipboard read, #122).
-					const refused = "Couldn't read the clipboard here: paste the XML into the editor (Ctrl+V).";
+					const refused =
+						"Couldn't read the clipboard here: paste the XML into the editor (Ctrl+V).";
 					const read = navigator.clipboard?.readText?.();
 					if (!read) return openImportXml("", refused);
 					read.then(
 						(t) =>
 							t.trim().startsWith("<")
 								? openImportXml(t)
-								: openImportXml("", "The clipboard doesn't hold XML: paste the XML into the editor."),
+								: openImportXml(
+										"",
+										"The clipboard doesn't hold XML: paste the XML into the editor.",
+									),
 						() => openImportXml("", refused),
 					);
 				},
@@ -275,7 +282,13 @@ export const CommandPalette: React.FC = () => {
 						groupControls(g).map((b) => ({
 							id: `btn-${b.id}`,
 							// As the canvas shows them (#6); the loaded label and id are searched too.
-							label: captionOf(b.label, paletteLocLabels, undefined, b.source?.labelToken) || b.id,
+							label:
+								captionOf(
+									b.label,
+									paletteLocLabels,
+									undefined,
+									b.source?.labelToken,
+								) || b.id,
 							subtitle: `${loc} → ${captionOf(t.label, paletteLocLabels, undefined, t.source?.titleToken)} → ${captionOf(g.label, paletteLocLabels, undefined, g.source?.titleToken)}`,
 							keywords: `${b.label} ${b.id}`,
 							kind: "button" as const,
@@ -389,7 +402,9 @@ export const CommandPalette: React.FC = () => {
 				aria-label="Command palette"
 			>
 				<div className={styles.searchRow}>
-					<SearchRegular style={{ color: tokens.colorNeutralForeground3, flexShrink: 0 }} />
+					<SearchRegular
+						style={{ color: tokens.colorNeutralForeground3, flexShrink: 0 }}
+					/>
 					<input
 						ref={inputRef}
 						className={styles.searchInput}
@@ -428,7 +443,9 @@ export const CommandPalette: React.FC = () => {
 					))}
 					{filtered.length === 0 && (
 						<div className={styles.item}>
-							<Text style={{ color: tokens.colorNeutralForeground3 }}>No results</Text>
+							<Text style={{ color: tokens.colorNeutralForeground3 }}>
+								No results
+							</Text>
 						</div>
 					)}
 				</div>

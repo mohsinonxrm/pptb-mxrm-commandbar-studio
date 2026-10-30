@@ -64,7 +64,10 @@ function createDefaultStep(kind: RuleStep["kind"]): RuleStep {
 		case "OrRule":
 			return {
 				kind,
-				groups: [[{ kind: "FormStateRule", state: "Existing" }], [{ kind: "FormStateRule", state: "Create" }]],
+				groups: [
+					[{ kind: "FormStateRule", state: "Existing" }],
+					[{ kind: "FormStateRule", state: "Create" }],
+				],
 			};
 		case "FeatureControlRule":
 			return { kind, featureControlBit: "", expectedValue: true };

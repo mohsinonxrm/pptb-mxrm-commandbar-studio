@@ -129,13 +129,23 @@ export const DiffViewer: React.FC = () => {
 	const isDark = themeMode === "dark";
 
 	const baselineXml = useMemo(
-		() => tryGenerateXml(ribbons, baseline, commands, displayRules, enableRules, locLabels, true),
+		() =>
+			tryGenerateXml(ribbons, baseline, commands, displayRules, enableRules, locLabels, true),
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[open],
 	);
 
 	const currentXml = useMemo(
-		() => tryGenerateXml(ribbons, baseline, commands, displayRules, enableRules, locLabels, false),
+		() =>
+			tryGenerateXml(
+				ribbons,
+				baseline,
+				commands,
+				displayRules,
+				enableRules,
+				locLabels,
+				false,
+			),
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[open, ribbons, baseline, commands, displayRules, enableRules, locLabels],
 	);
@@ -179,7 +189,9 @@ export const DiffViewer: React.FC = () => {
 						/>
 					}
 				>
-					<Subtitle2>{mode === "compare" ? "Compare to baseline" : "Diff viewer"}</Subtitle2>
+					<Subtitle2>
+						{mode === "compare" ? "Compare to baseline" : "Diff viewer"}
+					</Subtitle2>
 				</DrawerHeaderTitle>
 			</DrawerHeader>
 

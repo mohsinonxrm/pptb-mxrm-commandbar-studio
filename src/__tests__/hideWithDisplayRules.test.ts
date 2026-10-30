@@ -29,9 +29,18 @@ const MERGED = `<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs>
 describe("hiding a button with display rules", () => {
 	it("adds the two platform display rules to the button's command and publishes the command, not a HideCustomAction", () => {
 		const parsed = parseRibbonXml(MERGED, "Form", "contact");
-		const empty = (location: "HomepageGrid" | "SubGrid" | "Application") => ({ location, entityLogicalName: "contact", tabs: [] });
+		const empty = (location: "HomepageGrid" | "SubGrid" | "Application") => ({
+			location,
+			entityLogicalName: "contact",
+			tabs: [],
+		});
 		useRibbonStore.getState().loadWorkspace({
-			ribbons: { Form: parsed.ribbon, HomepageGrid: empty("HomepageGrid"), SubGrid: empty("SubGrid"), Application: empty("Application") },
+			ribbons: {
+				Form: parsed.ribbon,
+				HomepageGrid: empty("HomepageGrid"),
+				SubGrid: empty("SubGrid"),
+				Application: empty("Application"),
+			},
 			commands: parsed.commands,
 			displayRules: parsed.displayRules,
 			enableRules: parsed.enableRules,
@@ -77,7 +86,10 @@ describe("hiding a button with display rules", () => {
 		const appRibbon = JSON.parse(JSON.stringify(parsed.ribbon));
 		appRibbon.location = "Application";
 		appRibbon.tabs[0].groups[0].buttons[0].id = "Mscrm.Form.{!EntityLogicalName}.Deactivate";
-		const edited = parsed.commands.map((c) => ({ ...c, displayRules: [...c.displayRules, ...HIDE_DISPLAY_RULES] }));
+		const edited = parsed.commands.map((c) => ({
+			...c,
+			displayRules: [...c.displayRules, ...HIDE_DISPLAY_RULES],
+		}));
 		const common = {
 			commands: edited,
 			baselineCommands: parsed.commands,
@@ -87,7 +99,11 @@ describe("hiding a button with display rules", () => {
 			baselineDisplayRules: parsed.displayRules,
 		};
 		const app = (excludeCommandIds?: Set<string>) =>
-			planScope({ ...common, locations: [{ current: appRibbon, baseline: appRibbon }], excludeCommandIds });
+			planScope({
+				...common,
+				locations: [{ current: appRibbon, baseline: appRibbon }],
+				excludeCommandIds,
+			});
 		// Without the table's commands excluded, the shared command leaks into the application scope.
 		expect(app().editedCommandIds).toEqual(["Mscrm.Form.Deactivate"]);
 		const plan = app(new Set(["Mscrm.Form.Deactivate"]));

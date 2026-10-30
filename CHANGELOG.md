@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🏗️ Technical
+
+- **Formatting is enforced (#118, item 1).** The codebase is formatted with Prettier once, in its
+  own commit (146 files: line wrapping, indentation, trailing commas and parentheses; no behaviour
+  change). CI now runs `npm run format:check`
+  after lint, so unformatted code fails the build. This comes first in the UI/UX work (#193),
+  so later diffs show only real changes.
+
 ## [0.8.0-beta.1] - 2026-10-25
 
 The first beta of 0.8.0 (npm `beta`), on publish correctness and load performance:

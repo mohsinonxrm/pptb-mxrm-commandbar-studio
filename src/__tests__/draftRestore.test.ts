@@ -9,7 +9,10 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import { parseRibbonXml } from "@/services/xmlParser";
 import { partsFromRibbonTables, ownControlIds } from "@/services/ribbonDiffMerge";
-import { layerSnapshotFromParts, locLabelsFromParts } from "@/services/dataverse/ribbonLayerService";
+import {
+	layerSnapshotFromParts,
+	locLabelsFromParts,
+} from "@/services/dataverse/ribbonLayerService";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { planScope } from "@/services/publishPlan";
 import { useRibbonStore, workspaceOf } from "@/store/ribbonStore";
@@ -103,7 +106,10 @@ const layerParts = () =>
 					`<Button Id="cbs.Mine2" Command="cbs.Mine.Command" Sequence="910" LabelText="Mine 2" TemplateAlias="o1" />`,
 				),
 			},
-			{ difftype: 0, rdx: `<HideCustomAction HideActionId="cbs.Hide.Merge" Location="${HIDDEN}" />` },
+			{
+				difftype: 0,
+				rdx: `<HideCustomAction HideActionId="cbs.Hide.Merge" Location="${HIDDEN}" />`,
+			},
 			{
 				difftype: 3,
 				rdx: `<LocLabel Id="cbs.Mine.LabelText"><Titles><Title languagecode="1033" description="Mine"/><Title languagecode="1036" description="Le mien"/></Titles></LocLabel>`,
@@ -127,7 +133,11 @@ const SOLUTION_A = "aaaaaaaa-0000-0000-0000-000000000001";
 const SOLUTION_B = "bbbbbbbb-0000-0000-0000-000000000002";
 const KEY: DraftKey = { orgUrl: ORG, solutionId: SOLUTION_A, entityLogicalName: T };
 
-const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: T, tabs: [] });
+const empty = (location: RibbonLocation): RibbonDefinition => ({
+	location,
+	entityLogicalName: T,
+	tabs: [],
+});
 const ENTITY_LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form"];
 
 const store = () => useRibbonStore.getState();
@@ -154,7 +164,12 @@ function freshLoad(
 	applyLayerOwnership(parsed.ribbon, ownControlIds(parts));
 	server.mutate?.(parsed.ribbon);
 	store().loadWorkspace({
-		ribbons: { HomepageGrid: parsed.ribbon, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+		ribbons: {
+			HomepageGrid: parsed.ribbon,
+			SubGrid: empty("SubGrid"),
+			Form: empty("Form"),
+			Application: empty("Application"),
+		},
 		commands: parsed.commands,
 		displayRules: parsed.displayRules,
 		enableRules: parsed.enableRules,
@@ -167,7 +182,11 @@ function freshLoad(
 /** The publish plans of both scopes, as the publish dialog builds them. */
 function plans() {
 	const s = store();
-	const planFor = (locations: RibbonLocation[], scope: "entity" | "application", excludeCommandIds?: Set<string>) =>
+	const planFor = (
+		locations: RibbonLocation[],
+		scope: "entity" | "application",
+		excludeCommandIds?: Set<string>,
+	) =>
 		planScope({
 			locations: locations.map((l) => ({ current: s.ribbons[l], baseline: s.baseline[l] })),
 			excludeCommandIds,
@@ -188,8 +207,12 @@ function plans() {
 	for (const l of ENTITY_LOCATIONS)
 		for (const tab of s.ribbons[l].tabs)
 			for (const group of tab.groups)
-				for (const button of groupControls(group)) if (button.commandId) tableCommands.add(button.commandId);
-	return { entity: planFor(ENTITY_LOCATIONS, "entity"), application: planFor(["Application"], "application", tableCommands) };
+				for (const button of groupControls(group))
+					if (button.commandId) tableCommands.add(button.commandId);
+	return {
+		entity: planFor(ENTITY_LOCATIONS, "entity"),
+		application: planFor(["Application"], "application", tableCommands),
+	};
 }
 
 /** Edit → saved draft → a new session loads the table → restore: the same plan and workspace. */
@@ -239,7 +262,15 @@ let unsubscribe: () => void;
 
 beforeEach(() => {
 	localStorage.clear();
-	useDraftStore.setState({ target: null, pending: null, pendingBaselineChanged: false, pendingSwitch: null, saveFailed: false, lastSavedAt: null, restoreError: null });
+	useDraftStore.setState({
+		target: null,
+		pending: null,
+		pendingBaselineChanged: false,
+		pendingSwitch: null,
+		saveFailed: false,
+		lastSavedAt: null,
+		restoreError: null,
+	});
 	useSessionStore.setState({
 		connectionUrl: ORG,
 		activeSolution: solution(SOLUTION_A, "SolutionA"),
@@ -255,10 +286,20 @@ afterEach(() => {
 describe("#16 — a restored draft publishes what the session that saved it would have", () => {
 	it("a new button with a new command and rule", () => {
 		const p = expectRoundTrip(() => {
-			store().upsertEnableRule({ id: "cbs.New.Rule", steps: [{ kind: "SelectionCountRule", minimum: 1 }] });
+			store().upsertEnableRule({
+				id: "cbs.New.Rule",
+				steps: [{ kind: "SelectionCountRule", minimum: 1 }],
+			});
 			store().upsertCommand({
 				id: "cbs.New.Command",
-				actions: [{ kind: "javascript", library: "$webresource:cbs_/new.js", functionName: "Cbs.go", params: [] }],
+				actions: [
+					{
+						kind: "javascript",
+						library: "$webresource:cbs_/new.js",
+						functionName: "Cbs.go",
+						params: [],
+					},
+				],
 				enableRules: ["cbs.New.Rule"],
 				displayRules: [],
 			});
@@ -266,7 +307,17 @@ describe("#16 — a restored draft publishes what the session that saved it woul
 				location: "HomepageGrid",
 				tabId: MAIN,
 				groupId: MGMT,
-				button: { id: "cbs.New", label: "New one", kind: "button", templateAlias: "o1", commandId: "cbs.New.Command", hidden: false, oob: false, custom: true, managed: false },
+				button: {
+					id: "cbs.New",
+					label: "New one",
+					kind: "button",
+					templateAlias: "o1",
+					commandId: "cbs.New.Command",
+					hidden: false,
+					oob: false,
+					custom: true,
+					managed: false,
+				},
 			});
 		});
 		expect(p.entity.editedCommandIds).toContain("cbs.New.Command");
@@ -279,7 +330,15 @@ describe("#16 — a restored draft publishes what the session that saved it woul
 			const cmd = store().commands.find((c) => c.id === DELETE)!;
 			store().upsertCommand({
 				...cmd,
-				actions: [...cmd.actions, { kind: "javascript", library: "$webresource:cbs_/audit.js", functionName: "Cbs.audit", params: [] }],
+				actions: [
+					...cmd.actions,
+					{
+						kind: "javascript",
+						library: "$webresource:cbs_/audit.js",
+						functionName: "Cbs.audit",
+						params: [],
+					},
+				],
 			});
 		});
 		expect(p.entity.editedCommandIds).toEqual([DELETE]);
@@ -295,7 +354,10 @@ describe("#16 — a restored draft publishes what the session that saved it woul
 	it("an edited rule", () => {
 		const p = expectRoundTrip(() => {
 			const rule = store().enableRules.find((r) => r.id === "cbs.Shared.Rule")!;
-			store().upsertEnableRule({ ...rule, steps: [...rule.steps, { kind: "SelectionCountRule", minimum: 1 }] });
+			store().upsertEnableRule({
+				...rule,
+				steps: [...rule.steps, { kind: "SelectionCountRule", minimum: 1 }],
+			});
 		});
 		expect(p.entity.editedEnableRuleIds).toEqual(["cbs.Shared.Rule"]);
 	});
@@ -309,7 +371,9 @@ describe("#16 — a restored draft publishes what the session that saved it woul
 					{ languageCode: 1036, description: "À moi" },
 				],
 			});
-			store().setButtonProp("HomepageGrid", MAIN, COLLAB, `Mscrm.HomepageGrid.${T}.Share`, { label: "Share it" });
+			store().setButtonProp("HomepageGrid", MAIN, COLLAB, `Mscrm.HomepageGrid.${T}.Share`, {
+				label: "Share it",
+			});
 		});
 		expect(p.entity.editedLocLabelIds).toEqual(["cbs.Mine.LabelText"]);
 	});
@@ -342,9 +406,15 @@ describe("#16 — a restored draft publishes what the session that saved it woul
 
 	it("customising a button and uncustomising a command", () => {
 		const p = expectRoundTrip(() => {
-			expect(store().customiseButton("HomepageGrid", MAIN, MGMT, `Mscrm.HomepageGrid.${T}.Edit`, "cbs")).toBe(
-				`cbs.Mscrm.HomepageGrid.${T}.Edit`,
-			);
+			expect(
+				store().customiseButton(
+					"HomepageGrid",
+					MAIN,
+					MGMT,
+					`Mscrm.HomepageGrid.${T}.Edit`,
+					"cbs",
+				),
+			).toBe(`cbs.Mscrm.HomepageGrid.${T}.Edit`);
 			store().uncustomiseCommand(ASSIGN, "entity");
 		});
 		expect(p.entity.uncustomisedCommandIds).toEqual([ASSIGN]);
@@ -406,7 +476,9 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 		drafts().discardDraft();
 		expect(drafts().pending).toBeNull();
 		const now = readDraft(KEY)!;
-		expect(draftWorkspace(now, store())).toEqual(JSON.parse(JSON.stringify(workspaceOf(store()))));
+		expect(draftWorkspace(now, store())).toEqual(
+			JSON.parse(JSON.stringify(workspaceOf(store()))),
+		);
 		expect(plans().entity.deletedButtonIds).toEqual([]);
 	});
 
@@ -456,11 +528,17 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 			JSON.stringify({ ribbons: {}, commands: [], savedAt: "2026-01-01T00:00:00Z" }),
 		);
 		// A draft of the first #16 format (the whole workspace, uncompressed) too.
-		localStorage.setItem(`cbs:draft:v2:https%3A%2F%2Fcontoso.crm.dynamics.com:${SOLUTION_A}:${T}`, "{}");
+		localStorage.setItem(
+			`cbs:draft:v2:https%3A%2F%2Fcontoso.crm.dynamics.com:${SOLUTION_A}:${T}`,
+			"{}",
+		);
 		expect(discardOutdatedDrafts()).toBe(2);
 		expect(localStorage.length).toBe(0);
 
-		localStorage.setItem(draftStorageKey(KEY), JSON.stringify({ format: DRAFT_FORMAT - 1, key: KEY, workspace: {} }));
+		localStorage.setItem(
+			draftStorageKey(KEY),
+			JSON.stringify({ format: DRAFT_FORMAT - 1, key: KEY, workspace: {} }),
+		);
 		freshLoad();
 		expect(drafts().pending).toBeNull();
 		expect(localStorage.getItem(draftStorageKey(KEY))).toBeNull();
@@ -472,7 +550,16 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 		const saved = readDraft(KEY)!;
 		freshLoad();
 		// Well-formed outside, broken inside.
-		const broken = { ...drafts().pending!, delta: { ...drafts().pending!.delta, lists: { ...drafts().pending!.delta.lists, commands: { set: [null], drop: [], add: [] } } } };
+		const broken = {
+			...drafts().pending!,
+			delta: {
+				...drafts().pending!.delta,
+				lists: {
+					...drafts().pending!.delta.lists,
+					commands: { set: [null], drop: [], add: [] },
+				},
+			},
+		};
 		useDraftStore.setState({ pending: broken });
 		const before = JSON.stringify(workspaceOf(store()));
 
@@ -500,14 +587,20 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
 		freshLoad();
 		expect(drafts().pendingBaselineChanged).toBe(false);
-		freshLoad(KEY, `<Button Id="other.Button" Command="${DELETE}" Sequence="950" LabelText="Other" TemplateAlias="o1" />`);
+		freshLoad(
+			KEY,
+			`<Button Id="other.Button" Command="${DELETE}" Sequence="950" LabelText="Other" TemplateAlias="o1" />`,
+		);
 		expect(drafts().pendingBaselineChanged).toBe(true);
 	});
 
 	it("only the changes are restored: what the server added since is kept", () => {
 		freshLoad();
 		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
-		freshLoad(KEY, `<Button Id="other.Button" Command="${DELETE}" Sequence="950" LabelText="Other" TemplateAlias="o1" />`);
+		freshLoad(
+			KEY,
+			`<Button Id="other.Button" Command="${DELETE}" Sequence="950" LabelText="Other" TemplateAlias="o1" />`,
+		);
 		expect(drafts().restoreDraft()).toBe(true);
 		const ids = store().ribbons.HomepageGrid.tabs[0].groups[0].buttons.map((b) => b.id);
 		expect(ids).toContain("other.Button");
@@ -519,7 +612,18 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 	it("a failed table publish keeps the draft of command and translation edits", () => {
 		freshLoad();
 		const cmd = store().commands.find((c) => c.id === "cbs.Mine.Command")!;
-		store().upsertCommand({ ...cmd, actions: [...cmd.actions, { kind: "javascript", library: "$webresource:cbs_/b.js", functionName: "Cbs.b", params: [] }] });
+		store().upsertCommand({
+			...cmd,
+			actions: [
+				...cmd.actions,
+				{
+					kind: "javascript",
+					library: "$webresource:cbs_/b.js",
+					functionName: "Cbs.b",
+					params: [],
+				},
+			],
+		});
 		store().upsertLocLabel({
 			id: "cbs.Mine.LabelText",
 			titles: [
@@ -542,9 +646,22 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 			location: "HomepageGrid",
 			tabId: MAIN,
 			groupId: MGMT,
-			button: { id: "cbs.New", label: "New one", kind: "button", templateAlias: "o1", commandId: "cbs.Mine.Command", hidden: false, oob: false, custom: true, managed: false },
+			button: {
+				id: "cbs.New",
+				label: "New one",
+				kind: "button",
+				templateAlias: "o1",
+				commandId: "cbs.Mine.Command",
+				hidden: false,
+				oob: false,
+				custom: true,
+				managed: false,
+			},
 		});
-		freshLoad(KEY, `<Button Id="cbs.New" Command="cbs.Mine.Command" Sequence="990" LabelText="New one" TemplateAlias="o1" />`);
+		freshLoad(
+			KEY,
+			`<Button Id="cbs.New" Command="cbs.Mine.Command" Sequence="990" LabelText="New one" TemplateAlias="o1" />`,
+		);
 		drafts().restoreDraft();
 		const ids = store().ribbons.HomepageGrid.tabs[0].groups[0].buttons.map((b) => b.id);
 		expect(ids.filter((id) => id === "cbs.New")).toHaveLength(1);
@@ -555,7 +672,9 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 		store().setButtonProp("HomepageGrid", MAIN, MGMT, "cbs.Mine2", { label: "Mine two" });
 		freshLoad(KEY, "", { without: "cbs.Mine2" });
 		drafts().restoreDraft();
-		const mine2 = store().ribbons.HomepageGrid.tabs[0].groups[0].buttons.find((b) => b.id === "cbs.Mine2");
+		const mine2 = store().ribbons.HomepageGrid.tabs[0].groups[0].buttons.find(
+			(b) => b.id === "cbs.Mine2",
+		);
 		expect(mine2?.label).toBe("Mine two");
 	});
 
@@ -573,7 +692,15 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 	it("location settings the draft didn't change come from the fresh load", () => {
 		freshLoad();
 		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
-		const scaling = { [MAIN]: { tabId: MAIN, maxSizes: [{ id: `${MAIN}.MaxSize`, groupId: MGMT, sequence: 10, size: "LargeLarge" }], scales: [] } };
+		const scaling = {
+			[MAIN]: {
+				tabId: MAIN,
+				maxSizes: [
+					{ id: `${MAIN}.MaxSize`, groupId: MGMT, sequence: 10, size: "LargeLarge" },
+				],
+				scales: [],
+			},
+		};
 		freshLoad(KEY, "", { mutate: (r) => (r.scalingByTab = scaling as never) });
 		drafts().restoreDraft();
 		expect(store().ribbons.HomepageGrid.scalingByTab).toEqual(scaling);
@@ -616,9 +743,21 @@ describe("#16 — when a draft is offered, saved and removed", () => {
 		store().deleteButton("HomepageGrid", MAIN, MGMT, "cbs.Mine2");
 		const k = draftStorageKey(KEY);
 		const stored = JSON.parse(localStorage.getItem(k)!);
-		localStorage.setItem(k, JSON.stringify({ ...stored, savedAt: new Date(Date.now() - 31 * 86_400_000).toISOString() }));
+		localStorage.setItem(
+			k,
+			JSON.stringify({
+				...stored,
+				savedAt: new Date(Date.now() - 31 * 86_400_000).toISOString(),
+			}),
+		);
 		const recent = draftStorageKey({ ...KEY, entityLogicalName: "account" });
-		localStorage.setItem(recent, JSON.stringify({ ...stored, savedAt: new Date(Date.now() - 2 * 86_400_000).toISOString() }));
+		localStorage.setItem(
+			recent,
+			JSON.stringify({
+				...stored,
+				savedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+			}),
+		);
 		expect(discardOutdatedDrafts()).toBe(1);
 		expect(localStorage.getItem(k)).toBeNull();
 		expect(localStorage.getItem(recent)).not.toBeNull();
@@ -712,7 +851,8 @@ describe("#16 — switching table or solution with unpublished changes", () => {
 	});
 });
 
-const fixture = (name: string) => readFileSync(resolve(__dirname, "../__fixtures__/ribbon", name), "utf-8");
+const fixture = (name: string) =>
+	readFileSync(resolve(__dirname, "../__fixtures__/ribbon", name), "utf-8");
 
 describe("#16 — draft size and a full browser storage", () => {
 	const CONTACT_TAB = "Mscrm.HomepageGrid.contact.MainTab";
@@ -720,10 +860,24 @@ describe("#16 — draft size and a full browser storage", () => {
 	/** A realistic workspace: contact's home grid, an application ribbon, ~500 commands and ~250 rules. */
 	function loadContact() {
 		drafts().beginLoad();
-		const home = parseRibbonXml(fixture("contact-homepage-menus.xml"), "HomepageGrid", "contact");
-		const defs = parseRibbonXml(fixture("contact-oob-commands-rules.xml"), "HomepageGrid", "contact");
-		const app = parseRibbonXml(fixture("app-oob-subset.xml"), "Application", "{!EntityLogicalName}");
-		const byId = <X extends { id: string }>(...lists: X[][]) => [...new Map(lists.flat().map((x) => [x.id, x])).values()];
+		const home = parseRibbonXml(
+			fixture("contact-homepage-menus.xml"),
+			"HomepageGrid",
+			"contact",
+		);
+		const defs = parseRibbonXml(
+			fixture("contact-oob-commands-rules.xml"),
+			"HomepageGrid",
+			"contact",
+		);
+		const app = parseRibbonXml(
+			fixture("app-oob-subset.xml"),
+			"Application",
+			"{!EntityLogicalName}",
+		);
+		const byId = <X extends { id: string }>(...lists: X[][]) => [
+			...new Map(lists.flat().map((x) => [x.id, x])).values(),
+		];
 		// The home grid tab on every location, as a table ribbon has them.
 		const asLocation = (location: RibbonLocation): RibbonDefinition => ({
 			...JSON.parse(JSON.stringify(home.ribbon)),
@@ -754,7 +908,18 @@ describe("#16 — draft size and a full browser storage", () => {
 		const button = group.buttons.find((b) => !b.hidden)!;
 		s.hideOobButton("HomepageGrid", CONTACT_TAB, group.id, button.id);
 		const cmd = store().commands[0];
-		store().upsertCommand({ ...cmd, actions: [...cmd.actions, { kind: "javascript", library: "$webresource:cbs_/a.js", functionName: "Cbs.a", params: [] }] });
+		store().upsertCommand({
+			...cmd,
+			actions: [
+				...cmd.actions,
+				{
+					kind: "javascript",
+					library: "$webresource:cbs_/a.js",
+					functionName: "Cbs.a",
+					params: [],
+				},
+			],
+		});
 	}
 
 	it("stores only the changes, compressed: a small fraction of the workspace", () => {
@@ -770,14 +935,21 @@ describe("#16 — draft size and a full browser storage", () => {
 		// Only the changed location is in it, and only the changed command in full.
 		const { delta } = readDraft(CONTACT_KEY)!;
 		expect(Object.keys(delta.ribbons)).toEqual(["HomepageGrid"]);
-		expect(delta.lists.commands).toEqual({ set: [expect.objectContaining({ id: store().commands[0].id })], drop: [], add: [] });
+		expect(delta.lists.commands).toEqual({
+			set: [expect.objectContaining({ id: store().commands[0].id })],
+			drop: [],
+			add: [],
+		});
 	});
 
 	it("the compact draft restores the same plan over a fresh load", () => {
 		useSessionStore.setState({ activeEntity: entity("contact") });
 		loadContact();
 		twoEdits();
-		const before = { plans: plans(), workspace: JSON.parse(JSON.stringify(workspaceOf(store()))) };
+		const before = {
+			plans: plans(),
+			workspace: JSON.parse(JSON.stringify(workspaceOf(store()))),
+		};
 		expect(before.plans.entity.hasChanges).toBe(true);
 		loadContact();
 		expect(drafts().restoreDraft()).toBe(true);

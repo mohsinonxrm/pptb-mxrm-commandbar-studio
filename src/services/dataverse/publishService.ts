@@ -69,7 +69,11 @@ const dataverseAPI = (window as Window & typeof globalThis).dataverseAPI!;
 // hosts. The VS Code extension (1.1.0) drops ImportJobId — CBS polls and
 // verifies that job — and sends a table publish to PublishAllXml (#89). These
 // are the requests the desktop app's helpers send.
-async function importSolution(customizationFile: string, importJobId: string, guard: WriteGuard): Promise<unknown> {
+async function importSolution(
+	customizationFile: string,
+	importJobId: string,
+	guard: WriteGuard,
+): Promise<unknown> {
 	// Never into another environment than the one the publish started on (#120).
 	await guard("The import");
 	return dataverseAPI.execute({
@@ -87,11 +91,15 @@ async function importSolution(customizationFile: string, importJobId: string, gu
 /** PublishXml for the given tables. */
 async function publishTables(entityLogicalNames: string[], guard: WriteGuard): Promise<unknown> {
 	await guard("Publishing");
-	const entities = entityLogicalNames.map((name) => `<entity>${escapeXml(name)}</entity>`).join("");
+	const entities = entityLogicalNames
+		.map((name) => `<entity>${escapeXml(name)}</entity>`)
+		.join("");
 	return dataverseAPI.execute({
 		operationName: "PublishXml",
 		operationType: "action",
-		parameters: { ParameterXml: `<importexportxml><entities>${entities}</entities></importexportxml>` },
+		parameters: {
+			ParameterXml: `<importexportxml><entities>${entities}</entities></importexportxml>`,
+		},
 	});
 }
 
@@ -194,7 +202,14 @@ export interface PublishRibbonInput {
 	baselineEnableRules?: EnableRule[];
 	baselineDisplayRules?: DisplayRule[];
 	/** What changed in this scope (see publishPlan.planScope). */
-	plan: Pick<ScopePlan, "editedCommandIds" | "editedEnableRuleIds" | "editedDisplayRuleIds" | "deletedButtonIds" | "unhiddenButtonIds"> &
+	plan: Pick<
+		ScopePlan,
+		| "editedCommandIds"
+		| "editedEnableRuleIds"
+		| "editedDisplayRuleIds"
+		| "deletedButtonIds"
+		| "unhiddenButtonIds"
+	> &
 		Partial<
 			Pick<
 				ScopePlan,
@@ -262,7 +277,10 @@ export interface PublishRibbonResult {
 
 function locLabelXml(label: LocLabel): string {
 	const titles = label.titles
-		.map((t) => `<Title languagecode="${t.languageCode}" description="${escapeXml(t.description)}"/>`)
+		.map(
+			(t) =>
+				`<Title languagecode="${t.languageCode}" description="${escapeXml(t.description)}"/>`,
+		)
 		.join("");
 	return `<LocLabel Id="${escapeXml(label.id)}"><Titles>${titles}</Titles></LocLabel>`;
 }
@@ -275,7 +293,14 @@ function locLabelXml(label: LocLabel): string {
 export async function buildMergedRibbonDiffXml(
 	input: Pick<
 		PublishRibbonInput,
-		"entity" | "locations" | "commands" | "enableRules" | "displayRules" | "locLabels" | "plan" | "languageCode"
+		| "entity"
+		| "locations"
+		| "commands"
+		| "enableRules"
+		| "displayRules"
+		| "locLabels"
+		| "plan"
+		| "languageCode"
 	>,
 ): Promise<{
 	xml: string;
@@ -311,14 +336,20 @@ export async function buildMergedRibbonDiffXml(
 	// their Title label changes, other languages are kept.
 	const lang = input.languageCode ?? 1033;
 	for (const r of input.plan.renamedLabels ?? []) {
-		const prev = labels.find((l) => l.id === r.id) ?? input.locLabels.find((l) => l.id === r.id);
-		const titles = [{ languageCode: lang, description: r.text }, ...(prev?.titles ?? []).filter((t) => t.languageCode !== lang)];
+		const prev =
+			labels.find((l) => l.id === r.id) ?? input.locLabels.find((l) => l.id === r.id);
+		const titles = [
+			{ languageCode: lang, description: r.text },
+			...(prev?.titles ?? []).filter((t) => t.languageCode !== lang),
+		];
 		const i = labels.findIndex((l) => l.id === r.id);
 		if (i >= 0) labels[i] = { id: r.id, titles };
 		else labels.push({ id: r.id, titles });
 	}
 	let delta = labels.length
-		? parseRibbonDiffParts(`<RibbonDiffXml><LocLabels>${labels.map(locLabelXml).join("")}</LocLabels></RibbonDiffXml>`)
+		? parseRibbonDiffParts(
+				`<RibbonDiffXml><LocLabels>${labels.map(locLabelXml).join("")}</LocLabels></RibbonDiffXml>`,
+			)
 		: emptyRibbonDiffParts();
 
 	for (const loc of input.locations) {
@@ -364,11 +395,17 @@ export async function buildMergedRibbonDiffXml(
 
 	// Commands / rules the user edited, even when no button changed (#25).
 	const extra = [
-		...input.commands.filter((c) => input.plan.editedCommandIds.includes(c.id)).map(generateCommandDefinition),
+		...input.commands
+			.filter((c) => input.plan.editedCommandIds.includes(c.id))
+			.map(generateCommandDefinition),
 	];
 	const extraRules = {
-		enable: input.enableRules.filter((r) => input.plan.editedEnableRuleIds.includes(r.id)).map(generateEnableRule),
-		display: input.displayRules.filter((r) => input.plan.editedDisplayRuleIds.includes(r.id)).map(generateDisplayRule),
+		enable: input.enableRules
+			.filter((r) => input.plan.editedEnableRuleIds.includes(r.id))
+			.map(generateEnableRule),
+		display: input.displayRules
+			.filter((r) => input.plan.editedDisplayRuleIds.includes(r.id))
+			.map(generateDisplayRule),
 	};
 	if (extra.length || extraRules.enable.length || extraRules.display.length) {
 		delta = mergeRibbonDiffParts(
@@ -389,7 +426,9 @@ export async function buildMergedRibbonDiffXml(
 	// …plus the Command of each tab created this session (#58): the generator
 	// defines it with the tab, and its TabDisplayRule refers to it.
 	const newTabCommands = input.locations.flatMap((loc) =>
-		loc.current.tabs.filter((t) => !loc.baseline.tabs.some((b) => b.id === t.id)).map(newTabCommandId),
+		loc.current.tabs
+			.filter((t) => !loc.baseline.tabs.some((b) => b.id === t.id))
+			.map(newTabCommandId),
 	);
 	keepOnly(delta.commandDefinitions, [...input.plan.editedCommandIds, ...newTabCommands]);
 	keepOnly(delta.enableRules, input.plan.editedEnableRuleIds);
@@ -439,7 +478,8 @@ export async function buildMergedRibbonDiffXml(
 	for (const loc of input.locations)
 		for (const tab of loc.current.tabs)
 			for (const group of tab.groups)
-				for (const button of groupControls(group)) for (const id of controlCommandIds(button)) retainedCommandIds.add(id);
+				for (const button of groupControls(group))
+					for (const id of controlCommandIds(button)) retainedCommandIds.add(id);
 
 	// Rules other commands of the scope still use stay in the layer when an
 	// uncustomised command (#31) leaves it.
@@ -452,7 +492,8 @@ export async function buildMergedRibbonDiffXml(
 		c.displayRules.forEach((r) => retainedDisplayRuleIds.add(r));
 		for (const raw of c.rawRuleRefs ?? []) {
 			const m = /^\s*<(EnableRule|DisplayRule)\b[^>]*?\sId="([^"]+)"/.exec(raw.xml);
-			if (m) (m[1] === "EnableRule" ? retainedEnableRuleIds : retainedDisplayRuleIds).add(m[2]);
+			if (m)
+				(m[1] === "EnableRule" ? retainedEnableRuleIds : retainedDisplayRuleIds).add(m[2]);
 		}
 	}
 
@@ -482,13 +523,19 @@ export async function buildMergedRibbonDiffXml(
 	// layer's steps — including ones earlier CBS versions wrote at their
 	// group's Sequence — are moved to free Sequences; what can't be placed
 	// blocks the import.
-	const layerStepIds = new Set([...layerScalingSteps(existing), ...layerScalingSteps(merged)].map((st) => st.id));
+	const layerStepIds = new Set(
+		[...layerScalingSteps(existing), ...layerScalingSteps(merged)].map((st) => st.id),
+	);
 	const platform: Record<string, { maxSizes: number[]; scales: number[] }> = {};
 	for (const loc of input.locations) {
 		for (const [tabId, scaling] of Object.entries(loc.baseline.scalingByTab ?? {})) {
 			platform[tabId] = {
-				maxSizes: scaling.maxSizes.filter((st) => !layerStepIds.has(st.id)).map((st) => st.sequence),
-				scales: scaling.scales.filter((st) => !layerStepIds.has(st.id)).map((st) => st.sequence),
+				maxSizes: scaling.maxSizes
+					.filter((st) => !layerStepIds.has(st.id))
+					.map((st) => st.sequence),
+				scales: scaling.scales
+					.filter((st) => !layerStepIds.has(st.id))
+					.map((st) => st.sequence),
 			};
 		}
 	}
@@ -527,13 +574,21 @@ export async function buildMergedRibbonDiffXml(
 export function publishValidationContext(
 	input: Pick<
 		PublishRibbonInput,
-		"locations" | "commands" | "baselineCommands" | "baselineEnableRules" | "baselineDisplayRules"
+		| "locations"
+		| "commands"
+		| "baselineCommands"
+		| "baselineEnableRules"
+		| "baselineDisplayRules"
 	> &
 		Partial<Pick<PublishRibbonInput, "entity">> & { publisherPrefix?: string },
 	merged: {
 		changedKeys: string[];
 		newKeys: string[];
-		layerDefinitionIds?: { commandIds: string[]; enableRuleIds: string[]; displayRuleIds: string[] };
+		layerDefinitionIds?: {
+			commandIds: string[];
+			enableRuleIds: string[];
+			displayRuleIds: string[];
+		};
 	},
 ): PublishValidationContext {
 	const elementIds: string[] = [];
@@ -549,7 +604,8 @@ export function publishValidationContext(
 			for (const tab of def.tabs)
 				for (const group of tab.groups)
 					for (const b of groupControls(group))
-						for (const section of b.menu?.sections ?? []) menuControlsIds.add(section.controlsId);
+						for (const section of b.menu?.sections ?? [])
+							menuControlsIds.add(section.controlsId);
 	for (const { current, baseline } of input.locations) {
 		Object.assign(templateLayouts, baseline.templateLayouts);
 		for (const tab of baseline.tabs) {
@@ -558,7 +614,8 @@ export function publishValidationContext(
 			for (const group of tab.groups) {
 				baselineGroups.add(group.id);
 				elementIds.push(group.id);
-				if (group.label) loadedAttributes[group.id] = { Title: group.label, Label: group.label };
+				if (group.label)
+					loadedAttributes[group.id] = { Title: group.label, Label: group.label };
 				// Menu items too (#27).
 				for (const b of groupControls(group)) {
 					elementIds.push(b.id);
@@ -569,11 +626,13 @@ export function publishValidationContext(
 		for (const tab of current.tabs) for (const group of tab.groups) currentGroups.add(group.id);
 		for (const def of [baseline, current])
 			for (const tab of def.tabs)
-				for (const group of tab.groups) if (group.template) groupTemplates[group.id] = group.template;
+				for (const group of tab.groups)
+					if (group.template) groupTemplates[group.id] = group.template;
 	}
 	// Loaded scaling, without the steps of groups this session removes (their
 	// steps leave the layer with them and can't collide any more).
-	const removedGroup = (s: { groupId: string }) => baselineGroups.has(s.groupId) && !currentGroups.has(s.groupId);
+	const removedGroup = (s: { groupId: string }) =>
+		baselineGroups.has(s.groupId) && !currentGroups.has(s.groupId);
 	for (const { baseline } of input.locations) {
 		for (const [tabId, scaling] of Object.entries(baseline.scalingByTab ?? {})) {
 			tabScaling[tabId] = {
@@ -586,7 +645,10 @@ export function publishValidationContext(
 	// What stays defined after the import: the merged XML (checked by the
 	// validator) plus everything defined outside the layer. The loaded ribbon
 	// also has the layer's own definitions, which the import replaces.
-	const outsideLayer = <T extends { id: string }>(loaded: T[] | undefined, layer: string[] | undefined) => {
+	const outsideLayer = <T extends { id: string }>(
+		loaded: T[] | undefined,
+		layer: string[] | undefined,
+	) => {
 		if (!loaded) return undefined;
 		const own = new Set(layer ?? []);
 		return loaded.map((d) => d.id).filter((id) => !own.has(id));
@@ -597,8 +659,14 @@ export function publishValidationContext(
 		commands: input.commands,
 		known: {
 			commandIds: outsideLayer(input.baselineCommands, merged.layerDefinitionIds?.commandIds),
-			enableRuleIds: outsideLayer(input.baselineEnableRules, merged.layerDefinitionIds?.enableRuleIds),
-			displayRuleIds: outsideLayer(input.baselineDisplayRules, merged.layerDefinitionIds?.displayRuleIds),
+			enableRuleIds: outsideLayer(
+				input.baselineEnableRules,
+				merged.layerDefinitionIds?.enableRuleIds,
+			),
+			displayRuleIds: outsideLayer(
+				input.baselineDisplayRules,
+				merged.layerDefinitionIds?.displayRuleIds,
+			),
 			elementIds,
 		},
 		loadedAttributes,
@@ -630,7 +698,10 @@ export function publishValidationContext(
  */
 export function withCheckTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
-		const timer = setTimeout(() => reject(new Error(`it didn't finish within ${Math.round(ms / 1000)} s`)), ms);
+		const timer = setTimeout(
+			() => reject(new Error(`it didn't finish within ${Math.round(ms / 1000)} s`)),
+			ms,
+		);
 		promise.then(
 			(v) => {
 				clearTimeout(timer);
@@ -665,7 +736,9 @@ export async function checkBeforePublish(
 		| "baselineEnableRules"
 		| "baselineDisplayRules"
 	> & { publisherPrefix?: string },
-	options: { lookupWebResources?: (names: string[]) => Promise<Record<string, WebResourceStatus>> } = {},
+	options: {
+		lookupWebResources?: (names: string[]) => Promise<Record<string, WebResourceStatus>>;
+	} = {},
 ): Promise<{ findings: PublishFinding[]; xml: string }> {
 	const merged = await buildMergedRibbonDiffXml(input);
 	const context = publishValidationContext(input, merged);
@@ -682,7 +755,10 @@ export async function checkBeforePublish(
 			});
 		}
 	}
-	return { findings: [...validatePublishRibbonDiff(merged.parts, context), ...lookupFindings], xml: merged.xml };
+	return {
+		findings: [...validatePublishRibbonDiff(merged.parts, context), ...lookupFindings],
+		xml: merged.xml,
+	};
 }
 
 /**
@@ -706,7 +782,11 @@ export async function verifyPublishedLayer(
 	for (let i = 0; i < attempts; i++) {
 		if (i > 0) await new Promise((r) => setTimeout(r, options.delayMs ?? 5000));
 		try {
-			last = compareRibbonDiffParts(expected, await fetchUnmanagedRibbonParts(entityLogicalName), { contentKeys });
+			last = compareRibbonDiffParts(
+				expected,
+				await fetchUnmanagedRibbonParts(entityLogicalName),
+				{ contentKeys },
+			);
 		} catch (err) {
 			return {
 				ok: false,
@@ -716,7 +796,11 @@ export async function verifyPublishedLayer(
 				message: `Couldn't read the published ribbon layer to verify it (${err instanceof Error ? err.message : String(err)}).`,
 			};
 		}
-		if (last.missing.length === 0 && last.unexpected.length === 0 && last.differing.length === 0) {
+		if (
+			last.missing.length === 0 &&
+			last.unexpected.length === 0 &&
+			last.differing.length === 0
+		) {
 			const changed = contentKeys.length;
 			return {
 				ok: true,
@@ -806,7 +890,10 @@ const allKeys = (parts: RibbonDiffParts): string[] =>
 	);
 
 /** Two reads of the layer, element by element, exactly as Dataverse stored them. */
-function exactLayerChanges(expected: RibbonDiffParts, actual: RibbonDiffParts): RibbonDiffComparison {
+function exactLayerChanges(
+	expected: RibbonDiffParts,
+	actual: RibbonDiffParts,
+): RibbonDiffComparison {
 	const missing: string[] = [];
 	const unexpected: string[] = [];
 	const differing: string[] = [];
@@ -816,12 +903,14 @@ function exactLayerChanges(expected: RibbonDiffParts, actual: RibbonDiffParts): 
 			if (got === undefined) missing.push(`${part}:${id}`);
 			else if (got !== xml) differing.push(`${part}:${id}`);
 		}
-		for (const id of actual[part].keys()) if (!expected[part].has(id)) unexpected.push(`${part}:${id}`);
+		for (const id of actual[part].keys())
+			if (!expected[part].has(id)) unexpected.push(`${part}:${id}`);
 	}
 	return { missing, unexpected, differing };
 }
 
-const hasChanges = (c: RibbonDiffComparison) => c.missing.length + c.unexpected.length + c.differing.length > 0;
+const hasChanges = (c: RibbonDiffComparison) =>
+	c.missing.length + c.unexpected.length + c.differing.length > 0;
 
 /** How the layer is compared before an import (#102). */
 type ExpectedLayer =
@@ -845,7 +934,8 @@ async function assertLayerUnchanged(
 	const attempts = as.kind === "imported" ? (as.attempts ?? 3) : 1;
 	let changes: RibbonDiffComparison = { missing: [], unexpected: [], differing: [] };
 	for (let i = 0; i < attempts; i++) {
-		if (i > 0 && as.kind === "imported") await new Promise((r) => setTimeout(r, as.delayMs ?? 5000));
+		if (i > 0 && as.kind === "imported")
+			await new Promise((r) => setTimeout(r, as.delayMs ?? 5000));
 		const actual = await fetchUnmanagedRibbonParts(entityLogicalName);
 		changes =
 			as.kind === "read"
@@ -902,7 +992,10 @@ async function publishRibbonUnguarded(
 					await dataverseAPI.execute({
 						operationName: "PublishXml",
 						operationType: "action",
-						parameters: { ParameterXml: "<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>" },
+						parameters: {
+							ParameterXml:
+								"<importexportxml><ribbons><ribbon></ribbon></ribbons></importexportxml>",
+						},
 					});
 				} else {
 					await publishTables([input.entity!.logicalName], guard);
@@ -921,7 +1014,10 @@ async function publishRibbonUnguarded(
 		const result = await buildMergedRibbonDiffXml({ ...input, languageCode });
 		const findings = validatePublishRibbonDiff(
 			result.parts,
-			publishValidationContext({ ...input, publisherPrefix: input.solution.publisherPrefix }, result),
+			publishValidationContext(
+				{ ...input, publisherPrefix: input.solution.publisherPrefix },
+				result,
+			),
 		);
 		const blocking = findings.filter((f) => f.severity === "error");
 		if (log || blocking.length > 0) {
@@ -930,8 +1026,10 @@ async function publishRibbonUnguarded(
 				`RibbonDiffXml for ${scopeLabel}: ${result.preservedCount} existing element(s) preserved, ` +
 					`${result.changedCount} element(s) from this session, ${result.elementCount} total.`,
 			);
-			for (const c of result.scalingChanges) logs.logWarn("publish", describeScalingChange(c));
-			for (const f of findings) if (f.severity === "warning") logs.logWarn("publish", f.message);
+			for (const c of result.scalingChanges)
+				logs.logWarn("publish", describeScalingChange(c));
+			for (const f of findings)
+				if (f.severity === "warning") logs.logWarn("publish", f.message);
 		}
 		if (blocking.length > 0) {
 			for (const f of blocking) logs.logError("publish", f.message);
@@ -974,9 +1072,12 @@ async function publishRibbonUnguarded(
 			`Publishing ${scopeLabel} first, so ribbon changes imported elsewhere but not yet published are kept.`,
 		);
 		try {
-			await publishScope(`Publishing ${scopeLabel} first (keeps changes imported elsewhere but not published)…`);
+			await publishScope(
+				`Publishing ${scopeLabel} first (keeps changes imported elsewhere but not published)…`,
+			);
 		} catch (err) {
-			if (err instanceof Error) err.message = `Publishing ${scopeLabel} first failed, so nothing was imported: ${err.message}`;
+			if (err instanceof Error)
+				err.message = `Publishing ${scopeLabel} first failed, so nothing was imported: ${err.message}`;
 			throw err;
 		}
 	}
@@ -1067,12 +1168,26 @@ async function publishRibbonUnguarded(
 				await guard("Importing");
 				// Another import ran while this one waited (#103): what it wrote may not
 				// be published, so the check below can't see it.
-				if (importRan) throw new RibbonLayerChangedError(scopeLabel, { missing: [], unexpected: [], differing: [] }, true);
-				await assertLayerUnchanged(input.entity?.logicalName ?? null, scopeLabel, expected.layer, expected.as);
+				if (importRan)
+					throw new RibbonLayerChangedError(
+						scopeLabel,
+						{ missing: [], unexpected: [], differing: [] },
+						true,
+					);
+				await assertLayerUnchanged(
+					input.entity?.logicalName ?? null,
+					scopeLabel,
+					expected.layer,
+					expected.as,
+				);
 				try {
 					await importSolution(base64Zip, importJobId, guard);
 				} catch (err) {
-					if (isEnvironmentBusyError(err) && runningOperationOf(err)?.toLowerCase() === "import") importRan = true;
+					if (
+						isEnvironmentBusyError(err) &&
+						runningOperationOf(err)?.toLowerCase() === "import"
+					)
+						importRan = true;
 					throw err;
 				}
 				importedOnce = true;
@@ -1100,7 +1215,9 @@ async function publishRibbonUnguarded(
 		}
 
 		onProgress?.("Verifying the import…");
-		const job = (await dataverseAPI.retrieve("importjob", importJobId, ["data"])) as { data?: string };
+		const job = (await dataverseAPI.retrieve("importjob", importJobId, ["data"])) as {
+			data?: string;
+		};
 		const verification = verifyRibbonImport(
 			job.data,
 			isApplication
@@ -1159,19 +1276,24 @@ async function publishRibbonUnguarded(
 							`table's ribbon is published again. Reload the table to see the other change.`,
 					};
 					logs.logWarn("publish", verification.message);
-				} else throw new Error(
-					`Your changes were imported and published, but refreshing Unified Interface's command-bar ` +
-						`metadata failed (${err instanceof Error ? err.message : String(err)}). New or changed buttons ` +
-						`may not appear in the app until you publish again.`,
-				);
+				} else
+					throw new Error(
+						`Your changes were imported and published, but refreshing Unified Interface's command-bar ` +
+							`metadata failed (${err instanceof Error ? err.message : String(err)}). New or changed buttons ` +
+							`may not appear in the app until you publish again.`,
+					);
 			}
 		}
 		if (!verification) {
 			onProgress?.("Verifying the published ribbon…");
-			verification = await verifyPublishedLayer(input.entity?.logicalName ?? null, merged.parts, {
-				delayMs: input.verifyDelayMs,
-				contentKeys: merged.changedKeys,
-			});
+			verification = await verifyPublishedLayer(
+				input.entity?.logicalName ?? null,
+				merged.parts,
+				{
+					delayMs: input.verifyDelayMs,
+					contentKeys: merged.changedKeys,
+				},
+			);
 			if (verification.ok) logs.logInfo("publish", verification.message);
 			else logs.logWarn("publish", verification.message);
 		}
@@ -1342,7 +1464,8 @@ async function publishAllAsyncUnguarded(
 		const isCompleted = job.statecode === 3 || Boolean(job.completedon);
 		if (isCompleted) {
 			if (typeof job.statuscode === "number" && job.statuscode !== 30) {
-				const details = job.friendlymessage || job.message || `statuscode=${job.statuscode}`;
+				const details =
+					job.friendlymessage || job.message || `statuscode=${job.statuscode}`;
 				throw new Error(`Asynchronous publish failed: ${details}`);
 			}
 			onProgress?.("Asynchronous publish completed successfully.");
@@ -1427,7 +1550,9 @@ const ADDRESS_ELEMENTS: [string, string][] = [
  * one in `$select` would fail the request) for the manifest (#104). Throws when
  * they can't be read: importing without them would clear the publisher's details.
  */
-export async function fetchManifestDetails(solution: PublishSolutionInfo): Promise<ManifestDetails> {
+export async function fetchManifestDetails(
+	solution: PublishSolutionInfo,
+): Promise<ManifestDetails> {
 	let record: Record<string, unknown> | undefined;
 	try {
 		const res = (await dataverseAPI.queryData(
@@ -1455,9 +1580,9 @@ export async function fetchManifestDetails(solution: PublishSolutionInfo): Promi
 	const addresses = [1, 2]
 		.map((n) =>
 			Object.fromEntries(
-				ADDRESS_ELEMENTS.map(([, column]) => [column, publisher[`address${n}_${column}`]] as const).filter(
-					([, v]) => v !== null && v !== undefined && v !== "",
-				),
+				ADDRESS_ELEMENTS.map(
+					([, column]) => [column, publisher[`address${n}_${column}`]] as const,
+				).filter(([, v]) => v !== null && v !== undefined && v !== ""),
 			),
 		)
 		.map((fields, i) => ({ number: i + 1, ...fields }));
@@ -1489,7 +1614,10 @@ const addressesXml = (addresses: Record<string, unknown>[]) =>
 						`\n        <Address>\n          <AddressNumber>${a["number"]}</AddressNumber>${ADDRESS_ELEMENTS.filter(
 							([, column]) => column in a,
 						)
-							.map(([element, column]) => `\n          <${element}>${escapeXml(String(a[column]))}</${element}>`)
+							.map(
+								([element, column]) =>
+									`\n          <${element}>${escapeXml(String(a[column]))}</${element}>`,
+							)
 							.join("")}\n        </Address>`,
 				)
 				.join("")}\n      </Addresses>`;
@@ -1511,14 +1639,14 @@ function generateSolutionXml(input: SolutionXmlInput): string {
 			? "<RootComponents/>"
 			: `<RootComponents>
       ${input.rootComponents
-				.map((c) => {
-					const attrs: string[] = [`type="${c.type}"`];
-					if (c.schemaName) attrs.push(`schemaName="${escapeXml(c.schemaName)}"`);
-					if (c.id) attrs.push(`id="{${escapeXml(c.id)}}"`);
-					attrs.push(`behavior="${c.behavior}"`);
-					return `<RootComponent ${attrs.join(" ")} />`;
-				})
-				.join("\n      ")}
+			.map((c) => {
+				const attrs: string[] = [`type="${c.type}"`];
+				if (c.schemaName) attrs.push(`schemaName="${escapeXml(c.schemaName)}"`);
+				if (c.id) attrs.push(`id="{${escapeXml(c.id)}}"`);
+				attrs.push(`behavior="${c.behavior}"`);
+				return `<RootComponent ${attrs.join(" ")} />`;
+			})
+			.join("\n      ")}
     </RootComponents>`;
 
 	return `<?xml version="1.0" encoding="utf-8"?>

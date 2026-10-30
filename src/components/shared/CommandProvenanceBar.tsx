@@ -68,9 +68,11 @@ export function CommandProvenanceBar({
 	});
 	// The action waiting for the user to confirm dropping their edits (#18:
 	// window.confirm doesn't work in PPTB).
-	const [pending, setPending] = useState<{ what: string; confirmLabel: string; run: () => void } | null>(
-		null,
-	);
+	const [pending, setPending] = useState<{
+		what: string;
+		confirmLabel: string;
+		run: () => void;
+	} | null>(null);
 	if (!info) return null;
 
 	// Uncustomise and Discard drop this session's edits of the command: confirm first.

@@ -22,7 +22,13 @@ interface MoveToFlyoutProps {
 	onMove: (targetGroupId: string) => void;
 }
 
-export function MoveToFlyout({ trigger, currentGroupId, buttonId, tab, onMove }: MoveToFlyoutProps) {
+export function MoveToFlyout({
+	trigger,
+	currentGroupId,
+	buttonId,
+	tab,
+	onMove,
+}: MoveToFlyoutProps) {
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
 	const captionOf = useDisplayText();
@@ -38,7 +44,11 @@ export function MoveToFlyout({ trigger, currentGroupId, buttonId, tab, onMove }:
 			<MenuPopover>
 				<MenuList>
 					{otherGroups.map((g) => (
-						<MenuItem key={g.groupId} icon={<ArrowMoveRegular />} onClick={() => onMove(g.groupId)}>
+						<MenuItem
+							key={g.groupId}
+							icon={<ArrowMoveRegular />}
+							onClick={() => onMove(g.groupId)}
+						>
 							{g.text}
 						</MenuItem>
 					))}
@@ -69,7 +79,11 @@ export function MoveToSubMenuItems({ currentGroupId, buttonId, tab, onMove }: Mo
 		<>
 			<MenuDivider />
 			{otherGroups.map((g) => (
-				<MenuItem key={g.groupId} icon={<ArrowMoveRegular />} onClick={() => onMove(g.groupId)}>
+				<MenuItem
+					key={g.groupId}
+					icon={<ArrowMoveRegular />}
+					onClick={() => onMove(g.groupId)}
+				>
 					Move to: {g.text}
 				</MenuItem>
 			))}

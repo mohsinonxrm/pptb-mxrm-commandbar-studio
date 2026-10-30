@@ -52,13 +52,21 @@ export interface SessionStore {
 	/** The last connection change, for the banner; null once dismissed. */
 	connectionNotice: ConnectionNotice | null;
 
-	setConnection(url: string, name: string, environment: SessionStore["environment"], id?: string): void;
+	setConnection(
+		url: string,
+		name: string,
+		environment: SessionStore["environment"],
+		id?: string,
+	): void;
 	/**
 	 * The tool now works against another connection (#120): everything loaded
 	 * from the previous one is cleared and `connectionVersion` moves on. The
 	 * caller has kept the unpublished changes as a draft first.
 	 */
-	switchConnection(connection: ToolBoxAPI.Connection, notice: Omit<ConnectionNotice, "from" | "to">): void;
+	switchConnection(
+		connection: ToolBoxAPI.Connection,
+		notice: Omit<ConnectionNotice, "from" | "to">,
+	): void;
 	dismissConnectionNotice(): void;
 	setSolutions(solutions: Solution[]): void;
 	setActiveSolution(solution: Solution): void;
@@ -128,8 +136,16 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
 			connectionVersion: prev.connectionVersion + 1,
 			connectionNotice: {
 				...notice,
-				from: { name: prev.connectionName, url: prev.connectionUrl, environment: prev.environment },
-				to: { name: connection.name, url: connection.url, environment: connection.environment },
+				from: {
+					name: prev.connectionName,
+					url: prev.connectionUrl,
+					environment: prev.environment,
+				},
+				to: {
+					name: connection.name,
+					url: connection.url,
+					environment: connection.environment,
+				},
 			},
 		});
 	},
@@ -178,7 +194,12 @@ export const useSessionStore = create<SessionStore>()((set, get) => ({
 			// The table list too: it would list the previous solution's tables
 			// until App.tsx loads the new solution's (#22).
 			...(switching
-				? { activeEntity: null, entities: [], solutionEntityIds: null, solutionRibbonComponentIds: null }
+				? {
+						activeEntity: null,
+						entities: [],
+						solutionEntityIds: null,
+						solutionRibbonComponentIds: null,
+					}
 				: {}),
 		});
 		if (switching) for (const listener of solutionSwitchListeners) listener();

@@ -206,7 +206,7 @@ describe("FlyoutAnchor / SplitButton without a Menu", () => {
 		expect(only(check({ customActions: [notDynamic] }), "menu-missing").severity).toBe("error");
 	});
 
-	it("reads PopulateDynamically as a boolean: \"1\" and surrounding spaces count (#101)", () => {
+	it('reads PopulateDynamically as a boolean: "1" and surrounding spaces count (#101)', () => {
 		const dynamic = ca(
 			"mxrm.F.CustomAction",
 			`${GROUP}.Controls._children`,
@@ -504,7 +504,12 @@ describe("$LocLabels references", () => {
 	it("skips a label a loaded control already uses: a copy keeps another solution's label (#137)", () => {
 		// mxrm.B is the copy; msdyn.Orig was loaded with the same tooltip label.
 		const loadedAttributes = { "msdyn.Orig": { ToolTipTitle: "$LocLabels:mxrm.B.ToolTip" } };
-		expect(codes(check(spec([label("mxrm.B.LabelText")]), { loadedAttributes }), "loclabel-missing")).toEqual([]);
+		expect(
+			codes(
+				check(spec([label("mxrm.B.LabelText")]), { loadedAttributes }),
+				"loclabel-missing",
+			),
+		).toEqual([]);
 	});
 
 	it("accepts references that all have a LocLabel", () => {
@@ -972,7 +977,9 @@ describe("checkBeforePublish / publishRibbon", () => {
 			{ lookupWebResources: lookup },
 		);
 		expect(xml).not.toContain('Sequence="80" Size="LargeLarge"');
-		expect(xml).toMatch(/<MaxSize [^>]*GroupId="mxrm\.account\.NewGroup"[^>]*Sequence="6[2-9]"|<MaxSize [^>]*Sequence="6[2-9]"[^>]*GroupId="mxrm\.account\.NewGroup"/);
+		expect(xml).toMatch(
+			/<MaxSize [^>]*GroupId="mxrm\.account\.NewGroup"[^>]*Sequence="6[2-9]"|<MaxSize [^>]*Sequence="6[2-9]"[^>]*GroupId="mxrm\.account\.NewGroup"/,
+		);
 		expect(codes(findings, "scaling-collision")).toEqual([]);
 		expect(findings.filter((f) => f.severity === "error")).toEqual([]);
 		// Nothing references a web resource: no lookup.
@@ -1056,7 +1063,12 @@ describe("checkBeforePublish / publishRibbon", () => {
 			id: "mxrm.B.Command",
 			enableRules: [],
 			displayRules: [],
-			actions: [{ kind: "powerFx", expression: "Notify(1)" } as unknown as CommandDefinition["actions"][number]],
+			actions: [
+				{
+					kind: "powerFx",
+					expression: "Notify(1)",
+				} as unknown as CommandDefinition["actions"][number],
+			],
 		};
 		await expect(
 			publishRibbon({

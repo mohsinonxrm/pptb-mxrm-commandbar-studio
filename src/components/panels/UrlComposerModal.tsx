@@ -138,7 +138,9 @@ export const UrlComposerModal: React.FC = () => {
 							label="Base URL"
 							required
 							validationState={isValidUrl ? "none" : "error"}
-							validationMessage={isValidUrl ? undefined : "URL must start with https://"}
+							validationMessage={
+								isValidUrl ? undefined : "URL must start with https://"
+							}
 						>
 							<Input
 								value={baseUrl}
@@ -148,8 +150,8 @@ export const UrlComposerModal: React.FC = () => {
 						</Field>
 
 						<div className={styles.warnNote}>
-							⚠ Ampersands in URLs must be escaped as <code>&amp;amp;</code> in XML. CBS handles
-							this automatically when generating XML.
+							⚠ Ampersands in URLs must be escaped as <code>&amp;amp;</code> in XML.
+							CBS handles this automatically when generating XML.
 						</div>
 
 						<Switch
@@ -174,7 +176,10 @@ export const UrlComposerModal: React.FC = () => {
 											>
 												{sp.key}
 											</code>
-											<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+											<Text
+												size={100}
+												style={{ color: tokens.colorNeutralForeground3 }}
+											>
 												{sp.desc}
 											</Text>
 										</React.Fragment>
@@ -188,8 +193,8 @@ export const UrlComposerModal: React.FC = () => {
 										display: "block",
 									}}
 								>
-									Note: Use <code>typename</code> instead of <code>type</code> for reliability —
-									type codes can differ between environments.
+									Note: Use <code>typename</code> instead of <code>type</code> for
+									reliability — type codes can differ between environments.
 								</Text>
 							</div>
 						)}
@@ -206,8 +211,8 @@ export const UrlComposerModal: React.FC = () => {
 									marginBottom: tokens.spacingVerticalXS,
 								}}
 							>
-								Each parameter becomes a querystring key=value pair. Use CRM tokens like{" "}
-								<code>{"{id}"}</code>.
+								Each parameter becomes a querystring key=value pair. Use CRM tokens
+								like <code>{"{id}"}</code>.
 							</Text>
 							{params.map((p, i) => (
 								<div
@@ -241,13 +246,21 @@ export const UrlComposerModal: React.FC = () => {
 									/>
 								</div>
 							))}
-							<Button appearance="subtle" size="small" icon={<AddRegular />} onClick={addParam}>
+							<Button
+								appearance="subtle"
+								size="small"
+								icon={<AddRegular />}
+								onClick={addParam}
+							>
 								Add parameter
 							</Button>
 						</div>
 
 						<Field label="Open in">
-							<Select value={winMode} onChange={(_, d) => setWinMode(d.value as "0" | "1" | "2")}>
+							<Select
+								value={winMode}
+								onChange={(_, d) => setWinMode(d.value as "0" | "1" | "2")}
+							>
 								{OPEN_IN_OPTIONS.map((o) => (
 									<option key={o.value} value={o.value}>
 										{o.label}
@@ -257,14 +270,22 @@ export const UrlComposerModal: React.FC = () => {
 						</Field>
 
 						<div>
-							<Text size={200} weight="semibold" style={{ display: "block", marginBottom: "4px" }}>
+							<Text
+								size={200}
+								weight="semibold"
+								style={{ display: "block", marginBottom: "4px" }}
+							>
 								URL preview (tokens shown literally):
 							</Text>
 							<div className={styles.urlPreview}>{previewUrl}</div>
 						</div>
 
 						<div>
-							<Text size={200} weight="semibold" style={{ display: "block", marginBottom: "4px" }}>
+							<Text
+								size={200}
+								weight="semibold"
+								style={{ display: "block", marginBottom: "4px" }}
+							>
 								XML-encoded URL (<code>&amp;</code> → <code>&amp;amp;</code>):
 							</Text>
 							<div className={styles.urlPreview}>{xmlUrl}</div>
@@ -275,7 +296,11 @@ export const UrlComposerModal: React.FC = () => {
 						<Button appearance="secondary" onClick={closeUrlComposer}>
 							Cancel
 						</Button>
-						<Button appearance="primary" disabled={!isValidUrl} onClick={closeUrlComposer}>
+						<Button
+							appearance="primary"
+							disabled={!isValidUrl}
+							onClick={closeUrlComposer}
+						>
 							Apply URL
 						</Button>
 					</DialogActions>
