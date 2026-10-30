@@ -2,7 +2,8 @@ import { Field, Radio, RadioGroup, makeStyles, tokens } from "@fluentui/react-co
 import { useCommandProvenance } from "@/hooks/useCommandProvenance";
 import { useDisplayText } from "@/hooks/useDisplayText";
 import { useRibbonStore } from "@/store/ribbonStore";
-import { groupControls } from "@/utils/ribbonMenu";
+import { useSelectionStore } from "@/store/selectionStore";
+import { otherButtonsUsing } from "@/utils/ribbonMenu";
 import { filterOf, showOnOf, type ShowOn } from "@/utils/showOn";
 import type { RibbonButton, RuleStep } from "@/types/ribbon";
 
@@ -22,6 +23,7 @@ export function ShowOnField({ button }: { button: RibbonButton }) {
 	const commands = useRibbonStore((s) => s.commands);
 	const displayRules = useRibbonStore((s) => s.displayRules);
 	const ribbons = useRibbonStore((s) => s.ribbons);
+	const location = useSelectionStore((s) => s.location);
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
 	const upsertDisplayRule = useRibbonStore((s) => s.upsertDisplayRule);
@@ -50,16 +52,13 @@ export function ShowOnField({ button }: { button: RibbonButton }) {
 		provenance?.provenance === "customised";
 
 	// Other buttons with this command change too.
-	const sharedWith = new Set<string>();
-	for (const ribbon of Object.values(ribbons))
-		for (const tab of ribbon.tabs)
-			for (const group of tab.groups)
-				for (const b of groupControls(group))
-					if (b.commandId === command.id && b.id !== button.id)
-						sharedWith.add(
-							captionOf(b.label, locLabels, undefined, b.source?.labelToken) || b.id,
-						);
-	const others = [...sharedWith];
+	const others = otherButtonsUsing(
+		ribbons,
+		command.id,
+		button.id,
+		(b) => captionOf(b.label, locLabels, undefined, b.source?.labelToken),
+		location,
+	);
 
 	const apply = (choice: Exclude<ShowOn, "custom">) => {
 		const kept = command.displayRules.filter(

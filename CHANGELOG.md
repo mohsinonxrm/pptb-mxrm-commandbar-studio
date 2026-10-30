@@ -167,7 +167,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Hiding a button that isn't yours** offers two plain choices:
     - **Hide this button only:** you can show it again under Hidden by customizations.
     - **Hide it with display rules on its command:** easy to undo, but it hides every button
-      that uses the command, and the dialog names them.
+      that uses the command, and the dialog names them. A button on another location says
+      where, e.g. "Edit (main form)", in this dialog and under Show on.
 
     Display rules are the default only when no other button uses the command. Before, the
     permanent HideCustomAction was the default, and the text was full of jargon.

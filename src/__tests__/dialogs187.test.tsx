@@ -54,12 +54,12 @@ const ribbon = (location: RibbonLocation, buttons: RibbonButton[] = []): RibbonD
 			]
 		: [],
 });
-function load(buttons: RibbonButton[]) {
+function load(buttons: RibbonButton[], formButtons: RibbonButton[] = []) {
 	useRibbonStore.getState().loadWorkspace({
 		ribbons: {
 			HomepageGrid: ribbon("HomepageGrid", buttons),
 			SubGrid: ribbon("SubGrid"),
-			Form: ribbon("Form"),
+			Form: ribbon("Form", formButtons),
 			Application: ribbon("Application"),
 		},
 		commands: [],
@@ -126,14 +126,18 @@ describe("#187 hiding a button that isn't yours", () => {
 	});
 
 	it("defaults to this button only when the command is shared, naming the others", () => {
-		load([
-			btn("Mscrm.HomepageGrid.contact.Edit", "Edit", "Mscrm.EditSelectedRecord"),
-			btn("Mscrm.HomepageGrid.contact.Open", "Open", "Mscrm.EditSelectedRecord"),
-		]);
+		load(
+			[
+				btn("Mscrm.HomepageGrid.contact.Edit", "Edit", "Mscrm.EditSelectedRecord"),
+				btn("Mscrm.HomepageGrid.contact.Open", "Open", "Mscrm.EditSelectedRecord"),
+			],
+			// Same label on another location: it says where.
+			[btn("Mscrm.Form.contact.Edit", "Edit", "Mscrm.EditSelectedRecord")],
+		);
 		const { onConfirmHide } = hide();
 		expect(radio("Hide this button only").checked).toBe(true);
 		expect(dialog().textContent).toContain(
-			"Also hides 1 other button that uses its command: Open.",
+			"Also hides 2 other buttons that use its command: Open, Edit (main form).",
 		);
 		act(() => button("Hide button").click());
 		expect(onConfirmHide).toHaveBeenCalledOnce();

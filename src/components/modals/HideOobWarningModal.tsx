@@ -11,7 +11,8 @@ import {
 import { AppDialog } from "@/components/shared/AppDialog";
 import { useDisplayText } from "@/hooks/useDisplayText";
 import { useRibbonStore } from "@/store/ribbonStore";
-import { groupControls } from "@/utils/ribbonMenu";
+import { useSelectionStore } from "@/store/selectionStore";
+import { otherButtonsUsing } from "@/utils/ribbonMenu";
 
 /**
  * Hiding a button that isn't yours (#187). Two ways, explained without jargon:
@@ -61,20 +62,18 @@ export const HideOobWarningModal: React.FC<HideOobWarningModalProps> = ({
 	const captionOf = useDisplayText();
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const ribbons = useRibbonStore((s) => s.ribbons);
+	const location = useSelectionStore((s) => s.location);
 
 	// Other buttons with the same command disappear too with display rules.
-	const others: string[] = [];
-	if (commandId)
-		for (const ribbon of Object.values(ribbons))
-			for (const tab of ribbon.tabs)
-				for (const group of tab.groups)
-					for (const b of groupControls(group))
-						if (b.commandId === commandId && b.id !== buttonId) {
-							const text =
-								captionOf(b.label, locLabels, undefined, b.source?.labelToken) ||
-								b.id;
-							if (!others.includes(text)) others.push(text);
-						}
+	const others = commandId
+		? otherButtonsUsing(
+				ribbons,
+				commandId,
+				buttonId ?? "",
+				(b) => captionOf(b.label, locLabels, undefined, b.source?.labelToken),
+				location,
+			)
+		: [];
 
 	const [way, setWay] = useState<HideWay>(commandId && others.length === 0 ? "rules" : "button");
 
