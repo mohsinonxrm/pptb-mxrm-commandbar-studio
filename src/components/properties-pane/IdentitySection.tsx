@@ -132,6 +132,7 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 				<Field label="Group" hint="Use Move to in the button's menu to move it.">
 					<Input
 						readOnly
+						appearance="filled-darker"
 						value={
 							group
 								? captionOf(
