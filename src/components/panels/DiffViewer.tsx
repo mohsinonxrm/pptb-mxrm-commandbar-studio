@@ -26,6 +26,7 @@ const DiffEditorLazy = React.lazy(() =>
 );
 
 type IStandaloneDiffEditor = import("monaco-editor").editor.IStandaloneDiffEditor;
+type TokenEvents = { onDidChangeModelTokens?: (listener: () => void) => { dispose(): void } };
 
 const LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form", "Application"];
 
@@ -184,6 +185,27 @@ export const DiffViewer: React.FC = () => {
 		diffEditorRef.current = editor;
 		// Ensure the initial value is applied immediately
 		editor.updateOptions({ renderSideBySide: sideBySide });
+		// With a table open the diff can paint before the XML tokens arrive, and
+		// it doesn't repaint those lines when they do: the text stays uncoloured
+		// (seen in PPTB, #195 review). Repaint both sides once per batch of tokens.
+		const sides = [editor.getOriginalEditor(), editor.getModifiedEditor()];
+		let frame = 0;
+		const repaint = () => {
+			if (frame) return;
+			frame = requestAnimationFrame(() => {
+				frame = 0;
+				for (const side of sides) side.render(true);
+			});
+		};
+		// The code editor has this event, but Monaco's public typings leave it out.
+		const subscriptions = sides.flatMap((side) => {
+			const onTokens = (side as TokenEvents).onDidChangeModelTokens;
+			return onTokens ? [onTokens.call(side, repaint)] : [];
+		});
+		editor.onDidDispose(() => {
+			cancelAnimationFrame(frame);
+			for (const s of subscriptions) s.dispose();
+		});
 		// sideBySide intentionally omitted — we only want to sync on mount here
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
