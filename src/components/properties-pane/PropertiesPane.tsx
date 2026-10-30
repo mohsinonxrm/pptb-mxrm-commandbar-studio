@@ -17,6 +17,7 @@ import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
 import { ModernCommandProperties } from "./ModernCommandProperties";
 import { ButtonNotices } from "./ButtonNotices";
 import { PropertiesHeader } from "./PropertiesHeader";
+import { ShowOnField } from "./ShowOnField";
 import { PropertySection, PropertySections } from "@/components/shared/PropertySection";
 import { useClassicOverrides, useSelectedModernCommand } from "@/hooks/useModernCommands";
 
@@ -127,6 +128,7 @@ export function PropertiesPane() {
 									tabId={tabId}
 									groupId={selectedGroupId!}
 								/>
+								<ShowOnField button={button} />
 							</PropertySection>
 							<PropertySection value="position" title="Position">
 								<IdentitySection

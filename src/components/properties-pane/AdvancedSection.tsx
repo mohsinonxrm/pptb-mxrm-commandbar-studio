@@ -1,9 +1,8 @@
 import React from "react";
-import { makeStyles, tokens, Text, Switch, Badge } from "@fluentui/react-components";
+import { makeStyles, tokens, Text, Switch } from "@fluentui/react-components";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
-import type { CommandDefinition, DisplayRule, RuleStep } from "@/types/ribbon";
 import { useSessionStore } from "@/store/sessionStore";
 import { findGroupControl } from "@/utils/ribbonMenu";
 import {
@@ -33,16 +32,6 @@ const useStyles = makeStyles({
 	},
 });
 
-// Unified Interface evaluates CommandClientTypeRule as "Modern", on the web
-// and in the mobile apps: Microsoft's Mscrm.HideOnModern (Type="Modern",
-// InvertResult) hides buttons there. "Refresh" is the legacy updated web
-// client (#152).
-const CLIENT_TYPE_RULES = [
-	{ label: "Show on Unified Interface (Modern)", value: "Modern" },
-	{ label: "Show on legacy web client (Refresh)", value: "Refresh" },
-	{ label: "Show on classic ribbon (Legacy)", value: "Legacy" },
-];
-
 export const AdvancedSection: React.FC = () => {
 	const styles = useStyles();
 
@@ -52,11 +41,6 @@ export const AdvancedSection: React.FC = () => {
 	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
 
 	const ribbons = useRibbonStore((s) => s.ribbons);
-	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
-	const upsertDisplayRule = useRibbonStore((s) => s.upsertDisplayRule);
-	const batch = useRibbonStore((s) => s.batch);
-	const commands = useRibbonStore((s) => s.commands);
-	const displayRules = useRibbonStore((s) => s.displayRules);
 	const openCommandEditor = useUIStore((s) => s.openCommandEditor);
 	const setOpenRecordOverride = useRibbonStore((s) => s.setOpenRecordOverride);
 	const clearSelection = useSelectionStore((s) => s.clearSelection);
@@ -92,78 +76,6 @@ export const AdvancedSection: React.FC = () => {
 		// Open the Command Editor immediately so the user can set the real
 		// library path and function name.
 		openCommandEditor(OPEN_RECORD_ITEM_COMMAND_ID);
-	};
-
-	const getSelectedCommand = (): CommandDefinition | undefined => {
-		if (!button?.commandId) return undefined;
-		return commands.find((c) => c.id === button.commandId);
-	};
-
-	const addClientTypeFilter = (type: "Refresh" | "Legacy" | "Modern") => {
-		const selectedCommand = getSelectedCommand();
-		if (!selectedCommand) return;
-
-		// Only a plain rule of this type: Mscrm.HideOnModern is Type="Modern"
-		// with InvertResult, the opposite filter (#152).
-		const existingRule = displayRules.find(
-			(r) =>
-				r.steps.length === 1 &&
-				r.steps[0].kind === "CommandClientTypeRule" &&
-				r.steps[0].type === type &&
-				!r.steps[0].invertResult &&
-				r.steps[0].default === undefined,
-		);
-
-		let ruleId = existingRule?.id;
-		let rule: DisplayRule | undefined;
-		if (!ruleId) {
-			const baseRuleId = `${selectedCommand.id}.${type}.DisplayRule`;
-			ruleId = baseRuleId;
-			let suffix = 1;
-			while (displayRules.some((r) => r.id === ruleId)) {
-				ruleId = `${baseRuleId}.${suffix}`;
-				suffix += 1;
-			}
-
-			const step: RuleStep = {
-				kind: "CommandClientTypeRule",
-				type,
-			};
-			rule = {
-				id: ruleId,
-				steps: [step],
-			};
-		}
-
-		// The filters are alternatives: display rules are ANDed, so another
-		// client-type filter left on the command (e.g. one the old "Refresh"
-		// filter added, #152) would hide the button everywhere. It's unbound,
-		// not deleted.
-		const isOtherFilter = (id: string) => {
-			const r = displayRules.find((d) => d.id === id);
-			const s = r?.steps.length === 1 ? r.steps[0] : undefined;
-			return (
-				s?.kind === "CommandClientTypeRule" &&
-				s.type !== type &&
-				!s.invertResult &&
-				s.default === undefined
-			);
-		};
-		// The new rule and its binding are one undo step (#34).
-		const boundRuleId = ruleId;
-		const kept = selectedCommand.displayRules.filter((id) => !isOtherFilter(id));
-		batch(() => {
-			if (rule) upsertDisplayRule(rule);
-			if (
-				!kept.includes(boundRuleId) ||
-				kept.length !== selectedCommand.displayRules.length
-			) {
-				upsertCommand({
-					...selectedCommand,
-					displayRules: kept.includes(boundRuleId) ? kept : [...kept, boundRuleId],
-				});
-			}
-		});
 	};
 
 	return (
@@ -235,32 +147,6 @@ export const AdvancedSection: React.FC = () => {
 					CBS doesn&apos;t write them (#14).
 				</Text>
 			)}
-
-			<div>
-				<Text size={100} weight="semibold" className={styles.note}>
-					Client type filter (adds a CommandClientTypeRule):
-				</Text>
-				<Text size={100} className={styles.note}>
-					<strong>Modern</strong> = Unified Interface (web, tablets and phones) |{" "}
-					<strong>Refresh</strong> = legacy updated web client | <strong>Legacy</strong> =
-					classic ribbon / Outlook
-				</Text>
-				<div className={styles.row} style={{ marginTop: "4px" }}>
-					{CLIENT_TYPE_RULES.map((rule) => (
-						<Badge
-							key={rule.value}
-							appearance="outline"
-							style={{ cursor: "pointer" }}
-							title={`Add CommandClientTypeRule: ${rule.value}`}
-							onClick={() =>
-								addClientTypeFilter(rule.value as "Refresh" | "Legacy" | "Modern")
-							}
-						>
-							{rule.label}
-						</Badge>
-					))}
-				</div>
-			</div>
 		</div>
 	);
 };
