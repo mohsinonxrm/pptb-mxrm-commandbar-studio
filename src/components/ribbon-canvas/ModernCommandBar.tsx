@@ -1,42 +1,19 @@
 import React, { useState } from "react";
 import { useDisplayText } from "@/hooks/useDisplayText";
-import {
-	makeStyles,
-	tokens,
-	Text,
-	Badge,
-	Tooltip,
-	Menu,
-	MenuTrigger,
-	MenuPopover,
-	MenuList,
-	MenuItem,
-	MenuDivider,
-} from "@fluentui/react-components";
+import { makeStyles, tokens, Text, Badge, Tooltip } from "@fluentui/react-components";
 import {
 	EyeOffRegular,
-	EditRegular,
-	TranslateRegular,
-	ImageRegular,
-	CopyRegular,
-	DeleteRegular,
-	ArrowMoveRegular,
-	EyeRegular,
-	AppsAddInRegular,
 	LockClosedRegular,
 	AddRegular,
 	ChevronDownRegular,
 } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
 import { loadedLabelIdsOf, useRibbonStore } from "@/store/ribbonStore";
-import { CustomiseMenuItems } from "@/components/ribbon-canvas/CustomiseMenuItems";
 import { useUIStore } from "@/store/uiStore";
 import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
-import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
-import { moveTargets } from "@/utils/moveTargets";
+import { ButtonContextMenu, type ButtonMenuTarget } from "@/components/shared/ButtonContextMenu";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
 import { copyControl } from "@/utils/ribbonMenu";
-import { canDeleteControl } from "@/utils/ribbonProvenance";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
 import { overrideNote } from "@/services/modernCommands";
@@ -160,38 +137,22 @@ interface DropState {
 	beforeButtonId: string | null;
 }
 
-interface BtnMenuState {
-	button: RibbonButton;
-	groupId: string;
-	x: number;
-	y: number;
-}
-
 export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 	const styles = useStyles();
 	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
 	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 	const moveButton = useRibbonStore((s) => s.moveButton);
-	const deleteButton = useRibbonStore((s) => s.deleteButton);
-	const baseline = useRibbonStore((s) => s.baseline);
-	const duplicateButton = useRibbonStore((s) => s.duplicateButton);
-	const hideOobButton = useRibbonStore((s) => s.hideOobButton);
-	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
-	const customizeOobButton = useRibbonStore((s) => s.customizeOobButton);
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const captionOf = useDisplayText();
 	// Group titles resolve like the classic canvas shows them (#75).
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
 	const groupText = (label: string, id: string, titleToken?: string) =>
 		captionOf(label, locLabels, lang, titleToken) || id;
-	const openIconPicker = useUIStore((s) => s.openIconPicker);
-	const openLocalizationEditor = useUIStore((s) => s.openLocalizationEditor);
 	const openNewButton = useUIStore((s) => s.openNewButton);
 
 	const [dropOver, setDropOver] = useState<DropState | null>(null);
 	const [dragging, setDragging] = useState<string | null>(null);
-	const [btnMenu, setBtnMenu] = useState<BtnMenuState | null>(null);
-	const [hideWarning, setHideWarning] = useState<BtnMenuState | null>(null);
+	const [btnMenu, setBtnMenu] = useState<ButtonMenuTarget | null>(null);
 	// Read-only modern commands (#32), interleaved by sequence; never in the ribbon store.
 	const modern = useModernCanvas(location, tab);
 	const modernAppNames = useModernAppNames();
@@ -368,7 +329,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									onContextMenu={(e) => {
 										e.preventDefault();
 										selectButtonInContext(location, tab.id, groupId, button.id);
-										setBtnMenu({ button, groupId, x: e.clientX, y: e.clientY });
+										setBtnMenu({ button, groupId, anchor: e.currentTarget });
 									}}
 									draggable={!button.managed && !isGlobalOobReadOnly(button)}
 									onDragStart={(e) => onDragStart(e, groupId, button.id)}
@@ -473,258 +434,13 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 				</div>
 			</div>
 
-			{/* Button context menu — positioned at the cursor where the user
-			    right-clicked. Without `positioning.target`, Fluent's Menu
-			    rendered at (0,0) because the MenuTrigger is hidden and has
-			    no measurable bounding box. */}
-			{btnMenu && (
-				<Menu
-					open
-					onOpenChange={(_, d) => !d.open && setBtnMenu(null)}
-					positioning={{
-						position: "below",
-						align: "start",
-						target: {
-							getBoundingClientRect: () => ({
-								x: btnMenu.x,
-								y: btnMenu.y,
-								top: btnMenu.y,
-								left: btnMenu.x,
-								right: btnMenu.x,
-								bottom: btnMenu.y,
-								width: 0,
-								height: 0,
-								toJSON: () => ({}),
-							}),
-						},
-					}}
-				>
-					<MenuTrigger disableButtonEnhancement>
-						<span style={{ display: "none" }} />
-					</MenuTrigger>
-					<MenuPopover>
-						<MenuList>
-							{isGlobalOobReadOnly(btnMenu.button) && (
-								<MenuItem disabled>
-									OOB global command bar buttons cannot be customized.
-								</MenuItem>
-							)}
-							{isGlobalOobReadOnly(btnMenu.button) && <MenuDivider />}
-							<MenuItem
-								icon={<EditRegular />}
-								onClick={() => {
-									selectButtonInContext(
-										location,
-										tab.id,
-										btnMenu.groupId,
-										btnMenu.button.id,
-									);
-									setBtnMenu(null);
-								}}
-							>
-								Edit properties
-							</MenuItem>
-							<MenuItem
-								icon={<ImageRegular />}
-								disabled={
-									isGlobalOobReadOnly(btnMenu.button) ||
-									isReadOnlyKind(btnMenu.button)
-								}
-								onClick={() => {
-									selectButtonInContext(
-										location,
-										tab.id,
-										btnMenu.groupId,
-										btnMenu.button.id,
-									);
-									openIconPicker();
-									setBtnMenu(null);
-								}}
-							>
-								Change icon…
-							</MenuItem>
-							<MenuItem
-								icon={<TranslateRegular />}
-								disabled={
-									isGlobalOobReadOnly(btnMenu.button) ||
-									isReadOnlyKind(btnMenu.button)
-								}
-								onClick={() => {
-									openLocalizationEditor(btnMenu.button.id);
-									setBtnMenu(null);
-								}}
-							>
-								Edit labels…
-							</MenuItem>
-							<MenuDivider />
-							{btnMenu.button.hidden ? (
-								<MenuItem
-									icon={<EyeRegular />}
-									disabled={isGlobalOobReadOnly(btnMenu.button)}
-									onClick={() => {
-										setButtonProp(
-											location,
-											tab.id,
-											btnMenu.groupId,
-											btnMenu.button.id,
-											{
-												hidden: false,
-											},
-										);
-										setBtnMenu(null);
-									}}
-								>
-									Show button
-								</MenuItem>
-							) : (
-								<MenuItem
-									icon={<EyeOffRegular />}
-									disabled={isGlobalOobReadOnly(btnMenu.button)}
-									onClick={() => {
-										if (btnMenu.button.oob) setHideWarning(btnMenu);
-										else
-											setButtonProp(
-												location,
-												tab.id,
-												btnMenu.groupId,
-												btnMenu.button.id,
-												{
-													hidden: true,
-												},
-											);
-										setBtnMenu(null);
-									}}
-								>
-									Hide button
-								</MenuItem>
-							)}
-							{(btnMenu.button.origin === "oob" ||
-								btnMenu.button.origin === "managed") && (
-								<MenuItem
-									icon={<AppsAddInRegular />}
-									disabled={
-										isGlobalOobReadOnly(btnMenu.button) ||
-										isReadOnlyKind(btnMenu.button)
-									}
-									onClick={() => {
-										customizeOobButton(
-											location,
-											tab.id,
-											btnMenu.groupId,
-											btnMenu.button.id,
-										);
-										setBtnMenu(null);
-									}}
-								>
-									Create override…
-								</MenuItem>
-							)}
-							<CustomiseMenuItems
-								location={location}
-								tabId={tab.id}
-								groupId={btnMenu.groupId}
-								button={btnMenu.button}
-								onDone={() => setBtnMenu(null)}
-							/>
-							<MenuDivider />
-							<MenuItem
-								icon={<CopyRegular />}
-								disabled={isGlobalOobReadOnly(btnMenu.button)}
-								onClick={() => {
-									duplicateButton(
-										location,
-										tab.id,
-										btnMenu.groupId,
-										btnMenu.button.id,
-									);
-									setBtnMenu(null);
-								}}
-							>
-								Duplicate
-							</MenuItem>
-							{canDeleteControl(btnMenu.button, baseline[location]) && (
-								<MenuItem
-									icon={<DeleteRegular />}
-									disabled={isGlobalOobReadOnly(btnMenu.button)}
-									onClick={() => {
-										deleteButton(
-											location,
-											tab.id,
-											btnMenu.groupId,
-											btnMenu.button.id,
-										);
-										setBtnMenu(null);
-									}}
-								>
-									Delete
-								</MenuItem>
-							)}
-							{moveTargets(
-								tab,
-								btnMenu.groupId,
-								btnMenu.button.id,
-								locLabels,
-								lang,
-								captionOf,
-							).map((t) => (
-								<MenuItem
-									key={t.groupId}
-									icon={<ArrowMoveRegular />}
-									disabled={isGlobalOobReadOnly(btnMenu.button)}
-									onClick={() => {
-										const movedId = moveButton(
-											{
-												groupId: btnMenu.groupId,
-												buttonId: btnMenu.button.id,
-												tabId: tab.id,
-												location,
-											},
-											{ groupId: t.groupId, tabId: tab.id, location },
-										);
-										// A button that isn't yours moves as a copy (#26): select the copy.
-										if (movedId)
-											selectButtonInContext(
-												location,
-												tab.id,
-												t.groupId,
-												movedId,
-											);
-										setBtnMenu(null);
-									}}
-								>
-									Move to: {t.text}
-								</MenuItem>
-							))}
-						</MenuList>
-					</MenuPopover>
-				</Menu>
-			)}
-
-			{hideWarning && (
-				<HideOobWarningModal
-					open
-					buttonLabel={captionOf(
-						hideWarning.button.label,
-						locLabels,
-						undefined,
-						hideWarning.button.source?.labelToken,
-					)}
-					onConfirmHide={() => {
-						hideOobButton(location, tab.id, hideWarning.groupId, hideWarning.button.id);
-						setHideWarning(null);
-					}}
-					commandId={hideWarning.button.commandId}
-					onConfirmDisplayRule={() => {
-						// Reversible hide: display rules on the button's command (not the hidden flag,
-						// which publishes a HideCustomAction).
-						useRibbonStore
-							.getState()
-							.hideWithDisplayRules(hideWarning.button.commandId);
-						setHideWarning(null);
-					}}
-					onCancel={() => setHideWarning(null)}
-				/>
-			)}
+			{/* Button context menu (#182): opens at the chip, also from the keyboard. */}
+			<ButtonContextMenu
+				location={location}
+				tab={tab}
+				target={btnMenu}
+				onClose={() => setBtnMenu(null)}
+			/>
 		</>
 	);
 }

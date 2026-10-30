@@ -140,6 +140,19 @@ function clickMenuItem(text: string) {
 	act(() => item.click());
 }
 
+/** Opens the button menu's "Move to" submenu and lists its groups (#182). */
+function moveToGroups(): string[] {
+	const trigger = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+		(el) => el.textContent?.trim() === "Move to",
+	);
+	if (!trigger) throw new Error('"Move to" not found');
+	act(() => trigger.click());
+	const list = document.querySelector('[role="menu"][aria-label="Move to group"]');
+	return [...(list?.querySelectorAll('[role="menuitem"]') ?? [])].map(
+		(el) => el.textContent ?? "",
+	);
+}
+
 const dialog = () => document.querySelector<HTMLElement>('[role="dialog"], [role="alertdialog"]');
 
 function dialogButton(text: string): HTMLButtonElement {
@@ -272,9 +285,8 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			const items = [...document.querySelectorAll('[role="menuitem"]')].map(
 				(el) => el.textContent ?? "",
 			);
-			const moves = items.filter((t) => t.startsWith("Move to:"));
-			expect(moves).toEqual(["Move to: Management"]);
 			expect(items.join("\n")).not.toMatch(/\$(Resources|LocLabels):/);
+			expect(moveToGroups()).toEqual(["Management"]);
 		});
 
 		it("the modern bar's Move to items are resolved and leave out the button's own group", () => {
@@ -291,10 +303,7 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 					new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
 				);
 			});
-			const moves = [...document.querySelectorAll('[role="menuitem"]')]
-				.map((el) => el.textContent ?? "")
-				.filter((t) => t.startsWith("Move to:"));
-			expect(moves).toEqual(["Move to: Meine Gruppe"]);
+			expect(moveToGroups()).toEqual(["Meine Gruppe"]);
 		});
 
 		it("the list view's tooltips and switch names are resolved", () => {
@@ -613,6 +622,54 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			act(() => dialogButton("Discard customisation").click());
 			expect(dialog()).toBeNull();
 			expect(rules()).toEqual([]);
+		});
+	});
+
+	describe("#182 one button menu everywhere", () => {
+		const menuItems = () =>
+			[
+				...document.querySelectorAll(
+					'[role="menu"]:not([aria-label="Move to group"]) [role="menuitem"]',
+				),
+			].map((el) => el.textContent?.trim() ?? "");
+		const openOn = (el: Element) =>
+			act(() => {
+				el.dispatchEvent(
+					new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
+				);
+			});
+
+		it("lists the same items in the same order on the Classic and Modern canvases", () => {
+			render(<Classic />);
+			openOn(container.querySelector('[data-ribbon-btn-id="mxrm.Own.Button"]')!);
+			const classic = menuItems();
+			act(() => root.render(<FluentProvider theme={webLightTheme}>{null}</FluentProvider>));
+			render(
+				<ModernCommandBar
+					tab={useRibbonStore.getState().ribbons.HomepageGrid.tabs[0]}
+					location="HomepageGrid"
+				/>,
+			);
+			openOn(container.querySelector('[aria-label^="My Button"]')!);
+			expect(menuItems()).toEqual(classic);
+			expect(classic.at(-1)).toBe("Delete…");
+			expect(classic).toContain("Move to");
+		});
+
+		it("asks before Delete, and deletes only on confirm", () => {
+			render(<Classic />);
+			const ids = () => group(OWN)!.buttons.map((b) => b.id);
+			openOn(container.querySelector('[data-ribbon-btn-id="mxrm.Own.Button"]')!);
+			clickMenuItem("Delete…");
+			expect(ids()).toEqual(["mxrm.Own.Button"]);
+			expect(dialog()?.textContent).toContain("Delete “My Button”?");
+			act(() => dialogButton("Cancel").click());
+			expect(ids()).toEqual(["mxrm.Own.Button"]);
+
+			openOn(container.querySelector('[data-ribbon-btn-id="mxrm.Own.Button"]')!);
+			clickMenuItem("Delete…");
+			act(() => dialogButton("Delete button").click());
+			expect(ids()).toEqual([]);
 		});
 	});
 
