@@ -149,6 +149,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     the old pills didn't.
   - **Binding a rule or a command** uses a list you can filter by typing, instead of a long
     drop-down. **Bind** stays disabled until you pick one.
+- **Properties on Microsoft's buttons is read-only (#184).** Their Label, tooltips, order,
+  template alias, languages, icon and images can't be edited directly, and the fields now say so
+  ("Customise this button, or create an override, to edit these fields.") instead of looking
+  editable. Your own buttons, and Microsoft's once customised or overridden, stay editable.
+  Also in Properties:
+  - The languages of a button's text are keyboard-reachable tags, and its Image16/32 are links.
+    Before, they were click-only badges and raw buttons.
+  - "ModernImage (auto)" is now **Modern image**, with a hint saying what it is.
+  - The record-open override (OpenRecordItem) and the form note explain themselves behind an
+    info button, instead of about 110 words of small text, internal XML paths and an issue
+    number. The raw "Tab:" id line is gone.
+  - Deleting an orphaned customization you published recently asks in a dialog with a red
+    **Delete anyway**, instead of a second inline button.
+  - The Hidden, Orphaned and read-only lists use one heading style.
 
 ### 🔧 Fixed
 

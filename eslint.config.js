@@ -57,7 +57,6 @@ export default tseslint.config(
 			"src/components/modals/IconPickerModal.tsx",
 			"src/components/modals/LocalizationEditor.tsx",
 			"src/components/panels/WebResourceBrowser.tsx",
-			"src/components/properties-pane/IdentitySection.tsx",
 			"src/components/ribbon-canvas/ClassicRibbon.tsx",
 			"src/components/ribbon-canvas/FlyoutMenuPanel.tsx",
 			"src/components/ribbon-canvas/ModernCommandBar.tsx",

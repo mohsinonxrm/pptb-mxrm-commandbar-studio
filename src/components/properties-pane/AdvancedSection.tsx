@@ -1,10 +1,9 @@
 import React from "react";
-import { makeStyles, tokens, Text, Switch } from "@fluentui/react-components";
+import { makeStyles, tokens, Text, Switch, InfoLabel } from "@fluentui/react-components";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
 import { useSessionStore } from "@/store/sessionStore";
-import { findGroupControl } from "@/utils/ribbonMenu";
 import {
 	OPEN_RECORD_ITEM_COMMAND_ID,
 	OPEN_RECORD_ITEM_LOCATIONS,
@@ -36,8 +35,6 @@ export const AdvancedSection: React.FC = () => {
 	const styles = useStyles();
 
 	const location = useSelectionStore((s) => s.location);
-	const tabId = useSelectionStore((s) => s.tabId);
-	const selectedGroupId = useSelectionStore((s) => s.selectedGroupId);
 	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
 
 	const ribbons = useRibbonStore((s) => s.ribbons);
@@ -48,9 +45,6 @@ export const AdvancedSection: React.FC = () => {
 	const sessionPrefix = useSessionStore((s) => s.publisherPrefix);
 
 	const ribbon = ribbons[location];
-	const tab = ribbon.tabs.find((t) => t.id === tabId);
-	const group = tab?.groups.find((g) => g.id === selectedGroupId);
-	const button = findGroupControl(group, selectedButtonId);
 	const showOpenRecordItemToggle = OPEN_RECORD_ITEM_LOCATIONS.includes(location);
 
 	// The override is on for this location while the carrier the switch
@@ -80,36 +74,34 @@ export const AdvancedSection: React.FC = () => {
 
 	return (
 		<div className={styles.section}>
-			{button && (
-				<div>
-					<Text size={100} className={styles.note}>
-						Tab: <code style={{ fontFamily: tokens.fontFamilyMonospace }}>{tabId}</code>
-					</Text>
-				</div>
-			)}
-
 			{showOpenRecordItemToggle && (
 				<div>
 					<Switch
-						label={`Override default record open behavior on the ${location === "SubGrid" ? "sub-grid" : "home grid"} (Mscrm.OpenRecordItem)`}
+						label={
+							<InfoLabel
+								info={
+									<>
+										When on, double-clicking a row of this table&apos;s{" "}
+										{location === "SubGrid"
+											? "sub-grids (on any form)"
+											: "home grid"}
+										, selecting its primary column link or pressing Enter runs
+										your command instead of opening the record. Unified
+										Interface only. As Microsoft&apos;s recipe requires, an
+										&ldquo;Open record&rdquo; button using the command is added
+										here: don&apos;t hide it. The Command Editor opens so you
+										can set the script; Publish waits until you do. Turning it
+										off removes that button.
+									</>
+								}
+							>
+								{`Override opening a record from the ${location === "SubGrid" ? "sub-grid" : "home grid"}`}
+							</InfoLabel>
+						}
 						checked={hasOpenRecordOverride}
 						disabled={openRecordTheirs || openRecordUnknown || openRecordNoGroup}
 						onChange={(_, d) => handleOpenRecordToggle(d.checked)}
 					/>
-					<Text size={100} className={styles.note}>
-						When enabled, the table gets a CommandDefinition with
-						Id=&quot;Mscrm.OpenRecordItem&quot; whose action runs instead of opening the
-						record when a user double-clicks a row of this table&apos;s{" "}
-						{location === "SubGrid" ? "sub-grids (on any form)" : "home grid"}, selects
-						its primary column link or presses Enter on it. As in Microsoft&apos;s
-						recipe, an &quot;Open record&quot; button using the command is added to this
-						location&apos;s command bar — the override only reaches a grid through a
-						button there; don&apos;t hide that button.{" "}
-						<strong>Unified Interface only.</strong> The Command Editor will open so you
-						can set the real web resource and function name; Publish is blocked until
-						you do. Turning it off removes that button, and the command once no button
-						uses it.
-					</Text>
 					{openRecordTheirs && (
 						<Text size={100} className={styles.note}>
 							The &quot;Open record&quot; button here comes from another solution, so
@@ -140,11 +132,13 @@ export const AdvancedSection: React.FC = () => {
 			)}
 
 			{location === "Form" && (
-				<Text size={100} className={styles.note}>
-					Form command bar changes apply to every main form of this table
-					(ImportExportXml/Entities/Entity/RibbonDiffXml). Form-specific ribbons
-					(systemform/form/RibbonDiffXml) aren&apos;t supported on Unified Interface, so
-					CBS doesn&apos;t write them (#14).
+				<Text size={200} className={styles.note}>
+					Changes apply to every main form of this table.{" "}
+					<InfoLabel
+						size="small"
+						info="Unified Interface doesn't support a ribbon for one form only, so Command Bar Studio changes the table's form ribbon, which all its main forms use."
+						infoButton={{ "aria-label": "Why every form" }}
+					/>
 				</Text>
 			)}
 		</div>

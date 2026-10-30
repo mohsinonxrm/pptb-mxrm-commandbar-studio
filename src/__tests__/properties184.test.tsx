@@ -350,3 +350,50 @@ describe("#184 controls", () => {
 		expect(picker().value).toBe("");
 	});
 });
+
+describe("#184 Microsoft's buttons and wording", () => {
+	const field = (label: string) =>
+		[
+			...container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+				"input, textarea",
+			),
+		].find((i) => document.querySelector(`label[for="${i.id}"]`)?.textContent === label)!;
+
+	it("keeps Microsoft's button read-only until it's customised, and says how", () => {
+		select(MGMT, "Mscrm.HomepageGrid.contact.Edit");
+		render(<PropertiesPane />);
+		expect(container.textContent).toContain(
+			"Customise this button, or create an override, to edit these fields.",
+		);
+		expect(field("Label").readOnly).toBe(true);
+		expect(field("Tooltip title").readOnly).toBe(true);
+		const change = [...container.querySelectorAll("button")].find(
+			(b) => b.textContent?.trim() === "Change…",
+		)!;
+		expect(change.disabled).toBe(true);
+	});
+
+	it("leaves your own button editable, with its languages as tags", () => {
+		select(OWN, "mxrm.Own.Button");
+		render(<PropertiesPane />);
+		expect(container.textContent).not.toContain("Customise this button, or create an override");
+		expect(field("Label").readOnly).toBe(false);
+		const languages = container.querySelector(
+			`[aria-label="Languages of this button's text"]`,
+		)!;
+		expect(languages.textContent).toContain("en-US");
+	});
+
+	it("shows no internal paths or issue numbers in Advanced", () => {
+		select(OWN, "mxrm.Own.Button");
+		render(<PropertiesPane />);
+		const advanced = [...container.querySelectorAll(".fui-AccordionHeader button")].find(
+			(b) => b.textContent?.trim() === "Advanced",
+		)!;
+		act(() => (advanced as HTMLElement).click());
+		const text = container.textContent ?? "";
+		expect(text).not.toMatch(/\(#\d+\)/);
+		expect(text).not.toContain("RibbonDiffXml");
+		expect(text).not.toContain("Tab: ");
+	});
+});

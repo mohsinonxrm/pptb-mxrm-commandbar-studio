@@ -115,8 +115,12 @@ describe("Orphaned customizations section", () => {
 		expect(recentDelete.textContent).toBe("Delete…");
 		act(() => recentDelete.click());
 		expect(useRibbonStore.getState().pendingOrphanDeletes.entity).toEqual([]);
-		const confirm = buttons()[1];
-		expect(confirm.textContent).toBe("Delete anyway");
+		// A confirmation dialog, with the red button (#184).
+		const dialog = document.querySelector<HTMLElement>('[role="alertdialog"]')!;
+		expect(dialog.textContent).toContain("about 2 minutes ago");
+		const confirm = [...dialog.querySelectorAll("button")].find(
+			(b) => b.textContent === "Delete anyway",
+		)!;
 		act(() => confirm.click());
 		expect(useRibbonStore.getState().pendingOrphanDeletes.entity).toEqual(["cbs.Other.Button"]);
 	});
