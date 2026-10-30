@@ -17,6 +17,7 @@ import {
 	Field,
 	Input,
 	Select,
+	InfoLabel,
 	MessageBar,
 	MessageBarBody,
 } from "@fluentui/react-components";
@@ -421,12 +422,6 @@ export const CommandEditorPanel: React.FC = () => {
 							placeholder="MyNamespace.myFunction"
 						/>
 					</Field>
-					<MessageBar intent="info">
-						<MessageBarBody>
-							Read-only function preview and Monaco editing are available in the web
-							resource browser integration path.
-						</MessageBarBody>
-					</MessageBar>
 					<Divider>Parameters (positional)</Divider>
 					<CrmParameterEditor
 						params={action.params}
@@ -544,16 +539,9 @@ export const CommandEditorPanel: React.FC = () => {
 							aria-label="Remove action"
 						/>
 					</div>
-					<MessageBar intent="warning">
-						<MessageBarBody>
-							<Text className={styles.securityNote}>
-								⚠ Ampersands in URLs are automatically escaped as &amp; in the
-								generated XML.
-							</Text>
-						</MessageBarBody>
-					</MessageBar>
 					<Field
 						label="Address"
+						hint="Ampersands (&) are escaped as &amp; in the generated XML."
 						validationState={isHttpsAddress ? "none" : "error"}
 						validationMessage={
 							isHttpsAddress ? undefined : "URL must start with https://"
@@ -876,13 +864,12 @@ export const CommandEditorPanel: React.FC = () => {
 					</Button>
 				</div>
 				{kind === "enable" && (
-					<MessageBar intent="info">
-						<MessageBarBody>
-							Disabled buttons are <strong>hidden</strong> in the modern command bar
-							(Unified Interface). In the classic ribbon, disabled buttons remain
-							visible but do not respond to clicks.
-						</MessageBarBody>
-					</MessageBar>
+					<InfoLabel
+						size="small"
+						info="Disabled buttons are hidden in the modern command bar (Unified Interface). In the classic ribbon, they stay visible but do nothing when clicked."
+					>
+						What a failing enable rule does
+					</InfoLabel>
 				)}
 			</>
 		);

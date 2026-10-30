@@ -174,6 +174,8 @@ export function CommandProvenanceBar({
 			"Your layer's copy of this command was removed, so the original applies. What is shown here is the " +
 			"removed copy: reload the table to load the original before changing or customising it again.",
 	};
+	// Your own command needs no notice: its badge says it (#181).
+	if (provenance === "custom") return <div className={styles.row}>{badge}</div>;
 	return (
 		<MessageBar
 			intent={

@@ -40,8 +40,6 @@ import type { ConflictEntry } from "@/types/ribbon";
 import { fetchCurrentUser } from "@/services/dataverse/userService";
 import { useRibbonPersistence } from "@/hooks/useRibbonPersistence";
 import { useDraftStore, draftKeyFor } from "@/store/draftStore";
-import { DraftSaveWarning } from "@/components/shell/DraftSaveWarning";
-import { ConnectionChangedNotice } from "@/components/shell/ConnectionChangedNotice";
 import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
 import { UnsavedChangesDialog } from "@/components/modals/UnsavedChangesDialog";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
@@ -70,6 +68,9 @@ const useStyles = makeStyles({
 function LeftPane() {
 	const styles = useStyles();
 	const [tab, setTab] = useState<"tables" | "elements">("tables");
+	// "Choose table" (#195) needs the table list showing.
+	const tablePickerRequested = useUIStore((s) => s.tablePickerRequested);
+	if (tablePickerRequested && tab !== "tables") setTab("tables");
 
 	return (
 		<div className={styles.leftPaneTabs}>
@@ -279,7 +280,7 @@ export function App() {
 
 				// Build ConflictEntry records for buttons whose provenance resolved
 				// to "managed" — i.e. they belong to a managed solution layer.
-				// The ConflictBanner uses these to surface a warning without any
+				// The Properties notices (ButtonNotices) use these to surface a warning without any
 				// additional API calls. The ConflictDrawer then fetches live layer
 				// detail on demand.
 				const conflictEntries: ConflictEntry[] = [];
@@ -402,8 +403,6 @@ export function App() {
 				rightPane={<PropertiesPane />}
 				bottomPanel={<BottomPanel />}
 			>
-				<DraftSaveWarning />
-				<ConnectionChangedNotice />
 				<RibbonCanvas
 					isLoadingRibbon={ribbonLoadState === "loading"}
 					loadingTable={activeEntity?.displayName ?? activeEntity?.logicalName}
@@ -411,6 +410,9 @@ export function App() {
 					ribbonLoadError={ribbonLoadError}
 					layerReadError={layerReadError}
 					onRetryRibbonLoad={handleRetryRibbonLoad}
+					emptyState={
+						!activeSolution ? "noSolution" : !activeEntity ? "noTable" : undefined
+					}
 				/>
 			</Layout>
 			<DraftRestoreDialog />

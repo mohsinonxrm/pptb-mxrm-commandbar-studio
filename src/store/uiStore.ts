@@ -54,6 +54,12 @@ export interface UIStore {
 	tabDisplayRulesOpen: boolean;
 	scalingEditorOpen: boolean;
 	commandPaletteOpen: boolean;
+	/** The top bar's solution picker is open (also opened from the canvas's empty state, #195). */
+	solutionPickerOpen: boolean;
+	/** The tables are asked for: the left drawer opens when narrow, the table search is focused when wide (#195). */
+	tablePickerRequested: boolean;
+	/** Something asked for the Properties pane (e.g. Show orphans): it opens when it's a drawer (#179). */
+	propertiesRequested: boolean;
 	newTabOpen: boolean;
 	/** A control Delete was pressed on that isn't yours: offered a hide instead (#17). */
 	hideInsteadOfDelete: ControlRef | null;
@@ -99,6 +105,9 @@ export interface UIStore {
 	openScalingEditor(): void;
 	closeScalingEditor(): void;
 	setCommandPaletteOpen(open: boolean): void;
+	setSolutionPickerOpen(open: boolean): void;
+	setTablePickerRequested(requested: boolean): void;
+	setPropertiesRequested(requested: boolean): void;
 	openNewTab(): void;
 	closeNewTab(): void;
 	openHideInsteadOfDelete(control: ControlRef): void;
@@ -115,7 +124,8 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	leftPaneWidth: 260,
 	rightPaneWidth: 340,
 	bottomPanelHeight: 220,
-	bottomCollapsed: false,
+	// Collapsed until wanted (#179): the canvas gets the height.
+	bottomCollapsed: true,
 	rightPaneMode: "docked",
 	themeMode: "light",
 	ribbonViewStyle: "modern",
@@ -145,6 +155,9 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	tabDisplayRulesOpen: false,
 	scalingEditorOpen: false,
 	commandPaletteOpen: false,
+	solutionPickerOpen: false,
+	tablePickerRequested: false,
+	propertiesRequested: false,
 	newTabOpen: false,
 	hideInsteadOfDelete: null,
 
@@ -200,6 +213,9 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	openScalingEditor: () => set({ scalingEditorOpen: true }),
 	closeScalingEditor: () => set({ scalingEditorOpen: false }),
 	setCommandPaletteOpen: (open: boolean) => set({ commandPaletteOpen: open }),
+	setSolutionPickerOpen: (open) => set({ solutionPickerOpen: open }),
+	setTablePickerRequested: (requested) => set({ tablePickerRequested: requested }),
+	setPropertiesRequested: (requested) => set({ propertiesRequested: requested }),
 	openNewTab: () => set({ newTabOpen: true }),
 	closeNewTab: () => set({ newTabOpen: false }),
 	openHideInsteadOfDelete: (control) => set({ hideInsteadOfDelete: control }),

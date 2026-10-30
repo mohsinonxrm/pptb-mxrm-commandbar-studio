@@ -13,9 +13,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Formatting is enforced (#118, item 1).** The codebase is formatted with Prettier once, in its
   own commit (146 files: line wrapping, indentation, trailing commas and parentheses; no behaviour
-  change). CI now runs `npm run format:check`
-  after lint, so unformatted code fails the build. This comes first in the UI/UX work (#193),
-  so later diffs show only real changes.
+  change). CI now runs `npm run format:check` after lint, so unformatted code fails the build.
+  This comes first in the UI/UX work (#193), so later diffs show only real changes.
+- **Shared Fluent UI components (#190).** These are the pieces the UI/UX issues build on, so each
+  surface looks and behaves the same:
+  - `AppDialog`: one dialog shell in three widths (440 / 600 / 960 px). Only the content scrolls,
+    so the actions never leave the dialog. A close button, and `DangerButton` for destructive
+    actions.
+  - `PropertySection`: collapsible properties sections with one heading style. The open sections
+    are remembered.
+  - `IdField`: a long id shown read-only and truncated, with the full id in a tooltip and a copy
+    button.
+  - `LocationInfo`: "About this location", with an explanation of each ribbon location in Unified
+    Interface terms. It replaces permanent banners (#181).
+  - `MessageSlot`: one message bar at a time with "+n more". Dismissing is remembered until the
+    message changes.
+  - `RuleTag`: a bound rule, named by the part of its id that tells rules apart instead of
+    "EnableRule". Click to open, ✕ to unbind.
+  - **Lint guard:** components can't add raw `button`/`input`/`select`/`textarea`/`table`
+    elements, or text in an extra-small Badge. The files that still do are listed in
+    `eslint.config.js` and come off the list as their issues are fixed.
+
+### 🔧 Changed
+
+- **The top bar fits PPTB's widths (#179).** At about 1000–1200 px, the old top bar and sub-header
+  wrapped "Publish All" onto two lines. They also pushed View as, XML and Tab rules off-screen or
+  under the Properties pane. Now:
+  - **One top bar** replaces the sub-header row (36 px more for the canvas). It holds the
+    environment, solution, search, undo/redo, an **XML** menu (View XML, Import XML…, Compare with
+    published), **Open in Dynamics 365**, a **View** menu (Properties docked / floating / hidden,
+    the bottom panel) and Help.
+  - **Narrow windows:** tools that don't fit move into a **⋯** menu. **Publish** is never hidden.
+  - **Publish** says what it does ("Publish 2 changes"). With nothing to publish it's disabled,
+    and its tooltip says why.
+  - **Solution button:** shows just the solution's name. A warning icon appears when new ids would
+    use the org's default publisher prefix. The prefix, with an explanation, is in the picker.
+  - **Environment:** below 1200 px it shows just its type badge. The full URL is in a tooltip
+    you can reach with the keyboard.
+  - **Tool-wide messages** (connection changed, draft couldn't be saved) sit under the top bar
+    and push the panes down. They used to cover the left pane's tabs and the Properties header.
+  - **Below 1200 px wide,** the left pane becomes a rail that opens it as a drawer. Properties
+    opens as a drawer when you select something; the canvas stays usable behind it, so picking
+    another button updates it. At 1024 px the canvas went from about a third of the width to
+    nearly all of it.
+  - **The bottom panel starts collapsed** (new installs) and opens when you choose one of its
+    tabs.
+- **The rows above the canvas fit and work from the keyboard (#180).** The location row was
+  hand-rolled tabs that the keyboard couldn't reach. The ribbon tab strip stacked each tab's label,
+  its full id and a delete button into 32 px, and pushed Add tab and Tab rules off-screen.
+  - **Locations use Unified Interface names:** Main grid · Main form · Sub-grid · Application. They
+    form a Fluent tab list (arrow keys, Enter) with a **More** menu when they don't fit.
+  - **About this location (ⓘ)** explains each location and shows its ribbon id.
+  - **App and View are compact menus** instead of 170 px drop-downs. The canvas's own XML button is
+    gone: the top bar's XML menu is the one entry point.
+  - **Ribbon tabs show their label only.** The id is in a tooltip. Double-click or F2 still renames.
+    **Tab options (⋯)** holds Rename…, Tab display rules…, **Move left / Move right** (the keyboard
+    way to reorder; dragging still works), and Delete tab….
+  - **Add tab and Tab rules** (with its rule count) stay reachable however many tabs there are.
+    When a rename isn't allowed, the reason is announced to screen readers.
+- **Fewer, readable messages (#181).** Up to five permanent banners used to stack above the
+  canvas, and two or three more above a built-in button's properties. The long ones were clipped
+  to one line.
+  - **Gone from the canvas:** the Form, Sub-grid and Application notes are now in **About this
+    location**. A custom tab's Unified Interface note is behind an info button in the tab strip.
+  - **One message at a time, with "+n more":** things you need to act on share a single slot.
+    These are the unread-layer warning (with Retry), the Charts-tab warning, and the orphans
+    message (with Show). Dismissing the orphans message is remembered until their number changes.
+  - **Properties shows one notice for a button that isn't yours** (out of the box, managed, or
+    customized by several solutions). It comes with Customise button, Create override and View
+    solution layers. A modern command that replaces the button is the second notice.
+  - **Explanations became info buttons or hints:**
+    - "Disabled buttons are hidden in Unified Interface" in the rules sections;
+    - "enable rules allow fewer step types" in the rule editor;
+    - the ampersand note on a URL action's address.
+  - **Removed:** the developer note about "Monaco editing … integration path", and the "Your own
+    command." bar (its badge says it).
+- **Clear empty, loading and error states (#195).**
+  - **Before a solution is chosen,** the canvas offered "This tab has no groups yet · Add
+    first group". Now it says **Choose a solution to start**, and its button opens the solution
+    picker.
+  - **With a solution but no table:** **Pick a table**. Choose table opens the tables drawer in
+    a narrow window, or puts you in the table search otherwise.
+  - **Loading** shows a progress bar, a skeleton in the shape of the canvas, and a status line
+    with the table and step.
+  - **A failed load** is a titled error with a plain-language cause (for example "Your
+    connection may have expired." for a 401) and Retry. The raw details are in a collapsible
+    section with Copy details.
+  - **Compare with nothing changed** says "No changes since the last publish", with **Show the
+    full XML anyway**, instead of a diff of identical XML.
+  - **Publish with nothing to publish** is disabled with a reason (see the top bar above).
+- **Confirmation dialogs** use the shared dialog shell: 440 px wide, with the confirm button
+  red when it deletes or discards something.
 
 ## [0.8.0-beta.1] - 2026-10-25
 

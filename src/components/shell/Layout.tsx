@@ -1,8 +1,16 @@
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { makeStyles, tokens } from "@fluentui/react-components";
+import { Button, OverlayDrawer, Tooltip, makeStyles, tokens } from "@fluentui/react-components";
+import {
+	DismissRegular,
+	PanelLeftExpandRegular,
+	PanelRightExpandRegular,
+} from "@fluentui/react-icons";
 import { TopBar } from "./TopBar";
-import { SubHeader } from "./SubHeader";
+import { ShellMessages } from "./ShellMessages";
 import { useUIStore } from "@/store/uiStore";
+import { useSelectionStore } from "@/store/selectionStore";
+import { useSessionStore } from "@/store/sessionStore";
+import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { ResizableHandle } from "@/components/shared/ResizableHandle";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
@@ -57,7 +65,33 @@ const useStyles = makeStyles({
 	bottomPanel: {
 		flexShrink: 0,
 	},
+	/** Below NARROW_WIDTH the side panes become a rail and overlay drawers (#179). */
+	rail: {
+		width: "48px",
+		flexShrink: 0,
+		display: "flex",
+		flexDirection: "column",
+		alignItems: "center",
+		paddingTop: tokens.spacingVerticalS,
+		borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
+		backgroundColor: tokens.colorNeutralBackground2,
+	},
+	drawerBody: {
+		position: "relative",
+		width: "100%",
+		height: "100%",
+		overflow: "hidden",
+	},
+	drawerClose: {
+		position: "absolute",
+		top: tokens.spacingVerticalXS,
+		right: tokens.spacingHorizontalXS,
+		zIndex: 1,
+	},
 });
+
+/** Below this window width the side panes stop taking canvas width (#179). */
+const NARROW_WIDTH = 1200;
 
 function useWindowWidth(): number {
 	const [width, setWidth] = useState(() => window.innerWidth);
@@ -88,6 +122,46 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const setBottomPanelHeight = useUIStore((s) => s.setBottomPanelHeight);
 	const announcement = useUIStore((s) => s.announcement);
 	const windowWidth = useWindowWidth();
+	const narrow = windowWidth < NARROW_WIDTH;
+	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
+	const selectedGroupId = useSelectionStore((s) => s.selectedGroupId);
+	const activeTable = useSessionStore((s) => s.activeEntity?.logicalName ?? null);
+	const [leftOpenState, setLeftOpen] = useState(false);
+	// "Choose table" on an empty canvas (#195): the drawer when narrow, the table search when wide.
+	const tablePickerRequested = useUIStore((s) => s.tablePickerRequested);
+	const setTablePickerRequested = useUIStore((s) => s.setTablePickerRequested);
+	const leftOpen = leftOpenState || (narrow && tablePickerRequested);
+	const selectedModernId = useModernCommandStore((s) => s.selectedCommandId);
+	const [propsOpenState, setPropsOpen] = useState(false);
+	// Show orphans and similar actions ask for Properties (#179 review).
+	const propertiesRequested = useUIStore((s) => s.propertiesRequested);
+	const setPropertiesRequested = useUIStore((s) => s.setPropertiesRequested);
+	const propsOpen = propsOpenState || (narrow && propertiesRequested);
+	const closeProps = () => {
+		setPropsOpen(false);
+		setPropertiesRequested(false);
+	};
+	// In a narrow window, selecting something (a classic control or a modern
+	// command) opens Properties; clearing the selection doesn't close it, and
+	// opening a table closes the tables drawer (compared during render).
+	const selectionKey = `${selectedGroupId ?? ""}|${selectedButtonId ?? ""}|${selectedModernId ?? ""}`;
+	const [seenSelection, setSeenSelection] = useState(selectionKey);
+	if (seenSelection !== selectionKey) {
+		setSeenSelection(selectionKey);
+		if (narrow && (selectedButtonId || selectedGroupId || selectedModernId)) setPropsOpen(true);
+	}
+	// The drawers start closed whenever the window crosses the narrow width.
+	const [seenNarrow, setSeenNarrow] = useState(narrow);
+	if (seenNarrow !== narrow) {
+		setSeenNarrow(narrow);
+		setLeftOpen(false);
+		setPropsOpen(false);
+	}
+	const [seenTable, setSeenTable] = useState(activeTable);
+	if (seenTable !== activeTable) {
+		setSeenTable(activeTable);
+		setLeftOpen(false);
+	}
 	const fitted = fitPaneWidths(
 		windowWidth,
 		leftPaneWidth,
@@ -118,6 +192,20 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const wasOverlayOpenRef = useRef(false);
 
 	useKeyboardShortcuts();
+
+	useEffect(() => {
+		if (tablePickerRequested && !narrow) {
+			document.querySelector<HTMLInputElement>('input[aria-label="Search tables"]')?.focus();
+			setTablePickerRequested(false);
+		}
+	}, [tablePickerRequested, narrow, setTablePickerRequested]);
+	useEffect(() => {
+		if (propertiesRequested && !narrow) setPropertiesRequested(false);
+	}, [propertiesRequested, narrow, setPropertiesRequested]);
+	// Opening a table answers the request (the drawer closes with it).
+	useEffect(() => {
+		if (activeTable) setTablePickerRequested(false);
+	}, [activeTable, setTablePickerRequested]);
 
 	useEffect(() => {
 		if (anyOverlayOpen && !wasOverlayOpenRef.current) {
@@ -159,18 +247,88 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	return (
 		<div className={styles.root}>
 			<TopBar />
-			<SubHeader />
+			<ShellMessages />
 			<div className={styles.body}>
-				<div className={styles.leftPane} style={{ width: fitted.left }}>
-					<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
-				</div>
-				<ResizableHandle
-					direction="vertical"
-					onResize={resizeLeft}
-					aria-label="Resize left pane"
-				/>
+				{narrow ? (
+					<nav className={styles.rail} aria-label="Side panes">
+						<Tooltip content="Tables and solution" relationship="label">
+							<Button
+								appearance="subtle"
+								icon={<PanelLeftExpandRegular />}
+								aria-expanded={leftOpen}
+								onClick={() => setLeftOpen(true)}
+							/>
+						</Tooltip>
+						{rightPaneMode !== "hidden" && (
+							<Tooltip content="Properties" relationship="label">
+								<Button
+									appearance="subtle"
+									icon={<PanelRightExpandRegular />}
+									aria-pressed={propsOpen}
+									onClick={() => (propsOpen ? closeProps() : setPropsOpen(true))}
+								/>
+							</Tooltip>
+						)}
+					</nav>
+				) : (
+					<>
+						<div className={styles.leftPane} style={{ width: fitted.left }}>
+							<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
+						</div>
+						<ResizableHandle
+							direction="vertical"
+							onResize={resizeLeft}
+							aria-label="Resize left pane"
+						/>
+					</>
+				)}
 				<ErrorBoundary label="Ribbon canvas">{children}</ErrorBoundary>
-				{rightPaneMode === "docked" && (
+				{narrow && (
+					<>
+						<OverlayDrawer
+							position="start"
+							size="small"
+							open={leftOpen}
+							onOpenChange={(_, d) => {
+								setLeftOpen(d.open);
+								if (!d.open) setTablePickerRequested(false);
+							}}
+							aria-label="Tables and solution"
+						>
+							<div className={styles.drawerBody}>
+								<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
+							</div>
+						</OverlayDrawer>
+						{rightPaneMode !== "hidden" && (
+							// Non-modal: the canvas stays usable, so picking another button
+							// updates Properties instead of needing a close first.
+							<OverlayDrawer
+								position="end"
+								size="small"
+								modalType="non-modal"
+								open={propsOpen}
+								onOpenChange={(_, d) =>
+									d.open ? setPropsOpen(true) : closeProps()
+								}
+								aria-label="Properties"
+							>
+								<div className={styles.drawerBody}>
+									<Button
+										className={styles.drawerClose}
+										appearance="subtle"
+										aria-label="Close properties"
+										icon={<DismissRegular />}
+										onClick={closeProps}
+									/>
+									<ErrorBoundary label="Properties pane">
+										{rightPane}
+									</ErrorBoundary>
+								</div>
+							</OverlayDrawer>
+						)}
+					</>
+				)}
+				{!narrow && rightPaneMode === "docked" && (
 					<>
 						<ResizableHandle
 							direction="vertical"
@@ -182,7 +340,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 						</div>
 					</>
 				)}
-				{rightPaneMode === "floating" && (
+				{!narrow && rightPaneMode === "floating" && (
 					<div
 						style={{
 							position: "absolute",

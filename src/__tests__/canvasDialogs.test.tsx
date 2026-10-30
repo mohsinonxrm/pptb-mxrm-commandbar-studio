@@ -474,26 +474,27 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			useSelectionStore.getState().setTabId("mxrm.contact.NewTab");
 			useUIStore.setState({ ribbonViewStyle: "classic" });
 			render(<RibbonCanvas />);
-			const del = container.querySelector<HTMLButtonElement>(
-				'[aria-label="Delete tab Fresh"]',
-			);
-			expect(del).not.toBeNull();
-			act(() => del!.click());
+			// Delete is in the Tab options menu since #180.
+			const openTabOptions = () =>
+				act(() =>
+					container
+						.querySelector<HTMLButtonElement>('button[aria-label="Tab options"]')!
+						.click(),
+				);
+			openTabOptions();
+			clickMenuItem("Delete tab");
 			expect(dialog()?.textContent).toContain("Fresh");
 			act(() => dialogButton("Cancel").click());
 			const tabs = () => useRibbonStore.getState().ribbons.HomepageGrid.tabs.map((t) => t.id);
 			expect(tabs()).toContain("mxrm.contact.NewTab");
 
-			act(() =>
-				container
-					.querySelector<HTMLButtonElement>('[aria-label="Delete tab Fresh"]')!
-					.click(),
-			);
+			openTabOptions();
+			clickMenuItem("Delete tab");
 			act(() => dialogButton("Delete tab").click());
 			expect(tabs()).not.toContain("mxrm.contact.NewTab");
 		});
 
-		it("the loading spinner names the table and the step (#4)", () => {
+		it("loading names the table and the step (#4)", () => {
 			render(
 				<RibbonCanvas
 					isLoadingRibbon
@@ -501,9 +502,12 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 					loadingStep="Reading your customizations…"
 				/>,
 			);
-			const spinner = container.querySelector(".fui-Spinner")!;
-			expect(spinner.textContent).toContain("Loading Account");
-			expect(spinner.textContent).toContain("Reading your customizations…");
+			// A skeleton with a status line since #195.
+			const status = [...container.querySelectorAll('[role="status"]')].find((el) =>
+				el.textContent?.includes("Loading"),
+			)!;
+			expect(status.textContent).toContain("Loading Account");
+			expect(status.textContent).toContain("Reading your customizations…");
 		});
 
 		it("an unread unmanaged layer is said on the canvas, with Retry (#110)", () => {
@@ -557,28 +561,29 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 					.getState()
 					.createTab("HomepageGrid", { id: "mxrm.contact.NewTab", label: "Fresh" }),
 			);
-			useUIStore.setState({ ribbonViewStyle: "classic" });
+			useUIStore.setState({ ribbonViewStyle: "classic", announcement: "" });
 			render(<RibbonCanvas />);
+			// Tabs show only their label since #180; the id is in a tooltip.
 			const tabEl = (id: string) =>
-				[...container.querySelectorAll<HTMLElement>('[role="tab"]')].find((t) =>
-					t.textContent?.includes(id),
-				)!;
+				container.querySelector<HTMLElement>(`[role="tab"][data-tab-id="${id}"]`)!;
 			const renameInput = () =>
 				container.querySelector<HTMLInputElement>('[aria-label="Rename tab"]');
 
-			// The out-of-the-box main tab: no editor, and the tooltip says why.
+			// The out-of-the-box main tab: no editor, and it's announced why.
 			act(() => tabEl(MAIN).dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
 			expect(renameInput()).toBeNull();
 			press(tabEl(MAIN), "F2");
 			expect(renameInput()).toBeNull();
-			expect(tabEl(MAIN).getAttribute("title")).toMatch(
+			expect(useUIStore.getState().announcement).toMatch(
 				/Only tabs and groups your unmanaged customizations add/,
 			);
 
 			// A tab created this session: renamed in place.
-			const fresh = tabEl("mxrm.contact.NewTab");
-			expect(fresh.getAttribute("title")).toBeNull();
-			act(() => fresh.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
+			act(() =>
+				tabEl("mxrm.contact.NewTab").dispatchEvent(
+					new MouseEvent("dblclick", { bubbles: true }),
+				),
+			);
 			expect(renameInput()?.value).toBe("Fresh");
 		});
 

@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
-import { DraftSaveWarning } from "@/components/shell/DraftSaveWarning";
+import { ShellMessages } from "@/components/shell/ShellMessages";
 import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
 import { UnsavedChangesDialog } from "@/components/modals/UnsavedChangesDialog";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -136,7 +136,7 @@ beforeEach(() => {
 	act(() =>
 		root.render(
 			<FluentProvider theme={webLightTheme}>
-				<DraftSaveWarning />
+				<ShellMessages />
 				<DraftRestoreDialog />
 				<UnsavedChangesDialog />
 			</FluentProvider>,
@@ -292,9 +292,11 @@ describe("#16 — a full browser storage", () => {
 			act(() =>
 				useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"),
 			);
+			// A titled message in the shell's slot since #179.
 			expect(document.body.textContent).toContain(
-				"can't be saved as a draft: the browser storage is full",
+				"Your latest changes can't be saved as a draft",
 			);
+			expect(document.body.textContent).toContain("The browser storage is full.");
 			act(() => useDraftStore.getState().requestEntitySwitch(entity("contact")));
 			expect(findButton("Keep as draft")?.disabled).toBe(true);
 			click("Cancel");

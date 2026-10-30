@@ -11,14 +11,10 @@ import {
 	Divider,
 	Badge,
 	Select,
-	MessageBar,
-	MessageBarBody,
 } from "@fluentui/react-components";
 import { ImageRegular, AddRegular } from "@fluentui/react-icons";
-import { canCustomiseButton, isLoadedControl, useRibbonStore } from "@/store/ribbonStore";
+import { isLoadedControl, useRibbonStore } from "@/store/ribbonStore";
 import { MENU_ITEM_KINDS } from "@/utils/ribbonMenu";
-import { useSessionStore } from "@/store/sessionStore";
-import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
 import FluentIcon from "@/components/shared/FluentIcon";
 import { effectiveModernImage } from "@/services/xmlGenerator";
@@ -103,11 +99,6 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 	const openIconPicker = useUIStore((s) => s.openIconPicker);
 	const openLocalizationEditor = useUIStore((s) => s.openLocalizationEditor);
 	const openWebResourceBrowser = useUIStore((s) => s.openWebResourceBrowser);
-	const customizeOobButton = useRibbonStore((s) => s.customizeOobButton);
-	const customiseButton = useRibbonStore((s) => s.customiseButton);
-	const activeSolution = useSessionStore((s) => s.activeSolution);
-	const sessionPrefix = useSessionStore((s) => s.publisherPrefix);
-	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 
 	// A menu item can be a button or a flyout; a loaded control keeps its kind (#154).
 	const isMenuItem = useRibbonStore(
@@ -132,67 +123,6 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 
 	return (
 		<div className={styles.root}>
-			{/* Provenance callout — OOB platform vs managed solution. Unmanaged
-			    (your own) buttons get no callout; they're directly editable. */}
-			{(button.origin === "oob" || button.origin === "managed") && (
-				<MessageBar intent="warning">
-					<MessageBarBody>
-						<Text size={200}>
-							{button.origin === "oob" ? (
-								<>
-									This is an <strong>out-of-the-box</strong> (system) button. To
-									change it, create an override.
-								</>
-							) : (
-								<>
-									This button comes from a <strong>managed solution</strong>
-									{button.solutionName ? (
-										<>
-											{" "}
-											(<strong>{button.solutionName}</strong>)
-										</>
-									) : null}
-									{button.publisherName ? <> by {button.publisherName}</> : null}.
-									You can't edit it directly — create an override to change it.
-								</>
-							)}{" "}
-							<Button
-								size="small"
-								appearance="subtle"
-								onClick={() =>
-									customizeOobButton(location, tabId, groupId, button.id)
-								}
-							>
-								Create override
-							</Button>
-							{canCustomiseButton(location, tabId, button) && (
-								<Button
-									size="small"
-									appearance="subtle"
-									title="Copy the button into your solution and hide the original, so the copy can be changed and moved"
-									onClick={() => {
-										const prefix =
-											activeSolution?.publisherPrefix?.trim() ||
-											sessionPrefix?.trim() ||
-											"new";
-										const id = customiseButton(
-											location,
-											tabId,
-											groupId,
-											button.id,
-											prefix,
-										);
-										if (id) selectButtonInContext(location, tabId, groupId, id);
-									}}
-								>
-									Customise button
-								</Button>
-							)}
-						</Text>
-					</MessageBarBody>
-				</MessageBar>
-			)}
-
 			<Text size={100} weight="semibold" className={styles.sectionLabel}>
 				Identity
 			</Text>
