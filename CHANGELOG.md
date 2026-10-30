@@ -121,6 +121,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   left from the keyboard. Notes such as "Microsoft's global command bar buttons can't be
   changed" are headings in the menu, not greyed-out items.
 
+- **Properties says what is selected (#184).** A header stays at the top while you scroll: the
+  button's icon and label, whose it is (**Yours**, **Out of the box** or **Managed · solution**)
+  and its kind. Its close button clears the selection when docked, or closes the drawer in a
+  narrow window (where it replaces the drawer's own). The fields are in collapsible sections
+  that remember what you opened:
+  - **Appearance:** label, translations, tooltips, icon, Visible, and the **Button ID**;
+  - **Position:** the group and the order, with a hint;
+  - **Command:** the **Command ID** with **Edit command**;
+  - **Display rules** and **Enable rules**, with a count;
+  - **Scaling:** the tab it applies to, by name. A note says Unified Interface ignores it,
+    instead of a warning box on every button.
+  - **Advanced:** kind (now "Split button", not `splitButton`), template alias with a hint, and
+    the rest.
+
+  Both ids are read-only with a copy button and the full id in a tooltip. The doubled padding,
+  dividers and left border are gone.
+
 ### 🔧 Fixed
 
 - **Compare's XML diff is coloured (#195).** With a table open and a change pending, Compare

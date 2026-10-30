@@ -1,13 +1,10 @@
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Button, OverlayDrawer, Tooltip, makeStyles, tokens } from "@fluentui/react-components";
-import {
-	DismissRegular,
-	PanelLeftExpandRegular,
-	PanelRightExpandRegular,
-} from "@fluentui/react-icons";
+import { PanelLeftExpandRegular, PanelRightExpandRegular } from "@fluentui/react-icons";
 import { TopBar } from "./TopBar";
 import { ShellMessages } from "./ShellMessages";
 import { useUIStore } from "@/store/uiStore";
+import { PropertiesHostContext } from "@/components/properties-pane/propertiesHost";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useModernCommandStore } from "@/store/modernCommandStore";
@@ -81,12 +78,6 @@ const useStyles = makeStyles({
 		width: "100%",
 		height: "100%",
 		overflow: "hidden",
-	},
-	drawerClose: {
-		position: "absolute",
-		top: tokens.spacingVerticalXS,
-		right: tokens.spacingHorizontalXS,
-		zIndex: 1,
 	},
 });
 
@@ -313,16 +304,12 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 								aria-label="Properties"
 							>
 								<div className={styles.drawerBody}>
-									<Button
-										className={styles.drawerClose}
-										appearance="subtle"
-										aria-label="Close properties"
-										icon={<DismissRegular />}
-										onClick={closeProps}
-									/>
-									<ErrorBoundary label="Properties pane">
-										{rightPane}
-									</ErrorBoundary>
+									{/* Properties' own header shows this close button (#184). */}
+									<PropertiesHostContext.Provider value={{ onClose: closeProps }}>
+										<ErrorBoundary label="Properties pane">
+											{rightPane}
+										</ErrorBoundary>
+									</PropertiesHostContext.Provider>
 								</div>
 							</OverlayDrawer>
 						)}

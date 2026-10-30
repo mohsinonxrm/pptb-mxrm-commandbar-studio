@@ -1,33 +1,19 @@
-import {
-	makeStyles,
-	tokens,
-	Text,
-	Button,
-	Divider,
-	Tag,
-	Field,
-	Select,
-} from "@fluentui/react-components";
+import { makeStyles, tokens, Text, Button, Tag, Field, Select } from "@fluentui/react-components";
 import { CodeRegular, AddRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
 import { generateCommandId } from "@/utils/idGenerator";
 import type { RibbonButton } from "@/types/ribbon";
 import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
+import { IdField } from "@/components/shared/IdField";
 import React from "react";
 
 const useStyles = makeStyles({
 	root: {
-		padding: `${tokens.spacingHorizontalM}`,
 		display: "flex",
 		flexDirection: "column",
-		gap: tokens.spacingHorizontalS,
-	},
-	sectionLabel: {
-		color: tokens.colorNeutralForeground3,
-		textTransform: "uppercase",
-		letterSpacing: "0.5px",
-		marginBottom: tokens.spacingHorizontalXS,
+		gap: tokens.spacingVerticalM,
+		minWidth: 0,
 	},
 	commandRow: {
 		display: "flex",
@@ -84,24 +70,22 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 
 	return (
 		<div className={styles.root}>
-			<Divider />
-			<Text size={100} weight="semibold" className={styles.sectionLabel}>
-				Command
-			</Text>
-
 			{command ? (
 				<>
-					<div className={styles.commandRow}>
-						<Text className={styles.commandId}>{command.id}</Text>
-						<Button
-							appearance="subtle"
-							size="small"
-							icon={<CodeRegular />}
-							onClick={() => openCommandEditor(command.id)}
-						>
-							Edit
-						</Button>
-					</div>
+					<IdField
+						label="Command ID"
+						value={command.id}
+						action={
+							<Button
+								appearance="subtle"
+								size="small"
+								icon={<CodeRegular />}
+								onClick={() => openCommandEditor(command.id)}
+							>
+								Edit command
+							</Button>
+						}
+					/>
 					<CommandProvenanceBar commandId={command.id} compact />
 
 					{command.actions.length > 0 && (

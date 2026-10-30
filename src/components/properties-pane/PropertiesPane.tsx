@@ -1,4 +1,4 @@
-import { makeStyles, tokens, Text, Subtitle2, Divider, Caption1 } from "@fluentui/react-components";
+import { makeStyles, tokens, Text, Caption1 } from "@fluentui/react-components";
 import { useDisplayText } from "@/hooks/useDisplayText";
 import { CursorHoverRegular } from "@fluentui/react-icons";
 import { useSelectionStore } from "@/store/selectionStore";
@@ -16,21 +16,19 @@ import { isReadOnlyControlKind } from "@/utils/controlKinds";
 import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
 import { ModernCommandProperties } from "./ModernCommandProperties";
 import { ButtonNotices } from "./ButtonNotices";
+import { PropertiesHeader } from "./PropertiesHeader";
+import { PropertySection, PropertySections } from "@/components/shared/PropertySection";
 import { useClassicOverrides, useSelectedModernCommand } from "@/hooks/useModernCommands";
 
 const useStyles = makeStyles({
+	// The host (docked pane, drawer or floating panel) draws the edge (#184).
 	root: {
 		display: "flex",
 		flexDirection: "column",
 		height: "100%",
 		overflowY: "auto",
+		overflowX: "hidden",
 		backgroundColor: tokens.colorNeutralBackground2,
-		borderLeft: `1px solid ${tokens.colorNeutralStroke2}`,
-	},
-	header: {
-		padding: `${tokens.spacingHorizontalS} ${tokens.spacingHorizontalM}`,
-		borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-		flexShrink: 0,
 	},
 	empty: {
 		display: "flex",
@@ -43,8 +41,9 @@ const useStyles = makeStyles({
 		padding: tokens.spacingHorizontalXL,
 		textAlign: "center",
 	},
-	section: {
-		padding: `${tokens.spacingHorizontalS} ${tokens.spacingHorizontalM}`,
+	place: {
+		padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM} 0`,
+		color: tokens.colorNeutralForeground2,
 	},
 });
 
@@ -67,12 +66,13 @@ export function PropertiesPane() {
 	// Modern commands (#32) are shown read-only and live outside the ribbon store.
 	const modern = useSelectedModernCommand();
 	const modernOverrides = useClassicOverrides(location, button?.id);
+	const command = useRibbonStore((s) =>
+		button?.commandId ? s.commands.find((c) => c.id === button.commandId) : undefined,
+	);
 
 	return (
 		<aside className={styles.root} aria-label="Properties">
-			<div className={styles.header}>
-				<Subtitle2>Properties</Subtitle2>
-			</div>
+			<PropertiesHeader button={button} />
 
 			{!button && modern ? (
 				<ModernCommandProperties command={modern.command} items={modern.children} />
@@ -95,18 +95,16 @@ export function PropertiesPane() {
 						overrides={modernOverrides}
 					/>
 					{place && (
-						<div className={styles.section}>
-							<Caption1>
-								Menu item of “
-								{captionOf(
-									place.parent.label,
-									locLabels,
-									undefined,
-									place.parent.source?.labelToken,
-								)}
-								”{place.section.title ? ` — section “${place.section.title}”` : ""}
-							</Caption1>
-						</div>
+						<Caption1 className={styles.place}>
+							Menu item of “
+							{captionOf(
+								place.parent.label,
+								locLabels,
+								undefined,
+								place.parent.source?.labelToken,
+							)}
+							”{place.section.title ? ` — section “${place.section.title}”` : ""}
+						</Caption1>
 					)}
 					{isReadOnlyControlKind(button.kind) ? (
 						// ToggleButton, Label, DropDown, …: shown, never edited (#42).
@@ -117,39 +115,70 @@ export function PropertiesPane() {
 							groupId={selectedGroupId!}
 						/>
 					) : (
-						<>
-							<IdentitySection
-								button={button}
-								location={location}
-								tabId={tabId}
-								groupId={selectedGroupId!}
-							/>
-							<Divider />
-							<div className={styles.section}>
+						<PropertySections
+							storageKey="properties.button"
+							defaultOpen={["appearance", "position", "command", "display", "enable"]}
+						>
+							<PropertySection value="appearance" title="Appearance">
+								<IdentitySection
+									part="appearance"
+									button={button}
+									location={location}
+									tabId={tabId}
+									groupId={selectedGroupId!}
+								/>
+							</PropertySection>
+							<PropertySection value="position" title="Position">
+								<IdentitySection
+									part="position"
+									button={button}
+									location={location}
+									tabId={tabId}
+									groupId={selectedGroupId!}
+								/>
+							</PropertySection>
+							<PropertySection value="command" title="Command">
 								<CommandSection
 									button={button}
 									groupId={selectedGroupId!}
 									tabId={tabId}
 									location={location}
 								/>
-							</div>
-							<Divider />
-							<div className={styles.section}>
+							</PropertySection>
+							<PropertySection
+								value="display"
+								title="Display rules"
+								count={command?.displayRules.length}
+								info="All of them must pass for the button to show."
+							>
 								<DisplayRulesSection />
-							</div>
-							<Divider />
-							<div className={styles.section}>
+							</PropertySection>
+							<PropertySection
+								value="enable"
+								title="Enable rules"
+								count={command?.enableRules.length}
+								info="All of them must pass for the button to be enabled. Unified Interface hides a button that isn't enabled."
+							>
 								<EnableRulesSection />
-							</div>
-							<Divider />
-							<div className={styles.section}>
+							</PropertySection>
+							<PropertySection
+								value="scaling"
+								title="Scaling"
+								info="Scaling only applies to the classic ribbon. Unified Interface ignores it."
+							>
 								<ScalingSectionSummary />
-							</div>
-							<Divider />
-							<div className={styles.section}>
+							</PropertySection>
+							<PropertySection value="advanced" title="Advanced">
+								<IdentitySection
+									part="advanced"
+									button={button}
+									location={location}
+									tabId={tabId}
+									groupId={selectedGroupId!}
+								/>
 								<AdvancedSection />
-							</div>
-						</>
+							</PropertySection>
+						</PropertySections>
 					)}
 				</>
 			)}

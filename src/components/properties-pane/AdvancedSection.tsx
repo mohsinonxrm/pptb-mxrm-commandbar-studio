@@ -168,10 +168,6 @@ export const AdvancedSection: React.FC = () => {
 
 	return (
 		<div className={styles.section}>
-			<Text size={200} weight="semibold">
-				Advanced
-			</Text>
-
 			{button && (
 				<div>
 					<Text size={100} className={styles.note}>

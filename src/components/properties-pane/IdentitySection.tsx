@@ -20,6 +20,9 @@ import FluentIcon from "@/components/shared/FluentIcon";
 import { effectiveModernImage } from "@/services/xmlGenerator";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
 import { buttonTranslationLcids } from "@/utils/locLabelRef";
+import { IdField } from "@/components/shared/IdField";
+import { useDisplayText } from "@/hooks/useDisplayText";
+import { CONTROL_KIND_LABELS } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
 
 const BUTTON_KINDS: RibbonButton["kind"][] = [
@@ -33,17 +36,10 @@ const BUTTON_KINDS: RibbonButton["kind"][] = [
 
 const useStyles = makeStyles({
 	root: {
-		padding: `${tokens.spacingHorizontalM}`,
 		display: "flex",
 		flexDirection: "column",
-		gap: tokens.spacingHorizontalS,
-	},
-	sectionLabel: {
-		color: tokens.colorNeutralForeground3,
-		textTransform: "uppercase",
-		letterSpacing: "0.5px",
-		marginBottom: tokens.spacingHorizontalXS,
-		marginTop: tokens.spacingHorizontalS,
+		gap: tokens.spacingVerticalM,
+		minWidth: 0,
 	},
 	row: {
 		display: "flex",
@@ -89,9 +85,14 @@ interface IdentitySectionProps {
 	location: RibbonLocation;
 	tabId: string;
 	groupId: string;
+	/**
+	 * Which fields (#184): what the button looks like and its id; where it sits
+	 * in its group; or the technical ones (kind, template alias).
+	 */
+	part: "appearance" | "position" | "advanced";
 }
 
-export function IdentitySection({ button, location, tabId, groupId }: IdentitySectionProps) {
+export function IdentitySection({ button, location, tabId, groupId, part }: IdentitySectionProps) {
 	const styles = useStyles();
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
 	const locLabels = useRibbonStore((s) => s.locLabels);
@@ -109,6 +110,10 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 				?.buttons.some((b) => b.id === button.id),
 	);
 	const kindLocked = useRibbonStore((s) => isLoadedControl(s, location, button.id));
+	const group = useRibbonStore((s) =>
+		s.ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId),
+	);
+	const captionOf = useDisplayText();
 	const kindOptions = [
 		...new Set([...(isMenuItem ? MENU_ITEM_KINDS : BUTTON_KINDS), button.kind]),
 	];
@@ -121,12 +126,80 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 	// a prefix match showed `Foo.Button2`'s translations on `Foo.Button`, #22).
 	const activeLcids = buttonTranslationLcids(button, locLabels, baseLanguageCode);
 
+	if (part === "position") {
+		return (
+			<div className={styles.root}>
+				<Field label="Group" hint="Use Move to in the button's menu to move it.">
+					<Input
+						readOnly
+						appearance="filled-darker"
+						value={
+							group
+								? captionOf(
+										group.label,
+										locLabels,
+										baseLanguageCode,
+										group.source?.titleToken,
+									) || group.id
+								: groupId
+						}
+					/>
+				</Field>
+				<Field
+					label="Order"
+					hint="Lower numbers show first within the group. Unified Interface merges the groups into one bar."
+				>
+					<SpinButton
+						value={button.sequence}
+						step={10}
+						min={0}
+						onChange={(_, d) => patch({ sequence: Number(d.value ?? button.sequence) })}
+					/>
+				</Field>
+			</div>
+		);
+	}
+
+	if (part === "advanced") {
+		return (
+			<div className={styles.root}>
+				<Field
+					label="Kind"
+					hint={
+						kindLocked
+							? "A loaded control's kind can't be changed: add a new control instead."
+							: isMenuItem
+								? "A menu holds buttons and flyouts."
+								: undefined
+					}
+				>
+					<Select
+						value={button.kind}
+						disabled={kindLocked}
+						onChange={(_, d) => patch({ kind: d.value as RibbonButton["kind"] })}
+					>
+						{kindOptions.map((k) => (
+							<option key={k} value={k}>
+								{CONTROL_KIND_LABELS[k]}
+							</option>
+						))}
+					</Select>
+				</Field>
+				<Field
+					label="Template alias"
+					hint="Which slot of the group's layout the button uses on the classic ribbon, for example o1."
+				>
+					<Input
+						value={button.templateAlias}
+						onChange={(_, d) => patch({ templateAlias: d.value })}
+					/>
+				</Field>
+			</div>
+		);
+	}
+
 	return (
 		<div className={styles.root}>
-			<Text size={100} weight="semibold" className={styles.sectionLabel}>
-				Identity
-			</Text>
-
 			<Field label="Label">
 				<Input value={button.label} onChange={(_, d) => patch({ label: d.value })} />
 			</Field>
@@ -257,55 +330,13 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 				</Field>
 			)}
 
-			<Divider />
+			<Switch
+				label="Visible"
+				checked={!button.hidden}
+				onChange={(_, d) => patch({ hidden: !d.checked })}
+			/>
 
-			<Field
-				label="Kind"
-				hint={
-					kindLocked
-						? "A loaded control's kind can't be changed: add a new control instead."
-						: isMenuItem
-							? "A menu holds buttons and flyouts."
-							: undefined
-				}
-			>
-				<Select
-					value={button.kind}
-					disabled={kindLocked}
-					onChange={(_, d) => patch({ kind: d.value as RibbonButton["kind"] })}
-				>
-					{kindOptions.map((k) => (
-						<option key={k} value={k}>
-							{k}
-						</option>
-					))}
-				</Select>
-			</Field>
-
-			<div className={styles.row} style={{ justifyContent: "space-between" }}>
-				<Text size={200}>Visible</Text>
-				<Switch
-					checked={!button.hidden}
-					aria-label="Toggle button visibility"
-					onChange={(_, d) => patch({ hidden: !d.checked })}
-				/>
-			</div>
-
-			<Field label="Sequence">
-				<SpinButton
-					value={button.sequence}
-					step={10}
-					min={0}
-					onChange={(_, d) => patch({ sequence: Number(d.value ?? button.sequence) })}
-				/>
-			</Field>
-
-			<Field label="Template alias">
-				<Input
-					value={button.templateAlias}
-					onChange={(_, d) => patch({ templateAlias: d.value })}
-				/>
-			</Field>
+			<IdField label="Button ID" value={button.id} />
 		</div>
 	);
 }

@@ -293,7 +293,7 @@ src/
   components/
     shell/               — TopBar, ShellMessages, Layout (resizable panes; rail + drawers below 1200 px)
     ribbon-canvas/       — RibbonCanvas, ClassicRibbon, ModernCommandBar, RibbonListView
-    properties-pane/     — PropertiesPane + 6 section components
+    properties-pane/     — PropertiesPane (header + collapsible sections) and its sections
     bottom-panel/        — BottomPanel (Commands / Rules / History / Console tabs)
     panels/              — CommandEditor, RuleEditor, ScalingEditor, TabDisplayRules,
                            ConflictDrawer, WebResourceBrowser, UrlComposer,
