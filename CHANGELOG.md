@@ -182,6 +182,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - New button, Rename group, Change template, New group, New tab and the two
     unpublished-changes dialogs all use the shared dialog shell. Their actions never leave the
     dialog, and titles are in sentence case. The dialogs' extra entrance animation is removed.
+- **The publish dialog says what it publishes first (#188).**
+  - **One row per change**, in words, with a badge (New, Change, Move, Show, Hide, Delete):
+    "Add **Credit Check** to the main grid and main form", "Hide **Edit** on the main grid".
+  - **Same count everywhere:** the top bar's **Publish n changes** and the dialog's primary
+    button count these rows, not edits. Five edits of one label are one change.
+  - **When Publish is blocked, it says why**, above the changes: no solution, changes that can't
+    be published yet, problems the check found, nothing to publish, or publishing everything
+    without its confirmation. Problems opens by itself.
+  - **Folded away until needed:** Problems, Warnings, Good to know, and Options. Options holds
+    what else to publish, the solution version (the switch now comes before the field) and the
+    comment. "PublishAllXmlAsync" is no longer shown.
+  - **View XML** shows the complete RibbonDiffXml each import writes (your layer with the
+    changes merged in) inside the dialog. Going back keeps the comment and the confirmation;
+    before, it closed the dialog.
+  - **Progress in words** ("Publishing…", "Done", "Failed"). Afterwards it says "Published 2
+    changes to CBS Ribbon Test", and that Unified Interface can take up to about 25 minutes to
+    show it (Command Checker's **Regenerate ribbon metadata** shows it sooner).
+  - The title names what publishes ("Publish CBS Ribbon Test") instead of "Publish to Dataverse",
+    and the dialog uses the shared dialog shell.
 
 ### 🔧 Fixed
 

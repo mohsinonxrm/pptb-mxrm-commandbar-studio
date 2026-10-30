@@ -36,6 +36,11 @@ vi.mock("@/components/panels/XmlDrawer", () => ({ default: () => null }));
 vi.mock("@/components/panels/CommandEditorPanel", () => ({ default: () => null }));
 vi.mock("@/components/panels/RuleEditorPanel", () => ({ default: () => null }));
 vi.mock("@/components/modals/BulkPublishModal", () => ({ default: () => null }));
+// The changes Publish counts (#188); publish188 tests the real plan.
+const publishPlan = vi.hoisted(() => ({ changes: [] as unknown[] }));
+vi.mock("@/hooks/usePublishPlan", () => ({
+	usePublishPlan: () => ({ changes: publishPlan.changes, unsupported: [] }),
+}));
 vi.mock("@/components/modals/NewButtonModal", () => ({ default: () => null }));
 vi.mock("@/components/modals/NewGroupModal", () => ({ default: () => null }));
 vi.mock("@/components/modals/NewTabModal", () => ({ default: () => null }));
@@ -93,6 +98,7 @@ beforeEach(() => {
 	useUIStore.setState(initialUI, true);
 	useDraftStore.setState({ target: null });
 	useRibbonStore.setState({ mutationsSincePublish: 0 });
+	publishPlan.changes = [];
 	useSessionStore.setState({ connectionNotice: null });
 	useSelectionStore.setState({ selectedButtonId: null, selectedGroupId: null });
 	setWidth(1600);
@@ -108,7 +114,9 @@ describe("#179 Publish", () => {
 		useDraftStore.setState({
 			target: { connectionUrl: "u", solutionId: "s", entity: "account" },
 		} as never);
-		useRibbonStore.setState({ mutationsSincePublish: 2 });
+		useRibbonStore.setState({ mutationsSincePublish: 5 });
+		// Five edits, two changes: it counts what it publishes.
+		publishPlan.changes = [{}, {}];
 		render(<TopBar />);
 		click(byName("Publish 2 changes"));
 		expect(useUIStore.getState().bulkPublishOpen).toBe(true);
