@@ -128,7 +128,7 @@ export function indexButtons(def: RibbonDefinition): Map<string, IndexedButton> 
 }
 
 /** What publishing a button needs, compared with its loaded (baseline) occurrence. */
-interface ButtonChange {
+export interface ButtonChange {
 	entry: IndexedButton;
 	change: "hide" | "new" | "override";
 }
@@ -141,7 +141,10 @@ interface ButtonChange {
  * hide of a control that doesn't exist would do nothing (#62 review m4), and
  * a new control is also how a moved one is re-placed (#57).
  */
-function classifyButtons(current: RibbonDefinition, baseline: RibbonDefinition): ButtonChange[] {
+export function classifyButtons(
+	current: RibbonDefinition,
+	baseline: RibbonDefinition,
+): ButtonChange[] {
 	const base = indexButtons(baseline);
 	const cur = indexButtons(current);
 	const insideNewMenu = (entry: IndexedButton) => {
