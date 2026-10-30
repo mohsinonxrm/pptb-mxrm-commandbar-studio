@@ -290,6 +290,7 @@ export function ButtonContextMenu({ location, tab, target, onClose }: ButtonCont
 				<HideOobWarningModal
 					open
 					buttonLabel={textOf(hiding.button)}
+					buttonId={hiding.button.id}
 					commandId={hiding.button.commandId}
 					onConfirmHide={() => {
 						hideOobButton(location, tab.id, hiding.groupId, hiding.button.id);

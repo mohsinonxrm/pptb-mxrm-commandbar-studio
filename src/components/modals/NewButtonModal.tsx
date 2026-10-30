@@ -1,17 +1,6 @@
 import React, { useState } from "react";
-import {
-	Dialog,
-	DialogSurface,
-	DialogTitle,
-	DialogBody,
-	DialogContent,
-	DialogActions,
-	Button,
-	Field,
-	Input,
-	Select,
-	Text,
-} from "@fluentui/react-components";
+import { Button, Field, Input, Select } from "@fluentui/react-components";
+import { AppDialog } from "@/components/shared/AppDialog";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -129,44 +118,37 @@ export const NewButtonModal: React.FC = () => {
 	};
 
 	return (
-		<Dialog open={isOpen} onOpenChange={() => closeNewButton()}>
-			<DialogSurface>
-				<DialogTitle>New button</DialogTitle>
-				<DialogBody>
-					<DialogContent>
-						<Field label="Label" required>
-							<Input value={label} onChange={(_, d) => setLabel(d.value)} autoFocus />
-						</Field>
-						<Field label="Kind">
-							<Select
-								value={kind}
-								onChange={(_, d) => setKind(d.value as RibbonButton["kind"])}
-							>
-								<option value="button">Button</option>
-								<option value="flyout">Flyout anchor</option>
-								<option value="splitButton">Split button</option>
-							</Select>
-						</Field>
-						<Text size={200} style={{ display: "block", marginTop: "8px" }}>
-							A command definition will be created automatically. You can edit it in
-							the Command Editor.
-						</Text>
-					</DialogContent>
-					<DialogActions>
-						<Button appearance="secondary" onClick={closeNewButton}>
-							Cancel
-						</Button>
-						<Button
-							appearance="primary"
-							onClick={handleCreate}
-							disabled={!label.trim()}
-						>
-							Create button
-						</Button>
-					</DialogActions>
-				</DialogBody>
-			</DialogSurface>
-		</Dialog>
+		<AppDialog
+			open={isOpen}
+			onOpenChange={(o) => !o && closeNewButton()}
+			size="small"
+			title="New button"
+			actions={
+				<>
+					<Button appearance="secondary" onClick={closeNewButton}>
+						Cancel
+					</Button>
+					<Button appearance="primary" onClick={handleCreate} disabled={!label.trim()}>
+						Create button
+					</Button>
+				</>
+			}
+		>
+			<Field
+				label="Label"
+				required
+				hint="A command is created with it; edit it in the command editor."
+			>
+				<Input value={label} onChange={(_, d) => setLabel(d.value)} autoFocus />
+			</Field>
+			<Field label="Kind">
+				<Select value={kind} onChange={(_, d) => setKind(d.value as RibbonButton["kind"])}>
+					<option value="button">Button</option>
+					<option value="flyout">Flyout</option>
+					<option value="splitButton">Split button</option>
+				</Select>
+			</Field>
+		</AppDialog>
 	);
 };
 

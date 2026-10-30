@@ -1,6 +1,14 @@
+import { LOCATION_INFO } from "@/constants/locationInfo";
 import { sourceForCopy } from "@/utils/copyButton";
 import { isPlatformText } from "@/utils/displayLabel";
-import type { RibbonButton, RibbonGroup, RibbonMenu, RibbonMenuSection } from "@/types/ribbon";
+import type {
+	RibbonButton,
+	RibbonDefinition,
+	RibbonGroup,
+	RibbonLocation,
+	RibbonMenu,
+	RibbonMenuSection,
+} from "@/types/ribbon";
 
 /**
  * Helpers for the menus of FlyoutAnchor / SplitButton controls (#27). Menu
@@ -46,6 +54,34 @@ export function withMenuItems(buttons: RibbonButton[]): RibbonButton[] {
 /** Every control of a group, including menu items. */
 export function groupControls(group: RibbonGroup): RibbonButton[] {
 	return withMenuItems(group.buttons);
+}
+
+/**
+ * The names of the other buttons that use a command, on every ribbon (#187).
+ * One on another location than `here` says where, e.g. "Edit (main form)",
+ * since buttons on different locations often share a label.
+ */
+export function otherButtonsUsing(
+	ribbons: Record<RibbonLocation, RibbonDefinition>,
+	commandId: string,
+	buttonId: string,
+	nameOf: (button: RibbonButton) => string,
+	here?: RibbonLocation,
+): string[] {
+	const names: string[] = [];
+	for (const location of Object.keys(ribbons) as RibbonLocation[])
+		for (const tab of ribbons[location].tabs)
+			for (const group of tab.groups)
+				for (const b of groupControls(group))
+					if (b.commandId === commandId && b.id !== buttonId) {
+						const where =
+							here && location !== here
+								? ` (${LOCATION_INFO[location].label.toLowerCase()})`
+								: "";
+						const name = (nameOf(b) || b.id) + where;
+						if (!names.includes(name)) names.push(name);
+					}
+	return names;
 }
 
 /** Where a menu item lives: its flyout, section and position. */

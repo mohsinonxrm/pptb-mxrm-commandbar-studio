@@ -163,6 +163,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Deleting an orphaned customization you published recently asks in a dialog with a red
     **Delete anyway**, instead of a second inline button.
   - The Hidden, Orphaned and read-only lists use one heading style.
+- **Clearer dialogs (#187).**
+  - **Hiding a button that isn't yours** offers two plain choices:
+    - **Hide this button only:** you can show it again under Hidden by customizations.
+    - **Hide it with display rules on its command:** easy to undo, but it hides every button
+      that uses the command, and the dialog names them. A button on another location says
+      where, e.g. "Edit (main form)", in this dialog and under Show on.
+
+    Display rules are the default only when no other button uses the command. Before, the
+    permanent HideCustomAction was the default, and the text was full of jargon.
+  - **Discard** in the unpublished-changes and restore-draft dialogs is red and says **Discard
+    changes**; **Restore changes** says what it does.
+  - **New group** offers the platform's group templates, as Change template does. The made-up
+    "Layout3" is gone.
+  - **New tab** has one hint instead of two info bars. The id it will get is read-only with a
+    copy button, and the location is named in the title ("New tab on the home grid") instead of
+    "Location: HomepageGrid".
+  - New button, Rename group, Change template, New group, New tab and the two
+    unpublished-changes dialogs all use the shared dialog shell. Their actions never leave the
+    dialog, and titles are in sentence case. The dialogs' extra entrance animation is removed.
 
 ### 🔧 Fixed
 

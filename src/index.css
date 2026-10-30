@@ -13,23 +13,6 @@ body {
 	overflow: hidden;
 }
 
-/* Dialog entrance animation */
-@keyframes cbsDialogEnter {
-	from {
-		opacity: 0;
-		transform: translateY(-8px) scale(0.98);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0) scale(1);
-	}
-}
-
-/* Apply to all Fluent DialogSurface elements */
-.fui-DialogSurface {
-	animation: cbsDialogEnter 150ms ease-out;
-}
-
 /* ────────────────────────────────────────────────────────────────────────
  * Modern thin scrollbars — match Fluent v9 / Edge / VS Code feel.
  *

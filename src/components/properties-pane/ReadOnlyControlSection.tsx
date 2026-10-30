@@ -122,6 +122,7 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 						undefined,
 						button.source?.labelToken,
 					)}
+					buttonId={button.id}
 					commandId={button.commandId}
 					onConfirmHide={() => {
 						hideOobButton(location, tabId, groupId, button.id);
