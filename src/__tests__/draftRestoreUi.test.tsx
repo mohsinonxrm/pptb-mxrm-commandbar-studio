@@ -157,16 +157,16 @@ describe("#16 — restore dialog", () => {
 
 		// A new session: while the table loads there is nothing to click.
 		act(() => useDraftStore.getState().beginLoad());
-		expect(findButton("Restore")).toBeUndefined();
+		expect(findButton("Restore changes")).toBeUndefined();
 
 		act(() => load());
 		expect(document.body.textContent).toContain(
 			"unpublished changes to this table from a previous session",
 		);
 		expect(buttonsNow()).toEqual(["cbs.Mine"]);
-		click("Restore");
+		click("Restore changes");
 		expect(buttonsNow()).toEqual([]);
-		expect(findButton("Restore")).toBeUndefined();
+		expect(findButton("Restore changes")).toBeUndefined();
 		expect(
 			useRibbonStore
 				.getState()
@@ -178,8 +178,8 @@ describe("#16 — restore dialog", () => {
 		act(() => load());
 		act(() => useRibbonStore.getState().deleteButton("HomepageGrid", "Tab", "G", "cbs.Mine"));
 		act(() => load());
-		click("Discard");
-		expect(findButton("Restore")).toBeUndefined();
+		click("Discard changes");
+		expect(findButton("Restore changes")).toBeUndefined();
 		expect(readDraft(KEY)).toBeNull();
 		expect(buttonsNow()).toEqual(["cbs.Mine"]);
 	});
@@ -216,7 +216,7 @@ describe("#16 — switching with unpublished changes", () => {
 			} as Solution),
 		);
 		expect(document.body.textContent).toContain("Switch to solution Solution B?");
-		click("Discard");
+		click("Discard changes");
 		expect(useSessionStore.getState().activeSolution?.id).toBe("sol-b");
 		expect(readDraft(KEY)).toBeNull();
 	});
@@ -229,7 +229,7 @@ describe("#16 — restore blocks editing until answered", () => {
 		act(() => load());
 		const dialog = document.body.querySelector('[aria-modal="true"]');
 		expect(dialog?.textContent).toContain("from a previous session");
-		click("Restore");
+		click("Restore changes");
 		expect(document.body.querySelector('[aria-modal="true"]')).toBeNull();
 		expect(buttonsNow()).toEqual([]);
 	});
@@ -255,12 +255,12 @@ describe("#16 — a draft that fails to restore", () => {
 				},
 			}),
 		);
-		click("Restore");
+		click("Restore changes");
 		expect(document.body.querySelector('[aria-modal="true"]')?.textContent).toContain(
 			"couldn't be restored",
 		);
-		expect(findButton("Restore")?.disabled).toBe(true);
-		click("Discard");
+		expect(findButton("Restore changes")?.disabled).toBe(true);
+		click("Discard changes");
 		expect(document.body.querySelector('[aria-modal="true"]')).toBeNull();
 		expect(readDraft(KEY)).toBeNull();
 	});

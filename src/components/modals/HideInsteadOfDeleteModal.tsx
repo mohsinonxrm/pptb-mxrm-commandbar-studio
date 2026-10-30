@@ -33,6 +33,7 @@ export const HideInsteadOfDeleteModal: React.FC = () => {
 		<HideOobWarningModal
 			open
 			buttonLabel={captionOf(button.label, locLabels, undefined, button.source?.labelToken)}
+			buttonId={button.id}
 			commandId={button.commandId}
 			deleteBlockedReason={deleteBlockedReason(button, baseline)}
 			onConfirmHide={() => {
