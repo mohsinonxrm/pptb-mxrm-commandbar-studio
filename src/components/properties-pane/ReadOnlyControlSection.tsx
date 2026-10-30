@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useDisplayText } from "@/hooks/useDisplayText";
-import { Button, Caption1, makeStyles, Subtitle2, Text, tokens } from "@fluentui/react-components";
+import { Button, Caption1, makeStyles, Text, tokens } from "@fluentui/react-components";
 import { EyeOffRegular, EyeRegular, LockClosedRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
@@ -82,7 +82,9 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 		<section className={styles.root} aria-label={`${kind} (read-only)`}>
 			<div className={styles.title}>
 				<LockClosedRegular aria-hidden />
-				<Subtitle2>{kind}</Subtitle2>
+				<Text as="h3" size={300} weight="semibold">
+					Shown read-only
+				</Text>
 			</div>
 			<Caption1>
 				Command Bar Studio shows this &lt;{CONTROL_TAG_BY_KIND[button.kind]}&gt; but

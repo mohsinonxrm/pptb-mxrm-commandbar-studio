@@ -9,10 +9,14 @@ import {
 	Text,
 	Button,
 	Divider,
-	Badge,
 	Select,
+	Link,
+	Tooltip,
+	TagGroup,
+	InteractionTag,
+	InteractionTagPrimary,
 } from "@fluentui/react-components";
-import { ImageRegular, AddRegular } from "@fluentui/react-icons";
+import { ImageRegular, AddRegular, LockClosedRegular } from "@fluentui/react-icons";
 import { isLoadedControl, useRibbonStore } from "@/store/ribbonStore";
 import { MENU_ITEM_KINDS } from "@/utils/ribbonMenu";
 import { useUIStore } from "@/store/uiStore";
@@ -63,6 +67,12 @@ const useStyles = makeStyles({
 		justifyContent: "center",
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
 		flexShrink: 0,
+	},
+	lockedNote: {
+		display: "flex",
+		alignItems: "center",
+		gap: tokens.spacingHorizontalXS,
+		color: tokens.colorNeutralForeground2,
 	},
 	webResLink: {
 		fontFamily: tokens.fontFamilyMonospace,
@@ -121,6 +131,9 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 	function patch(update: Partial<RibbonButton>) {
 		setButtonProp(location, tabId, groupId, button.id, update);
 	}
+	// Microsoft's or a managed solution's button is changed through Customise or
+	// Create override (the notice above), not by editing its fields (#184).
+	const locked = button.origin !== "unmanaged";
 
 	// Languages of the labels this button's text and tooltips use (exact ids:
 	// a prefix match showed `Foo.Button2`'s translations on `Foo.Button`, #22).
@@ -151,6 +164,7 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 				>
 					<SpinButton
 						value={button.sequence}
+						disabled={locked}
 						step={10}
 						min={0}
 						onChange={(_, d) => patch({ sequence: Number(d.value ?? button.sequence) })}
@@ -191,6 +205,7 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 				>
 					<Input
 						value={button.templateAlias}
+						readOnly={locked}
 						onChange={(_, d) => patch({ templateAlias: d.value })}
 					/>
 				</Field>
@@ -200,33 +215,41 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 
 	return (
 		<div className={styles.root}>
+			{locked && (
+				<Text size={200} className={styles.lockedNote}>
+					<LockClosedRegular aria-hidden /> Customise this button, or create an override,
+					to edit these fields.
+				</Text>
+			)}
 			<Field label="Label">
-				<Input value={button.label} onChange={(_, d) => patch({ label: d.value })} />
+				<Input
+					value={button.label}
+					readOnly={locked}
+					onChange={(_, d) => patch({ label: d.value })}
+				/>
 			</Field>
 
 			{/* Locale chip row */}
 			<Field label="Translations">
 				<div className={styles.localeChips}>
-					{activeLcids.map((lcid) => (
-						<Badge
-							key={lcid}
-							appearance="filled"
-							color="informative"
-							style={{ cursor: "pointer" }}
-							onClick={() => openLocalizationEditor(button.id)}
-						>
-							{lcid === 1033 ? "en-US" : String(lcid)}
-						</Badge>
-					))}
-					{activeLcids.length === 0 && (
-						<Badge appearance="outline" color="informative">
-							en-US (default)
-						</Badge>
-					)}
+					<TagGroup aria-label="Languages of this button's text" size="small">
+						{(activeLcids.length ? activeLcids : [1033]).map((lcid) => (
+							<InteractionTag key={lcid} value={String(lcid)} appearance="brand">
+								<InteractionTagPrimary
+									disabled={locked}
+									onClick={() => openLocalizationEditor(button.id)}
+								>
+									{lcid === 1033 ? "en-US" : String(lcid)}
+									{activeLcids.length === 0 ? " (default)" : ""}
+								</InteractionTagPrimary>
+							</InteractionTag>
+						))}
+					</TagGroup>
 					<Button
 						size="small"
 						appearance="subtle"
 						icon={<AddRegular />}
+						disabled={locked}
 						onClick={() => openLocalizationEditor(button.id)}
 					>
 						Add language…
@@ -237,6 +260,7 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 			<Field label="Tooltip title">
 				<Input
 					value={button.tooltipTitle ?? ""}
+					readOnly={locked}
 					onChange={(_, d) => patch({ tooltipTitle: d.value })}
 				/>
 			</Field>
@@ -244,6 +268,7 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 			<Field label="Tooltip body">
 				<Textarea
 					value={button.tooltipBody ?? ""}
+					readOnly={locked}
 					onChange={(_, d) => patch({ tooltipBody: d.value })}
 					resize="vertical"
 				/>
@@ -264,6 +289,7 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 						appearance="subtle"
 						size="small"
 						icon={<ImageRegular />}
+						disabled={locked}
 						onClick={openIconPicker}
 					>
 						Change…
@@ -272,17 +298,15 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 			</Field>
 
 			{button.icon && (
-				<Field label="ModernImage (auto)">
+				<Field
+					label="Modern image"
+					hint="What Unified Interface shows. Set from the icon you pick."
+				>
 					<Input
 						// What Publish writes: a picked icon is referenced as its SVG web
 						// resource (#51); an untouched icon keeps its loaded value.
 						value={effectiveModernImage(button) ?? "(none)"}
 						readOnly
-						contentAfter={
-							<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-								auto
-							</Text>
-						}
 					/>
 				</Field>
 			)}
@@ -290,22 +314,24 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 			{button.image16 && (
 				<Field label="Image16">
 					<div className={styles.row}>
-						<button
-							type="button"
-							className={styles.webResLink}
-							onClick={() => {
-								webResourceBrowserCallbackRegistry.set((wr) => {
-									patch({
-										image16: `$webresource:${wr.name}`,
-										icon: wr.name.split("/").pop()?.replace(/\..*$/, ""),
+						<Tooltip content={button.image16} relationship="description">
+							<Link
+								as="button"
+								className={styles.webResLink}
+								disabled={locked}
+								onClick={() => {
+									webResourceBrowserCallbackRegistry.set((wr) => {
+										patch({
+											image16: `$webresource:${wr.name}`,
+											icon: wr.name.split("/").pop()?.replace(/\..*$/, ""),
+										});
 									});
-								});
-								openWebResourceBrowser();
-							}}
-							title={button.image16}
-						>
-							{button.image16}
-						</button>
+									openWebResourceBrowser();
+								}}
+							>
+								{button.image16}
+							</Link>
+						</Tooltip>
 					</div>
 				</Field>
 			)}
@@ -313,19 +339,21 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 			{button.image32 && (
 				<Field label="Image32">
 					<div className={styles.row}>
-						<button
-							type="button"
-							className={styles.webResLink}
-							onClick={() => {
-								webResourceBrowserCallbackRegistry.set((wr) => {
-									patch({ image32: `$webresource:${wr.name}` });
-								});
-								openWebResourceBrowser();
-							}}
-							title={button.image32}
-						>
-							{button.image32}
-						</button>
+						<Tooltip content={button.image32} relationship="description">
+							<Link
+								as="button"
+								className={styles.webResLink}
+								disabled={locked}
+								onClick={() => {
+									webResourceBrowserCallbackRegistry.set((wr) => {
+										patch({ image32: `$webresource:${wr.name}` });
+									});
+									openWebResourceBrowser();
+								}}
+							>
+								{button.image32}
+							</Link>
+						</Tooltip>
 					</div>
 				</Field>
 			)}
