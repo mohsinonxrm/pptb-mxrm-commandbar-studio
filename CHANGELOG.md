@@ -201,6 +201,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     show it (Command Checker's **Regenerate ribbon metadata** shows it sooner).
   - The title names what publishes ("Publish CBS Ribbon Test") instead of "Publish to Dataverse",
     and the dialog uses the shared dialog shell.
+- **One editor drawer (#186, part 1).** The command and rule editors are views of one drawer
+  instead of drawers stacked on drawers.
+  - **A rule opened from the command editor** replaces the view, with a **Back** button to the
+    command and a trail ("Edit command › Edit enable rule"). One backdrop, never two.
+  - **The header says what you're editing** ("Edit command", "Edit display rule"), with the id
+    read-only and a copy button. A command also shows whose it is: Yours, Your copy, or
+    Read-only.
+  - **One Done button**, with "Changes apply as you edit · Ctrl Z to undo". Closing it any way is
+    safe: changes already apply as you make them.
+  - **One undo step per drawer:** everything changed between opening the drawer and Done is
+    undone with a single Ctrl Z.
+  - The drawer's body is the only thing that scrolls; the editors' own padded scroll areas are
+    gone.
 
 ### 🔧 Fixed
 

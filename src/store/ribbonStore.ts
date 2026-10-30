@@ -228,6 +228,15 @@ export interface RibbonStore extends RibbonStoreState {
 	 * outer one.
 	 */
 	batch(fn: () => void): void;
+	/**
+	 * Starts an edit session (#186): until endEditSession, every change joins
+	 * one history entry, however far apart, so one Undo reverts the whole
+	 * session (an editor drawer, from opening to Done). An Undo during the
+	 * session reverts what it changed so far; the next change starts its entry
+	 * again. Starting a session ends the one that was open.
+	 */
+	beginEditSession(): void;
+	endEditSession(): void;
 
 	// Mutations
 	/**
@@ -498,6 +507,45 @@ let openBatch: { snapshot: WorkspaceSnapshot; meta: HistoryMeta | null } | null 
 /** Edits of the same thing closer together than this are one undo step (typing). */
 const COALESCE_MS = 1000;
 
+/** The open edit session's history key (#186), if any: its changes make one entry. */
+let openSession: string | null = null;
+let sessions = 0;
+
+/**
+ * The history after a change: a new entry, or the last one extended when the
+ * change continues it — the same edit within COALESCE_MS, or anything in the
+ * open edit session. `snapshot` is the workspace before the change.
+ */
+function historyAfter(
+	state: RibbonStoreState,
+	meta: HistoryMeta,
+	snapshot: () => WorkspaceSnapshot,
+	coalesceKey?: string,
+): Pick<RibbonStoreState, "past" | "future" | "mutationsSincePublish"> {
+	const key = openSession ?? coalesceKey;
+	const last = state.past[state.past.length - 1];
+	if (
+		key &&
+		last?.coalesceKey === key &&
+		state.future.length === 0 &&
+		(openSession !== null || Date.parse(meta.ts) - Date.parse(last.ts) < COALESCE_MS)
+	) {
+		return {
+			past: [...state.past.slice(0, -1), { ...last, ...meta }],
+			future: [],
+			// Still counted, so the workspace is saved as the user types.
+			mutationsSincePublish: state.mutationsSincePublish + 1,
+		};
+	}
+	return {
+		past: [...state.past, { ...meta, coalesceKey: key, snapshot: snapshot() }].slice(
+			-MAX_HISTORY,
+		),
+		future: [],
+		mutationsSincePublish: state.mutationsSincePublish + 1,
+	};
+}
+
 /**
  * Applies a workspace change as one undo step: every user action goes through
  * here, so undo / redo always restore the canvas and the definitions together.
@@ -514,27 +562,7 @@ function record(
 		if (!openBatch.meta) openBatch.meta = meta;
 		return change;
 	}
-	const last = state.past[state.past.length - 1];
-	if (
-		coalesceKey &&
-		last?.coalesceKey === coalesceKey &&
-		state.future.length === 0 &&
-		Date.parse(meta.ts) - Date.parse(last.ts) < COALESCE_MS
-	) {
-		return {
-			...change,
-			past: [...state.past.slice(0, -1), { ...last, ...meta }],
-			// Still counted, so the workspace is saved as the user types.
-			mutationsSincePublish: state.mutationsSincePublish + 1,
-		};
-	}
-	const entry: HistoryEntry = { ...meta, coalesceKey, snapshot: workspaceOf(state) };
-	return {
-		...change,
-		past: [...state.past, entry].slice(-MAX_HISTORY),
-		future: [],
-		mutationsSincePublish: state.mutationsSincePublish + 1,
-	};
+	return { ...change, ...historyAfter(state, meta, () => workspaceOf(state), coalesceKey) };
 }
 
 function commitMutation(
@@ -1028,14 +1056,16 @@ export const useRibbonStore = create<RibbonStore>()(
 			} finally {
 				const { snapshot, meta } = openBatch;
 				openBatch = null;
-				if (meta) {
-					set((state) => ({
-						past: [...state.past, { ...meta, snapshot }].slice(-MAX_HISTORY),
-						future: [],
-						mutationsSincePublish: state.mutationsSincePublish + 1,
-					}));
-				}
+				if (meta) set((state) => historyAfter(state, meta, () => snapshot));
 			}
+		},
+
+		beginEditSession() {
+			openSession = `session:${++sessions}`;
+		},
+
+		endEditSession() {
+			openSession = null;
 		},
 
 		moveButton(src, dst) {

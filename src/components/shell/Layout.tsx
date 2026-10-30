@@ -15,8 +15,8 @@ import { dragPaneWidths, fitPaneWidths } from "@/utils/paneWidths";
 
 // Lazy-loaded panels and modals
 const XmlDrawer = lazy(() => import("@/components/panels/XmlDrawer"));
-const CommandEditorPanel = lazy(() => import("@/components/panels/CommandEditorPanel"));
-const RuleEditorPanel = lazy(() => import("@/components/panels/RuleEditorPanel"));
+// The command and rule editors are views of one drawer (#186).
+const EditorDrawer = lazy(() => import("@/components/panels/EditorDrawer"));
 const BulkPublishModal = lazy(() => import("@/components/modals/BulkPublishModal"));
 const NewButtonModal = lazy(() => import("@/components/modals/NewButtonModal"));
 const NewGroupModal = lazy(() => import("@/components/modals/NewGroupModal"));
@@ -364,8 +364,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			<ErrorBoundary label="Panels">
 				<Suspense fallback={null}>
 					<XmlDrawer />
-					<CommandEditorPanel />
-					<RuleEditorPanel />
+					<EditorDrawer />
 					<BulkPublishModal />
 					<NewButtonModal />
 					<NewGroupModal />
