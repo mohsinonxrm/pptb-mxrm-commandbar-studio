@@ -1,14 +1,15 @@
 /**
  * #152: Unified Interface evaluates CommandClientTypeRule as "Modern" (Microsoft's
- * Mscrm.HideOnModern, Type="Modern" InvertResult, hides buttons there), so the
- * quick filter for Unified Interface adds Type="Modern", and never binds an
- * inverted rule of that type.
+ * Mscrm.HideOnModern, Type="Modern" InvertResult, hides buttons there), so
+ * "Unified Interface only" binds a plain Type="Modern" rule and never an inverted
+ * one. #184: the choice is Properties' Show on radio group, which also reads
+ * back what the command's rules amount to.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
-import { AdvancedSection } from "@/components/properties-pane/AdvancedSection";
+import { ShowOnField } from "@/components/properties-pane/ShowOnField";
 import { RuleStepEditor } from "@/components/shared/RuleStepEditor";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
@@ -100,17 +101,22 @@ afterEach(() => {
 
 const render = (ui: React.ReactNode) =>
 	act(() => root.render(<FluentProvider theme={webLightTheme}>{ui}</FluentProvider>));
-const badge = (text: string) =>
-	[...container.querySelectorAll<HTMLElement>(".fui-Badge")].find((b) => b.textContent === text);
+/** The Show on radio whose label starts with the text. */
+const radio = (text: string) =>
+	[...container.querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((r) =>
+		document.querySelector(`label[for="${r.id}"]`)?.textContent?.startsWith(text),
+	);
+const choose = (text: string) => act(() => radio(text)!.click());
 const commandRules = () =>
 	useRibbonStore.getState().commands.find((c) => c.id === btn.commandId)!.displayRules;
 
 describe("#152 client type filters", () => {
 	it('the Unified Interface filter adds Type="Modern"', () => {
 		load([]);
-		render(<AdvancedSection />);
-		expect(badge("Show on Unified Interface (Refresh)")).toBeUndefined();
-		act(() => badge("Show on Unified Interface (Modern)")!.click());
+		render(<ShowOnField button={btn} />);
+		expect(radio("All clients")!.checked).toBe(true);
+		choose("Unified Interface only");
+		expect(radio("Unified Interface only")!.checked).toBe(true);
 		const [id] = commandRules();
 		const rule = useRibbonStore.getState().displayRules.find((r) => r.id === id)!;
 		expect(rule.steps).toEqual([{ kind: "CommandClientTypeRule", type: "Modern" }]);
@@ -119,15 +125,15 @@ describe("#152 client type filters", () => {
 	it("never binds Mscrm.HideOnModern (inverted) for the Unified Interface filter", () => {
 		// HideOnModern listed first, as the loaded ribbon can order it.
 		load([HIDE_ON_MODERN, SHOW_ONLY_ON_MODERN]);
-		render(<AdvancedSection />);
-		act(() => badge("Show on Unified Interface (Modern)")!.click());
+		render(<ShowOnField button={btn} />);
+		choose("Unified Interface only");
 		expect(commandRules()).toEqual(["Mscrm.ShowOnlyOnModern"]);
 	});
 
 	it("creates a plain rule when only the inverted one exists", () => {
 		load([HIDE_ON_MODERN]);
-		render(<AdvancedSection />);
-		act(() => badge("Show on Unified Interface (Modern)")!.click());
+		render(<ShowOnField button={btn} />);
+		choose("Unified Interface only");
 		expect(commandRules()).not.toContain("Mscrm.HideOnModern");
 		const rule = useRibbonStore
 			.getState()
@@ -147,10 +153,15 @@ describe("#152 client type filters", () => {
 				.getState()
 				.upsertCommand({ ...cmd, displayRules: [oldRefresh.id, "Mscrm.HideOnModern"] }),
 		);
-		render(<AdvancedSection />);
-		act(() => badge("Show on Unified Interface (Modern)")!.click());
-		// The old filter is unbound (not deleted); an inverted rule isn't a filter and stays.
-		expect(commandRules()).toEqual(["Mscrm.HideOnModern", "Mscrm.ShowOnlyOnModern"]);
+		render(<ShowOnField button={btn} />);
+		expect(radio("Custom")!.checked).toBe(true);
+		render(<ShowOnField button={btn} />);
+		choose("Unified Interface only");
+		// Both bound read as Custom, not as any one choice.
+		// The old filter is unbound (not deleted). Mscrm.HideOnModern goes too: with
+		// ShowOnlyOnModern it "would always evaluate to false" (Microsoft's docs), so
+		// the button would show nowhere (#184).
+		expect(commandRules()).toEqual(["Mscrm.ShowOnlyOnModern"]);
 		expect(useRibbonStore.getState().displayRules.some((r) => r.id === oldRefresh.id)).toBe(
 			true,
 		);
@@ -166,8 +177,8 @@ describe("#152 client type filters", () => {
 				steps: [{ kind: "CommandClientTypeRule", type: "Modern", default: false }],
 			},
 		]);
-		render(<AdvancedSection />);
-		act(() => badge("Show on Unified Interface (Modern)")!.click());
+		render(<ShowOnField button={btn} />);
+		choose("Unified Interface only");
 		expect(commandRules()).not.toContain("isv.ModernDefault");
 	});
 

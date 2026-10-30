@@ -137,6 +137,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Both ids are read-only with a copy button and the full id in a tooltip. The doubled padding,
   dividers and left border are gone.
+- **Show on, rules and binding in Properties (#184).**
+  - **Show on** (in Appearance) is one choice, All clients / Unified Interface only / Classic web
+    client only, instead of three badges that each added a filter. It shows what the command's
+    display rules already say, or **Custom** when they don't match one choice. It names the other
+    buttons that use the same command, since they change too. On Microsoft's commands it's
+    read-only: customise the command first. Choosing Unified Interface only also removes
+    `Mscrm.HideOnModern` from your command, which together with it would hide the button
+    everywhere.
+  - **Bound rules** are tags: the name opens the rule, ✕ unbinds it. They work from the keyboard;
+    the old pills didn't.
+  - **Binding a rule or a command** uses a list you can filter by typing, instead of a long
+    drop-down. **Bind** stays disabled until you pick one.
 
 ### 🔧 Fixed
 

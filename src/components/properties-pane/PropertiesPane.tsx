@@ -17,6 +17,7 @@ import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
 import { ModernCommandProperties } from "./ModernCommandProperties";
 import { ButtonNotices } from "./ButtonNotices";
 import { PropertiesHeader } from "./PropertiesHeader";
+import { ShowOnField } from "./ShowOnField";
 import { PropertySection, PropertySections } from "@/components/shared/PropertySection";
 import { useClassicOverrides, useSelectedModernCommand } from "@/hooks/useModernCommands";
 
@@ -115,7 +116,10 @@ export function PropertiesPane() {
 							groupId={selectedGroupId!}
 						/>
 					) : (
+						// Keyed by the button: typed filters and picks don't carry over to
+						// the next selection (open sections are remembered separately).
 						<PropertySections
+							key={`${selectedGroupId}|${button.id}`}
 							storageKey="properties.button"
 							defaultOpen={["appearance", "position", "command", "display", "enable"]}
 						>
@@ -127,6 +131,7 @@ export function PropertiesPane() {
 									tabId={tabId}
 									groupId={selectedGroupId!}
 								/>
+								<ShowOnField button={button} />
 							</PropertySection>
 							<PropertySection value="position" title="Position">
 								<IdentitySection

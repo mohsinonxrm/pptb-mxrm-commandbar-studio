@@ -222,3 +222,131 @@ describe("#184 one style of section", () => {
 		expect(container.textContent).toContain("Lower numbers show first within the group.");
 	});
 });
+
+describe("#184 controls", () => {
+	const radio = (text: string) =>
+		[...container.querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((r) =>
+			document.querySelector(`label[for="${r.id}"]`)?.textContent?.startsWith(text),
+		);
+	const rulesOf = (id: string) => useRibbonStore.getState().commands.find((c) => c.id === id)!;
+
+	it("Show on is read-only on Microsoft's command, and says why", () => {
+		select(MGMT, "Mscrm.HomepageGrid.contact.Edit");
+		render(<PropertiesPane />);
+		expect(radio("All clients")!.disabled).toBe(true);
+		expect(container.textContent).toContain("Customise the command to change where it shows.");
+	});
+
+	it("Show on writes and clears a client-type filter on your command, naming buttons that share it", () => {
+		// A second button on the same command.
+		const ribbons = useRibbonStore.getState().ribbons;
+		const own = ribbons.HomepageGrid.tabs[0].groups[0];
+		act(() =>
+			useRibbonStore.setState({
+				ribbons: {
+					...ribbons,
+					HomepageGrid: {
+						...ribbons.HomepageGrid,
+						tabs: [
+							{
+								...ribbons.HomepageGrid.tabs[0],
+								groups: [
+									{
+										...own,
+										buttons: [
+											...own.buttons,
+											button("mxrm.Own.Second", { label: "Second" }),
+										],
+									},
+									ribbons.HomepageGrid.tabs[0].groups[1],
+								],
+							},
+						],
+					},
+				},
+			}),
+		);
+		select(OWN, "mxrm.Own.Button");
+		render(<PropertiesPane />);
+		expect(container.textContent).toContain(
+			"Also changes 1 other button that uses this command: Second.",
+		);
+		expect(radio("All clients")!.checked).toBe(true);
+
+		act(() => radio("Classic web client only")!.click());
+		const ids = rulesOf("mxrm.contact.Run.Command").displayRules;
+		const rule = useRibbonStore.getState().displayRules.find((r) => r.id === ids[0])!;
+		expect(rule.steps).toEqual([{ kind: "CommandClientTypeRule", type: "Refresh" }]);
+		expect(radio("Classic web client only")!.checked).toBe(true);
+
+		act(() => radio("All clients")!.click());
+		expect(rulesOf("mxrm.contact.Run.Command").displayRules).toEqual([]);
+	});
+
+	it("shows bound rules as tags that open or unbind, and binds only a rule picked from the list", () => {
+		act(() =>
+			useRibbonStore.setState((s) => ({
+				enableRules: [...s.enableRules, { id: "mxrm.contact.Two.EnableRule", steps: [] }],
+			})),
+		);
+		select(OWN, "mxrm.Own.Button");
+		render(<PropertiesPane />);
+		const tags = container.querySelector('[aria-label="Bound enable rules"]')!;
+		expect(tags.textContent).toContain("One");
+		const bind = () =>
+			[...container.querySelectorAll<HTMLButtonElement>("button")].find(
+				(b) => b.textContent?.trim() === "Bind",
+			)!;
+		// Two pickers (display and enable); the enable one is the second.
+		expect(bind().disabled).toBe(true);
+
+		// Pick from the enable-rule list, then Bind.
+		const enablePicker = [
+			...container.querySelectorAll<HTMLInputElement>('[role="combobox"]'),
+		].find((c) =>
+			document.querySelector(`label[for="${c.id}"]`)?.textContent?.includes("enable rule"),
+		)!;
+		act(() => enablePicker.click());
+		const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
+			(o) => o.textContent === "mxrm.contact.Two.EnableRule",
+		)!;
+		act(() => option.click());
+		const enableBind = [...container.querySelectorAll<HTMLButtonElement>("button")].filter(
+			(b) => b.textContent?.trim() === "Bind",
+		)[1];
+		expect(enableBind.disabled).toBe(false);
+		act(() => enableBind.click());
+		expect(rulesOf("mxrm.contact.Run.Command").enableRules).toEqual([
+			"mxrm.contact.One.EnableRule",
+			"mxrm.contact.Two.EnableRule",
+		]);
+
+		const unbind = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Unbind enable rule One"]',
+		)!;
+		act(() => unbind.click());
+		expect(rulesOf("mxrm.contact.Run.Command").enableRules).toEqual([
+			"mxrm.contact.Two.EnableRule",
+		]);
+	});
+
+	it("starts the pickers empty when another button is selected", () => {
+		select(OWN, "mxrm.Own.Button");
+		render(<PropertiesPane />);
+		const picker = () =>
+			[...container.querySelectorAll<HTMLInputElement>('[role="combobox"]')].find((c) =>
+				document
+					.querySelector(`label[for="${c.id}"]`)
+					?.textContent?.includes("enable rule"),
+			)!;
+		act(() => {
+			const input = picker();
+			const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+			set.call(input, "Selection");
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		expect(picker().value).toBe("Selection");
+		select(MGMT, "Mscrm.HomepageGrid.contact.Edit");
+		expect(picker().value).toBe("");
+	});
+});

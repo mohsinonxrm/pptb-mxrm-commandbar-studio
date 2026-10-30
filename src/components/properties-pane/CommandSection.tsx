@@ -1,4 +1,4 @@
-import { makeStyles, tokens, Text, Button, Tag, Field, Select } from "@fluentui/react-components";
+import { makeStyles, tokens, Text, Button, Tag } from "@fluentui/react-components";
 import { CodeRegular, AddRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
@@ -6,6 +6,7 @@ import { generateCommandId } from "@/utils/idGenerator";
 import type { RibbonButton } from "@/types/ribbon";
 import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
 import { IdField } from "@/components/shared/IdField";
+import { IdPicker } from "@/components/shared/IdPicker";
 import React from "react";
 
 const useStyles = makeStyles({
@@ -155,24 +156,21 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 				</div>
 			) : (
 				<>
-					<Field label="Bind existing command" style={{ width: "100%", minWidth: 0 }}>
-						<Select
-							size="small"
-							value={selectedCommandId}
-							onChange={(_, d) => setSelectedCommandId(d.value)}
-							style={{ width: "100%", minWidth: 0 }}
-						>
-							<option value="">Select command…</option>
-							{commands.map((c) => (
-								<option key={c.id} value={c.id}>
-									{c.id}
-								</option>
-							))}
-						</Select>
-					</Field>
+					<IdPicker
+						label="Use an existing command"
+						options={commands.map((c) => c.id)}
+						selected={selectedCommandId}
+						onSelect={setSelectedCommandId}
+						noOptionsMessage="No command matches."
+					/>
 					<div style={{ display: "flex", gap: tokens.spacingHorizontalXS }}>
-						<Button appearance="outline" size="small" onClick={bindExistingCommand}>
-							Bind selected
+						<Button
+							appearance="outline"
+							size="small"
+							disabled={!selectedCommandId}
+							onClick={bindExistingCommand}
+						>
+							Bind
 						</Button>
 						<Button
 							appearance="outline"
