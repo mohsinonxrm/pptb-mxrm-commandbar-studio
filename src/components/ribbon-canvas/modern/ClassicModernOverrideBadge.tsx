@@ -18,6 +18,7 @@ export function ClassicModernOverrideBadge({
 	const text = overrides.map((o) => describeOverride(o, appNames)).join("\n");
 	return (
 		<Badge
+			style={{ flexShrink: 0 }}
 			size="small"
 			appearance="tint"
 			color={hidden ? "warning" : "important"}

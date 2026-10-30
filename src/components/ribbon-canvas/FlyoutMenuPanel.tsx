@@ -223,7 +223,12 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 						{item.menu && <ChevronDownRegular fontSize={12} aria-hidden />}
 						<ClassicModernOverrideBadge overrides={modern} appNames={modernAppNames} />
 						{item.custom && !loadedIds.has(item.id) && (
-							<Badge size="small" color="brand" appearance="tint">
+							<Badge
+								style={{ flexShrink: 0 }}
+								size="small"
+								color="brand"
+								appearance="tint"
+							>
 								NEW
 							</Badge>
 						)}
@@ -253,7 +258,7 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 				<Text weight="semibold" size={300}>
 					{label(root)}
 				</Text>
-				<Badge size="small" appearance="outline">
+				<Badge style={{ flexShrink: 0 }} size="small" appearance="outline">
 					{root.kind === "splitButton" ? "Split button menu" : "Flyout menu"}
 				</Badge>
 				<span className={styles.spacer} />

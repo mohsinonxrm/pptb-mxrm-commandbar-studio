@@ -90,7 +90,7 @@ export function ModernCommandsTable({
 				<Text weight="semibold" size={200}>
 					Modern commands
 				</Text>
-				<Badge size="small" appearance="tint" color="important">
+				<Badge style={{ flexShrink: 0 }} size="small" appearance="tint" color="important">
 					read-only
 				</Badge>
 				<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
@@ -151,7 +151,12 @@ export function ModernCommandsTable({
 											{cmd.hidden && (
 												<EyeOffRegular fontSize={12} aria-label="hidden" />
 											)}
-											<Badge size="small" appearance="tint" color="important">
+											<Badge
+												style={{ flexShrink: 0 }}
+												size="small"
+												appearance="tint"
+												color="important"
+											>
 												Modern
 											</Badge>
 										</span>
@@ -162,7 +167,11 @@ export function ModernCommandsTable({
 									{APP_ACTION_LOCATION_LABELS[cmd.location] ?? cmd.location}
 								</TableCell>
 								<TableCell>
-									<Badge size="small" appearance="outline">
+									<Badge
+										style={{ flexShrink: 0 }}
+										size="small"
+										appearance="outline"
+									>
 										{TYPE_SHORT[cmd.type]}
 									</Badge>
 								</TableCell>
