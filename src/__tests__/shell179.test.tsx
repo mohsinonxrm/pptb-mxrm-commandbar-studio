@@ -145,6 +145,29 @@ describe("#179 the sub-header's actions moved to the top bar", () => {
 	});
 });
 
+describe("#179 the solution picker", () => {
+	it("gives focus back to the picker after a solution is chosen", async () => {
+		const sol = {
+			id: "s1",
+			uniqueName: "CBSLiveTest",
+			friendlyName: "CBS Live Test",
+			version: "1.0.0.0",
+			isManaged: false,
+		};
+		useSessionStore.setState({ solutions: [sol], activeSolution: null } as never);
+		render(<TopBar />);
+		act(() => useUIStore.getState().setSolutionPickerOpen(true));
+		const input = document.body.querySelector<HTMLInputElement>('[role="combobox"]')!;
+		click(input);
+		const option = document.body.querySelector<HTMLElement>('[role="option"]')!;
+		click(option);
+		expect(useUIStore.getState().solutionPickerOpen).toBe(false);
+		(document.activeElement as HTMLElement | null)?.blur();
+		await act(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+		expect(document.activeElement?.getAttribute("aria-label")).toBe("Solution: CBS Live Test");
+	});
+});
+
 describe("#179 tool-wide messages and the narrow layout", () => {
 	const shell = () => (
 		<Layout

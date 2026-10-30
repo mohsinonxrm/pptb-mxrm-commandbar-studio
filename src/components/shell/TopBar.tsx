@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
 	makeStyles,
 	tokens,
@@ -267,6 +267,7 @@ function SolutionPicker() {
 	const pickerOpen = useUIStore((s) => s.solutionPickerOpen);
 	const setPickerOpen = useUIStore((s) => s.setSolutionPickerOpen);
 	const [query, setQuery] = useState("");
+	const triggerRef = useRef<HTMLButtonElement>(null);
 
 	// Managed solutions can never be modified by a tool: ribbon customizations
 	// only flow through the user's unmanaged solution layer, so the list is
@@ -316,6 +317,12 @@ function SolutionPicker() {
 			requestSolutionSwitch(sol);
 			setPickerOpen(false);
 			setQuery("");
+			// The surface unmounts with focus inside it; give focus back to the
+			// picker unless something else took it (the unsaved-changes dialog).
+			requestAnimationFrame(() => {
+				const active = document.activeElement;
+				if (!active || active === document.body) triggerRef.current?.focus();
+			});
 		}
 	};
 
@@ -338,6 +345,7 @@ function SolutionPicker() {
 					relationship="description"
 				>
 					<Button
+						ref={triggerRef}
 						appearance={activeSolution ? "subtle" : "primary"}
 						icon={<DatabaseRegular />}
 						aria-label={activeSolution ? `Solution: ${name}` : "Select solution"}
