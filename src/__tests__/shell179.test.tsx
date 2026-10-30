@@ -16,6 +16,19 @@ import { useDraftStore } from "@/store/draftStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useModernCommandStore } from "@/store/modernCommandStore";
+import { useContext } from "react";
+import { PropertiesHostContext } from "@/components/properties-pane/propertiesHost";
+
+/** Stands in for Properties: like its header, it shows the host's close button (#184). */
+function FakeProperties() {
+	const { onClose } = useContext(PropertiesHostContext);
+	return (
+		<div>
+			PROPERTIES
+			{onClose && <button type="button" aria-label="Close properties" onClick={onClose} />}
+		</div>
+	);
+}
 
 // Layout lazy-loads every panel and modal; they aren't under test here, and
 // loading them for real outlives the test.
@@ -170,11 +183,7 @@ describe("#179 the solution picker", () => {
 
 describe("#179 tool-wide messages and the narrow layout", () => {
 	const shell = () => (
-		<Layout
-			leftPane={<div>LEFT PANE</div>}
-			rightPane={<div>PROPERTIES</div>}
-			bottomPanel={null}
-		>
+		<Layout leftPane={<div>LEFT PANE</div>} rightPane={<FakeProperties />} bottomPanel={null}>
 			<main>CANVAS</main>
 		</Layout>
 	);

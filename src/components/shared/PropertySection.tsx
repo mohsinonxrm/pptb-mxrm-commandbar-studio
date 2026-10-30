@@ -4,6 +4,7 @@ import {
 	AccordionHeader,
 	AccordionItem,
 	AccordionPanel,
+	CounterBadge,
 	InfoLabel,
 	makeStyles,
 	tokens,
@@ -30,6 +31,7 @@ const useStyles = makeStyles({
 		minWidth: 0,
 		fontWeight: tokens.fontWeightSemibold,
 	},
+	count: { marginLeft: tokens.spacingHorizontalXS },
 	panel: {
 		display: "flex",
 		flexDirection: "column",
@@ -73,6 +75,8 @@ export interface PropertySectionProps {
 	title: string;
 	/** A short explanation, shown behind an info button next to the title. */
 	info?: React.ReactNode;
+	/** How many items the section holds, shown after the title (e.g. bound rules). */
+	count?: number;
 	children: React.ReactNode;
 }
 
@@ -80,6 +84,7 @@ export const PropertySection: React.FC<PropertySectionProps> = ({
 	value,
 	title,
 	info,
+	count,
 	children,
 }) => {
 	const styles = useStyles();
@@ -89,6 +94,15 @@ export const PropertySection: React.FC<PropertySectionProps> = ({
 			<div className={styles.headerRow}>
 				<AccordionHeader size="small" className={styles.header}>
 					{title}
+					{!!count && (
+						<CounterBadge
+							count={count}
+							size="small"
+							appearance="ghost"
+							color="informative"
+							className={styles.count}
+						/>
+					)}
 				</AccordionHeader>
 				{info && <InfoLabel info={info} infoButton={{ "aria-label": `About ${title}` }} />}
 			</div>

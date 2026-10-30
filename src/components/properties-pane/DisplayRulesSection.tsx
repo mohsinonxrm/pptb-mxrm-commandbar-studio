@@ -4,7 +4,6 @@ import {
 	tokens,
 	Button,
 	Text,
-	Badge,
 	Field,
 	Select,
 	InfoLabel,
@@ -113,9 +112,6 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 		);
 	};
 
-	const header =
-		kind === "display" ? "Display rules (ALL must pass)" : "Enable rules (ALL must pass)";
-
 	const handleAddRule = () => {
 		if (!command) return;
 
@@ -161,17 +157,6 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 
 	return (
 		<div className={styles.section}>
-			<div className={styles.header}>
-				<Text size={200} weight="semibold">
-					{header}
-				</Text>
-				{ruleIds.length > 0 && (
-					<Badge appearance="tint" size="small" color="informative">
-						{ruleIds.length}
-					</Badge>
-				)}
-			</div>
-
 			{!command && <Text className={styles.note}>Bind a command first to manage rules.</Text>}
 
 			<div className={styles.pillList}>

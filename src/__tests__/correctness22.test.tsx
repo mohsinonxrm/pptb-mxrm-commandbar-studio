@@ -147,7 +147,13 @@ describe("#22 — Identity section translations match the button's own labels", 
 		loadTable([b, button("Foo.Button2", { sequence: 20 })], labels);
 		act(() =>
 			root.render(
-				<IdentitySection button={b} location="HomepageGrid" tabId={MAIN} groupId={GROUP} />,
+				<IdentitySection
+					part="appearance"
+					button={b}
+					location="HomepageGrid"
+					tabId={MAIN}
+					groupId={GROUP}
+				/>,
 			),
 		);
 		const chips = container.textContent ?? "";

@@ -4,6 +4,7 @@ import { EditRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
+import { useDisplayText } from "@/hooks/useDisplayText";
 
 const useStyles = makeStyles({
 	section: {
@@ -11,11 +12,7 @@ const useStyles = makeStyles({
 		flexDirection: "column",
 		gap: tokens.spacingHorizontalXS,
 	},
-	header: {
-		display: "flex",
-		alignItems: "center",
-		gap: tokens.spacingHorizontalXS,
-	},
+	action: { alignSelf: "flex-start" },
 	stepRow: {
 		display: "flex",
 		flexDirection: "column",
@@ -28,18 +25,7 @@ const useStyles = makeStyles({
 	stepBadge: {
 		alignSelf: "flex-start",
 	},
-	note: {
-		fontSize: tokens.fontSizeBase100,
-		color: tokens.colorNeutralForeground3,
-		fontStyle: "italic",
-	},
-	warningNote: {
-		fontSize: tokens.fontSizeBase100,
-		color: tokens.colorStatusWarningForeground1,
-		backgroundColor: tokens.colorStatusWarningBackground1,
-		padding: `2px ${tokens.spacingHorizontalXS}`,
-		borderRadius: tokens.borderRadiusSmall,
-	},
+	note: { color: tokens.colorNeutralForeground2 },
 });
 
 export const ScalingSectionSummary: React.FC = () => {
@@ -52,6 +38,9 @@ export const ScalingSectionSummary: React.FC = () => {
 
 	const ribbon = ribbons[location];
 	const tab = ribbon.tabs.find((t) => t.id === tabId);
+	const locLabels = useRibbonStore((s) => s.locLabels);
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
+	const captionOf = useDisplayText();
 
 	// Scaling isn't stored per-button; it's stored per-tab (via setScaling).
 	// We just show a summary from the tab perspective.
@@ -59,35 +48,27 @@ export const ScalingSectionSummary: React.FC = () => {
 
 	return (
 		<div className={styles.section}>
-			<div className={styles.header}>
-				<Text size={200} weight="semibold">
-					Scaling
-				</Text>
-				<Button
-					appearance="subtle"
-					size="small"
-					icon={<EditRegular />}
-					onClick={openScalingEditor}
-				>
-					Edit scaling
-				</Button>
-			</div>
-
-			<div className={styles.warningNote}>
-				⚠ Scaling applies only to the Classic ribbon (Legacy client / Outlook list views).
-				The modern command bar (Unified Interface) ignores scaling.
-			</div>
-
 			{tab ? (
-				<Text size={100} className={styles.note}>
-					Tab <strong>{tab.label}</strong> has {groupCount} group(s). Open the Scaling
-					Editor to configure MaxSize and Scale steps.
+				<Text size={200} className={styles.note}>
+					Scaling is set for the whole tab: &ldquo;
+					{captionOf(tab.label, locLabels, lang, tab.source?.titleToken) || tab.id}
+					&rdquo; has {groupCount} group{groupCount === 1 ? "" : "s"}.
 				</Text>
 			) : (
-				<Text size={100} className={styles.note}>
+				<Text size={200} className={styles.note}>
 					Select a tab to configure scaling.
 				</Text>
 			)}
+			<Button
+				appearance="secondary"
+				size="small"
+				icon={<EditRegular />}
+				onClick={openScalingEditor}
+				disabled={!tab}
+				className={styles.action}
+			>
+				Edit scaling
+			</Button>
 		</div>
 	);
 };
