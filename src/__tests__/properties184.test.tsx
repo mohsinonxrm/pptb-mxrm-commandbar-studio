@@ -329,4 +329,24 @@ describe("#184 controls", () => {
 			"mxrm.contact.Two.EnableRule",
 		]);
 	});
+
+	it("starts the pickers empty when another button is selected", () => {
+		select(OWN, "mxrm.Own.Button");
+		render(<PropertiesPane />);
+		const picker = () =>
+			[...container.querySelectorAll<HTMLInputElement>('[role="combobox"]')].find((c) =>
+				document
+					.querySelector(`label[for="${c.id}"]`)
+					?.textContent?.includes("enable rule"),
+			)!;
+		act(() => {
+			const input = picker();
+			const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+			set.call(input, "Selection");
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		expect(picker().value).toBe("Selection");
+		select(MGMT, "Mscrm.HomepageGrid.contact.Edit");
+		expect(picker().value).toBe("");
+	});
 });

@@ -116,7 +116,10 @@ export function PropertiesPane() {
 							groupId={selectedGroupId!}
 						/>
 					) : (
+						// Keyed by the button: typed filters and picks don't carry over to
+						// the next selection (open sections are remembered separately).
 						<PropertySections
+							key={`${selectedGroupId}|${button.id}`}
 							storageKey="properties.button"
 							defaultOpen={["appearance", "position", "command", "display", "enable"]}
 						>
