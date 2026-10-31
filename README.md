@@ -116,7 +116,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Notice in the properties pane for managed-solution buttons. Dataverse layers ribbon customizations per table, not per button, so there's no per-button layer list
 
 ### ⌨️ Keyboard Shortcuts + Command Palette
-- `Ctrl+K` — Command Palette (search buttons, commands, rules, entities, actions)
+- `Ctrl+K` — Command Palette: search buttons, commands, rules and tables, and run actions. Arrow keys and Enter; `/` for actions only, `@` for tables only. Choosing a button selects it on the canvas; only actions that can run now are listed
 - `Ctrl+Z/Y`, `Ctrl+Shift+Z` — Undo / Redo (80-entry stack)
 - `Ctrl+D` — Duplicate selected button
 - `Ctrl+S` — Open Bulk Publish

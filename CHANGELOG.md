@@ -301,6 +301,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Upload SVG is a real drop zone** with a **Choose SVG…** button; before it said "Drag an SVG
     here" and ignored the drop. A file that isn't an SVG is refused with a message.
   - Errors and notes are message bars, and the dialog uses the shared dialog shell.
+- **The command palette, redone (#189, part 1).**
+  - **A real dialog:** focus stays in it, and Escape or a click outside closes it. Its search box
+    is Fluent's, readable in dark theme and with a focus outline.
+  - **The highlighted result follows the arrow keys** (Home and End too), stays in view, and is
+    announced to screen readers. Enter chooses it.
+  - **Choosing a button selects it on the canvas**, on its location and tab; before, it only
+    closed the palette. Its line names where it is ("Main form › Main › Management") without raw
+    location names or `$LocLabels:` tokens.
+  - **Grouped results** (Actions, Buttons, Commands, Rules, Tables) with readable kinds, and a
+    count of what's left when a group is cut ("12 more: keep typing to narrow it down").
+  - **`/` shows only actions and `@` only tables**; `/` used to filter nothing.
+  - **Only actions that can run are listed:** Undo and Redo when there's something to undo or
+    redo, Translations for a selected button you can edit, New button when there's a group.
+  - **No theme toggle:** the theme follows Power Platform ToolBox's setting.
 
 ### 🔧 Fixed
 
