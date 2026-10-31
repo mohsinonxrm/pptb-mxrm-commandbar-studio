@@ -23,6 +23,7 @@ const useStyles = makeStyles({
 	step: {
 		display: "flex",
 		flexDirection: "column",
+		minWidth: 0,
 		gap: tokens.spacingVerticalXS,
 		padding: tokens.spacingVerticalS,
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
@@ -32,7 +33,14 @@ const useStyles = makeStyles({
 	header: {
 		display: "flex",
 		alignItems: "center",
-		justifyContent: "space-between",
+		gap: tokens.spacingHorizontalXS,
+	},
+	title: {
+		flex: 1,
+		minWidth: 0,
+		display: "flex",
+		alignItems: "center",
+		gap: tokens.spacingHorizontalXS,
 	},
 	kindBadge: {
 		flexShrink: 0,
@@ -41,6 +49,7 @@ const useStyles = makeStyles({
 		display: "flex",
 		flexDirection: "column",
 		gap: tokens.spacingVerticalXS,
+		minWidth: 0,
 	},
 	row: {
 		display: "flex",
@@ -74,6 +83,10 @@ interface RuleStepEditorProps {
 	onRemove: () => void;
 	/** The rule type this step belongs to; restricts what can be added inside an OrRule (#41). */
 	container?: RuleContainer;
+	/** The step's place in its rule, shown before its kind (#186). */
+	number?: number;
+	/** More actions for the step (move up / down), before Remove (#186). */
+	menu?: React.ReactNode;
 }
 
 const PRIVILEGE_TYPES = [
@@ -120,6 +133,8 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 	onChange,
 	onRemove,
 	container,
+	number,
+	menu,
 }) => {
 	const styles = useStyles();
 	// Which OrRule picker is open: an existing group's index, or "new" for a new <Or>.
@@ -910,11 +925,15 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 	};
 
 	return (
-		<div className={styles.step} role="listitem">
+		<div className={styles.step}>
 			<div className={styles.header}>
-				<Badge appearance="outline" size="small" className={styles.kindBadge}>
-					{RULE_KIND_LABELS[step.kind] ?? step.kind}
-				</Badge>
+				<div className={styles.title}>
+					{number !== undefined && <Text weight="semibold">{number}.</Text>}
+					<Badge appearance="outline" size="small" className={styles.kindBadge}>
+						{RULE_KIND_LABELS[step.kind] ?? step.kind}
+					</Badge>
+				</div>
+				{menu}
 				<Button
 					appearance="subtle"
 					icon={<DismissRegular />}

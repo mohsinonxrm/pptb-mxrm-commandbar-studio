@@ -22,7 +22,9 @@ export type EditorView =
 	| { kind: "command"; id: string }
 	| { kind: "rule"; id: string; ruleKind: "enable" | "display" }
 	/** A JavaScript action's web resource, `id` its name; `editable` saves it to Dataverse. */
-	| { kind: "script"; id: string; editable: boolean };
+	| { kind: "script"; id: string; editable: boolean }
+	/** A tab's display rule, `id` the tab's. */
+	| { kind: "tabRules"; id: string; location: RibbonLocation };
 
 /** The command editor's tabs, in the drawer's header (#186). */
 export type CommandEditorTab = "actions" | "enable" | "display" | "usedBy";
@@ -39,6 +41,7 @@ function editorState(editorStack: EditorView[]) {
 		ruleEditorOpen: !!rule,
 		ruleEditorId: rule?.id ?? null,
 		ruleEditorKind: rule?.ruleKind ?? null,
+		tabDisplayRulesOpen: editorStack.some((v) => v.kind === "tabRules"),
 	};
 }
 
@@ -89,8 +92,8 @@ export interface UIStore {
 	urlComposerOpen: boolean;
 	diffViewerOpen: boolean;
 	diffViewerMode: "history" | "compare";
+	/** A tab's display rules are shown in the editor drawer (#186). */
 	tabDisplayRulesOpen: boolean;
-	scalingEditorOpen: boolean;
 	commandPaletteOpen: boolean;
 	/** The top bar's solution picker is open (also opened from the canvas's empty state, #195). */
 	solutionPickerOpen: boolean;
@@ -145,10 +148,8 @@ export interface UIStore {
 	closeUrlComposer(): void;
 	openDiffViewer(mode: "history" | "compare"): void;
 	closeDiffViewer(): void;
-	openTabDisplayRules(): void;
-	closeTabDisplayRules(): void;
-	openScalingEditor(): void;
-	closeScalingEditor(): void;
+	/** Shows a tab's display rules in the editor drawer (#186). */
+	openTabDisplayRules(location: RibbonLocation, tabId: string): void;
 	setCommandPaletteOpen(open: boolean): void;
 	setSolutionPickerOpen(open: boolean): void;
 	setTablePickerRequested(requested: boolean): void;
@@ -200,7 +201,6 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	diffViewerOpen: false,
 	diffViewerMode: "compare",
 	tabDisplayRulesOpen: false,
-	scalingEditorOpen: false,
 	commandPaletteOpen: false,
 	solutionPickerOpen: false,
 	tablePickerRequested: false,
@@ -277,10 +277,8 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	closeUrlComposer: () => set({ urlComposerOpen: false }),
 	openDiffViewer: (mode) => set({ diffViewerOpen: true, diffViewerMode: mode }),
 	closeDiffViewer: () => set({ diffViewerOpen: false }),
-	openTabDisplayRules: () => set({ tabDisplayRulesOpen: true }),
-	closeTabDisplayRules: () => set({ tabDisplayRulesOpen: false }),
-	openScalingEditor: () => set({ scalingEditorOpen: true }),
-	closeScalingEditor: () => set({ scalingEditorOpen: false }),
+	openTabDisplayRules: (location, tabId) =>
+		set((s) => editorState(pushView(s.editorStack, { kind: "tabRules", id: tabId, location }))),
 	setCommandPaletteOpen: (open: boolean) => set({ commandPaletteOpen: open }),
 	setSolutionPickerOpen: (open) => set({ solutionPickerOpen: open }),
 	setTablePickerRequested: (requested) => set({ tablePickerRequested: requested }),

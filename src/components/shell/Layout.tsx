@@ -25,8 +25,6 @@ const ImportXmlModal = lazy(() => import("@/components/modals/ImportXmlModal"));
 const CommandPalette = lazy(() => import("@/components/command-palette/CommandPalette"));
 const LocalizationEditor = lazy(() => import("@/components/modals/LocalizationEditor"));
 const IconPickerModal = lazy(() => import("@/components/modals/IconPickerModal"));
-const TabDisplayRulesPanel = lazy(() => import("@/components/panels/TabDisplayRulesPanel"));
-const ScalingEditorPanel = lazy(() => import("@/components/panels/ScalingEditorPanel"));
 const ConflictDrawer = lazy(() => import("@/components/panels/ConflictDrawer"));
 const WebResourceBrowser = lazy(() => import("@/components/panels/WebResourceBrowser"));
 const UrlComposerModal = lazy(() => import("@/components/panels/UrlComposerModal"));
@@ -161,8 +159,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const anyOverlayOpen = useUIStore(
 		(s) =>
 			s.xmlDrawerOpen ||
-			s.commandEditorOpen ||
-			s.ruleEditorOpen ||
+			s.editorStack.length > 0 ||
 			s.bulkPublishOpen ||
 			s.newButtonGroupId !== null ||
 			s.newGroupOpen ||
@@ -171,8 +168,6 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			s.commandPaletteOpen ||
 			s.localizationEditorOpen ||
 			s.iconPickerOpen ||
-			s.tabDisplayRulesOpen ||
-			s.scalingEditorOpen ||
 			s.conflictDrawerOpen ||
 			s.webResourceBrowserOpen ||
 			s.urlComposerOpen ||
@@ -373,8 +368,6 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 					<CommandPalette />
 					<LocalizationEditor />
 					<IconPickerModal />
-					<TabDisplayRulesPanel />
-					<ScalingEditorPanel />
 					<ConflictDrawer />
 					<WebResourceBrowser />
 					<UrlComposerModal />

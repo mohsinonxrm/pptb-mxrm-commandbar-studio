@@ -18,12 +18,14 @@ import {
 import { ArrowLeftRegular, DismissRegular } from "@fluentui/react-icons";
 import { IdField } from "@/components/shared/IdField";
 import { CommandHeader } from "@/components/panels/CommandHeader";
+import { RuleHeader } from "@/components/panels/RuleHeader";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore, type EditorView } from "@/store/uiStore";
 
 const CommandEditorPanel = lazy(() => import("@/components/panels/CommandEditorPanel"));
 const RuleEditorPanel = lazy(() => import("@/components/panels/RuleEditorPanel"));
 const ScriptView = lazy(() => import("@/components/panels/ScriptView"));
+const TabDisplayRulesPanel = lazy(() => import("@/components/panels/TabDisplayRulesPanel"));
 
 /**
  * The editor drawer (#186): one drawer that navigates instead of drawers on
@@ -34,8 +36,9 @@ const ScriptView = lazy(() => import("@/components/panels/ScriptView"));
  */
 
 const useStyles = makeStyles({
-	drawer: { width: "560px", maxWidth: "90vw" },
-	wide: { width: "640px" },
+	// One width for every view, so Back doesn't make it jump; wide enough for a
+	// rule's nested Or branches (#186).
+	drawer: { width: "720px", maxWidth: "90vw" },
 	// The script fills the drawer instead of a fixed-height box.
 	fill: { display: "flex", flexDirection: "column" },
 	navigation: { justifyContent: "space-between" },
@@ -66,6 +69,7 @@ const useStyles = makeStyles({
 function viewTitle(view: EditorView): string {
 	if (view.kind === "command") return "Edit command";
 	if (view.kind === "rule") return `Edit ${view.ruleKind} rule`;
+	if (view.kind === "tabRules") return "Tab display rules";
 	return view.editable ? "Edit script" : "View script";
 }
 
@@ -95,7 +99,7 @@ export function EditorDrawer() {
 			position="end"
 			open={open}
 			onOpenChange={(_, d) => !d.open && closeEditor()}
-			className={mergeClasses(styles.drawer, view?.kind !== "rule" && styles.wide)}
+			className={styles.drawer}
 			aria-label={view ? viewTitle(view) : "Editor"}
 		>
 			<DrawerHeader>
@@ -133,11 +137,14 @@ export function EditorDrawer() {
 					</DrawerHeaderTitle>
 				)}
 				{view?.kind === "command" && <CommandHeader key={view.id} commandId={view.id} />}
-				{view && view.kind !== "command" && (
+				{view?.kind === "rule" && (
+					<RuleHeader key={view.id} ruleId={view.id} kind={view.ruleKind} />
+				)}
+				{(view?.kind === "script" || view?.kind === "tabRules") && (
 					<div className={styles.idRow}>
 						<div className={styles.id}>
 							<IdField
-								label={view.kind === "rule" ? "Rule ID" : "Web resource"}
+								label={view.kind === "tabRules" ? "Tab ID" : "Web resource"}
 								value={view.id}
 								hideLabel
 							/>
@@ -149,6 +156,9 @@ export function EditorDrawer() {
 				<Suspense fallback={<Spinner size="small" label="Loading…" />}>
 					{view?.kind === "command" && <CommandEditorPanel />}
 					{view?.kind === "rule" && <RuleEditorPanel />}
+					{view?.kind === "tabRules" && (
+						<TabDisplayRulesPanel location={view.location} tabId={view.id} />
+					)}
 					{view?.kind === "script" && (
 						<ScriptView key={view.id} name={view.id} editable={view.editable} />
 					)}

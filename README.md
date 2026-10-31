@@ -37,7 +37,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Translations edit the labels a button publishes to; another solution's label, shared with every control that uses it, is read-only there
 - Command binding with action summary chips
 - Display rules + Enable rules pill lists with inline add/remove
-- Scaling summary with link to full editor
+- Scaling summary (read-only: the tab's groups and scaling steps)
 - Advanced: form ribbon scope selector, `Mscrm.OpenRecordItem` override toggle, client-type filter shortcuts (Unified Interface evaluates as `Modern`; one filter per command)
 - Conflict banner — surfaces managed-solution provenance via solution-layer API
 
@@ -70,16 +70,16 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - **Web resources** tab — browseable list of SVG resources in the org with search
 - **Custom upload** tab — drag-and-drop SVG → create web resource
 
-### 🗂️ Scaling Editor
-- MaxSize + Scale step sequence management
-- Document-order-based scaling behavior per MS docs (order of `<Scale>` elements, not Sequence values)
-- Validation: non-overlapping MaxSize/Scale ranges
+### 🗂️ Scaling
+- Read-only for now: Properties shows a tab's groups and scaling steps. Scaling only shapes the classic ribbon; Unified Interface ignores it.
+- Editing returns once changes to scaling can be published ([#165](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/165)).
 
 ### 🗃️ Tab Display Rules Editor
 - One display rule per tab; the tab shows where any of its steps matches
 - `EntityRule` (all 4 contexts, or any) + `PageRule`
 - Info note: entity-scoped tabs can only use EntityRule; global tabs can use both
 - Read-only for a tab your customizations don't add
+- A view of the editor drawer: changes apply as you edit, and one Ctrl Z undoes the whole edit
 
 ### 🌐 Web Resource Browser
 - Virtualized list with type filter, custom-only toggle, search
@@ -295,7 +295,8 @@ src/
     ribbon-canvas/       — RibbonCanvas, ClassicRibbon, ModernCommandBar, RibbonListView
     properties-pane/     — PropertiesPane (header + collapsible sections) and its sections
     bottom-panel/        — BottomPanel (Commands / Rules / History / Console tabs)
-    panels/              — CommandEditor, RuleEditor, ScalingEditor, TabDisplayRules,
+    panels/              — EditorDrawer (command, rule, script, tab display rule views),
+                           CommandEditor, RuleEditor, TabDisplayRules,
                            ConflictDrawer, WebResourceBrowser, UrlComposer,
                            DiffViewer, XmlDrawer
     modals/              — BulkPublish, IconPicker, LocalizationEditor, NewButton/Group/Tab,
