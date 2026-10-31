@@ -24,9 +24,13 @@ const useStyles = makeStyles({
 		display: "flex",
 		flexDirection: "column",
 		gap: tokens.spacingVerticalXS,
+		minWidth: 0,
 	},
 	param: {
 		display: "flex",
+		// Narrow places (a step inside an Or branch) wrap instead of scrolling sideways (#186).
+		flexWrap: "wrap",
+		minWidth: 0,
 		gap: tokens.spacingHorizontalS,
 		alignItems: "flex-end",
 		padding: tokens.spacingVerticalXS,
@@ -38,7 +42,10 @@ const useStyles = makeStyles({
 		flexShrink: 0,
 	},
 	valueField: {
-		flex: 1,
+		flex: "1 1 160px",
+		minWidth: 0,
+		// A native select is as wide as its longest option unless told otherwise.
+		"& .fui-Select, & .fui-Input, & select": { width: "100%", minWidth: 0 },
 	},
 	actions: {
 		display: "flex",

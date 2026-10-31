@@ -466,7 +466,9 @@ export function RibbonTabStrip({ currentTab }: { currentTab: RibbonTab | undefin
 							>
 								Rename…
 							</MenuItem>
-							<MenuItem onClick={openTabDisplayRules}>Tab display rules…</MenuItem>
+							<MenuItem onClick={() => openTabDisplayRules(location, currentTab.id)}>
+								Tab display rules…
+							</MenuItem>
 							<MenuDivider />
 							<MenuItem disabled={index <= 0} onClick={() => move(currentTab, -1)}>
 								Move left
@@ -510,7 +512,8 @@ export function RibbonTabStrip({ currentTab }: { currentTab: RibbonTab | undefin
 				appearance="subtle"
 				size="small"
 				icon={<EyeRegular />}
-				onClick={openTabDisplayRules}
+				disabled={!currentTab}
+				onClick={() => currentTab && openTabDisplayRules(location, currentTab.id)}
 				className={styles.pinned}
 			>
 				Tab rules

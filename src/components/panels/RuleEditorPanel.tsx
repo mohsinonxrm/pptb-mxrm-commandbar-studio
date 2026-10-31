@@ -3,15 +3,25 @@ import {
 	makeStyles,
 	tokens,
 	Button,
+	Caption1,
 	Text,
-	Divider,
 	InfoLabel,
+	Menu,
+	MenuItem,
+	MenuList,
+	MenuPopover,
+	MenuTrigger,
 	Popover,
 	PopoverSurface,
 	PopoverTrigger,
-	Input,
 } from "@fluentui/react-components";
-import { AddRegular } from "@fluentui/react-icons";
+import {
+	AddRegular,
+	ArrowDownRegular,
+	ArrowUpRegular,
+	MoreVerticalRegular,
+	ReOrderDotsVerticalRegular,
+} from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import type { RuleStep, EnableRule, DisplayRule } from "@/types/ribbon";
@@ -33,27 +43,24 @@ const useStyles = makeStyles({
 	body: {
 		display: "flex",
 		flexDirection: "column",
-		gap: tokens.spacingVerticalS,
+		gap: tokens.spacingVerticalM,
+		minWidth: 0,
 	},
 	stepsList: {
 		display: "flex",
 		flexDirection: "column",
-		gap: tokens.spacingVerticalXS,
+		gap: tokens.spacingVerticalS,
 		listStyle: "none",
 		padding: 0,
 		margin: 0,
 	},
+	muted: { color: tokens.colorNeutralForeground3 },
 	summary: {
 		padding: tokens.spacingVerticalS,
 		backgroundColor: tokens.colorNeutralBackground3,
 		borderRadius: tokens.borderRadiusMedium,
-		fontStyle: "italic",
 		color: tokens.colorNeutralForeground2,
 		fontSize: tokens.fontSizeBase200,
-	},
-	addRow: {
-		display: "flex",
-		gap: tokens.spacingHorizontalS,
 	},
 	pickerPopover: {
 		maxHeight: "60vh",
@@ -61,65 +68,45 @@ const useStyles = makeStyles({
 		minWidth: "320px",
 		padding: tokens.spacingVerticalM,
 	},
-	usedBy: {
-		color: tokens.colorNeutralForeground3,
-		fontSize: tokens.fontSizeBase200,
-	},
-	ruleIdRow: {
-		display: "flex",
-		alignItems: "flex-end",
-		gap: tokens.spacingHorizontalS,
-	},
-	ruleIdInput: {
-		fontFamily: tokens.fontFamilyMonospace,
-	},
-	error: {
-		color: tokens.colorPaletteRedForeground1,
-		fontSize: tokens.fontSizeBase100,
-	},
-	sortableItem: {
-		listStyle: "none",
-	},
 	sortableInner: {
 		display: "flex",
 		alignItems: "flex-start",
-		gap: tokens.spacingHorizontalS,
+		gap: tokens.spacingHorizontalXS,
+		minWidth: 0,
 	},
 	dragHandle: {
-		marginTop: tokens.spacingVerticalS,
+		marginTop: tokens.spacingVerticalXS,
 		cursor: "grab",
+		touchAction: "none",
 	},
+	stepBody: { flex: 1, minWidth: 0 },
 });
 
 const NO_STEPS: RuleStep[] = [];
 
+/**
+ * A rule as a view of the editor drawer (#186): its steps in order, each one
+ * a card with a drag handle and Move up / Move down. The header (RuleHeader)
+ * shows the id, Rename and the commands that use it.
+ */
 export const RuleEditorPanel: React.FC = () => {
 	const styles = useStyles();
 	const ruleEditorOpen = useUIStore((s) => s.ruleEditorOpen);
 	const ruleEditorId = useUIStore((s) => s.ruleEditorId);
 	const ruleEditorKind = useUIStore((s) => s.ruleEditorKind);
 	const closeRuleEditor = useUIStore((s) => s.closeRuleEditor);
-	const openRuleEditor = useUIStore((s) => s.openRuleEditor);
 	const enableRules = useRibbonStore((s) => s.enableRules);
 	const displayRules = useRibbonStore((s) => s.displayRules);
-	const commands = useRibbonStore((s) => s.commands);
 	const upsertEnableRule = useRibbonStore((s) => s.upsertEnableRule);
 	const upsertDisplayRule = useRibbonStore((s) => s.upsertDisplayRule);
-	const renameEnableRuleId = useRibbonStore((s) => s.renameEnableRuleId);
-	const renameDisplayRuleId = useRibbonStore((s) => s.renameDisplayRuleId);
 
 	const [pickerOpen, setPickerOpen] = useState(false);
-	const [draftRuleId, setDraftRuleId] = useState("");
 
 	const isEnable = ruleEditorKind === "enable";
 
 	const activeRule = isEnable
 		? enableRules.find((r) => r.id === ruleEditorId)
 		: displayRules.find((r) => r.id === ruleEditorId);
-
-	useEffect(() => {
-		if (activeRule) setDraftRuleId(activeRule.id);
-	}, [activeRule]);
 
 	// The rule went away while it was shown (an undo of the step that added it):
 	// back to the view below instead of an empty drawer (#186).
@@ -136,168 +123,140 @@ export const RuleEditorPanel: React.FC = () => {
 	);
 	const sortableIds = stepKeys.keys;
 
-	const usedBy = commands.filter((c) =>
-		isEnable
-			? c.enableRules.includes(ruleEditorId ?? "")
-			: c.displayRules.includes(ruleEditorId ?? ""),
-	).length;
+	if (!activeRule) return null;
+
+	const setSteps = (steps: RuleStep[]) => {
+		if (isEnable) upsertEnableRule({ ...(activeRule as EnableRule), steps });
+		else upsertDisplayRule({ ...(activeRule as DisplayRule), steps });
+	};
 
 	const handleStepChange = (index: number, updated: RuleStep) => {
-		if (!activeRule) return;
 		const newSteps = [...activeRule.steps];
 		newSteps[index] = updated;
 		stepKeys.update();
-		if (isEnable) {
-			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
-		} else {
-			upsertDisplayRule({ ...(activeRule as DisplayRule), steps: newSteps });
-		}
+		setSteps(newSteps);
 	};
 
 	const handleStepRemove = (index: number) => {
-		if (!activeRule) return;
-		const newSteps = activeRule.steps.filter((_, i) => i !== index);
 		stepKeys.remove(index);
-		if (isEnable) {
-			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
-		} else {
-			upsertDisplayRule({ ...(activeRule as DisplayRule), steps: newSteps });
-		}
+		setSteps(activeRule.steps.filter((_, i) => i !== index));
 	};
 
 	const handleAddStep = (step: RuleStep) => {
-		if (!activeRule) return;
-		const newSteps = [...activeRule.steps, step];
 		stepKeys.add();
-		if (isEnable) {
-			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
-		} else {
-			upsertDisplayRule({ ...(activeRule as DisplayRule), steps: newSteps });
-		}
+		setSteps([...activeRule.steps, step]);
 		setPickerOpen(false);
 	};
 
-	const handleDragEnd = (event: DragEndEvent) => {
-		if (!activeRule || !event.over || event.active.id === event.over.id) return;
-		const oldIndex = sortableIds.indexOf(String(event.active.id));
-		const newIndex = sortableIds.indexOf(String(event.over.id));
-		if (oldIndex < 0 || newIndex < 0) return;
-
-		const newSteps = arrayMove(activeRule.steps, oldIndex, newIndex);
-		stepKeys.move(oldIndex, newIndex);
-		if (isEnable) {
-			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
-		} else {
-			upsertDisplayRule({ ...(activeRule as DisplayRule), steps: newSteps });
-		}
+	const moveStep = (from: number, to: number) => {
+		if (from === to || from < 0 || to < 0 || to >= activeRule.steps.length) return;
+		stepKeys.move(from, to);
+		setSteps(arrayMove(activeRule.steps, from, to));
 	};
 
-	if (!activeRule) return null;
+	const handleDragEnd = (event: DragEndEvent) => {
+		if (!event.over) return;
+		moveStep(
+			sortableIds.indexOf(String(event.active.id)),
+			sortableIds.indexOf(String(event.over.id)),
+		);
+	};
 
-	const summary = summarizeRule(activeRule.steps);
-	const idTaken = (isEnable ? enableRules : displayRules).some(
-		(r) => r.id === draftRuleId.trim() && r.id !== activeRule.id,
-	);
-	const idError = !draftRuleId.trim()
-		? "Rule ID is required."
-		: /\s/.test(draftRuleId)
-			? "Rule ID cannot contain whitespace."
-			: idTaken
-				? "A rule with this ID already exists."
-				: "";
+	const count = activeRule.steps.length;
+	const container = isEnable ? "enable" : "display";
 
-	// A view of the editor drawer (#186): it shows the title, the id and Done.
 	return (
 		<div className={styles.body}>
-			<Text className={styles.usedBy}>Used by {usedBy} command(s)</Text>
-			<div className={styles.ruleIdRow}>
-				<Input
-					className={styles.ruleIdInput}
-					value={draftRuleId}
-					onChange={(_, d) => setDraftRuleId(d.value)}
-					aria-label="Rule ID"
-				/>
-				<Button
-					appearance="secondary"
-					size="small"
-					disabled={!draftRuleId.trim() || !!idError || draftRuleId === activeRule.id}
-					onClick={() => {
-						const nextId = draftRuleId.trim();
-						const success = isEnable
-							? renameEnableRuleId(activeRule.id, nextId)
-							: renameDisplayRuleId(activeRule.id, nextId);
-						if (success) {
-							openRuleEditor(nextId, isEnable ? "enable" : "display");
-						}
-					}}
-				>
-					Apply ID change
-				</Button>
+			{isEnable ? (
+				<InfoLabel info="Enable rules take fewer kinds of step than display rules; Add step only offers the ones they take.">
+					Passes when every step below is true.
+				</InfoLabel>
+			) : (
+				<Text>Passes when every step below is true.</Text>
+			)}
+
+			{count > 0 ? (
+				<DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+					<SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
+						<ol className={styles.stepsList} aria-label="Rule steps">
+							{activeRule.steps.map((step, i) => (
+								<SortableRuleStep
+									key={sortableIds[i]}
+									id={sortableIds[i]}
+									draggable={count > 1}
+								>
+									<RuleStepEditor
+										step={step}
+										number={i + 1}
+										menu={
+											count > 1 && (
+												<Menu>
+													<MenuTrigger disableButtonEnhancement>
+														<Button
+															appearance="subtle"
+															size="small"
+															icon={<MoreVerticalRegular />}
+															aria-label={`More for step ${i + 1}`}
+														/>
+													</MenuTrigger>
+													<MenuPopover>
+														<MenuList>
+															<MenuItem
+																icon={<ArrowUpRegular />}
+																disabled={i === 0}
+																onClick={() => moveStep(i, i - 1)}
+															>
+																Move up
+															</MenuItem>
+															<MenuItem
+																icon={<ArrowDownRegular />}
+																disabled={i === count - 1}
+																onClick={() => moveStep(i, i + 1)}
+															>
+																Move down
+															</MenuItem>
+														</MenuList>
+													</MenuPopover>
+												</Menu>
+											)
+										}
+										onChange={(updated) => handleStepChange(i, updated)}
+										onRemove={() => handleStepRemove(i)}
+										container={container}
+									/>
+								</SortableRuleStep>
+							))}
+						</ol>
+					</SortableContext>
+				</DndContext>
+			) : (
+				<Text className={styles.muted}>
+					No steps yet. A rule needs at least one step: add one before you publish, or
+					remove the rule from its commands.
+				</Text>
+			)}
+
+			<div>
+				<Popover open={pickerOpen} onOpenChange={(_, d) => setPickerOpen(d.open)}>
+					<PopoverTrigger>
+						<Button icon={<AddRegular />} onClick={() => setPickerOpen(true)}>
+							Add step
+						</Button>
+					</PopoverTrigger>
+					<PopoverSurface className={styles.pickerPopover}>
+						<RuleStepPicker onSelect={handleAddStep} container={container} />
+					</PopoverSurface>
+				</Popover>
 			</div>
-			{idError && <Text className={styles.error}>{idError}</Text>}
 
-			<Divider>
-				{isEnable ? (
-					<InfoLabel
-						size="small"
-						info="Enable rules allow fewer step types than display rules; the ones they don't allow are disabled in Add step."
-					>
-						Steps (ALL must pass)
-					</InfoLabel>
-				) : (
-					"Steps (ALL must pass)"
-				)}
-			</Divider>
-
-			<DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-				<SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-					<ol className={styles.stepsList} role="list" aria-label="Rule steps">
-						{activeRule.steps.map((step, i) => (
-							<SortableRuleStep
-								key={sortableIds[i]}
-								id={sortableIds[i]}
-								styles={styles}
-							>
-								<RuleStepEditor
-									step={step}
-									onChange={(updated) => handleStepChange(i, updated)}
-									onRemove={() => handleStepRemove(i)}
-									container={isEnable ? "enable" : "display"}
-								/>
-							</SortableRuleStep>
-						))}
-						{activeRule.steps.length === 0 && (
-							<Text italic style={{ color: tokens.colorNeutralForeground3 }}>
-								No steps yet. A rule needs at least one step: add one before you
-								publish, or remove the rule from its commands.
-							</Text>
-						)}
-					</ol>
-				</SortableContext>
-			</DndContext>
-
-			<Popover open={pickerOpen} onOpenChange={(_, d) => setPickerOpen(d.open)}>
-				<PopoverTrigger>
-					<Button
-						icon={<AddRegular />}
-						appearance="secondary"
-						onClick={() => setPickerOpen(true)}
-					>
-						Add step
-					</Button>
-				</PopoverTrigger>
-				<PopoverSurface className={styles.pickerPopover}>
-					<RuleStepPicker
-						onSelect={handleAddStep}
-						container={isEnable ? "enable" : "display"}
-					/>
-				</PopoverSurface>
-			</Popover>
-
-			<Divider>Plain-English summary</Divider>
-			<div className={styles.summary} role="note" aria-label="Rule summary">
-				{summary}
-			</div>
+			{count > 0 && (
+				<>
+					<Caption1 className={styles.muted}>In words</Caption1>
+					<div className={styles.summary} role="note" aria-label="Rule summary">
+						{summarizeRule(activeRule.steps)}
+					</div>
+				</>
+			)}
 		</div>
 	);
 };
@@ -306,37 +265,33 @@ export default RuleEditorPanel;
 
 function SortableRuleStep({
 	id,
+	draggable,
 	children,
-	styles,
 }: {
 	id: string;
+	draggable: boolean;
 	children: React.ReactNode;
-	styles: ReturnType<typeof useStyles>;
 }) {
+	const styles = useStyles();
 	const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition } =
-		useSortable({
-			id,
-		});
+		useSortable({ id, disabled: !draggable });
 
 	return (
-		<li
-			ref={setNodeRef}
-			className={styles.sortableItem}
-			style={{ transform: CSS.Transform.toString(transform), transition }}
-		>
+		<li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}>
 			<div className={styles.sortableInner}>
-				<Button
-					ref={setActivatorNodeRef}
-					appearance="subtle"
-					size="small"
-					className={styles.dragHandle}
-					{...attributes}
-					{...listeners}
-					aria-label="Drag to reorder step"
-				>
-					Drag
-				</Button>
-				<div style={{ flex: 1 }}>{children}</div>
+				{draggable && (
+					<Button
+						ref={setActivatorNodeRef}
+						appearance="subtle"
+						size="small"
+						className={styles.dragHandle}
+						icon={<ReOrderDotsVerticalRegular />}
+						{...attributes}
+						{...listeners}
+						aria-label="Drag to reorder step"
+					/>
+				)}
+				<div className={styles.stepBody}>{children}</div>
 			</div>
 		</li>
 	);

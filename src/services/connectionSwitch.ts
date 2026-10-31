@@ -36,8 +36,6 @@ const WORKSPACE_PANELS = [
 	"webResourceBrowserOpen",
 	"urlComposerOpen",
 	"diffViewerOpen",
-	"tabDisplayRulesOpen",
-	"scalingEditorOpen",
 	"newTabOpen",
 ] as const satisfies readonly (keyof UIStore)[];
 

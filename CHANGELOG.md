@@ -233,6 +233,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Used by** names each button and where it is ("Main grid › Main › Management").
   - **Rules are tags:** open one with a click, unbind it with its ×. **New enable rule** now also
     adds the rule to the command.
+- **Rules, tab display rules and scaling (#186, part 3).**
+  - **The editor drawer is 720 px wide for every view**, so it doesn't change width when you open a
+    rule from a command and go back. A rule's nested Or steps no longer scroll sideways: parameter
+    rows shrink and wrap instead of sizing themselves to their longest option.
+  - **The rule view** says "Passes when every step below is true." Steps are numbered, with a
+    drag handle and Move up / Move down in a ⋮ menu (the "Drag" text button is gone). The header
+    shows the rule's id with copy, **Rename** for a rule that isn't Microsoft's (errors under the
+    field; the "Apply ID change" row is gone) and how many commands use it. "In words" heads the
+    summary.
+  - **Tab display rules open in the editor drawer and apply as you edit.** Save and Cancel are
+    gone: Done, and one Ctrl Z undoes everything done there. Steps are numbered cards; on the
+    application ribbon Add step offers a table step or a page step. An empty page address is a
+    field error (and Publish's check still blocks it). A tab another solution adds says so and is
+    read-only.
+  - **Scaling is read-only for now (#165).** Changes to scaling could never be published, so the
+    Scaling editor is removed until #165 makes them publishable. Properties shows the tab's
+    groups and scaling steps, and says scaling only shapes the classic ribbon.
 
 ### 🔧 Fixed
 
