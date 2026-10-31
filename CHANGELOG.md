@@ -263,6 +263,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     managed solution and publisher it comes from.
 - **List view:** the buttons table no longer runs under the modern commands below it on a short
   window. It's as tall as its rows, up to ten, and scrolls for more.
+- **Import RibbonDiffXml in two columns (#187, part 2).**
+  - **The editor keeps its height.** Before, it shrank to almost nothing after a preview, as the
+    message bars piled up under it. The preview now sits beside it and scrolls on its own.
+  - **One line above the editor** ("From Ribbon Workbench or a solution's customizations.xml. Only
+    <table>'s part is used.") replaces the 70-word introduction.
+  - **The preview counts what it found** ("Preview · 2 changes, 1 problem"), lists each change with
+    an Add / Update / Hide badge, and lists every problem in one list instead of a message bar per
+    error. A problem with a line ("Line 3: …") moves the editor to that line.
+  - **Import says how many changes it brings** ("Import 2 changes") and is off while there are
+    errors. Preview becomes "Preview again". After the import there's one Close button.
+  - **XML parse errors read as the parser's message**, without the browser's "This page contains
+    the following errors" wrapper.
+  - The dialog uses the shared dialog shell at its large size.
 
 ### 🔧 Fixed
 
