@@ -9,7 +9,7 @@ import { ClassicRibbon } from "./ClassicRibbon";
 import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
 import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
-import { LocationRow, RibbonTabStrip } from "./CanvasHeader";
+import { LocationRow } from "./CanvasHeader";
 import {
 	CanvasEmptyState,
 	CanvasLoadError,
@@ -190,8 +190,6 @@ export function RibbonCanvas({
 				scope={`canvas:${connectionUrl}:${ribbon.entityLogicalName}:${location}`}
 				className={styles.messages}
 			/>
-
-			<RibbonTabStrip currentTab={currentTab} />
 
 			{/* Canvas area */}
 			<div className={styles.canvas}>

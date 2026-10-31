@@ -11,6 +11,8 @@ interface RenameGroupDialogProps {
 	/** Called with the trimmed new title; not called when it is unchanged. */
 	onRename: (label: string) => void;
 	onCancel: () => void;
+	/** What is renamed: a group, or a tab from the Structure tree (#194). */
+	noun?: "group" | "tab";
 }
 
 export const RenameGroupDialog: React.FC<RenameGroupDialogProps> = ({
@@ -18,6 +20,7 @@ export const RenameGroupDialog: React.FC<RenameGroupDialogProps> = ({
 	initialLabel,
 	onRename,
 	onCancel,
+	noun = "group",
 }) => {
 	const [value, setValue] = useState(initialLabel);
 	const trimmed = value.trim();
@@ -34,7 +37,7 @@ export const RenameGroupDialog: React.FC<RenameGroupDialogProps> = ({
 			open={open}
 			onOpenChange={(o) => !o && onCancel()}
 			size="small"
-			title="Rename group"
+			title={`Rename ${noun}`}
 			actions={
 				<>
 					<Button appearance="secondary" onClick={onCancel}>
@@ -47,10 +50,10 @@ export const RenameGroupDialog: React.FC<RenameGroupDialogProps> = ({
 			}
 		>
 			<Field
-				label="Group title"
+				label={noun === "tab" ? "Tab title" : "Group title"}
 				required
 				validationState={trimmed ? "none" : "error"}
-				validationMessage={trimmed ? undefined : "Enter a title for the group."}
+				validationMessage={trimmed ? undefined : `Enter a title for the ${noun}.`}
 			>
 				<Input
 					value={value}

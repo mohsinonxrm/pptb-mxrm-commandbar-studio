@@ -123,13 +123,18 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 		setPropertiesRequested(false);
 	};
 	// In a narrow window, selecting something (a classic control or a modern
-	// command) opens Properties; clearing the selection doesn't close it, and
-	// opening a table closes the tables drawer (compared during render).
+	// command) opens Properties; clearing the selection doesn't close it.
+	// While the Structure drawer is open, a selection (opening a node's menu
+	// selects it) leaves Properties alone: it would take the focus and close the
+	// menu. Choosing a group or control there closes the drawer and opens
+	// Properties (#194). Opening a table closes the drawer as well (compared
+	// during render).
+	const selected = !!(selectedButtonId || selectedGroupId || selectedModernId);
 	const selectionKey = `${selectedGroupId ?? ""}|${selectedButtonId ?? ""}|${selectedModernId ?? ""}`;
 	const [seenSelection, setSeenSelection] = useState(selectionKey);
 	if (seenSelection !== selectionKey) {
 		setSeenSelection(selectionKey);
-		if (narrow && (selectedButtonId || selectedGroupId || selectedModernId)) setPropsOpen(true);
+		if (narrow && !leftOpen && selected) setPropsOpen(true);
 	}
 	// The drawers start closed whenever the window crosses the narrow width.
 	const [seenNarrow, setSeenNarrow] = useState(narrow);
@@ -137,6 +142,13 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 		setSeenNarrow(narrow);
 		setLeftOpen(false);
 		setPropsOpen(false);
+	}
+	const structureChoice = useUIStore((s) => s.structureChoice);
+	const [seenChoice, setSeenChoice] = useState(structureChoice);
+	if (seenChoice !== structureChoice) {
+		setSeenChoice(structureChoice);
+		setLeftOpen(false);
+		if (narrow && selected) setPropsOpen(true);
 	}
 	const [seenTable, setSeenTable] = useState(activeTable);
 	if (seenTable !== activeTable) {
@@ -215,7 +227,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			<div className={styles.body}>
 				{narrow ? (
 					<nav className={styles.rail} aria-label="Side panes">
-						<Tooltip content="Solution" relationship="label">
+						<Tooltip content="Structure and solution" relationship="label">
 							<Button
 								appearance="subtle"
 								icon={<PanelLeftExpandRegular />}
@@ -254,7 +266,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 							size="small"
 							open={leftOpen}
 							onOpenChange={(_, d) => setLeftOpen(d.open)}
-							aria-label="Solution"
+							aria-label="Structure and solution"
 						>
 							<div className={styles.drawerBody}>
 								<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>

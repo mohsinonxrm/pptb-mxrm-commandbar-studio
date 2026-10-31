@@ -5,7 +5,7 @@ import { Layout } from "@/components/shell/Layout";
 import { RibbonCanvas } from "@/components/ribbon-canvas/RibbonCanvas";
 import { PropertiesPane } from "@/components/properties-pane/PropertiesPane";
 import { BottomPanel } from "@/components/bottom-panel/BottomPanel";
-import { SolutionElementsPane } from "@/components/left-pane/SolutionElementsPane";
+import { LeftPane } from "@/components/left-pane/LeftPane";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
@@ -348,7 +348,7 @@ export function App() {
 	return (
 		<FluentProvider theme={themeMode === "dark" ? webDarkTheme : webLightTheme}>
 			<Layout
-				leftPane={<SolutionElementsPane />}
+				leftPane={<LeftPane />}
 				rightPane={<PropertiesPane />}
 				bottomPanel={<BottomPanel />}
 			>

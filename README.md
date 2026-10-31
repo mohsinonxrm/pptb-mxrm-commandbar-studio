@@ -174,17 +174,25 @@ Nothing else writes to Dataverse:
 │ Messages that need action (one at a time, + n more)             │
 ├──────────────────┬──────────────────────────────┬───────────────┤
 │ Left Pane        │ Ribbon Canvas                │ Properties    │
-│ • Solution       │ Location: Home/Sub/Form/App  │ • Identity    │
-│   Elements       │ Tab strip (drag-reorder)     │ • Command     │
-│   – Buttons      │ View: Classic / Modern / List│ • Rules       │
-│   – Commands     │ Groups + Buttons (DnD)       │ • Scaling     │
-│   – Rules        │                              │ • Advanced    │
-│   – Templates    │                              │               │
+│ [Structure|      │ Location: Home/Sub/Form/App  │ • Identity    │
+│  Solution]       │ View: Classic / Modern / List│ • Command     │
+│ • Structure:     │ Groups + Buttons (DnD)       │ • Rules       │
+│   tab › group ›  │                              │ • Scaling     │
+│   control tree   │                              │ • Advanced    │
+│ • Solution:      │                              │               │
+│   Buttons, Com-  │                              │               │
+│   mands, Rules,  │                              │               │
+│   Templates      │                              │               │
 ├──────────────────┴──────────────────────────────┴───────────────┤
 │ Bottom Panel: Commands │ Display Rules │ Enable Rules │ History  │
 │              │ Console (runtime + publish log)                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+The **Structure** tree is where you choose the location's tab, group or button, and each node's
+menu (right-click, Shift+F10 or the Menu key) has its actions: a tab's Rename…, Tab display
+rules…, Add group…, Move up / down and Delete tab…, and the same group and button menus as the
+canvas.
 
 Below 1200 px wide, the left pane becomes a rail with one button and opens as a drawer, and
 Properties opens as a drawer when you select something, so the canvas keeps the width.

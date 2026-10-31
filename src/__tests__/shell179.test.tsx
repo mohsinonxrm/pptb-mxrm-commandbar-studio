@@ -218,7 +218,7 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 		render(shell());
 		expect(container.textContent).toContain("LEFT PANE");
 		expect(container.textContent).toContain("PROPERTIES");
-		expect(byName("Solution")).toBeUndefined();
+		expect(byName("Structure and solution")).toBeUndefined();
 	});
 
 	it("turns them into a rail and overlay drawers below 1200 px", () => {
@@ -226,13 +226,29 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 		render(shell());
 		expect(container.textContent).not.toContain("LEFT PANE");
 		expect(container.textContent).not.toContain("PROPERTIES");
-		click(byName("Solution"));
+		click(byName("Structure and solution"));
 		expect(document.body.textContent).toContain("LEFT PANE");
 
-		// Opening a table closes the tables drawer; selecting a button opens Properties.
+		// Opening a table closes the left drawer; selecting a button opens Properties.
 		act(() => useSessionStore.setState({ activeEntity: { logicalName: "account" } } as never));
 		expect(document.body.textContent).not.toContain("LEFT PANE");
 		act(() => useSelectionStore.getState().selectButton("G", "B"));
+		expect(document.body.textContent).toContain("PROPERTIES");
+		click(byName("Close properties"));
+
+		// Opening a node's menu in the Structure drawer selects it but keeps the
+		// drawer (and the menu) open, without Properties taking the focus;
+		// choosing a node closes it and opens Properties (#194).
+		click(byName("Structure and solution"));
+		expect(document.body.textContent).toContain("LEFT PANE");
+		act(() => useSelectionStore.getState().selectButton("G", "B2"));
+		expect(document.body.textContent).toContain("LEFT PANE");
+		expect(document.body.textContent).not.toContain("PROPERTIES");
+		act(() => {
+			useSelectionStore.getState().selectButton("G", "B3");
+			useUIStore.getState().noteStructureChoice();
+		});
+		expect(document.body.textContent).not.toContain("LEFT PANE");
 		expect(document.body.textContent).toContain("PROPERTIES");
 		click(byName("Close properties"));
 		expect(document.body.textContent).not.toContain("PROPERTIES");
@@ -264,7 +280,7 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 	it("closes the drawers when the window crosses the narrow width", () => {
 		setWidth(1024);
 		render(shell());
-		click(byName("Solution"));
+		click(byName("Structure and solution"));
 		expect(document.body.textContent).toContain("LEFT PANE");
 		setWidth(1600);
 		setWidth(1024);

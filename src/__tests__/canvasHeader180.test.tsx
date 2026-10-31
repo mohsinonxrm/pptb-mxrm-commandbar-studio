@@ -1,14 +1,13 @@
 /**
  * #180: the location row is a Fluent TabList in Unified Interface terms with
- * About this location and compact App / View menus (no second XML button), and
- * the ribbon tab strip shows labels only, with Move left / Move right, Add tab
- * and Tab rules always reachable.
+ * About this location and compact App / View menus (no second XML button). The
+ * ribbon tab strip became the Structure tree (#194, structure194.test.tsx).
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
-import { LocationRow, RibbonTabStrip } from "@/components/ribbon-canvas/CanvasHeader";
+import { LocationRow } from "@/components/ribbon-canvas/CanvasHeader";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
@@ -69,7 +68,6 @@ const click = (el: Element | undefined) => {
 	if (!el) throw new Error("not found");
 	act(() => (el as HTMLElement).click());
 };
-const tabIds = () => useRibbonStore.getState().ribbons.HomepageGrid.tabs.map((t) => t.id);
 
 beforeEach(() => {
 	container = document.createElement("div");
@@ -124,66 +122,5 @@ describe("#180 the location row", () => {
 		click(byName(`View as: ${"Classic ribbon"}`) ?? byName("View as: Modern command bar"));
 		click(menuItem("List"));
 		expect(useUIStore.getState().ribbonViewStyle).toBe("list");
-	});
-});
-
-describe("#180 the ribbon tab strip", () => {
-	const strip = () => {
-		const current = useRibbonStore
-			.getState()
-			.ribbons.HomepageGrid.tabs.find((t) => t.id === useSelectionStore.getState().tabId);
-		return <RibbonTabStrip currentTab={current} />;
-	};
-
-	it("shows labels only, the id on the element, not in the text", () => {
-		render(strip());
-		const t = container.querySelector<HTMLElement>('[data-tab-id="cbs.account.Tab2"]')!;
-		expect(t.getAttribute("role")).toBe("tab");
-		expect(textOf(t)).toBe("Second");
-		expect(t.textContent).not.toContain("cbs.account.Tab2");
-	});
-
-	it("marks the current tab selected, also when the strip first rendered without one", () => {
-		const tabs = useRibbonStore.getState().ribbons.HomepageGrid.tabs;
-		// While a table loads there is no current tab yet.
-		render(<RibbonTabStrip currentTab={undefined} />);
-		render(<RibbonTabStrip currentTab={tabs[1]} />);
-		const selected = () =>
-			[...container.querySelectorAll('[role="tab"][aria-selected="true"]')].map((t) =>
-				t.getAttribute("data-tab-id"),
-			);
-		expect(selected()).toEqual(["cbs.account.Tab2"]);
-		// Another location's default tab, without a click.
-		render(<RibbonTabStrip currentTab={tabs[0]} />);
-		expect(selected()).toEqual(["Mscrm.HomepageGrid.account.MainTab"]);
-	});
-
-	it("moves the current tab left and right from Tab options", () => {
-		render(strip());
-		click(byName("Tab options"));
-		click(menuItem("Move right"));
-		expect(tabIds()).toEqual([
-			"Mscrm.HomepageGrid.account.MainTab",
-			"cbs.account.Tab3",
-			"cbs.account.Tab2",
-		]);
-		click(byName("Tab options"));
-		click(menuItem("Move left"));
-		click(byName("Tab options"));
-		click(menuItem("Move left"));
-		expect(tabIds()[0]).toBe("cbs.account.Tab2");
-	});
-
-	it("keeps Add tab and Tab rules reachable, with the rule count", () => {
-		useSelectionStore.setState({ tabId: "Mscrm.HomepageGrid.account.MainTab" });
-		render(strip());
-		click(byName("Add tab"));
-		expect(useUIStore.getState().newTabOpen).toBe(true);
-		const rules = [...container.querySelectorAll("button")].find((b) =>
-			b.textContent?.startsWith("Tab rules"),
-		)!;
-		expect(rules.textContent).toBe("Tab rules2");
-		click(rules);
-		expect(useUIStore.getState().tabDisplayRulesOpen).toBe(true);
 	});
 });
