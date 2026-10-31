@@ -28,6 +28,7 @@ const ScriptView = lazy(() => import("@/components/panels/ScriptView"));
 const TabDisplayRulesPanel = lazy(() => import("@/components/panels/TabDisplayRulesPanel"));
 const XmlView = lazy(() => import("@/components/panels/XmlView"));
 const CompareView = lazy(() => import("@/components/panels/CompareView"));
+const TranslationsView = lazy(() => import("@/components/panels/TranslationsView"));
 
 /**
  * The editor drawer (#186): one drawer that navigates instead of drawers on
@@ -75,6 +76,7 @@ function viewTitle(view: EditorView): string {
 	if (view.kind === "rule") return `Edit ${view.ruleKind} rule`;
 	if (view.kind === "tabRules") return "Tab display rules";
 	if (view.kind === "xml") return "XML of your changes";
+	if (view.kind === "translations") return "Translations";
 	if (view.kind === "diff")
 		return view.id === "compare" ? "Compare with published" : "What this change did";
 	return view.editable ? "Edit script" : "View script";
@@ -150,11 +152,19 @@ export function EditorDrawer() {
 				{view?.kind === "rule" && (
 					<RuleHeader key={view.id} ruleId={view.id} kind={view.ruleKind} />
 				)}
-				{(view?.kind === "script" || view?.kind === "tabRules") && (
+				{(view?.kind === "script" ||
+					view?.kind === "tabRules" ||
+					view?.kind === "translations") && (
 					<div className={styles.idRow}>
 						<div className={styles.id}>
 							<IdField
-								label={view.kind === "tabRules" ? "Tab ID" : "Web resource"}
+								label={
+									view.kind === "tabRules"
+										? "Tab ID"
+										: view.kind === "translations"
+											? "Button ID"
+											: "Web resource"
+								}
 								value={view.id}
 								hideLabel
 							/>
@@ -178,6 +188,9 @@ export function EditorDrawer() {
 						<ScriptView key={view.id} name={view.id} editable={view.editable} />
 					)}
 					{view?.kind === "xml" && <XmlView key={view.id} location={view.id} />}
+					{view?.kind === "translations" && (
+						<TranslationsView key={view.id} buttonId={view.id} />
+					)}
 					{view?.kind === "diff" && (
 						<CompareView
 							key={`${view.id}:${view.historyIndex ?? ""}`}
