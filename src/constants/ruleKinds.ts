@@ -3,36 +3,36 @@ import type { RuleStep } from "@/types/ribbon";
 export type RuleKind = RuleStep["kind"];
 
 export const RULE_KIND_LABELS: Record<RuleKind, string> = {
-	CommandClientTypeRule: "Client type (Modern/Refresh/Legacy)",
-	CrmClientTypeRule: "CRM client type (Web/Outlook)",
-	CrmOfflineAccessStateRule: "Offline access state",
-	CrmOutlookClientTypeRule: "Outlook client type",
+	CommandClientTypeRule: "Client (Unified Interface / legacy)",
+	CrmClientTypeRule: "Client (web / Outlook)",
+	CrmOfflineAccessStateRule: "Offline access",
+	CrmOutlookClientTypeRule: "Outlook client",
 	CrmOutlookClientVersionRule: "Outlook client version",
-	CustomRule: "Custom rule (JavaScript)",
-	DeviceTypeRule: "Device type",
-	EntityPrivilegeRule: "Entity privilege",
-	EntityPropertyRule: "Entity property",
-	EntityRule: "Entity",
+	CustomRule: "Your JavaScript",
+	DeviceTypeRule: "Device",
+	EntityPrivilegeRule: "Table privilege",
+	EntityPropertyRule: "Table property",
+	EntityRule: "Table",
 	FeatureControlRule: "Feature control bit",
-	FormEntityContextRule: "Form entity context",
+	FormEntityContextRule: "Form's table",
 	FormStateRule: "Form state",
 	FormTypeRule: "Form type",
-	HideForTabletExperienceRule: "Hide for tablet experience",
-	MiscellaneousPrivilegeRule: "Miscellaneous privilege",
-	OptionSetRule: "Option set value",
+	HideForTabletExperienceRule: "Hide on tablets",
+	MiscellaneousPrivilegeRule: "Other privilege",
+	OptionSetRule: "Choice value",
 	OrganizationSettingRule: "Organization setting",
-	OrRule: "Any of (OR)",
+	OrRule: "Any of (Or)",
 	OutlookItemTrackingRule: "Outlook item tracking",
-	OutlookRenderTypeRule: "Outlook render type",
+	OutlookRenderTypeRule: "Outlook or web",
 	OutlookVersionRule: "Outlook version",
-	PageRule: "Page (URL match)",
+	PageRule: "Page address",
 	RawRule: "Other rule (kept as XML)",
 	RecordPrivilegeRule: "Record privilege",
-	ReferencingAttributeRequiredRule: "Referencing attribute required",
+	ReferencingAttributeRequiredRule: "Referencing column required",
 	RelationshipTypeRule: "Relationship type",
-	SelectionCountRule: "Selection count",
-	SkuRule: "SKU (Online/OnPremise)",
-	ValueRule: "Field value",
+	SelectionCountRule: "Selected records",
+	SkuRule: "Deployment (online / on-premises)",
+	ValueRule: "Column value",
 };
 
 export interface RuleKindGroup {
@@ -49,7 +49,7 @@ export interface RuleKindGroup {
  */
 export const RULE_KIND_GROUPS: RuleKindGroup[] = [
 	{
-		label: "Client / Presentation",
+		label: "Client and device",
 		kinds: [
 			"CommandClientTypeRule",
 			"CrmClientTypeRule",
@@ -58,19 +58,19 @@ export const RULE_KIND_GROUPS: RuleKindGroup[] = [
 		],
 	},
 	{
-		label: "Form state",
+		label: "Form",
 		kinds: ["FormStateRule", "FormTypeRule", "FormEntityContextRule"],
 	},
 	{
-		label: "Entity",
+		label: "Table",
 		kinds: ["EntityRule", "EntityPrivilegeRule", "EntityPropertyRule", "OptionSetRule"],
 	},
 	{
-		label: "Selection",
+		label: "Selection and record",
 		kinds: ["SelectionCountRule", "ValueRule", "RecordPrivilegeRule"],
 	},
 	{
-		label: "Misc",
+		label: "Other",
 		kinds: [
 			"MiscellaneousPrivilegeRule",
 			"OrganizationSettingRule",
@@ -93,11 +93,11 @@ export const RULE_KIND_GROUPS: RuleKindGroup[] = [
 		],
 	},
 	{
-		label: "Composite",
+		label: "Combine steps",
 		kinds: ["OrRule"],
 	},
 	{
-		label: "Custom",
+		label: "Your code",
 		kinds: ["CustomRule"],
 	},
 ];
