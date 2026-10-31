@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
-import { DiffViewer } from "@/components/panels/DiffViewer";
+import { CompareView } from "@/components/panels/CompareView";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 
@@ -53,6 +53,12 @@ if (typeof window.ResizeObserver === "undefined") {
 	} as unknown as typeof ResizeObserver;
 }
 
+/** The view while Compare is open, as the editor drawer shows it (#186). */
+function Host() {
+	const open = useUIStore((s) => s.diffViewerOpen);
+	return open ? <CompareView /> : null;
+}
+
 let container: HTMLDivElement;
 let root: Root;
 const initialUI = useUIStore.getState();
@@ -70,7 +76,7 @@ beforeEach(() => {
 	act(() =>
 		root.render(
 			<FluentProvider theme={webLightTheme}>
-				<DiffViewer />
+				<Host />
 			</FluentProvider>,
 		),
 	);

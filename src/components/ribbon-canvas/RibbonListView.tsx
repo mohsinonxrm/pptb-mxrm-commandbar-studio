@@ -32,10 +32,6 @@ const useStyles = makeStyles({
 	root: {
 		width: "100%",
 	},
-	gridWrap: {
-		height: "min(560px, calc(100vh - 320px))",
-		minHeight: "260px",
-	},
 	row: {
 		cursor: "pointer",
 		":hover": { backgroundColor: tokens.colorNeutralBackground3 },
@@ -64,6 +60,9 @@ const useStyles = makeStyles({
 		maxWidth: "100%",
 	},
 });
+
+const ROW_HEIGHT = 42;
+const MAX_VISIBLE_ROWS = 10;
 
 interface RibbonListViewProps {
 	tab: RibbonTab;
@@ -289,7 +288,6 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 				)}
 			</div>
 			<DataGrid
-				className={styles.gridWrap}
 				items={rows}
 				columns={columns}
 				columnSizingOptions={columnSizingOptions}
@@ -314,7 +312,14 @@ export function RibbonListView({ tab, location }: RibbonListViewProps) {
 						)}
 					</DataGridRow>
 				</DataGridHeader>
-				<DataGridBody<ButtonRow> itemSize={42} height={420} listProps={{ width: "100%" }}>
+				{/* As tall as its rows, up to ten: a fixed height left the grid's box
+				    shorter than its rows on a short window, and the modern commands
+				    below were drawn over them. The canvas scrolls for the rest. */}
+				<DataGridBody<ButtonRow>
+					itemSize={ROW_HEIGHT}
+					height={Math.max(1, Math.min(rows.length, MAX_VISIBLE_ROWS)) * ROW_HEIGHT}
+					listProps={{ width: "100%" }}
+				>
 					{({ item, rowId }, style) => (
 						<DataGridRow<ButtonRow>
 							key={rowId}

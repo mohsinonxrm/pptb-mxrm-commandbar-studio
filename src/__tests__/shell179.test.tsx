@@ -32,7 +32,7 @@ function FakeProperties() {
 
 // Layout lazy-loads every panel and modal; they aren't under test here, and
 // loading them for real outlives the test.
-vi.mock("@/components/panels/XmlDrawer", () => ({ default: () => null }));
+vi.mock("@/components/panels/XmlView", () => ({ default: () => null }));
 vi.mock("@/components/panels/CommandEditorPanel", () => ({ default: () => null }));
 vi.mock("@/components/panels/RuleEditorPanel", () => ({ default: () => null }));
 vi.mock("@/components/modals/BulkPublishModal", () => ({ default: () => null }));
@@ -48,10 +48,9 @@ vi.mock("@/components/modals/ImportXmlModal", () => ({ default: () => null }));
 vi.mock("@/components/command-palette/CommandPalette", () => ({ default: () => null }));
 vi.mock("@/components/modals/LocalizationEditor", () => ({ default: () => null }));
 vi.mock("@/components/modals/IconPickerModal", () => ({ default: () => null }));
-vi.mock("@/components/panels/ConflictDrawer", () => ({ default: () => null }));
 vi.mock("@/components/panels/WebResourceBrowser", () => ({ default: () => null }));
 vi.mock("@/components/panels/UrlComposerModal", () => ({ default: () => null }));
-vi.mock("@/components/panels/DiffViewer", () => ({ default: () => null }));
+vi.mock("@/components/panels/CompareView", () => ({ default: () => null }));
 vi.mock("@/components/modals/HideInsteadOfDeleteModal", () => ({ default: () => null }));
 
 vi.setConfig({ testTimeout: 30_000 });

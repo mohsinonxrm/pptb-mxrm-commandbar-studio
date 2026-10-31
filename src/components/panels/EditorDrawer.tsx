@@ -26,6 +26,8 @@ const CommandEditorPanel = lazy(() => import("@/components/panels/CommandEditorP
 const RuleEditorPanel = lazy(() => import("@/components/panels/RuleEditorPanel"));
 const ScriptView = lazy(() => import("@/components/panels/ScriptView"));
 const TabDisplayRulesPanel = lazy(() => import("@/components/panels/TabDisplayRulesPanel"));
+const XmlView = lazy(() => import("@/components/panels/XmlView"));
+const CompareView = lazy(() => import("@/components/panels/CompareView"));
 
 /**
  * The editor drawer (#186): one drawer that navigates instead of drawers on
@@ -39,7 +41,9 @@ const useStyles = makeStyles({
 	// One width for every view, so Back doesn't make it jump; wide enough for a
 	// rule's nested Or branches (#186).
 	drawer: { width: "720px", maxWidth: "90vw" },
-	// The script fills the drawer instead of a fixed-height box.
+	// XML and diffs read better wide; they're opened on their own.
+	wide: { width: "960px" },
+	// A code view fills the drawer instead of a fixed-height box.
 	fill: { display: "flex", flexDirection: "column" },
 	navigation: { justifyContent: "space-between" },
 	title: {
@@ -70,6 +74,9 @@ function viewTitle(view: EditorView): string {
 	if (view.kind === "command") return "Edit command";
 	if (view.kind === "rule") return `Edit ${view.ruleKind} rule`;
 	if (view.kind === "tabRules") return "Tab display rules";
+	if (view.kind === "xml") return "XML of your changes";
+	if (view.kind === "diff")
+		return view.id === "compare" ? "Compare with published" : "What this change did";
 	return view.editable ? "Edit script" : "View script";
 }
 
@@ -99,7 +106,10 @@ export function EditorDrawer() {
 			position="end"
 			open={open}
 			onOpenChange={(_, d) => !d.open && closeEditor()}
-			className={styles.drawer}
+			className={mergeClasses(
+				styles.drawer,
+				(view?.kind === "xml" || view?.kind === "diff") && styles.wide,
+			)}
 			aria-label={view ? viewTitle(view) : "Editor"}
 		>
 			<DrawerHeader>
@@ -152,7 +162,12 @@ export function EditorDrawer() {
 					</div>
 				)}
 			</DrawerHeader>
-			<DrawerBody className={mergeClasses(view?.kind === "script" && styles.fill)}>
+			<DrawerBody
+				className={mergeClasses(
+					(view?.kind === "script" || view?.kind === "xml" || view?.kind === "diff") &&
+						styles.fill,
+				)}
+			>
 				<Suspense fallback={<Spinner size="small" label="Loading…" />}>
 					{view?.kind === "command" && <CommandEditorPanel />}
 					{view?.kind === "rule" && <RuleEditorPanel />}
@@ -162,6 +177,13 @@ export function EditorDrawer() {
 					{view?.kind === "script" && (
 						<ScriptView key={view.id} name={view.id} editable={view.editable} />
 					)}
+					{view?.kind === "xml" && <XmlView key={view.id} location={view.id} />}
+					{view?.kind === "diff" && (
+						<CompareView
+							key={`${view.id}:${view.historyIndex ?? ""}`}
+							historyIndex={view.historyIndex}
+						/>
+					)}
 				</Suspense>
 			</DrawerBody>
 			<DrawerFooter className={styles.footer}>
@@ -170,7 +192,9 @@ export function EditorDrawer() {
 						? view.editable
 							? "Save writes the script to Dataverse · Undo doesn't revert it"
 							: ""
-						: "Changes apply as you edit · Ctrl Z to undo"}
+						: view?.kind === "xml" || view?.kind === "diff"
+							? ""
+							: "Changes apply as you edit · Ctrl Z to undo"}
 				</Caption1>
 				<Button appearance="primary" onClick={closeEditor}>
 					Done

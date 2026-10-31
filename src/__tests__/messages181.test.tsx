@@ -127,24 +127,25 @@ describe("#181 Properties notices", () => {
 		expect(byName("Dismiss: Out-of-the-box button")).toBeUndefined();
 	});
 
-	it("a managed button names its solution and offers its layers", () => {
+	// Dataverse layers ribbon customisations per table, not per button: no
+	// per-button layer list is offered (#186).
+	it("a managed button names its solution, without a layer list", () => {
 		render(
 			notices(
 				button({ origin: "managed", solutionName: "Sales", publisherName: "Microsoft" }),
 			),
 		);
 		expect(bars()[0].textContent).toContain("From the managed solution Sales by Microsoft");
-		expect(byName("View solution layers")).toBeTruthy();
+		expect(byName("View solution layers")).toBeUndefined();
 	});
 
-	it("a read-only kind gets no Customise or override; a managed one keeps its layers", () => {
+	it("a read-only kind gets no Customise or override; a managed one names its solution", () => {
 		render(notices(button({ kind: "toggleButton" })));
 		expect(bars()).toHaveLength(0);
 		render(notices(button({ kind: "toggleButton", origin: "managed", solutionName: "Sales" })));
 		expect(bars()[0].textContent).toContain("From the managed solution Sales");
 		expect(byName("Create override")).toBeUndefined();
 		expect(byName("Customise button")).toBeUndefined();
-		expect(byName("View solution layers")).toBeTruthy();
 	});
 
 	it("a modern override that hides the button leads, its source behind +1 more", () => {

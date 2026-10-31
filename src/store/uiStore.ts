@@ -24,7 +24,14 @@ export type EditorView =
 	/** A JavaScript action's web resource, `id` its name; `editable` saves it to Dataverse. */
 	| { kind: "script"; id: string; editable: boolean }
 	/** A tab's display rule, `id` the tab's. */
-	| { kind: "tabRules"; id: string; location: RibbonLocation };
+	| { kind: "tabRules"; id: string; location: RibbonLocation }
+	/** The RibbonDiffXml of your changes, opening on location `id`. */
+	| { kind: "xml"; id: RibbonLocation }
+	/**
+	 * A diff of the XML: `id` "compare" is the published baseline against now;
+	 * "history" is what the history entry at `historyIndex` changed.
+	 */
+	| { kind: "diff"; id: "compare" | "history"; historyIndex?: number };
 
 /** The command editor's tabs, in the drawer's header (#186). */
 export type CommandEditorTab = "actions" | "enable" | "display" | "usedBy";
@@ -34,6 +41,9 @@ function editorState(editorStack: EditorView[]) {
 	const command = editorStack.find((v) => v.kind === "command");
 	const top = editorStack[editorStack.length - 1];
 	const rule = top?.kind === "rule" ? top : null;
+	const diff = [...editorStack]
+		.reverse()
+		.find((v): v is Extract<EditorView, { kind: "diff" }> => v.kind === "diff");
 	return {
 		editorStack,
 		commandEditorOpen: !!command,
@@ -42,6 +52,9 @@ function editorState(editorStack: EditorView[]) {
 		ruleEditorId: rule?.id ?? null,
 		ruleEditorKind: rule?.ruleKind ?? null,
 		tabDisplayRulesOpen: editorStack.some((v) => v.kind === "tabRules"),
+		xmlDrawerOpen: editorStack.some((v) => v.kind === "xml"),
+		diffViewerOpen: !!diff,
+		diffViewerMode: diff?.id ?? ("compare" as const),
 	};
 }
 
@@ -74,6 +87,7 @@ export interface UIStore {
 	ruleEditorKind: "enable" | "display" | null;
 	/** The command editor's tab; kept while a rule or script is shown over it. */
 	commandEditorTab: CommandEditorTab;
+	/** The XML is shown in the editor drawer (#186). */
 	xmlDrawerOpen: boolean;
 	bulkPublishOpen: boolean;
 	iconPickerOpen: boolean;
@@ -86,10 +100,9 @@ export interface UIStore {
 	importXmlSeed: string;
 	/** Why the import dialog opened empty, e.g. the clipboard couldn't be read (#122). */
 	importXmlNote: string;
-	conflictDrawerOpen: boolean;
-	conflictElementId: string | null;
 	webResourceBrowserOpen: boolean;
 	urlComposerOpen: boolean;
+	/** A diff is shown in the editor drawer (#186). */
 	diffViewerOpen: boolean;
 	diffViewerMode: "history" | "compare";
 	/** A tab's display rules are shown in the editor drawer (#186). */
@@ -126,7 +139,8 @@ export interface UIStore {
 	editorBack(): void;
 	/** Closes the editor drawer, every view (#186). */
 	closeEditor(): void;
-	openXmlDrawer(): void;
+	/** Shows the XML of your changes in the editor drawer, on `location` (#186). */
+	openXmlDrawer(location: RibbonLocation): void;
 	closeXmlDrawer(): void;
 	openBulkPublish(): void;
 	closeBulkPublish(): void;
@@ -140,13 +154,12 @@ export interface UIStore {
 	closeNewButton(): void;
 	openImportXml(seed?: string, note?: string): void;
 	closeImportXml(): void;
-	openConflictDrawer(elementId: string): void;
-	closeConflictDrawer(): void;
 	openWebResourceBrowser(): void;
 	closeWebResourceBrowser(): void;
 	openUrlComposer(): void;
 	closeUrlComposer(): void;
-	openDiffViewer(mode: "history" | "compare"): void;
+	/** Compare with published, or what history entry `historyIndex` changed (#186). */
+	openDiffViewer(mode: "history" | "compare", historyIndex?: number): void;
 	closeDiffViewer(): void;
 	/** Shows a tab's display rules in the editor drawer (#186). */
 	openTabDisplayRules(location: RibbonLocation, tabId: string): void;
@@ -194,8 +207,6 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	importXmlOpen: false,
 	importXmlSeed: "",
 	importXmlNote: "",
-	conflictDrawerOpen: false,
-	conflictElementId: null,
 	webResourceBrowserOpen: false,
 	urlComposerOpen: false,
 	diffViewerOpen: false,
@@ -247,8 +258,9 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 		set((s) => editorState(pushView(s.editorStack, { kind: "script", id: name, editable }))),
 	editorBack: () => set((s) => editorState(s.editorStack.slice(0, -1))),
 	closeEditor: () => set(editorState([])),
-	openXmlDrawer: () => set({ xmlDrawerOpen: true }),
-	closeXmlDrawer: () => set({ xmlDrawerOpen: false }),
+	openXmlDrawer: (location) =>
+		set((s) => editorState(pushView(s.editorStack, { kind: "xml", id: location }))),
+	closeXmlDrawer: () => set((s) => editorState(s.editorStack.filter((v) => v.kind !== "xml"))),
 	openBulkPublish: () => set({ bulkPublishOpen: true }),
 	closeBulkPublish: () => set({ bulkPublishOpen: false }),
 	openIconPicker: () => set({ iconPickerOpen: true }),
@@ -268,15 +280,13 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 			importXmlNote: typeof note === "string" ? note : "",
 		}),
 	closeImportXml: () => set({ importXmlOpen: false }),
-	openConflictDrawer: (elementId) =>
-		set({ conflictDrawerOpen: true, conflictElementId: elementId }),
-	closeConflictDrawer: () => set({ conflictDrawerOpen: false, conflictElementId: null }),
 	openWebResourceBrowser: () => set({ webResourceBrowserOpen: true }),
 	closeWebResourceBrowser: () => set({ webResourceBrowserOpen: false }),
 	openUrlComposer: () => set({ urlComposerOpen: true }),
 	closeUrlComposer: () => set({ urlComposerOpen: false }),
-	openDiffViewer: (mode) => set({ diffViewerOpen: true, diffViewerMode: mode }),
-	closeDiffViewer: () => set({ diffViewerOpen: false }),
+	openDiffViewer: (mode, historyIndex) =>
+		set((s) => editorState(pushView(s.editorStack, { kind: "diff", id: mode, historyIndex }))),
+	closeDiffViewer: () => set((s) => editorState(s.editorStack.filter((v) => v.kind !== "diff"))),
 	openTabDisplayRules: (location, tabId) =>
 		set((s) => editorState(pushView(s.editorStack, { kind: "tabRules", id: tabId, location }))),
 	setCommandPaletteOpen: (open: boolean) => set({ commandPaletteOpen: open }),

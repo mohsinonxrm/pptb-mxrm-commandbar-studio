@@ -12,7 +12,7 @@ import { RibbonCanvas } from "@/components/ribbon-canvas/RibbonCanvas";
 import { Layout } from "@/components/shell/Layout";
 import { useUIStore } from "@/store/uiStore";
 
-vi.mock("@/components/panels/XmlDrawer", () => ({ default: () => null }));
+vi.mock("@/components/panels/XmlView", () => ({ default: () => null }));
 vi.mock("@/components/panels/CommandEditorPanel", () => ({ default: () => null }));
 vi.mock("@/components/panels/RuleEditorPanel", () => ({ default: () => null }));
 vi.mock("@/components/modals/BulkPublishModal", () => ({ default: () => null }));
@@ -23,10 +23,9 @@ vi.mock("@/components/modals/ImportXmlModal", () => ({ default: () => null }));
 vi.mock("@/components/command-palette/CommandPalette", () => ({ default: () => null }));
 vi.mock("@/components/modals/LocalizationEditor", () => ({ default: () => null }));
 vi.mock("@/components/modals/IconPickerModal", () => ({ default: () => null }));
-vi.mock("@/components/panels/ConflictDrawer", () => ({ default: () => null }));
 vi.mock("@/components/panels/WebResourceBrowser", () => ({ default: () => null }));
 vi.mock("@/components/panels/UrlComposerModal", () => ({ default: () => null }));
-vi.mock("@/components/panels/DiffViewer", () => ({ default: () => null }));
+vi.mock("@/components/panels/CompareView", () => ({ default: () => null }));
 vi.mock("@/components/modals/HideInsteadOfDeleteModal", () => ({ default: () => null }));
 
 const copied = vi.hoisted(() => ({ texts: [] as string[] }));

@@ -250,6 +250,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Scaling is read-only for now (#165).** Changes to scaling could never be published, so the
     Scaling editor is removed until #165 makes them publishable. Properties shows the tab's
     groups and scaling steps, and says scaling only shapes the classic ribbon.
+- **XML and Compare in the editor drawer (#186, part 4).**
+  - **The XML of your changes opens on the location you're looking at**, not always on the home
+    grid, with Unified Interface names on its tabs. Copy, Download, Format and Import this XML sit
+    in a toolbar. Import takes the drawer's place instead of opening a dialog over it.
+  - **Compare with published** fills the drawer's height; Side by side / Unified are tabs.
+  - **History's View diff shows what that change did.** Before, every entry showed everything
+    since the last publish while saying it showed the entry's change.
+  - **No more "View solution layers".** Its drawer listed every solution in the environment as
+    a "layer" of the button, and called the newest the winner, whatever the button was. Dataverse
+    layers ribbon customizations per table, not per button; the button's notice still names the
+    managed solution and publisher it comes from.
+- **List view:** the buttons table no longer runs under the modern commands below it on a short
+  window. It's as tall as its rows, up to ten, and scrolls for more.
 
 ### 🔧 Fixed
 

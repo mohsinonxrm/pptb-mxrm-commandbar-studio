@@ -52,6 +52,7 @@ import {
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore, type RightPaneMode } from "@/store/uiStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { useSelectionStore } from "@/store/selectionStore";
 import { useDraftStore } from "@/store/draftStore";
 import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
 import { AppDialog } from "@/components/shared/AppDialog";
@@ -447,7 +448,7 @@ function useTools() {
 		canRedo: future.length > 0,
 		undo,
 		redo,
-		viewXml: openXmlDrawer,
+		viewXml: () => openXmlDrawer(useSelectionStore.getState().location),
 		importXml: () => openImportXml(),
 		compare: () => openDiffViewer("compare"),
 		canOpenInApp: !!(connectionUrl && logicalName),
