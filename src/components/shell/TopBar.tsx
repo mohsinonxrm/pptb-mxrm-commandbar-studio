@@ -55,12 +55,13 @@ import { useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useDraftStore } from "@/store/draftStore";
 import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
+import { TablePicker } from "@/components/shell/TablePicker";
 import { AppDialog } from "@/components/shared/AppDialog";
 import { copyText } from "@/utils/hostIO";
 import { usePublishState } from "@/hooks/usePublishState";
 
 /**
- * The top bar (#179): brand, environment, solution, search, the tools (in an
+ * The top bar (#179): brand, environment, solution, table (#194), search, the tools (in an
  * overflow menu when the pane is narrow) and Publish, which is never hidden.
  * Replaces the old top bar plus the sub-header row.
  */
@@ -206,6 +207,7 @@ export function TopBar() {
 			<div className={styles.divider} />
 
 			<SolutionPicker />
+			<TablePicker />
 
 			<Tools onHelp={() => setHelpOpen(true)} />
 
