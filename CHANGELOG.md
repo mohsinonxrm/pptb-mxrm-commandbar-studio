@@ -315,6 +315,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Only actions that can run are listed:** Undo and Redo when there's something to undo or
     redo, Translations for a selected button you can edit, New button when there's a group.
   - **No theme toggle:** the theme follows Power Platform ToolBox's setting.
+- **The shared editors, redone (#189, part 2).**
+  - **Parameter rows label every field** (Type, Name, Value) and use plain type names ("From the
+    context", "Text", "True or false", "Whole number", "Decimal number"). Context values are
+    grouped (Context, Record, Selection context, Grid selection, Org/User) instead of one list of
+    23. A URL parameter without a name says so under its field instead of showing a coloured dot,
+    and true / false is a switch.
+  - **Rule steps show friendly names** for the values the XML keeps ("Existing record", "Primary
+    table (the form or grid)", "Sub-grid", "User (Basic)", "One-to-many"…), use spin buttons for
+    counts and versions ("At least" / "At most"), and explain "If it can't be evaluated" and
+    "Invert result" on screen instead of in hover-only tooltips. Their fields wrap in a grid.
+  - **Kinds of step have plain names** ("Table privilege", "Your JavaScript", "Column value",
+    "Selected records"…), in groups such as Client and device, Form, Table and Your code. The
+    step picker searches with a Fluent search box and the arrow keys; the Quick action note is an
+    info button.
+  - **Provenance actions** (Customise, Uncustomise, Discard) sit in the message bar's actions area.
 
 ### 🔧 Fixed
 

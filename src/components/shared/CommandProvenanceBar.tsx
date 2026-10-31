@@ -3,6 +3,7 @@ import {
 	Badge,
 	Button,
 	MessageBar,
+	MessageBarActions,
 	MessageBarBody,
 	Text,
 	makeStyles,
@@ -179,23 +180,27 @@ export function CommandProvenanceBar({
 	// Your own command needs no notice: its badge says it (#181).
 	if (provenance === "custom")
 		return hideBadge ? null : <div className={styles.row}>{badge}</div>;
+	// The action sits in the bar's own actions area (#189), the confirm outside it.
 	return (
-		<MessageBar
-			intent={
-				provenance === "uncustomising" || provenance === "reloadRequired"
-					? "warning"
-					: "info"
-			}
-		>
-			<MessageBarBody>
-				<div className={styles.row}>
-					{!hideBadge && badge}
-					<Text size={200}>{message[provenance]}</Text>
-					{action}
-				</div>
-				{confirmDialog}
-			</MessageBarBody>
-		</MessageBar>
+		<>
+			<MessageBar
+				layout="multiline"
+				intent={
+					provenance === "uncustomising" || provenance === "reloadRequired"
+						? "warning"
+						: "info"
+				}
+			>
+				<MessageBarBody>
+					<div className={styles.row}>
+						{!hideBadge && badge}
+						<Text size={200}>{message[provenance]}</Text>
+					</div>
+				</MessageBarBody>
+				{action && <MessageBarActions>{action}</MessageBarActions>}
+			</MessageBar>
+			{confirmDialog}
+		</>
 	);
 }
 

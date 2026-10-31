@@ -5,10 +5,9 @@ import {
 	Select,
 	Input,
 	Button,
-	Text,
-	Badge,
-	Checkbox,
 	Field,
+	Switch,
+	Tooltip,
 } from "@fluentui/react-components";
 import {
 	AddRegular,
@@ -38,8 +37,12 @@ const useStyles = makeStyles({
 		borderRadius: tokens.borderRadiusMedium,
 	},
 	typeSelect: {
-		width: "140px",
-		flexShrink: 0,
+		flex: "0 1 170px",
+		minWidth: "130px",
+	},
+	nameField: {
+		flex: "0 1 150px",
+		minWidth: "110px",
 	},
 	valueField: {
 		flex: "1 1 160px",
@@ -54,10 +57,6 @@ const useStyles = makeStyles({
 	},
 	addButton: {
 		alignSelf: "flex-start",
-	},
-	hint: {
-		color: tokens.colorNeutralForeground3,
-		fontSize: tokens.fontSizeBase100,
 	},
 });
 
@@ -186,7 +185,7 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 		<div className={styles.root}>
 			{params.map((param, i) => (
 				<div key={i} className={styles.param}>
-					<div className={styles.typeSelect}>
+					<Field label="Type" size="small" className={styles.typeSelect}>
 						<Select
 							value={param.kind}
 							onChange={(_, d) => {
@@ -200,18 +199,28 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 								else setParam(i, { kind: "StringParameter", value: "" });
 							}}
 						>
-							<option value="CrmParameter">CrmParameter</option>
-							<option value="StringParameter">String</option>
-							<option value="BoolParameter">Boolean</option>
-							<option value="IntParameter">Integer</option>
-							<option value="DecimalParameter">Decimal</option>
+							<option value="CrmParameter">From the context</option>
+							<option value="StringParameter">Text</option>
+							<option value="BoolParameter">True or false</option>
+							<option value="IntParameter">Whole number</option>
+							<option value="DecimalParameter">Decimal number</option>
 						</Select>
-					</div>
+					</Field>
 
 					{urlMode && (
 						<Field
-							label="Name (querystring key)"
-							style={{ width: "130px", flexShrink: 0 }}
+							label="Name"
+							size="small"
+							className={styles.nameField}
+							// Url parameters are sent by name, so a context value needs one (#41, #189).
+							validationState={
+								param.kind === "CrmParameter" && !param.name ? "error" : "none"
+							}
+							validationMessage={
+								param.kind === "CrmParameter" && !param.name
+									? "Needs a name: it's the query string key."
+									: undefined
+							}
 						>
 							<Input
 								value={param.name ?? ""}
@@ -223,7 +232,7 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 						</Field>
 					)}
 
-					<div className={styles.valueField}>
+					<Field label="Value" size="small" className={styles.valueField}>
 						{param.kind === "CrmParameter" ? (
 							<Select
 								value={param.value as string}
@@ -231,28 +240,29 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 									setParam(i, { ...param, value: d.value as CrmParameterValue })
 								}
 							>
-								{CRM_PARAM_GROUPED.map((group) =>
-									group.values
-										// Url parameters take CrmNamedParameterValue (no …ItemReferences) — #41.
-										.filter(
-											(v) =>
-												!urlMode ||
-												!URL_INVALID_CRM_PARAMETER_VALUES.has(v),
-										)
-										.map((v) => (
-											<option key={v} value={v}>
-												{v}
-											</option>
-										)),
-								)}
+								{/* Grouped as the platform documents them (#189). */}
+								{CRM_PARAM_GROUPED.map((group) => (
+									<optgroup key={group.label} label={group.label}>
+										{group.values
+											// Url parameters take CrmNamedParameterValue (no …ItemReferences) — #41.
+											.filter(
+												(v) =>
+													!urlMode ||
+													!URL_INVALID_CRM_PARAMETER_VALUES.has(v),
+											)
+											.map((v) => (
+												<option key={v} value={v}>
+													{v}
+												</option>
+											))}
+									</optgroup>
+								))}
 							</Select>
 						) : param.kind === "BoolParameter" ? (
-							<Checkbox
+							<Switch
 								checked={param.value as boolean}
-								onChange={(_, d) =>
-									setParam(i, { ...param, value: d.checked as boolean })
-								}
-								label="true"
+								onChange={(_, d) => setParam(i, { ...param, value: d.checked })}
+								label={param.value ? "True" : "False"}
 							/>
 						) : param.kind === "StringParameter" ? (
 							<Input
@@ -268,51 +278,38 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 								}
 							/>
 						)}
-					</div>
-
-					{urlMode && param.kind === "CrmParameter" && !param.name && (
-						<Badge
-							appearance="filled"
-							color="warning"
-							size="small"
-							title="Name required for URL actions"
-						/>
-					)}
+					</Field>
 
 					<div className={styles.actions}>
-						<Button
-							appearance="subtle"
-							size="small"
-							icon={<ArrowUpRegular />}
-							onClick={() => moveParam(i, -1)}
-							disabled={i === 0}
-							aria-label="Move up"
-						/>
-						<Button
-							appearance="subtle"
-							size="small"
-							icon={<ArrowDownRegular />}
-							onClick={() => moveParam(i, 1)}
-							disabled={i === params.length - 1}
-							aria-label="Move down"
-						/>
-						<Button
-							appearance="subtle"
-							size="small"
-							icon={<DismissRegular />}
-							onClick={() => removeParam(i)}
-							aria-label="Remove parameter"
-						/>
+						<Tooltip content={`Move parameter ${i + 1} up`} relationship="label">
+							<Button
+								appearance="subtle"
+								size="small"
+								icon={<ArrowUpRegular />}
+								onClick={() => moveParam(i, -1)}
+								disabled={i === 0}
+							/>
+						</Tooltip>
+						<Tooltip content={`Move parameter ${i + 1} down`} relationship="label">
+							<Button
+								appearance="subtle"
+								size="small"
+								icon={<ArrowDownRegular />}
+								onClick={() => moveParam(i, 1)}
+								disabled={i === params.length - 1}
+							/>
+						</Tooltip>
+						<Tooltip content={`Remove parameter ${i + 1}`} relationship="label">
+							<Button
+								appearance="subtle"
+								size="small"
+								icon={<DismissRegular />}
+								onClick={() => removeParam(i)}
+							/>
+						</Tooltip>
 					</div>
 				</div>
 			))}
-
-			{urlMode && (
-				<Text className={styles.hint}>
-					For URL actions, each CrmParameter must have a <code>name</code> attribute
-					(querystring key).
-				</Text>
-			)}
 
 			<Button
 				className={styles.addButton}

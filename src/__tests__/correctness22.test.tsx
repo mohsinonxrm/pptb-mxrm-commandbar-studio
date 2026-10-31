@@ -235,7 +235,7 @@ describe("#22 — rule steps keep their React keys", () => {
 		const [, second, third] = items();
 		expect(items()).toHaveLength(3);
 		const remove = document.querySelector<HTMLButtonElement>(
-			'button[aria-label="Remove FormStateRule step"]',
+			'button[aria-label="Remove Form state step"]',
 		)!;
 		act(() => remove.click());
 		expect(
