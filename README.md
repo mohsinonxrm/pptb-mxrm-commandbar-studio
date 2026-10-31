@@ -167,21 +167,18 @@ Nothing else writes to Dataverse:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ TopBar: Environment │ Solution │ Search (Ctrl+K) │ Undo/Redo │   │
-│   XML ▾ │ Open in D365 │ View ▾ │ Help │ Publish n changes        │
+│ TopBar: Environment │ Solution │ Table │ Search (Ctrl+K)        │
+│   Undo/Redo │ XML ▾ │ Open in D365 │ View ▾ │ Help │ Publish n  │
 │   (tools move into a ⋯ menu when the window is narrow)          │
 ├─────────────────────────────────────────────────────────────────┤
 │ Messages that need action (one at a time, + n more)             │
 ├──────────────────┬──────────────────────────────┬───────────────┤
 │ Left Pane        │ Ribbon Canvas                │ Properties    │
-│ • Tables         │ Location: Home/Sub/Form/App  │ • Identity    │
-│   (solution      │ Tab strip (drag-reorder)     │ • Command     │
-│   scope only)    │ View: Classic / Modern / List│ • Rules       │
-│ • Solution       │ Groups + Buttons (DnD)       │ • Scaling     │
-│   Elements       │                              │ • Advanced    │
-│   – Buttons      │                              │               │
-│   – Commands     │                              │               │
-│   – Rules        │                              │               │
+│ • Solution       │ Location: Home/Sub/Form/App  │ • Identity    │
+│   Elements       │ Tab strip (drag-reorder)     │ • Command     │
+│   – Buttons      │ View: Classic / Modern / List│ • Rules       │
+│   – Commands     │ Groups + Buttons (DnD)       │ • Scaling     │
+│   – Rules        │                              │ • Advanced    │
 │   – Templates    │                              │               │
 ├──────────────────┴──────────────────────────────┴───────────────┤
 │ Bottom Panel: Commands │ Display Rules │ Enable Rules │ History  │
@@ -202,7 +199,7 @@ Command Bar Studio runs **inside [Power Platform ToolBox](https://www.powerplatf
 2. Connect to a Dataverse environment
 3. Open Command Bar Studio from the tool list
 4. Pick an unmanaged solution from the TopBar
-5. Select a table from the left pane
+5. Pick a table from the TopBar (only the solution's tables are listed)
 6. Edit ribbon buttons visually; click **Publish** when done
 
 Icons you pick or upload, and scripts you save, are created as web resources and

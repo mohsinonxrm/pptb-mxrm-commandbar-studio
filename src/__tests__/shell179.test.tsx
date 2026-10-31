@@ -175,7 +175,9 @@ describe("#179 the solution picker", () => {
 		useSessionStore.setState({ solutions: [sol], activeSolution: null } as never);
 		render(<TopBar />);
 		act(() => useUIStore.getState().setSolutionPickerOpen(true));
-		const input = document.body.querySelector<HTMLInputElement>('[role="combobox"]')!;
+		const input = document.body.querySelector<HTMLInputElement>(
+			'[role="combobox"]:not([aria-label="Table"])',
+		)!;
 		click(input);
 		const option = document.body.querySelector<HTMLElement>('[role="option"]')!;
 		click(option);
@@ -216,7 +218,7 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 		render(shell());
 		expect(container.textContent).toContain("LEFT PANE");
 		expect(container.textContent).toContain("PROPERTIES");
-		expect(byName("Tables and solution")).toBeUndefined();
+		expect(byName("Solution")).toBeUndefined();
 	});
 
 	it("turns them into a rail and overlay drawers below 1200 px", () => {
@@ -224,7 +226,7 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 		render(shell());
 		expect(container.textContent).not.toContain("LEFT PANE");
 		expect(container.textContent).not.toContain("PROPERTIES");
-		click(byName("Tables and solution"));
+		click(byName("Solution"));
 		expect(document.body.textContent).toContain("LEFT PANE");
 
 		// Opening a table closes the tables drawer; selecting a button opens Properties.
@@ -262,7 +264,7 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 	it("closes the drawers when the window crosses the narrow width", () => {
 		setWidth(1024);
 		render(shell());
-		click(byName("Tables and solution"));
+		click(byName("Solution"));
 		expect(document.body.textContent).toContain("LEFT PANE");
 		setWidth(1600);
 		setWidth(1024);

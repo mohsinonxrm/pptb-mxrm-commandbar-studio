@@ -453,6 +453,25 @@ export function readDraft(key: DraftKey): RibbonDraft | null {
 	return null;
 }
 
+/**
+ * Whether a usable draft is saved for `key` (the table picker's marker, #194):
+ * the checks readDraft makes, without decoding the changes.
+ */
+export function hasDraft(key: DraftKey): boolean {
+	try {
+		const raw = localStorage.getItem(draftStorageKey(key));
+		if (!raw) return false;
+		const stored = JSON.parse(raw) as Partial<StoredDraft>;
+		return (
+			stored.format === DRAFT_FORMAT &&
+			sameDraftKey(stored.key, key) &&
+			typeof stored.data === "string"
+		);
+	} catch {
+		return false;
+	}
+}
+
 export function deleteDraft(key: DraftKey): void {
 	try {
 		localStorage.removeItem(draftStorageKey(key));

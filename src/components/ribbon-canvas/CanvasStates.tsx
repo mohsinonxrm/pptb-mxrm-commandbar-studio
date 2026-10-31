@@ -72,7 +72,7 @@ export type CanvasEmptyKind = "noSolution" | "noTable";
 export function CanvasEmptyState({ kind }: { kind: CanvasEmptyKind }) {
 	const styles = useStyles();
 	const openSolutionPicker = useUIStore((s) => s.setSolutionPickerOpen);
-	const requestTablePicker = useUIStore((s) => s.setTablePickerRequested);
+	const openTablePicker = useUIStore((s) => s.setTablePickerOpen);
 	if (kind === "noSolution") {
 		return (
 			<div className={styles.empty}>
@@ -99,7 +99,7 @@ export function CanvasEmptyState({ kind }: { kind: CanvasEmptyKind }) {
 			<Text className={styles.body}>
 				Choose a table from this solution to see and change its command bars.
 			</Text>
-			<Button appearance="primary" onClick={() => requestTablePicker(true)}>
+			<Button appearance="primary" onClick={() => openTablePicker(true)}>
 				Choose table
 			</Button>
 		</div>

@@ -9,7 +9,6 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { RibbonCanvas } from "@/components/ribbon-canvas/RibbonCanvas";
-import { Layout } from "@/components/shell/Layout";
 import { useUIStore } from "@/store/uiStore";
 
 vi.mock("@/components/panels/XmlView", () => ({ default: () => null }));
@@ -86,24 +85,12 @@ describe("#195 before anything is open", () => {
 		expect(useUIStore.getState().solutionPickerOpen).toBe(true);
 	});
 
-	it("asks for a table, and Choose table asks the shell for the table list", async () => {
+	it("asks for a table, and Choose table opens the top bar's table picker (#194)", async () => {
 		render(<RibbonCanvas emptyState="noTable" />);
 		expect(container.textContent).toContain("Pick a table");
 		expect(container.textContent).not.toContain("Add first group");
 		await click(byName("Choose table"));
-		expect(useUIStore.getState().tablePickerRequested).toBe(true);
-	});
-
-	it("in a narrow window, Choose table opens the tables drawer", async () => {
-		Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
-		render(
-			<Layout leftPane={<div>LEFT PANE</div>} rightPane={null} bottomPanel={null}>
-				<RibbonCanvas emptyState="noTable" />
-			</Layout>,
-		);
-		expect(document.body.textContent).not.toContain("LEFT PANE");
-		await click(byName("Choose table"));
-		expect(document.body.textContent).toContain("LEFT PANE");
+		expect(useUIStore.getState().tablePickerOpen).toBe(true);
 	});
 });
 

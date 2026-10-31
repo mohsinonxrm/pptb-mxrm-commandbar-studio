@@ -111,11 +111,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
 	const selectedGroupId = useSelectionStore((s) => s.selectedGroupId);
 	const activeTable = useSessionStore((s) => s.activeEntity?.logicalName ?? null);
-	const [leftOpenState, setLeftOpen] = useState(false);
-	// "Choose table" on an empty canvas (#195): the drawer when narrow, the table search when wide.
-	const tablePickerRequested = useUIStore((s) => s.tablePickerRequested);
-	const setTablePickerRequested = useUIStore((s) => s.setTablePickerRequested);
-	const leftOpen = leftOpenState || (narrow && tablePickerRequested);
+	const [leftOpen, setLeftOpen] = useState(false);
 	const selectedModernId = useModernCommandStore((s) => s.selectedCommandId);
 	const [propsOpenState, setPropsOpen] = useState(false);
 	// Show orphans and similar actions ask for Properties (#179 review).
@@ -172,18 +168,8 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	useKeyboardShortcuts();
 
 	useEffect(() => {
-		if (tablePickerRequested && !narrow) {
-			document.querySelector<HTMLInputElement>('input[aria-label="Search tables"]')?.focus();
-			setTablePickerRequested(false);
-		}
-	}, [tablePickerRequested, narrow, setTablePickerRequested]);
-	useEffect(() => {
 		if (propertiesRequested && !narrow) setPropertiesRequested(false);
 	}, [propertiesRequested, narrow, setPropertiesRequested]);
-	// Opening a table answers the request (the drawer closes with it).
-	useEffect(() => {
-		if (activeTable) setTablePickerRequested(false);
-	}, [activeTable, setTablePickerRequested]);
 
 	useEffect(() => {
 		if (anyOverlayOpen && !wasOverlayOpenRef.current) {
@@ -229,7 +215,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			<div className={styles.body}>
 				{narrow ? (
 					<nav className={styles.rail} aria-label="Side panes">
-						<Tooltip content="Tables and solution" relationship="label">
+						<Tooltip content="Solution" relationship="label">
 							<Button
 								appearance="subtle"
 								icon={<PanelLeftExpandRegular />}
@@ -267,11 +253,8 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 							position="start"
 							size="small"
 							open={leftOpen}
-							onOpenChange={(_, d) => {
-								setLeftOpen(d.open);
-								if (!d.open) setTablePickerRequested(false);
-							}}
-							aria-label="Tables and solution"
+							onOpenChange={(_, d) => setLeftOpen(d.open)}
+							aria-label="Solution"
 						>
 							<div className={styles.drawerBody}>
 								<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>

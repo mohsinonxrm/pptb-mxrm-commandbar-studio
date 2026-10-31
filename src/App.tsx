@@ -1,19 +1,10 @@
-import {
-	makeStyles,
-	tokens,
-	FluentProvider,
-	webLightTheme,
-	webDarkTheme,
-	Tab,
-	TabList,
-} from "@fluentui/react-components";
+import { FluentProvider, webLightTheme, webDarkTheme } from "@fluentui/react-components";
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/shell/Layout";
 
 import { RibbonCanvas } from "@/components/ribbon-canvas/RibbonCanvas";
 import { PropertiesPane } from "@/components/properties-pane/PropertiesPane";
 import { BottomPanel } from "@/components/bottom-panel/BottomPanel";
-import { TablesPane } from "@/components/left-pane/TablesPane";
 import { SolutionElementsPane } from "@/components/left-pane/SolutionElementsPane";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -47,48 +38,6 @@ import { groupControls } from "@/utils/ribbonMenu";
 import { annotateRecentPublish } from "@/services/layerOrphans";
 import { recentPublishOf } from "@/utils/recentPublish";
 import { useModernCommandsLoader } from "@/hooks/useModernCommands";
-
-const useStyles = makeStyles({
-	leftPaneTabs: {
-		display: "flex",
-		flexDirection: "column",
-		height: "100%",
-		overflow: "hidden",
-	},
-	tabList: {
-		flexShrink: 0,
-		borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-	},
-	tabContent: {
-		flex: 1,
-		overflow: "hidden",
-	},
-});
-
-function LeftPane() {
-	const styles = useStyles();
-	const [tab, setTab] = useState<"tables" | "elements">("tables");
-	// "Choose table" (#195) needs the table list showing.
-	const tablePickerRequested = useUIStore((s) => s.tablePickerRequested);
-	if (tablePickerRequested && tab !== "tables") setTab("tables");
-
-	return (
-		<div className={styles.leftPaneTabs}>
-			<TabList
-				className={styles.tabList}
-				selectedValue={tab}
-				onTabSelect={(_, d) => setTab(d.value as "tables" | "elements")}
-				size="small"
-			>
-				<Tab value="tables">Tables</Tab>
-				<Tab value="elements">Solution</Tab>
-			</TabList>
-			<div className={styles.tabContent}>
-				{tab === "tables" ? <TablesPane /> : <SolutionElementsPane />}
-			</div>
-		</div>
-	);
-}
 
 export function App() {
 	const setSolutions = useSessionStore((s) => s.setSolutions);
@@ -399,7 +348,7 @@ export function App() {
 	return (
 		<FluentProvider theme={themeMode === "dark" ? webDarkTheme : webLightTheme}>
 			<Layout
-				leftPane={<LeftPane />}
+				leftPane={<SolutionElementsPane />}
 				rightPane={<PropertiesPane />}
 				bottomPanel={<BottomPanel />}
 			>
