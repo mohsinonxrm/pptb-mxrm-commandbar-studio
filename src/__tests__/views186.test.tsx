@@ -193,3 +193,31 @@ describe("#186 the diffs", () => {
 		expect(diff.modified).toContain("cbs.First");
 	});
 });
+
+describe("#187 Translations in the editor drawer", () => {
+	it("opens as a view, applies as you type, and Done leaves one undo step", async () => {
+		add("cbs.First");
+		const before = store().past.length;
+		act(() => ui().openLocalizationEditor("cbs.First"));
+		const label = () =>
+			drawer()?.querySelector<HTMLInputElement>(
+				'input[aria-label="Label (English (United States))"]',
+			) ?? null;
+		await until(() => !!label());
+		expect(ui().localizationEditorOpen).toBe(true);
+		expect(text()).toContain("Translations");
+		const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+		for (const value of ["Fir", "First one"])
+			act(() => {
+				setter.call(label()!, value);
+				label()!.dispatchEvent(new Event("input", { bubbles: true }));
+			});
+		const done = [...drawer()!.querySelectorAll("button")].find(
+			(b) => b.textContent?.trim() === "Done",
+		)!;
+		act(() => done.click());
+		await until(() => ui().editorStack.length === 0);
+		expect(store().past.length).toBe(before + 1);
+		expect(ui().localizationEditorOpen).toBe(false);
+	});
+});

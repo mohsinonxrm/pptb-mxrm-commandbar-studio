@@ -59,11 +59,12 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Plain-English `summarizeRule()` output
 - CustomRule async note (Promise\<boolean\> on Unified Interface)
 
-### 🔤 Localization Editor
-- Multi-LCID label / tooltip title / tooltip body per button
-- Locale chip row with active/inactive state
-- "Insert line break" (`&#x200b;&#x200b;`)
-- 20 built-in LCIDs; add any custom LCID by number
+### 🔤 Translations
+- A view of the editor drawer: changes apply as you type, and one Ctrl Z undoes the whole edit
+- Label / tooltip title / tooltip body per language; the base language is the button's own text
+- Languages by name (20 built in); add any other by its LCID
+- A line-break button in each label field (Dataverse's `&#x200b;&#x200b;`)
+- A built-in or another solution's button is read-only until you customise it
 
 ### 🖼️ Icon Picker
 - **Fluent icons** tab — 85 icon catalogue with category filter + regular/filled variant; auto-uploads selected icon as SVG web resource
@@ -296,10 +297,11 @@ src/
     ribbon-canvas/       — RibbonCanvas, ClassicRibbon, ModernCommandBar, RibbonListView
     properties-pane/     — PropertiesPane (header + collapsible sections) and its sections
     bottom-panel/        — BottomPanel (Commands / Rules / History / Console tabs)
-    panels/              — EditorDrawer (command, rule, script, tab display rule, XML and
-                           compare views): CommandEditor, RuleEditor, TabDisplayRules,
-                           XmlView, CompareView; WebResourceBrowser, UrlComposer
-    modals/              — BulkPublish, IconPicker, LocalizationEditor, NewButton/Group/Tab,
+    panels/              — EditorDrawer (command, rule, script, tab display rule, XML,
+                           compare and translations views): CommandEditor, RuleEditor,
+                           TabDisplayRules, XmlView, CompareView, TranslationsView;
+                           WebResourceBrowser, UrlComposer
+    modals/              — BulkPublish, IconPicker, NewButton/Group/Tab,
                            HideOobWarning, ImportXml, ConfirmDialog
     command-palette/     — CommandPalette (Ctrl+K)
     shared/              — MonacoEditor, FluentIcon, CrmParameterEditor,

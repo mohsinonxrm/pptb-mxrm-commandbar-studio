@@ -31,7 +31,9 @@ export type EditorView =
 	 * A diff of the XML: `id` "compare" is the published baseline against now;
 	 * "history" is what the history entry at `historyIndex` changed.
 	 */
-	| { kind: "diff"; id: "compare" | "history"; historyIndex?: number };
+	| { kind: "diff"; id: "compare" | "history"; historyIndex?: number }
+	/** A button's text in every language, `id` the button's. */
+	| { kind: "translations"; id: string };
 
 /** The command editor's tabs, in the drawer's header (#186). */
 export type CommandEditorTab = "actions" | "enable" | "display" | "usedBy";
@@ -41,6 +43,7 @@ function editorState(editorStack: EditorView[]) {
 	const command = editorStack.find((v) => v.kind === "command");
 	const top = editorStack[editorStack.length - 1];
 	const rule = top?.kind === "rule" ? top : null;
+	const translations = editorStack.find((v) => v.kind === "translations");
 	const diff = [...editorStack]
 		.reverse()
 		.find((v): v is Extract<EditorView, { kind: "diff" }> => v.kind === "diff");
@@ -55,6 +58,8 @@ function editorState(editorStack: EditorView[]) {
 		xmlDrawerOpen: editorStack.some((v) => v.kind === "xml"),
 		diffViewerOpen: !!diff,
 		diffViewerMode: diff?.id ?? ("compare" as const),
+		localizationEditorOpen: !!translations,
+		localizationEditorButtonId: translations?.id ?? null,
 	};
 }
 
@@ -266,9 +271,9 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	openIconPicker: () => set({ iconPickerOpen: true }),
 	closeIconPicker: () => set({ iconPickerOpen: false }),
 	openLocalizationEditor: (buttonId) =>
-		set({ localizationEditorOpen: true, localizationEditorButtonId: buttonId }),
+		set((s) => editorState(pushView(s.editorStack, { kind: "translations", id: buttonId }))),
 	closeLocalizationEditor: () =>
-		set({ localizationEditorOpen: false, localizationEditorButtonId: null }),
+		set((s) => editorState(s.editorStack.filter((v) => v.kind !== "translations"))),
 	openNewGroup: () => set({ newGroupOpen: true }),
 	closeNewGroup: () => set({ newGroupOpen: false }),
 	openNewButton: (groupId) => set({ newButtonGroupId: groupId }),

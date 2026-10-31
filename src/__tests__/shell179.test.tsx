@@ -46,7 +46,7 @@ vi.mock("@/components/modals/NewGroupModal", () => ({ default: () => null }));
 vi.mock("@/components/modals/NewTabModal", () => ({ default: () => null }));
 vi.mock("@/components/modals/ImportXmlModal", () => ({ default: () => null }));
 vi.mock("@/components/command-palette/CommandPalette", () => ({ default: () => null }));
-vi.mock("@/components/modals/LocalizationEditor", () => ({ default: () => null }));
+vi.mock("@/components/panels/TranslationsView", () => ({ default: () => null }));
 vi.mock("@/components/modals/IconPickerModal", () => ({ default: () => null }));
 vi.mock("@/components/panels/WebResourceBrowser", () => ({ default: () => null }));
 vi.mock("@/components/panels/UrlComposerModal", () => ({ default: () => null }));

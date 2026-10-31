@@ -28,7 +28,6 @@ const WORKSPACE_PANELS = [
 	"commandEditorOpen",
 	"ruleEditorOpen",
 	"iconPickerOpen",
-	"localizationEditorOpen",
 	"newGroupOpen",
 	"importXmlOpen",
 	"webResourceBrowserOpen",

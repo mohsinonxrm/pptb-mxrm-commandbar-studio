@@ -276,6 +276,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **XML parse errors read as the parser's message**, without the browser's "This page contains
     the following errors" wrapper.
   - The dialog uses the shared dialog shell at its large size.
+- **Translations in the editor drawer, applied as you type (#187, part 3).**
+  - **No Save or Cancel:** a change applies as you type, and one Ctrl Z undoes the whole edit.
+    The base language is still the button's own text (#157) and can't be emptied ("A button needs
+    a label."). Other languages are written to the button's labels with the base text kept in
+    step; opening it writes nothing.
+  - **Languages by name** ("German · 1031") instead of emoji flags, which Windows showed as
+    letter pairs. Each language is a card of labelled fields ("Label (German)"), not a raw table
+    of browser inputs that turned into white boxes in dark theme.
+  - **Add a language** from a list, or by LCID; a language you add stores nothing until it has
+    text. Remove one with its delete button, which the keyboard reaches.
+  - **A line-break button** in each label field; the hint no longer garbles its own example.
+  - **A built-in or another solution's button is read-only here too**, as in Properties.
 
 ### 🔧 Fixed
 

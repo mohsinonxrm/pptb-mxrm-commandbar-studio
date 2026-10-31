@@ -22,7 +22,6 @@ const NewGroupModal = lazy(() => import("@/components/modals/NewGroupModal"));
 const NewTabModal = lazy(() => import("@/components/modals/NewTabModal"));
 const ImportXmlModal = lazy(() => import("@/components/modals/ImportXmlModal"));
 const CommandPalette = lazy(() => import("@/components/command-palette/CommandPalette"));
-const LocalizationEditor = lazy(() => import("@/components/modals/LocalizationEditor"));
 const IconPickerModal = lazy(() => import("@/components/modals/IconPickerModal"));
 const WebResourceBrowser = lazy(() => import("@/components/panels/WebResourceBrowser"));
 const UrlComposerModal = lazy(() => import("@/components/panels/UrlComposerModal"));
@@ -162,7 +161,6 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			s.newTabOpen ||
 			s.importXmlOpen ||
 			s.commandPaletteOpen ||
-			s.localizationEditorOpen ||
 			s.iconPickerOpen ||
 			s.webResourceBrowserOpen ||
 			s.urlComposerOpen ||
@@ -359,7 +357,6 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 					<NewTabModal />
 					<ImportXmlModal />
 					<CommandPalette />
-					<LocalizationEditor />
 					<IconPickerModal />
 					<WebResourceBrowser />
 					<UrlComposerModal />
