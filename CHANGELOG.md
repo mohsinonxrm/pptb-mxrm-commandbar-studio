@@ -330,6 +330,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     step picker searches with a Fluent search box and the arrow keys; the Quick action note is an
     info button.
   - **Provenance actions** (Customise, Uncustomise, Discard) sit in the message bar's actions area.
+- **Tables are picked in the top bar (#194, step 1).** The left pane's Tables tab is replaced by a
+  Table combobox next to the solution, the first step of Edit mode.
+  - **The list** groups the solution's tables as Custom and Standard, with their logical names.
+    Typing filters by display or logical name. Alt+↓ opens it, and Escape closes it.
+  - **Markers:** the open table shows its number of unpublished changes. Another table with a
+    draft saved on this computer shows "Draft", and managed tables show a lock.
+  - **Switching** still asks first when there are unpublished changes.
+  - **"Choose table"** on the empty canvas opens the list, at any window width.
+  - **The left pane** shows Solution Elements only, until the Structure tree arrives (#194,
+    step 2).
 
 ### 🔧 Fixed
 

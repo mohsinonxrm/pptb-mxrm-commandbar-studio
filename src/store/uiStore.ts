@@ -115,8 +115,8 @@ export interface UIStore {
 	commandPaletteOpen: boolean;
 	/** The top bar's solution picker is open (also opened from the canvas's empty state, #195). */
 	solutionPickerOpen: boolean;
-	/** The tables are asked for: the left drawer opens when narrow, the table search is focused when wide (#195). */
-	tablePickerRequested: boolean;
+	/** The top bar's table picker is open (also opened from the canvas's empty state, #195). */
+	tablePickerOpen: boolean;
 	/** Something asked for the Properties pane (e.g. Show orphans): it opens when it's a drawer (#179). */
 	propertiesRequested: boolean;
 	newTabOpen: boolean;
@@ -170,7 +170,7 @@ export interface UIStore {
 	openTabDisplayRules(location: RibbonLocation, tabId: string): void;
 	setCommandPaletteOpen(open: boolean): void;
 	setSolutionPickerOpen(open: boolean): void;
-	setTablePickerRequested(requested: boolean): void;
+	setTablePickerOpen(open: boolean): void;
 	setPropertiesRequested(requested: boolean): void;
 	openNewTab(): void;
 	closeNewTab(): void;
@@ -219,7 +219,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	tabDisplayRulesOpen: false,
 	commandPaletteOpen: false,
 	solutionPickerOpen: false,
-	tablePickerRequested: false,
+	tablePickerOpen: false,
 	propertiesRequested: false,
 	newTabOpen: false,
 	hideInsteadOfDelete: null,
@@ -296,7 +296,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 		set((s) => editorState(pushView(s.editorStack, { kind: "tabRules", id: tabId, location }))),
 	setCommandPaletteOpen: (open: boolean) => set({ commandPaletteOpen: open }),
 	setSolutionPickerOpen: (open) => set({ solutionPickerOpen: open }),
-	setTablePickerRequested: (requested) => set({ tablePickerRequested: requested }),
+	setTablePickerOpen: (open) => set({ tablePickerOpen: open }),
 	setPropertiesRequested: (requested) => set({ propertiesRequested: requested }),
 	openNewTab: () => set({ newTabOpen: true }),
 	closeNewTab: () => set({ newTabOpen: false }),
