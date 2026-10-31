@@ -288,6 +288,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     text. Remove one with its delete button, which the keyboard reaches.
   - **A line-break button** in each label field; the hint no longer garbles its own example.
   - **A built-in or another solution's button is read-only here too**, as in Properties.
+- **The icon picker, redone (#187, part 4).**
+  - **Icons are buttons** in one group the arrow keys move through; Enter picks one. Before they
+    were clickable boxes the keyboard couldn't reach.
+  - **Regular / Filled are two toggles** whose labels stay put; the switch's label flipped with
+    its state.
+  - **The selection names the icon** ("Edit · Filled") and the web resource it's saved as, instead
+    of a raw `ModernImage="$webresource:…"` string.
+  - **Web resources:** the first 300 show, and the count says so ("Showing 300 of 1,240 SVG web
+    resources. Search to find others."); before, the list stopped at 200 without a word. The rows
+    are buttons, and the field takes a plain name.
+  - **Upload SVG is a real drop zone** with a **Choose SVG…** button; before it said "Drag an SVG
+    here" and ignored the drop. A file that isn't an SVG is refused with a message.
+  - Errors and notes are message bars, and the dialog uses the shared dialog shell.
 
 ### 🔧 Fixed
 

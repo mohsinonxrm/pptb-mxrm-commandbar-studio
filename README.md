@@ -67,9 +67,9 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - A built-in or another solution's button is read-only until you customise it
 
 ### 🖼️ Icon Picker
-- **Fluent icons** tab — 85 icon catalogue with category filter + regular/filled variant; auto-uploads selected icon as SVG web resource
-- **Web resources** tab — browseable list of SVG resources in the org with search
-- **Custom upload** tab — drag-and-drop SVG → create web resource
+- **Fluent icons** tab — 87 icons with search, a category filter and Regular / Filled; arrow keys move between them, Enter picks one. **Use** uploads it as an SVG web resource in your solution
+- **Web resources** tab — the environment's SVG web resources with search; the first 300 show, and the count says when to search for the rest
+- **Upload SVG** tab — drop an SVG or choose one; it's uploaded as a web resource in your solution
 
 ### 🗂️ Scaling
 - Read-only for now: Properties shows a tab's groups and scaling steps. Scaling only shapes the classic ribbon; Unified Interface ignores it.
