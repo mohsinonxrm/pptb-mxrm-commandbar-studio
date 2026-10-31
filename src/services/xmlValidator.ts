@@ -52,7 +52,12 @@ export function validateRibbonDiffXml(
 	const doc = parser.parseFromString(xml, "application/xml");
 	const parseError = doc.querySelector("parsererror");
 	if (parseError) {
-		const parseText = parseError.textContent?.trim() ?? "Unknown";
+		// Chromium wraps the parser's message in page boilerplate (#187): keep the message.
+		const parseText =
+			(parseError.textContent ?? "")
+				.replace(/This page contains the following errors:/i, "")
+				.replace(/Below is a rendering of the page up to the first error\.?/i, "")
+				.trim() || "Unknown";
 		const lineMatch = parseText.match(/line\s+(\d+)/i);
 		errors.push({
 			message: `XML parse error: ${parseText}`,

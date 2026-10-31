@@ -160,6 +160,7 @@ started (if the tool's connection changes in Power Platform ToolBox, the operati
 Nothing else writes to Dataverse:
 - **Unsaved changes** are kept as a draft in the browser storage of Power Platform ToolBox on your machine (`localStorage`), per environment, solution and table. A note of the last publish is kept for the session (`sessionStorage`).
 - **Export** writes a RibbonDiffXml file where you choose; **Import RibbonDiffXml** only changes the workspace until you publish.
+- **Import RibbonDiffXml** (XML → Import XML…): paste the XML on the left; **Preview** lists each change (Add / Update / Hide) and every problem on the right. Click a problem with a line to go to it. **Import n changes** is one change, which Undo takes back.
 
 ## 🖼️ Interface Overview
 
