@@ -27,15 +27,12 @@ import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 const WORKSPACE_PANELS = [
 	"commandEditorOpen",
 	"ruleEditorOpen",
-	"xmlDrawerOpen",
 	"iconPickerOpen",
 	"localizationEditorOpen",
 	"newGroupOpen",
 	"importXmlOpen",
-	"conflictDrawerOpen",
 	"webResourceBrowserOpen",
 	"urlComposerOpen",
-	"diffViewerOpen",
 	"newTabOpen",
 ] as const satisfies readonly (keyof UIStore)[];
 

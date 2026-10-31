@@ -631,7 +631,7 @@ export function BottomPanel() {
 															size="small"
 															icon={<BranchCompareRegular />}
 															onClick={() =>
-																openDiffViewer("history")
+																openDiffViewer("history", pastIndex)
 															}
 														>
 															View diff

@@ -281,8 +281,8 @@ export function App() {
 				// Build ConflictEntry records for buttons whose provenance resolved
 				// to "managed" — i.e. they belong to a managed solution layer.
 				// The Properties notices (ButtonNotices) use these to surface a warning without any
-				// additional API calls. The ConflictDrawer then fetches live layer
-				// detail on demand.
+				// additional API calls. Dataverse layers ribbon customisations per
+				// table, not per button, so there is no per-button layer list (#186).
 				const conflictEntries: ConflictEntry[] = [];
 				const seenButtonIds = new Set<string>();
 				for (const ribbon of Object.values(workspace.ribbons)) {

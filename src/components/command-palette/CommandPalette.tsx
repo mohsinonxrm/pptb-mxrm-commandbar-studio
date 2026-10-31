@@ -174,7 +174,7 @@ export const CommandPalette: React.FC = () => {
 				subtitle: "Open XML drawer",
 				kind: "action",
 				action: () => {
-					openXmlDrawer();
+					openXmlDrawer(location);
 					close();
 				},
 			},

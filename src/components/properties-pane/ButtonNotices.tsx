@@ -3,7 +3,6 @@ import { MessageSlot, type SlotMessage } from "@/components/shared/MessageSlot";
 import { canCustomiseButton, useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
-import { useUIStore } from "@/store/uiStore";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useModernAppNames } from "@/hooks/useModernCommands";
 import { describeOverride } from "@/services/modernCommands";
@@ -38,7 +37,6 @@ export function ButtonNotices({ button, location, tabId, groupId, overrides }: B
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const sessionPrefix = useSessionStore((s) => s.publisherPrefix);
 	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
-	const openConflictDrawer = useUIStore((s) => s.openConflictDrawer);
 	const appNames = useModernAppNames();
 	const selectCommand = useModernCommandStore((s) => s.selectCommand);
 	const canCustomise = canCustomiseButton(location, tabId, button);
@@ -83,11 +81,6 @@ export function ButtonNotices({ button, location, tabId, groupId, overrides }: B
 						onClick={() => customizeOobButton(location, tabId, groupId, button.id)}
 					>
 						Create override
-					</Button>
-				)}
-				{button.origin === "managed" && (
-					<Button size="small" onClick={() => openConflictDrawer(button.id)}>
-						View solution layers
 					</Button>
 				)}
 			</>

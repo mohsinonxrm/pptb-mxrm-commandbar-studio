@@ -14,7 +14,6 @@ import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { dragPaneWidths, fitPaneWidths } from "@/utils/paneWidths";
 
 // Lazy-loaded panels and modals
-const XmlDrawer = lazy(() => import("@/components/panels/XmlDrawer"));
 // The command and rule editors are views of one drawer (#186).
 const EditorDrawer = lazy(() => import("@/components/panels/EditorDrawer"));
 const BulkPublishModal = lazy(() => import("@/components/modals/BulkPublishModal"));
@@ -25,10 +24,8 @@ const ImportXmlModal = lazy(() => import("@/components/modals/ImportXmlModal"));
 const CommandPalette = lazy(() => import("@/components/command-palette/CommandPalette"));
 const LocalizationEditor = lazy(() => import("@/components/modals/LocalizationEditor"));
 const IconPickerModal = lazy(() => import("@/components/modals/IconPickerModal"));
-const ConflictDrawer = lazy(() => import("@/components/panels/ConflictDrawer"));
 const WebResourceBrowser = lazy(() => import("@/components/panels/WebResourceBrowser"));
 const UrlComposerModal = lazy(() => import("@/components/panels/UrlComposerModal"));
-const DiffViewer = lazy(() => import("@/components/panels/DiffViewer"));
 const HideInsteadOfDeleteModal = lazy(() => import("@/components/modals/HideInsteadOfDeleteModal"));
 
 const useStyles = makeStyles({
@@ -158,7 +155,6 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	);
 	const anyOverlayOpen = useUIStore(
 		(s) =>
-			s.xmlDrawerOpen ||
 			s.editorStack.length > 0 ||
 			s.bulkPublishOpen ||
 			s.newButtonGroupId !== null ||
@@ -168,10 +164,8 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			s.commandPaletteOpen ||
 			s.localizationEditorOpen ||
 			s.iconPickerOpen ||
-			s.conflictDrawerOpen ||
 			s.webResourceBrowserOpen ||
 			s.urlComposerOpen ||
-			s.diffViewerOpen ||
 			s.hideInsteadOfDelete !== null,
 	);
 	const focusReturnRef = useRef<HTMLElement | null>(null);
@@ -358,7 +352,6 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			    the whole tool down (#89). */}
 			<ErrorBoundary label="Panels">
 				<Suspense fallback={null}>
-					<XmlDrawer />
 					<EditorDrawer />
 					<BulkPublishModal />
 					<NewButtonModal />
@@ -368,10 +361,8 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 					<CommandPalette />
 					<LocalizationEditor />
 					<IconPickerModal />
-					<ConflictDrawer />
 					<WebResourceBrowser />
 					<UrlComposerModal />
-					<DiffViewer />
 					<HideInsteadOfDeleteModal />
 				</Suspense>
 			</ErrorBoundary>

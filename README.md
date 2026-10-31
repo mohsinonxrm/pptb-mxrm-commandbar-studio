@@ -39,7 +39,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Display rules + Enable rules pill lists with inline add/remove
 - Scaling summary (read-only: the tab's groups and scaling steps)
 - Advanced: form ribbon scope selector, `Mscrm.OpenRecordItem` override toggle, client-type filter shortcuts (Unified Interface evaluates as `Modern`; one filter per command)
-- Conflict banner — surfaces managed-solution provenance via solution-layer API
+- Provenance notice — names the managed solution and publisher a button comes from
 
 ### ⚡ Command Editor
 - JavaScript function: library (with Browse… to Web Resource Browser), function name, positional CrmParameter editor
@@ -91,11 +91,12 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Live URL preview; `&` → `&amp;` escaping handled automatically
 - WinMode: Navigate / Dialog / Popup
 
-### 📊 XML Drawer + Diff Viewer
-- Per-location RibbonDiffXml view in Monaco (read-only + editable import path)
+### 📊 XML and Compare
+- Views of the editor drawer: the XML of your changes opens on the location you're on, one location per tab, in Monaco (read-only; **Import this XML** hands it to the import dialog)
 - **Copy** and **Download** use Power Platform ToolBox's clipboard and Save dialog (the browser's outside it) and say whether the XML was copied, where it was saved, or why not
-- "Format XML" button
-- Monaco `DiffEditor` compare-to-baseline
+- **Format** button
+- **Compare with published**: Monaco `DiffEditor`, side by side or unified, with an empty state when nothing has changed
+- History's **View diff** shows what that one change did
 - CBS-specific completions: `$LocLabels:`, `$webresource:`, `Command=`, `ModernImage=`
 
 ### 🔄 Publish Pipeline
@@ -109,10 +110,9 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Labels are written in the organization's base language, read before every publish; if it can't be read, the publish stops. The system Default solution isn't offered as a target
 - `Mscrm.OpenRecordItem` override support — emitted as a system-command override when the user defines a JS action on it
 
-### 🧩 Solution Conflict Drawer
-- Provenance: which managed solution adds a control, read from the managed ribbon layers (`ribbondiffs`) in one query (falls back to the namespace heuristic when unavailable)
-- Banner in properties pane for managed-solution buttons
-- Live solution-layer fetch in the drawer
+### 🧩 Solution provenance
+- Which managed solution adds a control, read from the managed ribbon layers (`ribbondiffs`) in one query (falls back to the namespace heuristic when unavailable)
+- Notice in the properties pane for managed-solution buttons. Dataverse layers ribbon customizations per table, not per button, so there's no per-button layer list
 
 ### ⌨️ Keyboard Shortcuts + Command Palette
 - `Ctrl+K` — Command Palette (search buttons, commands, rules, entities, actions)
@@ -295,10 +295,9 @@ src/
     ribbon-canvas/       — RibbonCanvas, ClassicRibbon, ModernCommandBar, RibbonListView
     properties-pane/     — PropertiesPane (header + collapsible sections) and its sections
     bottom-panel/        — BottomPanel (Commands / Rules / History / Console tabs)
-    panels/              — EditorDrawer (command, rule, script, tab display rule views),
-                           CommandEditor, RuleEditor, TabDisplayRules,
-                           ConflictDrawer, WebResourceBrowser, UrlComposer,
-                           DiffViewer, XmlDrawer
+    panels/              — EditorDrawer (command, rule, script, tab display rule, XML and
+                           compare views): CommandEditor, RuleEditor, TabDisplayRules,
+                           XmlView, CompareView; WebResourceBrowser, UrlComposer
     modals/              — BulkPublish, IconPicker, LocalizationEditor, NewButton/Group/Tab,
                            HideOobWarning, ImportXml, ConfirmDialog
     command-palette/     — CommandPalette (Ctrl+K)
@@ -315,7 +314,6 @@ src/
       ribbonService.ts         — RetrieveEntityRibbon / RetrieveApplicationRibbon
       publishService.ts        — Layer merge, solution ZIP packaging, import, publish and verification
       ribbonProvenanceService.ts — managed-solution provenance from the managed ribbondiffs
-      conflictService.ts       — fetchConflictLayersForElement
       webResourceService.ts    — loadWebResources / loadWebResourceByName / loadWebResourceContent
   store/
     ribbonStore.ts       — Ribbon state, 80-entry undo/redo, mutationsSincePublish
