@@ -340,6 +340,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **"Choose table"** on the empty canvas opens the list, at any window width.
   - **The left pane** shows Solution Elements only, until the Structure tree arrives (#194,
     step 2).
+- **The location's tabs, groups and buttons are a tree in the left pane (#194, step 2).** The left
+  pane has two tabs: **Structure** (the default) and **Solution**, which shows Solution Elements
+  as before. The ribbon tab strip above the canvas is gone.
+  - **The tree** shows tab › group › control for the location you're on. Groups show how many
+    controls they have, and controls show their Sequence or **Hidden**, a dot for yours, and are
+    listed in Sequence order.
+  - **Choosing a node** (click or Enter) shows that tab on the canvas, or selects the group or
+    control on the canvas and in Properties. A selection made on the canvas is shown in the tree,
+    with its group opened. The arrow keys move through the tree.
+  - **Each node has a menu:** right-click, Shift+F10, the Menu key, or its **⋯** button. A tab's
+    menu has Rename…, Tab display rules… (with the rule count), Add group…, Move up / Move down
+    and Delete tab…. Groups and controls have the same menus as on the Classic canvas; a group's
+    menu now also has **Add button…**. F2 renames a tab or group, or says why it can't be renamed.
+  - **Filter** by label or id: a match's tab and group stay open.
+  - **Add tab** is next to the filter. How Unified Interface shows a custom tab is behind an info
+    button in the location row.
+  - **Below 1200 px** the rail button opens Structure and Solution as a drawer. Choosing a group or
+    control closes it and opens Properties; a node's menu keeps it open.
 
 ### 🔧 Fixed
 

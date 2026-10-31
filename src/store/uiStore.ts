@@ -69,6 +69,8 @@ function pushView(stack: EditorView[], view: EditorView): EditorView[] {
 	return top?.kind === view.kind ? [...stack.slice(0, -1), view] : [...stack, view];
 }
 
+export type LeftPaneTab = "structure" | "solution";
+
 export interface UIStore {
 	// Pane dimensions
 	leftPaneWidth: number;
@@ -77,6 +79,8 @@ export interface UIStore {
 	bottomCollapsed: boolean;
 	rightPaneMode: RightPaneMode;
 	themeMode: ThemeMode;
+	/** The left pane's tab: the location's Structure tree, or the solution's elements (#194). */
+	leftPaneTab: LeftPaneTab;
 
 	// View
 	ribbonViewStyle: RibbonViewStyle;
@@ -171,6 +175,10 @@ export interface UIStore {
 	setCommandPaletteOpen(open: boolean): void;
 	setSolutionPickerOpen(open: boolean): void;
 	setTablePickerOpen(open: boolean): void;
+	setLeftPaneTab(tab: LeftPaneTab): void;
+	/** Counts groups and controls chosen in the Structure tree: the narrow drawer closes on one (#194). */
+	structureChoice: number;
+	noteStructureChoice(): void;
 	setPropertiesRequested(requested: boolean): void;
 	openNewTab(): void;
 	closeNewTab(): void;
@@ -186,6 +194,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	set,
 ) => ({
 	leftPaneWidth: 260,
+	leftPaneTab: "structure",
 	rightPaneWidth: 340,
 	bottomPanelHeight: 220,
 	// Collapsed until wanted (#179): the canvas gets the height.
@@ -297,6 +306,9 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	setCommandPaletteOpen: (open: boolean) => set({ commandPaletteOpen: open }),
 	setSolutionPickerOpen: (open) => set({ solutionPickerOpen: open }),
 	setTablePickerOpen: (open) => set({ tablePickerOpen: open }),
+	setLeftPaneTab: (tab) => set({ leftPaneTab: tab }),
+	structureChoice: 0,
+	noteStructureChoice: () => set((s) => ({ structureChoice: s.structureChoice + 1 })),
 	setPropertiesRequested: (requested) => set({ propertiesRequested: requested }),
 	openNewTab: () => set({ newTabOpen: true }),
 	closeNewTab: () => set({ newTabOpen: false }),
@@ -310,6 +322,7 @@ export const useUIStore = create<UIStore>()(
 		name: "cbs:ui",
 		partialize: (state) => ({
 			leftPaneWidth: state.leftPaneWidth,
+			leftPaneTab: state.leftPaneTab,
 			rightPaneWidth: state.rightPaneWidth,
 			bottomPanelHeight: state.bottomPanelHeight,
 			bottomCollapsed: state.bottomCollapsed,

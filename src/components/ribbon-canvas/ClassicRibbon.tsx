@@ -5,12 +5,6 @@ import {
 	Text,
 	Badge,
 	Tooltip,
-	Menu,
-	MenuTrigger,
-	MenuPopover,
-	MenuList,
-	MenuItem,
-	MenuDivider,
 	MessageBar,
 	MessageBarBody,
 } from "@fluentui/react-components";
@@ -18,10 +12,6 @@ import {
 	AddRegular,
 	EyeOffRegular,
 	LockClosedRegular,
-	CopyRegular,
-	DeleteRegular,
-	AppsAddInRegular,
-	RenameRegular,
 	DocumentRegular,
 	ChevronDownRegular,
 } from "@fluentui/react-icons";
@@ -39,18 +29,11 @@ import {
 	type DragOverEvent,
 	closestCenter,
 } from "@dnd-kit/core";
-import { ownContainerIds, scopeLayer, useRibbonStore } from "@/store/ribbonStore";
+import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
-import {
-	canDeleteGroup,
-	canRenameContainer,
-	RENAME_NOT_PUBLISHABLE,
-} from "@/utils/ribbonProvenance";
 import { useUIStore } from "@/store/uiStore";
-import { RenameGroupDialog } from "@/components/modals/RenameGroupDialog";
-import { ChangeGroupTemplateDialog } from "@/components/modals/ChangeGroupTemplateDialog";
-import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
 import { ButtonContextMenu, type ButtonMenuTarget } from "@/components/shared/ButtonContextMenu";
+import { GroupContextMenu, type GroupMenuTarget } from "@/components/shared/GroupContextMenu";
 import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonGroup, RibbonTab, RibbonLocation } from "@/types/ribbon";
@@ -180,12 +163,6 @@ interface ClassicRibbonProps {
 }
 
 // Context menu state types
-interface GroupMenuState {
-	group: RibbonGroup;
-	x: number;
-	y: number;
-}
-
 // ---------------------------------------------------------------------------
 // DragGhostTile — rendered inside DragOverlay as the drag ghost
 // ---------------------------------------------------------------------------
@@ -320,15 +297,8 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 	// An imported group keeps its Title token in source (#30): it's the reference to caption.
 	const groupText = (group: RibbonGroup) =>
 		captionOf(group.label, locLabels, lang, group.source?.titleToken) || group.id;
-	const baseline = useRibbonStore((s) => s.baseline);
-	const customTemplates = useRibbonStore((s) => s.templates);
 	const moveButton = useRibbonStore((s) => s.moveButton);
 	const createGroup = useRibbonStore((s) => s.createGroup);
-	const layers = useRibbonStore((s) => s.layers);
-	const duplicateGroup = useRibbonStore((s) => s.duplicateGroup);
-	const setGroupTemplate = useRibbonStore((s) => s.setGroupTemplate);
-	const renameGroup = useRibbonStore((s) => s.renameGroup);
-	const deleteGroup = useRibbonStore((s) => s.deleteGroup);
 	const openNewButton = useUIStore((s) => s.openNewButton);
 	const openNewGroup = useUIStore((s) => s.openNewGroup);
 	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
@@ -336,11 +306,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 
 	// Context menu state
 	const [btnMenu, setBtnMenu] = useState<ButtonMenuTarget | null>(null);
-	const [grpMenu, setGrpMenu] = useState<GroupMenuState | null>(null);
-	// Group dialogs opened from the group context menu (#18: window.prompt / confirm don't work in PPTB).
-	const [renaming, setRenaming] = useState<RibbonGroup | null>(null);
-	const [retemplating, setRetemplating] = useState<RibbonGroup | null>(null);
-	const [deleting, setDeleting] = useState<RibbonGroup | null>(null);
+	const [grpMenu, setGrpMenu] = useState<GroupMenuTarget | null>(null);
 
 	// @dnd-kit drag state
 	const [activeId, setActiveId] = useState<string | null>(null);
@@ -491,7 +457,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 							onContextMenu={(e) => {
 								if ((e.target as HTMLElement).closest("[data-btn]")) return;
 								e.preventDefault();
-								setGrpMenu({ group, x: e.clientX, y: e.clientY });
+								setGrpMenu({ group, anchor: { x: e.clientX, y: e.clientY } });
 							}}
 							onFocus={() => selectGroup(group.id)}
 							onKeyDown={(e) => {
@@ -598,147 +564,13 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 				onClose={() => setBtnMenu(null)}
 			/>
 
-			{/* ── Group context menu ── */}
-			{grpMenu && (
-				<Menu
-					open
-					onOpenChange={(_, d) => !d.open && setGrpMenu(null)}
-					positioning={{
-						position: "below",
-						align: "start",
-						target: {
-							getBoundingClientRect: () => ({
-								x: grpMenu.x,
-								y: grpMenu.y,
-								top: grpMenu.y,
-								left: grpMenu.x,
-								right: grpMenu.x,
-								bottom: grpMenu.y,
-								width: 0,
-								height: 0,
-								toJSON: () => ({}),
-							}),
-						},
-					}}
-				>
-					<MenuTrigger disableButtonEnhancement>
-						<span style={{ display: "none" }} />
-					</MenuTrigger>
-					<MenuPopover>
-						<MenuList>
-							{/* Only where the rename can be published (#33), like Delete. */}
-							{canRenameContainer(
-								"group",
-								grpMenu.group.id,
-								baseline[location],
-								scopeLayer({ layers }, location),
-							) ? (
-								<MenuItem
-									icon={<RenameRegular />}
-									onClick={() => {
-										setRenaming(grpMenu.group);
-										setGrpMenu(null);
-									}}
-								>
-									Rename…
-								</MenuItem>
-							) : (
-								<MenuItem
-									icon={<RenameRegular />}
-									disabled
-									title={RENAME_NOT_PUBLISHABLE}
-									subText="Only your own tabs and groups can be renamed"
-								>
-									Rename…
-								</MenuItem>
-							)}
-							<MenuItem
-								icon={<CopyRegular />}
-								onClick={() => {
-									duplicateGroup(location, tab.id, grpMenu.group.id);
-									setGrpMenu(null);
-								}}
-							>
-								Duplicate group
-							</MenuItem>
-							<MenuItem
-								icon={<AppsAddInRegular />}
-								onClick={() => {
-									setRetemplating(grpMenu.group);
-									setGrpMenu(null);
-								}}
-							>
-								Change template…
-							</MenuItem>
-							{/* Only your own group with only your own buttons (#17 review). */}
-							{canDeleteGroup(
-								grpMenu.group,
-								baseline[location],
-								ownContainerIds({ layers }, location),
-							) && (
-								<>
-									<MenuDivider />
-									<MenuItem
-										icon={<DeleteRegular />}
-										onClick={() => {
-											setDeleting(grpMenu.group);
-											setGrpMenu(null);
-										}}
-									>
-										Delete group
-									</MenuItem>
-								</>
-							)}
-						</MenuList>
-					</MenuPopover>
-				</Menu>
-			)}
-
-			{/* ── Group dialogs ── */}
-			{renaming && (
-				<RenameGroupDialog
-					open
-					initialLabel={groupText(renaming)}
-					onRename={(label) => {
-						// The store action keeps a rename one undo step and publishes it (#66).
-						renameGroup(location, tab.id, renaming.id, label);
-						setRenaming(null);
-					}}
-					onCancel={() => setRenaming(null)}
-				/>
-			)}
-			{retemplating && (
-				<ChangeGroupTemplateDialog
-					open
-					currentTemplate={retemplating.template}
-					customTemplateIds={customTemplates.map((t) => t.id)}
-					loadedGroup={baseline[location].tabs.some(
-						(t) => t.id === tab.id && t.groups.some((g) => g.id === retemplating.id),
-					)}
-					onChange={(template) => {
-						setGroupTemplate(location, tab.id, retemplating.id, template);
-						setRetemplating(null);
-					}}
-					onCancel={() => setRetemplating(null)}
-				/>
-			)}
-			{deleting && (
-				<ConfirmDialog
-					open
-					title="Delete group"
-					confirmLabel="Delete group"
-					destructive
-					onConfirm={() => {
-						deleteGroup(location, tab.id, deleting.id);
-						setDeleting(null);
-					}}
-					onCancel={() => setDeleting(null)}
-				>
-					Delete the group &ldquo;{groupText(deleting)}&rdquo; and its{" "}
-					{deleting.buttons.length} button
-					{deleting.buttons.length === 1 ? "" : "s"}?
-				</ConfirmDialog>
-			)}
+			{/* ── Group menu (#194: shared with the Structure tree) ── */}
+			<GroupContextMenu
+				location={location}
+				tab={tab}
+				target={grpMenu}
+				onClose={() => setGrpMenu(null)}
+			/>
 		</>
 	);
 }
