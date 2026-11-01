@@ -2,9 +2,18 @@ import React, { useEffect, useState } from "react";
 import FluentIcon from "@/components/shared/FluentIcon";
 import { loadWebResourceImage } from "@/services/dataverse/webResourceService";
 import { useSessionStore } from "@/store/sessionStore";
+import { useUIStore } from "@/store/uiStore";
 import type { RibbonButton } from "@/types/ribbon";
 
 const WEB_RESOURCE = "$webresource:";
+
+/**
+ * Ribbon images are drawn for a light command bar (dark glyphs such as
+ * `#323130`). In the dark theme they're shown with their lightness inverted
+ * and their hue kept, so a dark glyph reads light and a blue one stays blue
+ * (#229).
+ */
+const DARK_IMAGE = "invert(1) hue-rotate(180deg)";
 
 /** Images loaded this session, by environment and web resource name. A failed load isn't kept. */
 const images = new Map<string, Promise<string | null>>();
@@ -62,6 +71,7 @@ export function RibbonButtonIcon({
 	style?: React.CSSProperties;
 }) {
 	const environment = useSessionStore((s) => s.connectionUrl);
+	const dark = useUIStore((s) => s.themeMode === "dark");
 	const resource = webResourceImageOf(button);
 	const key = resource ? `${environment}|${resource}` : "";
 	const [loaded, setLoaded] = useState<{ key: string; src: string | null }>({
@@ -88,7 +98,7 @@ export function RibbonButtonIcon({
 				height={size}
 				alt=""
 				aria-hidden
-				style={{ objectFit: "contain", ...style }}
+				style={{ objectFit: "contain", filter: dark ? DARK_IMAGE : undefined, ...style }}
 			/>
 		);
 	}

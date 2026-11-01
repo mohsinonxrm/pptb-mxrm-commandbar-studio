@@ -11,6 +11,9 @@ import { WebResourceBrowser } from "@/components/panels/WebResourceBrowser";
 import { AppDialog } from "@/components/shared/AppDialog";
 import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
 import { WordBreaks } from "@/components/shared/WordBreaks";
+import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
+import { useSessionStore } from "@/store/sessionStore";
+import type { RibbonButton } from "@/types/ribbon";
 import { BottomPanel } from "@/components/bottom-panel/BottomPanel";
 import { useDraftStore, draftKeyFor } from "@/store/draftStore";
 import { useUIStore } from "@/store/uiStore";
@@ -28,6 +31,7 @@ vi.mock("@/services/dataverse/webResourceService", async (original) => ({
 	...(await original<object>()),
 	loadWebResources: async () => resources,
 	saveWebResource: async () => ({}),
+	loadWebResourceImage: async () => "data:image/svg+xml;base64,PHN2Zy8+",
 }));
 
 let container: HTMLDivElement;
@@ -152,5 +156,29 @@ describe("#229 bottom panel while loading", () => {
 		act(() => useDraftStore.setState({ target: draftKeyFor("account") }));
 		expect(container.textContent).toContain("No commands.");
 		act(() => useDraftStore.setState({ target: null }));
+	});
+});
+
+describe("#229 dark theme", () => {
+	const render = (ui: React.ReactElement) =>
+		act(() => root.render(<FluentProvider theme={webLightTheme}>{ui}</FluentProvider>));
+	const iconButton = {
+		id: "x.Seq",
+		label: "Sequences",
+		kind: "button",
+		image32: "$webresource:msdyn_/Icons/Sequence.svg",
+	} as RibbonButton;
+
+	it("a ribbon image keeps its hue but reads light in the dark theme", async () => {
+		useSessionStore.setState({ connectionUrl: "https://org.crm.dynamics.com" } as never);
+		useUIStore.setState({ themeMode: "dark" });
+		render(<RibbonButtonIcon button={iconButton} size={16} />);
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
+		expect(container.querySelector("img")?.style.filter).toBe("invert(1) hue-rotate(180deg)");
+
+		act(() => useUIStore.setState({ themeMode: "light" }));
+		expect(container.querySelector("img")?.style.filter).toBe("");
 	});
 });

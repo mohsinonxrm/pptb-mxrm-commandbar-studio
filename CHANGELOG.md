@@ -409,6 +409,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Back button's name.
   - **The URL Action Composer is gone.** Nothing opened it, and URL actions are edited in the command
     editor.
+- **Visual pass, dark theme (#229):** every view, the panes and the dialogs captured with PPTB in
+  dark.
+  - **Button images read in the dark theme.** Ribbon images are drawn for a light command bar, so dark
+    glyphs (Sequences, Apply Routing Rule, AI Builder) nearly vanished. They're now shown with their
+    lightness inverted and their colours kept.
+  - **The List view's Modern badge stays in its column:** after a long label, it ran into Kind.
 - **The bottom panel's Commands and rules are grids (#185).** Hundreds of rows stay quick
   (virtualized), the header stays put while the rows scroll, and nothing scrolls sideways: ids are
   cut to their column with the whole id in a tooltip.
