@@ -111,9 +111,10 @@ Before promoting a beta to `latest`:
 
 - **The current stable release** (`main`) gets fixes as hotfixes.
 - **The previous minor release** gets **critical and security fixes for 30 days** after
-  the next minor ships. When such a fix is needed, create `support/X.Y` from its last tag
-  (for 0.7 after 0.8.0 ships: `git switch -c support/0.7 v0.7.0 && git push -u origin support/0.7`,
-  from 0.7's last tag),
+  the next minor ships, **only when the next minor requires a newer PPTB** (decided
+  2026-10-27). Otherwise users can always update, and the previous minor is deprecated when
+  the next one ships. When such a fix is needed, create `support/X.Y` from its last tag
+  (e.g. `git switch -c support/X.Y vX.Y.Z && git push -u origin support/X.Y`),
   PR the fix into it, bump the patch version, and tag `vX.Y.Z` there. It publishes to the npm
   `support-X.Y` tag, never `latest`, and isn't marked as the latest GitHub Release.
 - **0.5.x is end of life** (decided 2026-10-22): every version before 0.6.2 is deprecated on
@@ -121,6 +122,8 @@ Before promoting a beta to `latest`:
   line. Users on PPTB before 1.2.7 need to update PPTB to use 0.6.2 or later.
 - **0.6.x is end of life at 0.7.0** (decided 2026-10-24): 0.6.2 is deprecated on npm and gets
   no `support/0.6` line, since 0.7.0 needs the same PPTB (1.2.7).
+- **0.7.x is end of life at 0.8.0** (decided 2026-10-27): 0.7.0 is deprecated on npm and gets
+  no `support/0.7` line, since 0.8.0 needs the same PPTB (1.2.7).
 - Older versions aren't supported. `SECURITY.md` lists the supported versions.
 
 ## Milestones and tracking
