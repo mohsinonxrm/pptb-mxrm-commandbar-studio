@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0-beta.1] - 2026-11-01
+
+The first beta of 0.9.0 (npm `beta`): the UX overhaul in Fluent 2, and Edit mode.
+- **Edit mode:** a Structure tree of tabs, groups and buttons; group cards you can reorder;
+  "How users see it", a preview of the command bar; a Solution tab; a table picker in the top
+  bar; and a List view that fits and sorts.
+- **One editor drawer** for commands, rules, scripts, XML, Compare and Translations, with Done and
+  one Undo step per drawer.
+- **Properties:** sections by kind, read-only for buttons that aren't yours until you customise
+  them, with texts shown as the canvas shows them.
+- **The publish dialog** says what will publish and why Publish is blocked.
+- **Every dialog** uses one shell and opens on the right control.
+- **A screen-based visual pass** at 1024 and 1920 px, in light and dark.
+
+It includes everything in 0.8.0. Requires Power Platform ToolBox 1.2.7 or later, as 0.8 does.
+
 ### 🏗️ Technical
 
 - **Formatting is enforced (#118, item 1).** The codebase is formatted with Prettier once, in its
