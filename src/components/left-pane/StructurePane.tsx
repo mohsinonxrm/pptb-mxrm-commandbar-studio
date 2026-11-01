@@ -84,6 +84,8 @@ const useStyles = makeStyles({
 	muted: { color: tokens.colorNeutralForeground3 },
 	yours: { flexShrink: 0, marginLeft: tokens.spacingHorizontalXS },
 	empty: {
+		// Text renders inline; as a block its padding holds every wrapped line.
+		display: "block",
 		padding: `${tokens.spacingVerticalM} ${tokens.spacingHorizontalM}`,
 		color: tokens.colorNeutralForeground3,
 	},
