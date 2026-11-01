@@ -237,7 +237,12 @@ export const RuleEditorPanel: React.FC = () => {
 			)}
 
 			<div>
-				<Popover open={pickerOpen} onOpenChange={(_, d) => setPickerOpen(d.open)}>
+				{/* Opens from the button's start: centred, it ran out of the drawer (#229). */}
+				<Popover
+					open={pickerOpen}
+					onOpenChange={(_, d) => setPickerOpen(d.open)}
+					positioning="below-start"
+				>
 					<PopoverTrigger>
 						<Button icon={<AddRegular />} onClick={() => setPickerOpen(true)}>
 							Add step

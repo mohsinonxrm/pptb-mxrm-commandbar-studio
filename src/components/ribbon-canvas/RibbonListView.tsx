@@ -59,10 +59,12 @@ const useStyles = makeStyles({
 	search: { flex: 1, minWidth: 0, maxWidth: "480px" },
 	muted: { color: tokens.colorNeutralForeground3 },
 	grid: { width: "100%", minWidth: 0 },
-	// The canvas scrolls; the header stays in view.
+	// The canvas scrolls; the header stays in view. It sticks at the canvas's
+	// edge, above its padding (spacingHorizontalM in RibbonCanvas): at 0, rows
+	// showed in the padding above it (#229).
 	header: {
 		position: "sticky",
-		top: 0,
+		top: `calc(-1 * ${tokens.spacingHorizontalM})`,
 		zIndex: 1,
 		backgroundColor: tokens.colorNeutralBackground1,
 	},

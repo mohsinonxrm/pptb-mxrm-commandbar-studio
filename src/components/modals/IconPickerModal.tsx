@@ -30,6 +30,7 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import FluentIcon, { fluentIconToSvg } from "@/components/shared/FluentIcon";
+import { WordBreaks } from "@/components/shared/WordBreaks";
 import { AppDialog } from "@/components/shared/AppDialog";
 import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
 import {
@@ -667,7 +668,9 @@ export const IconPickerModal: React.FC = () => {
 												size={24}
 												variant={variant}
 											/>
-											<span className={styles.iconLabel}>{icon.name}</span>
+											<span className={styles.iconLabel}>
+												<WordBreaks text={icon.name} />
+											</span>
 										</Button>
 									</Tooltip>
 								);

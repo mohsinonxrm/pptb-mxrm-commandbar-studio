@@ -12,6 +12,7 @@ import {
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore, type HistoryEntry } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { useDraftStore } from "@/store/draftStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { generateCommandId, generateRuleId } from "@/utils/idGenerator";
 import {
@@ -98,8 +99,12 @@ const useStyles = makeStyles({
 	},
 });
 
+/** While the ribbon loads, the grids don't claim there's nothing (#229). */
+const NOT_LOADED = "Shown once the table's ribbon is loaded.";
+
 export function BottomPanel() {
 	const styles = useStyles();
+	const loaded = useDraftStore((s) => s.target !== null);
 	const activeBottomTab = useUIStore((s) => s.activeBottomTab);
 	const setActiveBottomTab = useUIStore((s) => s.setActiveBottomTab);
 	const bottomPanelHeight = useUIStore((s) => s.bottomPanelHeight);
@@ -326,7 +331,13 @@ export function BottomPanel() {
 								height={gridHeight}
 								onOpen={openCommandEditor}
 								onOpenRule={openRuleEditor}
-								emptyText={commandsFilter ? "No commands match." : "No commands."}
+								emptyText={
+									!loaded
+										? NOT_LOADED
+										: commandsFilter
+											? "No commands match."
+											: "No commands."
+								}
 							/>
 						</>
 					)}
@@ -368,9 +379,11 @@ export function BottomPanel() {
 								height={gridHeight}
 								onOpen={(id) => openRuleEditor(id, "display")}
 								emptyText={
-									displayRulesFilter
-										? "No display rules match."
-										: "No display rules."
+									!loaded
+										? NOT_LOADED
+										: displayRulesFilter
+											? "No display rules match."
+											: "No display rules."
 								}
 							/>
 						</>
@@ -413,9 +426,11 @@ export function BottomPanel() {
 								height={gridHeight}
 								onOpen={(id) => openRuleEditor(id, "enable")}
 								emptyText={
-									enableRulesFilter
-										? "No enable rules match."
-										: "No enable rules."
+									!loaded
+										? NOT_LOADED
+										: enableRulesFilter
+											? "No enable rules match."
+											: "No enable rules."
 								}
 							/>
 						</>

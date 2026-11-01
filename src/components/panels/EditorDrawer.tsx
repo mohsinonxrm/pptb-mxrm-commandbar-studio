@@ -139,7 +139,8 @@ export function EditorDrawer() {
 				{view && (
 					<DrawerHeaderTitle>
 						<span className={styles.title}>
-							{shown.length > 1 && (
+							{/* One level back, the Back button already names it (#229). */}
+							{shown.length > 2 && (
 								<Caption1 className={styles.trail}>
 									{shown.slice(0, -1).map(viewTitle).join(" › ")} ›
 								</Caption1>

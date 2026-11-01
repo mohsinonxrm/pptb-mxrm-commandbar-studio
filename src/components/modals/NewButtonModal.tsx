@@ -139,7 +139,7 @@ export const NewButtonModal: React.FC = () => {
 				required
 				hint="A command is created with it; edit it in the command editor."
 			>
-				<Input value={label} onChange={(_, d) => setLabel(d.value)} autoFocus />
+				<Input value={label} onChange={(_, d) => setLabel(d.value)} data-autofocus />
 			</Field>
 			<Field label="Kind">
 				<Select value={kind} onChange={(_, d) => setKind(d.value as RibbonButton["kind"])}>

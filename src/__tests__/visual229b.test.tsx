@@ -6,8 +6,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { FluentProvider, webLightTheme } from "@fluentui/react-components";
+import { FluentProvider, Input, webLightTheme } from "@fluentui/react-components";
 import { WebResourceBrowser } from "@/components/panels/WebResourceBrowser";
+import { AppDialog } from "@/components/shared/AppDialog";
+import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
+import { WordBreaks } from "@/components/shared/WordBreaks";
+import { BottomPanel } from "@/components/bottom-panel/BottomPanel";
+import { useDraftStore, draftKeyFor } from "@/store/draftStore";
 import { useUIStore } from "@/store/uiStore";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
 import type { WebResource } from "@/types/webResource";
@@ -19,10 +24,10 @@ const resources: WebResource[] = [
 	{ id: "1", name: "new_/scripts/a.js", webResourceType: "js", isCustom: true },
 	{ id: "2", name: "new_/icons/b.svg", webResourceType: "svg", isCustom: true },
 ];
-vi.mock("@/services/dataverse/webResourceService", () => ({
+vi.mock("@/services/dataverse/webResourceService", async (original) => ({
+	...(await original<object>()),
 	loadWebResources: async () => resources,
 	saveWebResource: async () => ({}),
-	WebResourceSaveCancelled: class extends Error {},
 }));
 
 let container: HTMLDivElement;
@@ -85,5 +90,63 @@ describe("#229 web resource browser", () => {
 		act(() => button("Cancel").click());
 		expect(webResourceBrowserCallbackRegistry.hasPending()).toBe(false);
 		expect(useUIStore.getState().webResourceBrowserOpen).toBe(false);
+	});
+});
+
+describe("#229 dialogs", () => {
+	const render = (ui: React.ReactElement) =>
+		act(() => root.render(<FluentProvider theme={webLightTheme}>{ui}</FluentProvider>));
+
+	it("a field marked data-autofocus takes focus from the close button", async () => {
+		render(
+			<AppDialog open onOpenChange={() => {}} title="New group">
+				<Input aria-label="Label" data-autofocus />
+			</AppDialog>,
+		);
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
+		expect(document.activeElement?.getAttribute("aria-label")).toBe("Label");
+	});
+
+	it("the draft offer starts on Restore, not on Discard", async () => {
+		useDraftStore.setState({
+			pending: { savedAt: "2026-11-01T00:00:00Z" } as never,
+			restoreError: null,
+		});
+		render(<DraftRestoreDialog />);
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
+		expect(document.activeElement?.textContent).toBe("Restore changes");
+		act(() => useDraftStore.setState({ pending: null }));
+	});
+
+	it("an icon's name may wrap between its words", () => {
+		render(
+			<span data-testid="name">
+				<WordBreaks text="ClipboardPaste" />
+			</span>,
+		);
+		const name = container.querySelector('[data-testid="name"]')!;
+		expect(name.textContent).toBe("ClipboardPaste");
+		expect(name.querySelectorAll("wbr")).toHaveLength(1);
+	});
+});
+
+describe("#229 bottom panel while loading", () => {
+	const render = (ui: React.ReactElement) =>
+		act(() => root.render(<FluentProvider theme={webLightTheme}>{ui}</FluentProvider>));
+
+	it("says the grids fill in once loaded, not that there's nothing", () => {
+		useUIStore.setState({ bottomCollapsed: false, bottomPanelHeight: 400 });
+		useDraftStore.setState({ target: null });
+		render(<BottomPanel />);
+		expect(container.textContent).toContain("Shown once the table's ribbon is loaded.");
+		expect(container.textContent).not.toContain("No commands.");
+
+		act(() => useDraftStore.setState({ target: draftKeyFor("account") }));
+		expect(container.textContent).toContain("No commands.");
+		act(() => useDraftStore.setState({ target: null }));
 	});
 });

@@ -64,7 +64,7 @@ export const RenameGroupDialog: React.FC<RenameGroupDialogProps> = ({
 							submit();
 						}
 					}}
-					autoFocus
+					data-autofocus
 				/>
 			</Field>
 		</AppDialog>

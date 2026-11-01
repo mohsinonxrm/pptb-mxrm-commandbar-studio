@@ -93,6 +93,9 @@ const useStyles = makeStyles({
 		display: "grid",
 		gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
 		gap: tokens.spacingHorizontalM,
+		// Each field keeps its own height: stretched to the tooltip body's,
+		// the inputs grew and sat lower than it (#229).
+		alignItems: "start",
 	},
 });
 

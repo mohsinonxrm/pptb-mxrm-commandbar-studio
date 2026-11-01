@@ -5,7 +5,7 @@ import {
 	PanelRightExpandRegular,
 	TextBulletListTreeRegular,
 } from "@fluentui/react-icons";
-import { TopBar } from "./TopBar";
+import { TOP_BAR_HEIGHT, TopBar } from "./TopBar";
 import { ShellMessages } from "./ShellMessages";
 import { useUIStore, type LeftPaneTab } from "@/store/uiStore";
 import { PropertiesHostContext } from "@/components/properties-pane/propertiesHost";
@@ -75,6 +75,12 @@ const useStyles = makeStyles({
 		width: "100%",
 		height: "100%",
 		overflow: "hidden",
+	},
+	// Properties opens below the top bar: over it, it hid Publish, Search and
+	// the tools while you edited (#229).
+	belowTopBar: {
+		top: `${TOP_BAR_HEIGHT}px`,
+		height: `calc(100vh - ${TOP_BAR_HEIGHT}px)`,
 	},
 });
 
@@ -294,6 +300,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 								position="end"
 								size="small"
 								modalType="non-modal"
+								className={styles.belowTopBar}
 								open={propsOpen}
 								onOpenChange={(_, d) =>
 									d.open ? setPropsOpen(true) : closeProps()
