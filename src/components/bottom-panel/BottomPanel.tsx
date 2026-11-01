@@ -94,7 +94,7 @@ const useStyles = makeStyles({
 	consoleTs: {
 		color: tokens.colorNeutralForeground4,
 		flexShrink: 0,
-		fontSize: tokens.fontSizeBase100,
+		fontSize: tokens.fontSizeBase200,
 	},
 });
 
@@ -233,7 +233,7 @@ export function BottomPanel() {
 						Commands
 						<CounterBadge
 							className={styles.tabCount}
-							size="small"
+							size="medium"
 							appearance="ghost"
 							color="informative"
 							count={commands.length}
@@ -245,7 +245,7 @@ export function BottomPanel() {
 						Display rules
 						<CounterBadge
 							className={styles.tabCount}
-							size="small"
+							size="medium"
 							appearance="ghost"
 							color="informative"
 							count={displayRules.length}
@@ -257,7 +257,7 @@ export function BottomPanel() {
 						Enable rules
 						<CounterBadge
 							className={styles.tabCount}
-							size="small"
+							size="medium"
 							appearance="ghost"
 							color="informative"
 							count={enableRules.length}
@@ -269,7 +269,7 @@ export function BottomPanel() {
 						History
 						<CounterBadge
 							className={styles.tabCount}
-							size="small"
+							size="medium"
 							appearance="ghost"
 							color="informative"
 							count={history.length}
@@ -312,7 +312,7 @@ export function BottomPanel() {
 								/>
 								{commandsFilter && (
 									<Text
-										size={100}
+										size={200}
 										style={{ color: tokens.colorNeutralForeground3 }}
 									>
 										{filteredCommands.length} match
@@ -353,7 +353,7 @@ export function BottomPanel() {
 								/>
 								{displayRulesFilter && (
 									<Text
-										size={100}
+										size={200}
 										style={{ color: tokens.colorNeutralForeground3 }}
 									>
 										{filteredDisplayRules.length} match
@@ -398,7 +398,7 @@ export function BottomPanel() {
 								/>
 								{enableRulesFilter && (
 									<Text
-										size={100}
+										size={200}
 										style={{ color: tokens.colorNeutralForeground3 }}
 									>
 										{filteredEnableRules.length} match
@@ -436,7 +436,7 @@ export function BottomPanel() {
 									/>
 									{historyFilter && (
 										<Text
-											size={100}
+											size={200}
 											style={{ color: tokens.colorNeutralForeground3 }}
 										>
 											{filteredHistory.length} match
@@ -485,7 +485,7 @@ export function BottomPanel() {
 														</Text>
 														{entry.detail && (
 															<Text
-																size={100}
+																size={200}
 																style={{
 																	color: tokens.colorNeutralForeground3,
 																}}
@@ -503,7 +503,7 @@ export function BottomPanel() {
 														}}
 													>
 														<Text
-															size={100}
+															size={200}
 															style={{
 																color: tokens.colorNeutralForeground3,
 															}}

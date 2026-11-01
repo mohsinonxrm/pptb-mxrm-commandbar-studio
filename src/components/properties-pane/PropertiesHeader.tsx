@@ -123,7 +123,7 @@ export function PropertiesHeader({ button }: { button?: RibbonButton }) {
 				</Tooltip>
 				<div className={styles.badges}>
 					<Badge
-						size="small"
+						size="medium"
 						appearance="tint"
 						color={owner.color}
 						className={styles.badge}
@@ -131,7 +131,7 @@ export function PropertiesHeader({ button }: { button?: RibbonButton }) {
 						<span className={styles.badgeText}>{owner.text}</span>
 					</Badge>
 					<Badge
-						size="small"
+						size="medium"
 						appearance="outline"
 						color="informative"
 						className={styles.badge}

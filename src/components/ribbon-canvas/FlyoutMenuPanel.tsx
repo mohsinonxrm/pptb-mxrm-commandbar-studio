@@ -225,7 +225,7 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 						{item.custom && !loadedIds.has(item.id) && (
 							<Badge
 								style={{ flexShrink: 0 }}
-								size="small"
+								size="medium"
 								color="brand"
 								appearance="tint"
 							>
@@ -258,7 +258,7 @@ export function FlyoutMenuPanel({ tab, location }: FlyoutMenuPanelProps) {
 				<Text weight="semibold" size={300}>
 					{label(root)}
 				</Text>
-				<Badge style={{ flexShrink: 0 }} size="small" appearance="outline">
+				<Badge style={{ flexShrink: 0 }} size="medium" appearance="outline">
 					{root.kind === "splitButton" ? "Split button menu" : "Flyout menu"}
 				</Badge>
 				<span className={styles.spacer} />

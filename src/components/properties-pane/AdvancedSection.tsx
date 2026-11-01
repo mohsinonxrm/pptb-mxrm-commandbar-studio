@@ -26,7 +26,7 @@ const useStyles = makeStyles({
 		gap: tokens.spacingHorizontalS,
 	},
 	note: {
-		fontSize: tokens.fontSizeBase100,
+		fontSize: tokens.fontSizeBase200,
 		color: tokens.colorNeutralForeground3,
 	},
 });
@@ -103,20 +103,20 @@ export const AdvancedSection: React.FC = () => {
 						onChange={(_, d) => handleOpenRecordToggle(d.checked)}
 					/>
 					{openRecordTheirs && (
-						<Text size={100} className={styles.note}>
+						<Text size={200} className={styles.note}>
 							The &quot;Open record&quot; button here comes from another solution, so
 							the override can&apos;t be turned off from your customizations.
 						</Text>
 					)}
 					{openRecordUnknown && (
-						<Text size={100} className={styles.note}>
+						<Text size={200} className={styles.note}>
 							CBS doesn&apos;t know yet which solution the &quot;Open record&quot;
 							button here comes from (its solution layers haven&apos;t loaded), so it
 							isn&apos;t removed — reload the table if this doesn&apos;t clear.
 						</Text>
 					)}
 					{otherOpenRecordUsers.length > 0 && (
-						<Text size={100} className={styles.note}>
+						<Text size={200} className={styles.note}>
 							Also using Mscrm.OpenRecordItem here:{" "}
 							{otherOpenRecordUsers.map((c) => c.button.id).join(", ")}. Turning the
 							override off keeps {otherOpenRecordUsers.length === 1 ? "it" : "them"}{" "}
@@ -124,7 +124,7 @@ export const AdvancedSection: React.FC = () => {
 						</Text>
 					)}
 					{openRecordNoGroup && (
-						<Text size={100} className={styles.note}>
+						<Text size={200} className={styles.note}>
 							This location has no group to put the button in.
 						</Text>
 					)}

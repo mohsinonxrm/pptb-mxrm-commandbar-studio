@@ -31,7 +31,7 @@ const useStyles = makeStyles({
 		alignSelf: "flex-start",
 	},
 	note: {
-		fontSize: tokens.fontSizeBase100,
+		fontSize: tokens.fontSizeBase200,
 		color: tokens.colorNeutralForeground3,
 		fontStyle: "italic",
 	},

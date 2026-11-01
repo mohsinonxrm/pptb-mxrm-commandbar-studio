@@ -929,7 +929,7 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 			<div className={styles.header}>
 				<div className={styles.title}>
 					{number !== undefined && <Text weight="semibold">{number}.</Text>}
-					<Badge appearance="outline" size="small" className={styles.kindBadge}>
+					<Badge appearance="outline" size="medium" className={styles.kindBadge}>
 						{kindLabel}
 					</Badge>
 				</div>

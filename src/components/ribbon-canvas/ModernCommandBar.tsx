@@ -328,7 +328,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									{isReadOnlyKind(button) && (
 										<Badge
 											style={{ flexShrink: 0 }}
-											size="small"
+											size="medium"
 											appearance="outline"
 											color="informative"
 										>
@@ -343,7 +343,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									{button.custom && (
 										<Badge
 											style={{ flexShrink: 0 }}
-											size="small"
+											size="medium"
 											color="brand"
 											appearance="tint"
 											aria-label="Custom"

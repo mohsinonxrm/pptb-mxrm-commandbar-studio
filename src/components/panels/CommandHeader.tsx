@@ -99,7 +99,7 @@ export function CommandHeader({ commandId }: { commandId: string }) {
 						<Badge
 							appearance="tint"
 							color={badge.color}
-							size="small"
+							size="medium"
 							className={styles.badge}
 						>
 							{badge.text}

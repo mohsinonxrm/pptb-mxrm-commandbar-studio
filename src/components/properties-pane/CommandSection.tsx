@@ -111,7 +111,7 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 
 					{command.enableRules.length > 0 && (
 						<div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-							<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+							<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
 								Enable rules:
 							</Text>
 							{command.enableRules.map((r) => (
@@ -129,7 +129,7 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 
 					{command.displayRules.length > 0 && (
 						<div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-							<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+							<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
 								Display rules:
 							</Text>
 							{command.displayRules.map((r) => (

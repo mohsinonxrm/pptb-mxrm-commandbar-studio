@@ -275,7 +275,7 @@ export function SolutionElementsPane() {
 				<TreeItemLayout
 					aside={
 						<CounterBadge
-							size="small"
+							size="medium"
 							appearance="ghost"
 							color="informative"
 							count={items.length}
@@ -348,11 +348,11 @@ export function SolutionElementsPane() {
 			key,
 			buttonText(row.button),
 			<span className={styles.meta}>
-				<Badge size="small" appearance="outline">
+				<Badge size="medium" appearance="outline">
 					{LOCATION_INFO[row.location].label}
 				</Badge>
 				{row.isNew && (
-					<Badge size="small" color="brand" appearance="tint">
+					<Badge size="medium" color="brand" appearance="tint">
 						New
 					</Badge>
 				)}
@@ -454,7 +454,7 @@ export function SolutionElementsPane() {
 							leaf(
 								`command:${c.id}`,
 								distinguishingSegment(c.id),
-								<Text size={100} className={styles.muted}>
+								<Text size={200} className={styles.muted}>
 									{used(usage.byCommand.get(c.id))}
 								</Text>,
 								c.id,
@@ -471,7 +471,7 @@ export function SolutionElementsPane() {
 								`rule:${r.kind}:${r.id}`,
 								distinguishingSegment(r.id),
 								<span className={styles.meta}>
-									<Text size={100} className={styles.muted}>
+									<Text size={200} className={styles.muted}>
 										{used(
 											(r.kind === "enable"
 												? usage.byEnable
@@ -480,7 +480,7 @@ export function SolutionElementsPane() {
 										)}
 									</Text>
 									<Badge
-										size="small"
+										size="medium"
 										appearance="tint"
 										color={r.kind === "enable" ? "success" : "informative"}
 									>

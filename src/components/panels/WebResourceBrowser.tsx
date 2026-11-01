@@ -106,7 +106,7 @@ const useStyles = makeStyles({
 		whiteSpace: "nowrap",
 	},
 	descCell: {
-		fontSize: tokens.fontSizeBase100,
+		fontSize: tokens.fontSizeBase200,
 		color: tokens.colorNeutralForeground3,
 		overflow: "hidden",
 		textOverflow: "ellipsis",
@@ -185,7 +185,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 		createTableColumn<WebResource>({
 			columnId: "type",
 			renderHeaderCell: () => (
-				<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+				<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
 					Type
 				</Text>
 			),
@@ -202,7 +202,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 		createTableColumn<WebResource>({
 			columnId: "name",
 			renderHeaderCell: () => (
-				<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+				<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
 					Name
 				</Text>
 			),
@@ -225,13 +225,13 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 		createTableColumn<WebResource>({
 			columnId: "modified",
 			renderHeaderCell: () => (
-				<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+				<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
 					Modified
 				</Text>
 			),
 			renderCell: (wr) => (
 				<div className={styles.col5}>
-					<Text size={100}>
+					<Text size={200}>
 						{wr.modifiedOn ? new Date(wr.modifiedOn).toLocaleDateString() : "—"}
 					</Text>
 				</div>

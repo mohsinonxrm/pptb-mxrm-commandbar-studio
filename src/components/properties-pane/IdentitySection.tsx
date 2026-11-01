@@ -68,6 +68,7 @@ const useStyles = makeStyles({
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
 		flexShrink: 0,
 	},
+	keyHint: { overflowWrap: "anywhere" },
 	lockedNote: {
 		display: "flex",
 		alignItems: "center",
@@ -134,6 +135,26 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 	// Microsoft's or a managed solution's button is changed through Customise or
 	// Create override (the notice above), not by editing its fields (#184).
 	const locked = button.origin !== "unmanaged";
+	// A locked button's texts as the canvas shows them, not their resource keys
+	// (#229, #6); the key is the field's hint.
+	const shown = {
+		label: captionOf(button.label, locLabels, undefined, button.source?.labelToken),
+		tooltipTitle: captionOf(
+			button.tooltipTitle,
+			locLabels,
+			undefined,
+			button.source?.tooltipTitleToken,
+		),
+		tooltipBody: captionOf(
+			button.tooltipBody,
+			locLabels,
+			undefined,
+			button.source?.tooltipBodyToken,
+		),
+	};
+	// A key has no spaces to wrap at: it breaks anywhere rather than run past the pane.
+	const keyHint = (raw: string | undefined, text: string) =>
+		raw && raw !== text ? { children: `From ${raw}`, className: styles.keyHint } : undefined;
 
 	// Languages of the labels this button's text and tooltips use (exact ids:
 	// a prefix match showed `Foo.Button2`'s translations on `Foo.Button`, #22).
@@ -221,10 +242,11 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 					to edit these fields.
 				</Text>
 			)}
-			<Field label="Label">
+			<Field label="Label" hint={locked ? keyHint(button.label, shown.label) : undefined}>
 				<Input
-					value={button.label}
+					value={locked ? shown.label : button.label}
 					readOnly={locked}
+					appearance={locked ? "filled-darker" : undefined}
 					onChange={(_, d) => patch({ label: d.value })}
 				/>
 			</Field>
@@ -257,18 +279,26 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 				</div>
 			</Field>
 
-			<Field label="Tooltip title">
+			<Field
+				label="Tooltip title"
+				hint={locked ? keyHint(button.tooltipTitle, shown.tooltipTitle) : undefined}
+			>
 				<Input
-					value={button.tooltipTitle ?? ""}
+					value={locked ? shown.tooltipTitle : (button.tooltipTitle ?? "")}
 					readOnly={locked}
+					appearance={locked ? "filled-darker" : undefined}
 					onChange={(_, d) => patch({ tooltipTitle: d.value })}
 				/>
 			</Field>
 
-			<Field label="Tooltip body">
+			<Field
+				label="Tooltip body"
+				hint={locked ? keyHint(button.tooltipBody, shown.tooltipBody) : undefined}
+			>
 				<Textarea
-					value={button.tooltipBody ?? ""}
+					value={locked ? shown.tooltipBody : (button.tooltipBody ?? "")}
 					readOnly={locked}
+					appearance={locked ? "filled-darker" : undefined}
 					onChange={(_, d) => patch({ tooltipBody: d.value })}
 					resize="vertical"
 				/>

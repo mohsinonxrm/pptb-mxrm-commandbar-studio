@@ -20,6 +20,7 @@ import { RenameGroupDialog } from "@/components/modals/RenameGroupDialog";
 import { ChangeGroupTemplateDialog } from "@/components/modals/ChangeGroupTemplateDialog";
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
 import { useDisplayText } from "@/hooks/useDisplayText";
+import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { canMoveGroup, ownContainerIds, scopeLayer, useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
 import {
@@ -234,7 +235,9 @@ export function GroupContextMenu({
 			{renaming && (
 				<RenameGroupDialog
 					open
-					initialLabel={groupText(renaming)}
+					// The title itself, not the display text (a caption made from a key,
+					// placeholders as words), which an edit would write back (#229 review).
+					initialLabel={resolveDisplayLabel(renaming.label, locLabels, lang)}
 					onRename={(label) => {
 						// The store action keeps a rename one undo step and publishes it (#66).
 						renameGroup(location, tab.id, renaming.id, label);

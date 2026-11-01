@@ -375,6 +375,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   menu, as in Unified Interface, and the selected command is always in view. Choosing a command
   selects it on the cards, in the tree and in Properties. It's marked **Preview: rules not applied**:
   display and enable rules are evaluated by Simulate mode (#191).
+- **Visual pass, part 1 (#229).** From screenshots of CBS in PPTB Desktop at 1024 and 1920 px:
+  - **Properties of a button that isn't yours** shows its Label and tooltips as the canvas does
+    ("Save And New", not `Ribbon.Form.MainTab.Save.SaveAndNew`), in fields that look read-only; the
+    key they come from is the field's hint.
+  - **Placeholders and resource keys read as words:** the application ribbon's
+    `{!EntityPluralDisplayName}` tabs show "‹table name, plural›", and keys such as
+    `WebResource_Tab_Caption` or `Mscrm_…_ToolTipTitle` show "Web Resource" or the button's name.
+  - **No content text below Caption 1 (12 px):** small text, badges and counters are a size up across
+    Edit mode, the panes, the bottom panel and the dialogs (the Classic canvas's tiles excepted).
+  - **The bottom panel's grids no longer scroll sideways** because of their own vertical scrollbar.
 - **The bottom panel's Commands and rules are grids (#185).** Hundreds of rows stay quick
   (virtualized), the header stays put while the rows scroll, and nothing scrolls sideways: ids are
   cut to their column with the whole id in a tooltip.

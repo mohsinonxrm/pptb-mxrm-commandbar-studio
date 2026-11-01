@@ -423,7 +423,7 @@ export const CommandPalette: React.FC = () => {
 										<Badge
 											className={styles.kind}
 											appearance="tint"
-											size="small"
+											size="medium"
 											color={item.kind === "action" ? "brand" : "informative"}
 										>
 											{KIND_LABEL[item.kind]}

@@ -310,7 +310,7 @@ export function RibbonListView({ tab, location }: { tab: RibbonTab; location: Ri
 					onChange={(_, d) => setFilter(d.value)}
 				/>
 				{q && (
-					<Text size={100} className={styles.muted}>
+					<Text size={200} className={styles.muted}>
 						{rows.length} match{rows.length !== 1 ? "es" : ""}
 					</Text>
 				)}

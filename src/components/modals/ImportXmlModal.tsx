@@ -317,7 +317,7 @@ export const ImportXmlModal: React.FC = () => {
 								<li key={i} className={styles.row}>
 									<Badge
 										className={styles.rowBadge}
-										size="small"
+										size="medium"
 										appearance="tint"
 										color={p.severity === "error" ? "danger" : "warning"}
 									>
@@ -362,7 +362,7 @@ export const ImportXmlModal: React.FC = () => {
 										{kind && (
 											<Badge
 												className={styles.rowBadge}
-												size="small"
+												size="medium"
 												appearance="tint"
 												color={CHANGE_COLOR[kind]}
 											>
