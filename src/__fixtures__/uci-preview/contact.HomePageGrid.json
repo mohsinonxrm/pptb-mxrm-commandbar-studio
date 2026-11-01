@@ -1,0 +1,307 @@
+{
+	"source": {
+		"org": "CRM279420 (org382cc706), Dataverse 9.2.26092.168",
+		"app": "Sales Hub (msdynce_saleshub)",
+		"recorded": "2026-10-29",
+		"page": "contact main grid, view My Active Contacts, ribbondebug=true",
+		"notes": "Items are in rendered order. 'id' is the ribbon control id (data-id suffix) or the system item's data-id. A '|split' or '|flyout' suffix gives the rendered kind (no suffix: plain button). Selection is the number of checked grid rows. Widths are emulated viewport widths in CSS px."
+	},
+	"entity": "contact",
+	"location": "HomePageGrid",
+	"labels": {
+		"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1": "Focused view",
+		"ShowChartPane": "Show Chart",
+		"Mscrm.HomepageGrid.contact.NewRecord": "New",
+		"Mscrm.HomepageGrid.contact.DeleteMenu": "Delete",
+		"Mscrm.HomepageGrid.contact.RefreshModernButton": "Refresh",
+		"Mscrm.HomepageGrid.contact.MainTab.QuickPowerBI.Button": "Visualize this view",
+		"Mscrm.HomepageGrid.contact.Send": "Email a Link",
+		"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar": "Run Flow",
+		"Mscrm.HomepageGrid.contact.RunReport": "Run Report",
+		"Mscrm.HomepageGrid.contact.DocumentTemplate": "Excel Templates",
+		"Mscrm.HomepageGrid.contact.ExportToExcel": "Export to Excel",
+		"Mscrm.HomepageGrid.contact.ImportDataFromExcel": "Import from Excel",
+		"Mscrm.HomepageGrid.contact.QuickCampaign": "Quick Campaign",
+		"OpenEntityDashboard": "Open Dashboards",
+		"CommandChecker": "Command checker",
+		"Mscrm.HomepageGrid.contact.Edit": "Edit",
+		"Mscrm.HomepageGrid.contact.Activate": "Activate",
+		"Mscrm.HomepageGrid.contact.Deactivate": "Deactivate",
+		"Mscrm.HomepageGrid.contact.MergeRecords": "Merge",
+		"msdyn.HomepageGrid.contact.SequencesMulti.Button": "Sequences",
+		"Mscrm.HomepageGrid.contact.ViewOrgChart": "Open org chart",
+		"Mscrm.HomepageGrid.contact.AddToList": "Add to Marketing List",
+		"Mscrm.HomepageGrid.contact.Assign": "Assign",
+		"Mscrm.HomepageGrid.contact.Sharing": "Share",
+		"Mscrm.HomepageGrid.contact.FollowButton": "Follow",
+		"Mscrm.HomepageGrid.contact.NewUnfollowButton": "Unfollow",
+		"Mscrm.HomepageGrid.contact.WordTemplate": "Word Templates",
+		"Mscrm.HomepageGrid.contact.ExportSelectedToExcel": "Export to Excel"
+	},
+	"states": {
+		"w1920.sel0": {
+			"selected": 0,
+			"visible": [
+				"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1",
+				"ShowChartPane",
+				"Mscrm.HomepageGrid.contact.NewRecord",
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.RefreshModernButton",
+				"Mscrm.HomepageGrid.contact.MainTab.QuickPowerBI.Button",
+				"Mscrm.HomepageGrid.contact.Send|split",
+				"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.HomepageGrid.contact.RunReport|flyout",
+				"Mscrm.HomepageGrid.contact.DocumentTemplate|flyout",
+				"Mscrm.HomepageGrid.contact.ExportToExcel|split"
+			],
+			"overflow": [
+				"Mscrm.HomepageGrid.contact.ImportDataFromExcel|split",
+				"Mscrm.HomepageGrid.contact.QuickCampaign|flyout",
+				"OpenEntityDashboard",
+				"CommandChecker"
+			]
+		},
+		"w1920.sel1": {
+			"selected": 1,
+			"visible": [
+				"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1",
+				"ShowChartPane",
+				"Mscrm.HomepageGrid.contact.Edit",
+				"Mscrm.HomepageGrid.contact.Activate",
+				"Mscrm.HomepageGrid.contact.Deactivate",
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.MergeRecords",
+				"msdyn.HomepageGrid.contact.SequencesMulti.Button|split",
+				"Mscrm.HomepageGrid.contact.ViewOrgChart",
+				"Mscrm.HomepageGrid.contact.AddToList",
+				"Mscrm.HomepageGrid.contact.Assign",
+				"Mscrm.HomepageGrid.contact.Sharing"
+			],
+			"overflow": [
+				"Mscrm.HomepageGrid.contact.Send",
+				"Mscrm.HomepageGrid.contact.FollowButton",
+				"Mscrm.HomepageGrid.contact.NewUnfollowButton",
+				"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.HomepageGrid.contact.RunReport|flyout",
+				"Mscrm.HomepageGrid.contact.WordTemplate|flyout",
+				"Mscrm.HomepageGrid.contact.ExportSelectedToExcel",
+				"Mscrm.HomepageGrid.contact.QuickCampaign|flyout",
+				"OpenEntityDashboard",
+				"CommandChecker"
+			]
+		},
+		"w1920.sel2": {
+			"selected": 2,
+			"visible": [
+				"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1",
+				"ShowChartPane",
+				"Mscrm.HomepageGrid.contact.Edit",
+				"Mscrm.HomepageGrid.contact.Activate",
+				"Mscrm.HomepageGrid.contact.Deactivate",
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.MergeRecords",
+				"msdyn.HomepageGrid.contact.SequencesMulti.Button|split",
+				"Mscrm.HomepageGrid.contact.AddToList",
+				"Mscrm.HomepageGrid.contact.Assign",
+				"Mscrm.HomepageGrid.contact.Sharing",
+				"Mscrm.HomepageGrid.contact.Send"
+			],
+			"overflow": [
+				"Mscrm.HomepageGrid.contact.FollowButton",
+				"Mscrm.HomepageGrid.contact.NewUnfollowButton",
+				"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.HomepageGrid.contact.RunReport|flyout",
+				"Mscrm.HomepageGrid.contact.ExportSelectedToExcel",
+				"Mscrm.HomepageGrid.contact.QuickCampaign|flyout",
+				"OpenEntityDashboard",
+				"CommandChecker"
+			]
+		},
+		"w1280.sel0": {
+			"selected": 0,
+			"visible": [
+				"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1",
+				"ShowChartPane",
+				"Mscrm.HomepageGrid.contact.NewRecord",
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.RefreshModernButton",
+				"Mscrm.HomepageGrid.contact.MainTab.QuickPowerBI.Button"
+			],
+			"overflow": [
+				"Mscrm.HomepageGrid.contact.Send|split",
+				"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.HomepageGrid.contact.RunReport|flyout",
+				"Mscrm.HomepageGrid.contact.DocumentTemplate|flyout",
+				"Mscrm.HomepageGrid.contact.ExportToExcel|split",
+				"Mscrm.HomepageGrid.contact.ImportDataFromExcel|split",
+				"Mscrm.HomepageGrid.contact.QuickCampaign|flyout",
+				"OpenEntityDashboard",
+				"CommandChecker"
+			]
+		},
+		"w1280.sel1": {
+			"selected": 1,
+			"visible": [
+				"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1",
+				"ShowChartPane",
+				"Mscrm.HomepageGrid.contact.Edit",
+				"Mscrm.HomepageGrid.contact.Activate",
+				"Mscrm.HomepageGrid.contact.Deactivate",
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.MergeRecords"
+			],
+			"overflow": [
+				"msdyn.HomepageGrid.contact.SequencesMulti.Button|split",
+				"Mscrm.HomepageGrid.contact.ViewOrgChart",
+				"Mscrm.HomepageGrid.contact.AddToList",
+				"Mscrm.HomepageGrid.contact.Assign",
+				"Mscrm.HomepageGrid.contact.Sharing",
+				"Mscrm.HomepageGrid.contact.Send",
+				"Mscrm.HomepageGrid.contact.FollowButton",
+				"Mscrm.HomepageGrid.contact.NewUnfollowButton",
+				"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.HomepageGrid.contact.RunReport|flyout",
+				"Mscrm.HomepageGrid.contact.WordTemplate|flyout",
+				"Mscrm.HomepageGrid.contact.ExportSelectedToExcel",
+				"Mscrm.HomepageGrid.contact.QuickCampaign|flyout",
+				"OpenEntityDashboard",
+				"CommandChecker"
+			]
+		},
+		"w1280.sel2": {
+			"selected": 2,
+			"visible": [
+				"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1",
+				"ShowChartPane",
+				"Mscrm.HomepageGrid.contact.Edit",
+				"Mscrm.HomepageGrid.contact.Activate",
+				"Mscrm.HomepageGrid.contact.Deactivate",
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.MergeRecords"
+			],
+			"overflow": [
+				"msdyn.HomepageGrid.contact.SequencesMulti.Button|split",
+				"Mscrm.HomepageGrid.contact.AddToList",
+				"Mscrm.HomepageGrid.contact.Assign",
+				"Mscrm.HomepageGrid.contact.Sharing",
+				"Mscrm.HomepageGrid.contact.Send",
+				"Mscrm.HomepageGrid.contact.FollowButton",
+				"Mscrm.HomepageGrid.contact.NewUnfollowButton",
+				"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.HomepageGrid.contact.RunReport|flyout",
+				"Mscrm.HomepageGrid.contact.ExportSelectedToExcel",
+				"Mscrm.HomepageGrid.contact.QuickCampaign|flyout",
+				"OpenEntityDashboard",
+				"CommandChecker"
+			]
+		},
+		"w820.sel0": {
+			"selected": 0,
+			"visible": [
+				"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1",
+				"ShowChartPane",
+				"Mscrm.HomepageGrid.contact.NewRecord"
+			],
+			"overflow": [
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.RefreshModernButton",
+				"Mscrm.HomepageGrid.contact.MainTab.QuickPowerBI.Button",
+				"Mscrm.HomepageGrid.contact.Send|split",
+				"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.HomepageGrid.contact.RunReport|flyout",
+				"Mscrm.HomepageGrid.contact.DocumentTemplate|flyout",
+				"Mscrm.HomepageGrid.contact.ExportToExcel|split",
+				"Mscrm.HomepageGrid.contact.ImportDataFromExcel|split",
+				"Mscrm.HomepageGrid.contact.QuickCampaign|flyout",
+				"OpenEntityDashboard",
+				"CommandChecker"
+			]
+		},
+		"w820.sel1": {
+			"selected": 1,
+			"visible": [
+				"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1",
+				"ShowChartPane",
+				"Mscrm.HomepageGrid.contact.Edit"
+			],
+			"overflow": [
+				"Mscrm.HomepageGrid.contact.Activate",
+				"Mscrm.HomepageGrid.contact.Deactivate",
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.MergeRecords",
+				"msdyn.HomepageGrid.contact.SequencesMulti.Button|split",
+				"Mscrm.HomepageGrid.contact.ViewOrgChart",
+				"Mscrm.HomepageGrid.contact.AddToList",
+				"Mscrm.HomepageGrid.contact.Assign",
+				"Mscrm.HomepageGrid.contact.Sharing",
+				"Mscrm.HomepageGrid.contact.Send",
+				"Mscrm.HomepageGrid.contact.FollowButton",
+				"Mscrm.HomepageGrid.contact.NewUnfollowButton",
+				"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.HomepageGrid.contact.RunReport|flyout",
+				"Mscrm.HomepageGrid.contact.WordTemplate|flyout",
+				"Mscrm.HomepageGrid.contact.ExportSelectedToExcel",
+				"Mscrm.HomepageGrid.contact.QuickCampaign|flyout",
+				"OpenEntityDashboard",
+				"CommandChecker"
+			]
+		},
+		"w820.sel2": {
+			"selected": 2,
+			"visible": [
+				"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1",
+				"ShowChartPane",
+				"Mscrm.HomepageGrid.contact.Edit"
+			],
+			"overflow": [
+				"Mscrm.HomepageGrid.contact.Activate",
+				"Mscrm.HomepageGrid.contact.Deactivate",
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.MergeRecords",
+				"msdyn.HomepageGrid.contact.SequencesMulti.Button|split",
+				"Mscrm.HomepageGrid.contact.AddToList",
+				"Mscrm.HomepageGrid.contact.Assign",
+				"Mscrm.HomepageGrid.contact.Sharing",
+				"Mscrm.HomepageGrid.contact.Send",
+				"Mscrm.HomepageGrid.contact.FollowButton",
+				"Mscrm.HomepageGrid.contact.NewUnfollowButton",
+				"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.HomepageGrid.contact.RunReport|flyout",
+				"Mscrm.HomepageGrid.contact.ExportSelectedToExcel",
+				"Mscrm.HomepageGrid.contact.QuickCampaign|flyout",
+				"OpenEntityDashboard",
+				"CommandChecker"
+			]
+		}
+	},
+	"ribbon": {
+		"columns": ["id", "tab@tabSequence", "group@groupSequence", "controlSequence", "element", "displayRules", "enableRules"],
+		"notes": "From RetrieveEntityRibbon(contact) on the same org, for every ribbon id above. Within ExportData, ImportDataFromExcel (Sequence 21) follows ExportSelectedToExcel (230) in the returned XML, and Unified Interface renders it in that document position.",
+		"rows": [
+			["Mscrm.HomepageGrid.contact.NewRecord", "MainTab@100", "Management@10", 10, "Button", "Mscrm.CreateSelectedEntityPermission,Mscrm.ShowForNonRelationshipBoundGrids,Mscrm.HideNewForChildEntities,Mscrm.HideAddressEntities,Mscrm.NotOnMarketingList", "Mscrm.IsValidForHierarchyView,Mscrm.IsValidForHierarchyPageInUC,Mscrm.IsEntityAvailableForUserInMocaOffline,Mscrm.PrimaryIsNotActivityHomePageGrid"],
+			["Mscrm.HomepageGrid.contact.Edit", "MainTab@100", "Management@10", 20, "Button", "Mscrm.BulkEditPrivilege,Mscrm.WriteSelectedEntityPermission", "Mscrm.CheckBulkEditSupportForEntity,Mscrm.VisualizationPaneNotMaximized,Mscrm.IsValidForHierarchyView,Mscrm.ShowOnNonModernAndModernIfAllowed"],
+			["Mscrm.HomepageGrid.contact.Activate", "MainTab@100", "Management@10", 30, "Button", "Mscrm.CanWriteSelected,Mscrm.SelectedEntityHasStatecode", "Mscrm.VisualizationPaneNotMaximized,Mscrm.SelectionCountAtLeastOne"],
+			["Mscrm.HomepageGrid.contact.Deactivate", "MainTab@100", "Management@10", 40, "Button", "Mscrm.CanWriteSelected,Mscrm.SelectedEntityHasStatecode", "Mscrm.VisualizationPaneNotMaximized,Mscrm.SelectionCountAtLeastOne"],
+			["Mscrm.HomepageGrid.contact.DeleteMenu", "MainTab@100", "Management@10", 50, "SplitButton", "Mscrm.DeleteSplitButtonDisplayRule", "Mscrm.DeleteSplitButtonEnableRule,Mscrm.AnySelection,Mscrm.IsEntityAvailableForUserInMocaOffline"],
+			["Mscrm.HomepageGrid.contact.MergeRecords", "MainTab@100", "Management@10", 59, "Button", "ClientUtility.ClientUtil.ValidateSettingsForModernDevice,Mscrm.HomepageGrid.contact.MergeGroup,Mscrm.CanWriteContact", "Mscrm.NotOffline,Mscrm.SelectionCountOneOrTwo,Mscrm.VisualizationPaneNotMaximized"],
+			["Mscrm.HomepageGrid.contact.RefreshModernButton", "MainTab@100", "ModernClient@11", 17, "Button", "Mscrm.ShowOnlyOnModern,Mscrm.HideInOfflineClassic", "Mscrm.IsEntityAvailableForUserInMocaOffline,Mscrm.FormStateNotNew"],
+			["msdyn.HomepageGrid.contact.SequencesMulti.Button", "MainTab@100", "Actions@20", 10, "SplitButton", "Mscrm.IsSalesAccFeatureEnabled,Mscrm.ShowOnlyOnModern,Mscrm.HideOnOutlookClient,Mscrm.DoesUserHaveSequencePrivileges,Mscrm.IsMultiSequenceFFOn", "Mscrm.NotOffline,Mscrm.HideOnMobile,Mscrm.SelectionCountAtLeastOne,Mscrm.IsEntityForCadenceConnectOrDisconnect"],
+			["Mscrm.HomepageGrid.contact.ViewOrgChart", "MainTab@100", "Actions@20", 52, "Button", "Mscrm.ShowOnlyOnModern,Mscrm.NotOffline,Mscrm.IsOrgChartFeatureEnabled,Mscrm.CanReadAccount,Mscrm.CanReadContact", "Mscrm.SelectionCountExactlyOne,Mscrm.HideOnMobile,Mscrm.IsOrgChartEnabledForContact"],
+			["Mscrm.HomepageGrid.contact.MainTab.QuickPowerBI.Button", "MainTab@100", "Collaborate@30", 10, "Button", "Mscrm.NotOffline,Mscrm.HideOnPhone,Mscrm.ShowOnlyOnModern,Mscrm.PrimaryIsNotActivity", "Mscrm.EnablePowerBIQuickReport"],
+			["Mscrm.HomepageGrid.contact.AddToList", "MainTab@100", "Collaborate@30", 11, "Button", "Mscrm.AddSelectedToMarketingList", "Mscrm.NotOffline,Mscrm.SelectionCountAtLeastOne,Mscrm.VisualizationPaneNotMaximized,Mscrm.NotAListForm"],
+			["Mscrm.HomepageGrid.contact.Assign", "MainTab@100", "Collaborate@30", 40, "Button", "Mscrm.AssignSelectedEntityPermission", "Mscrm.SelectionCountAtLeastOne,Mscrm.VisualizationPaneNotMaximized,Mscrm.NotOffline,Mscrm.IsValidForHierarchyView,Mscrm.IsValidForHierarchyPageInUC"],
+			["Mscrm.HomepageGrid.contact.Sharing", "MainTab@100", "Collaborate@30", 50, "Button", "Mscrm.ShareSelectedEntityPermission,Mscrm.HybridDialogShareEnabled", "Mscrm.NotOffline,Mscrm.SelectionCountAtLeastOne,Mscrm.VisualizationPaneNotMaximized,Mscrm.ShareValid,Mscrm.IsValidForHierarchyView,Mscrm.ShowOnNonModernAndModernIfAllowed"],
+			["Mscrm.HomepageGrid.contact.Send", "MainTab@100", "Collaborate@30", 61, "SplitButton", "", "Mscrm.Enabled,Mscrm.IsValidForHierarchyView,Mscrm.IsValidForHierarchyPageInUC"],
+			["Mscrm.HomepageGrid.contact.FollowButton", "MainTab@100", "Collaborate@30", 1000, "Button", "msdyn.ActivityFeeds.ShowFollowButton", "Mscrm.SelectionCountAtLeastOne,Mscrm.NotOffline,msdyn.ActivityFeeds.IsEntityWallEnabledActive,msdyn.ActivityFeeds.Yammer.ShouldEnableFollow,Mscrm.IsValidForHierarchyView,msdyn.ActivityFeeds.IsMultiRecordFollowAllowed"],
+			["Mscrm.HomepageGrid.contact.NewUnfollowButton", "MainTab@100", "Collaborate@30", 1020, "Button", "msdyn.ActivityFeeds.ShowUnfollowButton,msdyn.ActivityFeeds.IsGreyStarEnabled", "Mscrm.SelectionCountAtLeastOne,Mscrm.NotOffline,msdyn.ActivityFeeds.IsEntityWallEnabledInActive,Mscrm.IsValidForHierarchyView,msdyn.ActivityFeeds.IsMultiRecordFollowAllowed"],
+			["Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar", "MainTab@100", "Workflow@40", 60, "FlyoutAnchor", "Mscrm.MicrosoftFlows,Mscrm.HideOnOutlookClient", "Mscrm.IsMicrosoftFlowIntegrationEnabled,Mscrm.DisplayFlowSingleMenu,Mscrm.AnySelection"],
+			["Mscrm.HomepageGrid.contact.RunReport", "MainTab@100", "ExportData@50", 30, "FlyoutAnchor", "Mscrm.ReadReport,Mscrm.HideForTabletExperience,Mscrm.HybridDialogReportsEnabled", "Mscrm.VisualizationPaneNotMaximized,Mscrm.IsValidForHierarchyView,Mscrm.ShowOnNonModernAndModernIfAllowed,Mscrm.AnySelection"],
+			["Mscrm.HomepageGrid.contact.DocumentTemplate", "MainTab@100", "ExportData@50", 35, "FlyoutAnchor", "Mscrm.DocumentGenerationPrivilege,Mscrm.TemplatesFCBEnabled,Mscrm.HideForTabletExperience", "Mscrm.VisualizationPaneNotMaximized,Mscrm.ExportToExcel.ValidForXlsxExport"],
+			["Mscrm.HomepageGrid.contact.WordTemplate", "MainTab@100", "ExportData@50", 36, "FlyoutAnchor", "Mscrm.DocumentGenerationPrivilege,Mscrm.WordTemplatesFCBEnabled,Mscrm.HideForTabletExperience", "Mscrm.IsFolderNotSelected,Mscrm.VisualizationPaneNotMaximized,Mscrm.SelectionCountExactlyOne"],
+			["Mscrm.HomepageGrid.contact.ExportToExcel", "MainTab@100", "ExportData@50", 40, "SplitButton", "Mscrm.ExportToExcelPrivilege,Mscrm.HideForTabletExperience", "Mscrm.ExportToExcel,Mscrm.VisualizationPaneNotMaximized,Mscrm.SelectionCountNoneOrOutlook"],
+			["Mscrm.HomepageGrid.contact.ExportSelectedToExcel", "MainTab@100", "ExportData@50", 230, "Button", "Mscrm.ExportToExcelPrivilege,Mscrm.HideForTabletExperience,Mscrm.ShowExportSelectedToExcel,Mscrm.HideOnOutlookClient", "Mscrm.ExportToExcel,Mscrm.VisualizationPaneNotMaximized,Mscrm.SelectionCountAtLeastOne"],
+			["Mscrm.HomepageGrid.contact.ImportDataFromExcel", "MainTab@100", "ExportData@50", 21, "SplitButton", "Mscrm.ImportData,Mscrm.NotOffline,Mscrm.ShowOnlyOnModern,Mscrm.SelectedEntityIsNotBPFEntity", "Mscrm.EnableImportForWeb"],
+			["Mscrm.HomepageGrid.contact.QuickCampaign", "Related@120", "Marketing@30", 40, "FlyoutAnchor", "Mscrm.QuickCampaignAllowed", "Mscrm.NotOffline"]
+		]
+	}
+}
