@@ -27,6 +27,8 @@ const resources: WebResource[] = [
 	{ id: "1", name: "new_/scripts/a.js", webResourceType: "js", isCustom: true },
 	{ id: "2", name: "new_/icons/b.svg", webResourceType: "svg", isCustom: true },
 ];
+const tone = vi.hoisted(() => ({ value: "dark" as "dark" | "light" }));
+vi.mock("@/utils/imageTone", () => ({ imageTone: async () => tone.value }));
 vi.mock("@/services/dataverse/webResourceService", async (original) => ({
 	...(await original<object>()),
 	loadWebResources: async () => resources,
@@ -169,16 +171,48 @@ describe("#229 dark theme", () => {
 		image32: "$webresource:msdyn_/Icons/Sequence.svg",
 	} as RibbonButton;
 
-	it("a ribbon image keeps its hue but reads light in the dark theme", async () => {
+	const settle = () =>
+		act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
+	afterEach(() => {
+		useUIStore.setState({ themeMode: "light" });
+		useSessionStore.setState({ connectionUrl: "" } as never);
+		tone.value = "dark";
+	});
+
+	it("a dark glyph reads light in the dark theme; in light, it's as drawn", async () => {
 		useSessionStore.setState({ connectionUrl: "https://org.crm.dynamics.com" } as never);
 		useUIStore.setState({ themeMode: "dark" });
 		render(<RibbonButtonIcon button={iconButton} size={16} />);
-		await act(async () => {
-			await new Promise((r) => setTimeout(r, 0));
-		});
+		await settle();
 		expect(container.querySelector("img")?.style.filter).toBe("invert(1) hue-rotate(180deg)");
 
 		act(() => useUIStore.setState({ themeMode: "light" }));
 		expect(container.querySelector("img")?.style.filter).toBe("");
+	});
+
+	it("a coloured image is left as drawn, and a caller's filter is kept", async () => {
+		useSessionStore.setState({ connectionUrl: "https://org.crm.dynamics.com/2" } as never);
+		useUIStore.setState({ themeMode: "dark" });
+		tone.value = "light";
+		render(<RibbonButtonIcon button={iconButton} size={16} />);
+		await settle();
+		expect(container.querySelector("img")?.style.filter).toBe("");
+
+		tone.value = "dark";
+		useSessionStore.setState({ connectionUrl: "https://org.crm.dynamics.com/3" } as never);
+		render(
+			<RibbonButtonIcon
+				button={iconButton}
+				size={16}
+				style={{ filter: "grayscale(40%) opacity(0.85)" }}
+			/>,
+		);
+		await settle();
+		await settle();
+		expect(container.querySelector("img")?.style.filter).toBe(
+			"invert(1) hue-rotate(180deg) grayscale(40%) opacity(0.85)",
+		);
 	});
 });

@@ -3,15 +3,15 @@ import FluentIcon from "@/components/shared/FluentIcon";
 import { loadWebResourceImage } from "@/services/dataverse/webResourceService";
 import { useSessionStore } from "@/store/sessionStore";
 import { useUIStore } from "@/store/uiStore";
+import { imageTone, type ImageTone } from "@/utils/imageTone";
 import type { RibbonButton } from "@/types/ribbon";
 
 const WEB_RESOURCE = "$webresource:";
 
 /**
- * Ribbon images are drawn for a light command bar (dark glyphs such as
- * `#323130`). In the dark theme they're shown with their lightness inverted
- * and their hue kept, so a dark glyph reads light and a blue one stays blue
- * (#229).
+ * Ribbon images are drawn for a light command bar. In the dark theme a dark
+ * glyph (`#323130`, a grey PNG) is shown with its lightness inverted, so it
+ * reads light; a coloured or light image is left as drawn (#229).
  */
 const DARK_IMAGE = "invert(1) hue-rotate(180deg)";
 
@@ -78,6 +78,7 @@ export function RibbonButtonIcon({
 		key: "",
 		src: null,
 	});
+	const [tone, setTone] = useState<{ src: string; tone: ImageTone } | null>(null);
 
 	useEffect(() => {
 		if (!key || !resource) return;
@@ -90,15 +91,33 @@ export function RibbonButtonIcon({
 		};
 	}, [key, resource]);
 
-	if (key && loaded.key === key && loaded.src) {
+	const src = key && loaded.key === key ? loaded.src : null;
+	useEffect(() => {
+		if (!dark || !src) return;
+		let current = true;
+		void imageTone(src).then((t) => {
+			if (current) setTone({ src, tone: t });
+		});
+		return () => {
+			current = false;
+		};
+	}, [dark, src]);
+
+	if (src) {
+		// Composed with the caller's filter (the Classic ribbon greys others' tiles), not replaced by it.
+		const invert = dark && tone?.src === src && tone.tone === "dark";
+		const filter =
+			[invert && DARK_IMAGE, style?.filter !== "none" && style?.filter]
+				.filter(Boolean)
+				.join(" ") || undefined;
 		return (
 			<img
-				src={loaded.src}
+				src={src}
 				width={size}
 				height={size}
 				alt=""
 				aria-hidden
-				style={{ objectFit: "contain", filter: dark ? DARK_IMAGE : undefined, ...style }}
+				style={{ objectFit: "contain", ...style, filter }}
 			/>
 		);
 	}

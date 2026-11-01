@@ -412,8 +412,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Visual pass, dark theme (#229):** every view, the panes and the dialogs captured with PPTB in
   dark.
   - **Button images read in the dark theme.** Ribbon images are drawn for a light command bar, so dark
-    glyphs (Sequences, Apply Routing Rule, AI Builder) nearly vanished. They're now shown with their
-    lightness inverted and their colours kept.
+    glyphs (Sequences, AI Builder) nearly vanished. An image whose visible pixels are dark is now
+    shown inverted, in every view including the Classic ribbon; coloured and light images (Power BI,
+    Launch playbook) are shown as drawn.
   - **The List view's Modern badge stays in its column:** after a long label, it ran into Kind.
 - **The bottom panel's Commands and rules are grids (#185).** Hundreds of rows stay quick
   (virtualized), the header stays put while the rows scroll, and nothing scrolls sideways: ids are
