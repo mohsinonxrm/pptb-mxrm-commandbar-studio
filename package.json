@@ -1,6 +1,6 @@
 {
 	"name": "@mohsinonxrm/pptb-commandbar-studio",
-	"version": "0.8.0",
+	"version": "0.9.0-beta.1",
 	"displayName": "Command Bar Studio",
 	"description": "Visual designer for Dataverse classic ribbon / command bar customizations — the spiritual successor to Ribbon Workbench, built for Power Platform ToolBox",
 	"author": "Mohsin On xRM",
