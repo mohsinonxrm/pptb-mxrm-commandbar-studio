@@ -207,6 +207,13 @@ export function summarizePublish(input: PublishSummaryInput): PublishChange[] {
 			preposition: "on",
 		});
 	}
+	for (const g of plan.resequencedGroups ?? []) {
+		const c = containersBefore.get(g.id);
+		add("move", "Move group", c ? titleOf(c.label) : g.id, {
+			location: c?.location,
+			preposition: "on",
+		});
+	}
 	for (const id of plan.editedTabIds) {
 		const tab = tabsNow.get(id);
 		add("change", "Change the display rules of tab", tab ? titleOf(tab.label) : id);

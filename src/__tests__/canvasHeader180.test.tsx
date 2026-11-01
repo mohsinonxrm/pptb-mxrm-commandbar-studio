@@ -119,7 +119,8 @@ describe("#180 the location row", () => {
 		render(<LocationRow />);
 		expect(byName("About this location")).toBeTruthy();
 		expect(byName("XML")).toBeUndefined();
-		click(byName(`View as: ${"Classic ribbon"}`) ?? byName("View as: Modern command bar"));
+		// Group cards by default since #194.
+		click(byName("View as: Group cards"));
 		click(menuItem("List"));
 		expect(useUIStore.getState().ribbonViewStyle).toBe("list");
 	});

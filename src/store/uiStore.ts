@@ -2,7 +2,7 @@ import { create, type StateCreator } from "zustand";
 import { persist } from "zustand/middleware";
 import type { RibbonLocation } from "@/types/ribbon";
 
-export type RibbonViewStyle = "classic" | "modern" | "list";
+export type RibbonViewStyle = "groups" | "classic" | "modern" | "list";
 export type RightPaneMode = "docked" | "floating" | "hidden";
 export type ThemeMode = "light" | "dark";
 
@@ -201,7 +201,8 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	bottomCollapsed: true,
 	rightPaneMode: "docked",
 	themeMode: "light",
-	ribbonViewStyle: "modern",
+	// Edit mode's group cards (#194); a saved choice is kept.
+	ribbonViewStyle: "groups",
 	activeBottomTab: "commands",
 
 	editorStack: [],

@@ -97,6 +97,7 @@ const LOCATION_ICON: Record<RibbonLocation, React.ReactElement> = {
 	Application: <GlobeRegular />,
 };
 const VIEW_LABEL: Record<RibbonViewStyle, string> = {
+	groups: "Group cards",
 	classic: "Classic ribbon",
 	modern: "Modern command bar",
 	list: "List",

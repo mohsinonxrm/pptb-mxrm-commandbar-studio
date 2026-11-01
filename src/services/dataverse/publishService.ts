@@ -218,6 +218,7 @@ export interface PublishRibbonInput {
 				| "editedLocLabelIds"
 				| "editedTabIds"
 				| "resequencedTabs"
+				| "resequencedGroups"
 				| "renamedLabels"
 				| "uncustomisedCommandIds"
 			>
@@ -326,6 +327,7 @@ export async function buildMergedRibbonDiffXml(
 		editedLocLabelIds: input.plan.editedLocLabelIds ?? [],
 		editedTabIds: input.plan.editedTabIds ?? [],
 		resequencedTabs: input.plan.resequencedTabs ?? [],
+		resequencedGroups: input.plan.resequencedGroups ?? [],
 	};
 
 	// Translation-only edits (#49): labels the layer defines whose titles
@@ -506,7 +508,7 @@ export async function buildMergedRibbonDiffXml(
 		unhiddenControlIds: input.plan.unhiddenButtonIds,
 		deletedContainerIds: plan.deletedContainerIds,
 		movedControls: plan.movedButtons,
-		resequencedContainers: plan.resequencedTabs,
+		resequencedContainers: [...plan.resequencedTabs, ...plan.resequencedGroups],
 		removedTabCommands,
 		uncustomisedCommandIds,
 		retainedEnableRuleIds,
