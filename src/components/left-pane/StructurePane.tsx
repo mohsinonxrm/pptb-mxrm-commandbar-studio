@@ -27,7 +27,7 @@ import {
 	TabDesktopRegular,
 } from "@fluentui/react-icons";
 import { arrayMove } from "@dnd-kit/sortable";
-import { ownContainerIds, scopeLayer, useRibbonStore } from "@/store/ribbonStore";
+import { bySequence, ownContainerIds, scopeLayer, useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useDraftStore } from "@/store/draftStore";
@@ -99,10 +99,6 @@ const keyOfSelection = (tabId: string, groupId: string | null, buttonId: string 
 		: groupId
 			? groupKey(tabId, groupId)
 			: tabKey(tabId);
-
-/** Controls in Sequence order, as Unified Interface shows them (the load keeps the XML's order). */
-const bySequence = (buttons: RibbonButton[]) =>
-	[...buttons].sort((a, b) => a.sequence - b.sequence);
 
 /** A tab's menu; groups and controls use the shared menus. */
 interface TabMenuState {
@@ -278,7 +274,8 @@ export function StructurePane() {
 	 * the page, as the menu has no trigger of its own.
 	 */
 	const refocus = (anchor: HTMLElement | undefined) =>
-		requestAnimationFrame(() => {
+		// A timeout, not an animation frame: frames don't run while the window is hidden.
+		setTimeout(() => {
 			// A dialog the menu opened keeps the focus (the narrow drawer the tree is in doesn't count).
 			const dialog = document.activeElement?.closest('[role="dialog"], [role="alertdialog"]');
 			if (dialog && !dialog.contains(treeRef.current)) return;
@@ -488,7 +485,7 @@ export function StructurePane() {
 				>
 					<span className={styles.label}>{text}</span>
 				</TreeItemLayout>
-				<Tree>{tab.groups.map((g) => renderGroup(tab, g))}</Tree>
+				<Tree>{bySequence(tab.groups).map((g) => renderGroup(tab, g))}</Tree>
 			</TreeItem>
 		);
 	};
@@ -630,6 +627,7 @@ export function StructurePane() {
 				<GroupContextMenu
 					location={location}
 					tab={menuTab}
+					moveLabels={["Move up", "Move down"]}
 					target={groupMenu}
 					onClose={() => {
 						refocus(

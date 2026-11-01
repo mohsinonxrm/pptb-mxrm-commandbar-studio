@@ -135,6 +135,8 @@ export interface ScopePlan {
 	editedTabIds: string[];
 	/** Tabs the layer adds that were reordered: their new Sequence (#163). */
 	resequencedTabs: { id: string; sequence: number }[];
+	/** Groups the layer adds that were moved within their tab: their new Sequence (#194). */
+	resequencedGroups: { id: string; sequence: number }[];
 	/**
 	 * Tabs / groups the layer adds that were renamed: the base-language title of
 	 * the LocLabel their Title refers to is replaced with `text` (#58).
@@ -220,6 +222,7 @@ export function planScope(input: PlanInput): ScopePlan {
 	const moved: MovedControl[] = [];
 	const editedTabIds: string[] = [];
 	const resequencedTabs: { id: string; sequence: number }[] = [];
+	const resequencedGroups: { id: string; sequence: number }[] = [];
 	const renamedLabels: RenamedLabel[] = [];
 	// Who uses each label (tab / group titles, button texts), as loaded.
 	const labelUsers = new Map<string, Set<string>>();
@@ -527,6 +530,18 @@ export function planScope(input: PlanInput): ScopePlan {
 				resequencedTabs.push({ id: tab.id, sequence: tab.sequence });
 			}
 		}
+		// Group order within a tab (#194): groups are shown, and moved, in
+		// Sequence order, so a group your customizations add (or a new one)
+		// publishes its new Sequence; others never change theirs.
+		for (const tab of current.tabs) {
+			const bt = baseTabs.get(tab.id);
+			if (!bt) continue;
+			for (const g of tab.groups) {
+				const bg = bt.groups.find((x) => x.id === g.id);
+				if (bg && ownContainers.has(g.id) && bg.sequence !== g.sequence)
+					resequencedGroups.push({ id: g.id, sequence: g.sequence });
+			}
+		}
 		const curTabIds = new Set(current.tabs.map((t) => t.id));
 		const curGroupIds = new Set(current.tabs.flatMap((t) => t.groups.map((g) => g.id)));
 		for (const tab of current.tabs) {
@@ -769,6 +784,7 @@ export function planScope(input: PlanInput): ScopePlan {
 			editedLocLabelIds.length > 0 ||
 			editedTabIds.length > 0 ||
 			resequencedTabs.length > 0 ||
+			resequencedGroups.length > 0 ||
 			renamedLabels.length > 0,
 		editedCommandIds,
 		uncustomisedCommandIds,
@@ -781,6 +797,7 @@ export function planScope(input: PlanInput): ScopePlan {
 		editedLocLabelIds,
 		editedTabIds,
 		resequencedTabs,
+		resequencedGroups,
 		renamedLabels,
 		unsupported: [...new Set(unsupported)],
 		warnings: [...new Set(warnings)],

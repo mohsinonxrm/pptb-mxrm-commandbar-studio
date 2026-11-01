@@ -10,6 +10,8 @@ import {
 import {
 	AddRegular,
 	AppsAddInRegular,
+	ArrowNextRegular,
+	ArrowPreviousRegular,
 	CopyRegular,
 	DeleteRegular,
 	RenameRegular,
@@ -18,7 +20,7 @@ import { RenameGroupDialog } from "@/components/modals/RenameGroupDialog";
 import { ChangeGroupTemplateDialog } from "@/components/modals/ChangeGroupTemplateDialog";
 import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
 import { useDisplayText } from "@/hooks/useDisplayText";
-import { ownContainerIds, scopeLayer, useRibbonStore } from "@/store/ribbonStore";
+import { canMoveGroup, ownContainerIds, scopeLayer, useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
 import {
 	canDeleteGroup,
@@ -48,6 +50,8 @@ interface GroupContextMenuProps {
 	/** null when closed. */
 	target: GroupMenuTarget | null;
 	onClose: () => void;
+	/** How moving reads where the groups are shown: side by side (cards), or a list (the tree). */
+	moveLabels?: readonly [string, string];
 }
 
 function positioningTarget(anchor: GroupMenuTarget["anchor"]) {
@@ -68,7 +72,13 @@ function positioningTarget(anchor: GroupMenuTarget["anchor"]) {
 	};
 }
 
-export function GroupContextMenu({ location, tab, target, onClose }: GroupContextMenuProps) {
+export function GroupContextMenu({
+	location,
+	tab,
+	target,
+	onClose,
+	moveLabels = ["Move left", "Move right"],
+}: GroupContextMenuProps) {
 	const captionOf = useDisplayText();
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
@@ -79,6 +89,8 @@ export function GroupContextMenu({ location, tab, target, onClose }: GroupContex
 	const setGroupTemplate = useRibbonStore((s) => s.setGroupTemplate);
 	const renameGroup = useRibbonStore((s) => s.renameGroup);
 	const deleteGroup = useRibbonStore((s) => s.deleteGroup);
+	const moveGroup = useRibbonStore((s) => s.moveGroup);
+	const ribbons = useRibbonStore((s) => s.ribbons);
 	const openNewButton = useUIStore((s) => s.openNewButton);
 	// The dialogs outlive the menu (#18: window.prompt / confirm don't work in PPTB).
 	const [renaming, setRenaming] = useState<RibbonGroup | null>(null);
@@ -161,6 +173,39 @@ export function GroupContextMenu({ location, tab, target, onClose }: GroupContex
 							>
 								Change template…
 							</MenuItem>
+							<MenuDivider />
+							{/* Only where the publish keeps the new order (#194, as #163 for tabs). */}
+							{([-1, 1] as const).map((by, i) => {
+								const can = canMoveGroup(
+									{ ribbons, baseline, layers },
+									location,
+									tab.id,
+									group.id,
+									by,
+								);
+								const groups = tab.groups;
+								const at = groups.findIndex((g) => g.id === group.id);
+								const edge = !groups[at + by];
+								return (
+									<MenuItem
+										key={by}
+										icon={
+											by < 0 ? <ArrowPreviousRegular /> : <ArrowNextRegular />
+										}
+										disabled={!can}
+										subText={
+											can || edge
+												? undefined
+												: "Only groups your customizations add can change places"
+										}
+										onClick={run(() =>
+											moveGroup(location, tab.id, group.id, by),
+										)}
+									>
+										{moveLabels[i]}
+									</MenuItem>
+								);
+							})}
 							{/* Only your own group with only your own buttons (#17 review). */}
 							{canDeleteGroup(
 								group,

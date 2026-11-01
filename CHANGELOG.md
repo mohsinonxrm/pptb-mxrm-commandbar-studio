@@ -358,6 +358,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     button in the location row.
   - **Below 1200 px** the rail button opens Structure and Solution as a drawer. Choosing a group or
     control closes it and opens Properties; a node's menu keeps it open.
+- **Group cards (#194, step 3).** A new **Group cards** view, the default for anyone who hasn't
+  chosen a view: a card per group of the tab, with its template, and its buttons in Sequence order.
+  - **Rows** show the icon, the label, **Hidden** or **Yours**, and the Sequence. Click a row (or
+    Enter) to select it; right-click, Shift+F10 or the Menu key opens the button's menu.
+  - **Drag rows** to reorder them or move them to another card, with the pointer or the keyboard:
+    Space picks a row up, the arrow keys move it, Space or Enter drops it and Escape cancels. A
+    button that isn't yours moves as your copy, as on the Classic canvas (#26).
+  - **Each card's ⋮ menu** is the group menu: Add button…, Rename…, Duplicate group, Change
+    template…, **Move left / Move right** and Delete group. **+ Add button** is at the foot of the
+    card.
+- **Groups can be moved within their tab (#194).** Like tabs (#163), a group your customizations add,
+  or a new one, gets a Sequence between its new neighbours and the publish writes it. Two other
+  groups can't change places, so Move left / Move right are off there and say why. In the Structure
+  tree they read **Move up / Move down**.
+- **A moved button is placed in Sequence order (#194).** Dropping a button before another now
+  places it among the destination group's buttons in Sequence order, the order Unified Interface
+  shows, not the order the ribbon XML happened to list them in.
 
 ### 🔧 Fixed
 

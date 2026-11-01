@@ -175,7 +175,8 @@ Nothing else writes to Dataverse:
 ├──────────────────┬──────────────────────────────┬───────────────┤
 │ Left Pane        │ Ribbon Canvas                │ Properties    │
 │ [Structure|      │ Location: Home/Sub/Form/App  │ • Identity    │
-│  Solution]       │ View: Classic / Modern / List│ • Command     │
+│  Solution]       │ View: Group cards / Classic /│ • Command     │
+│                  │   Modern / List              │               │
 │ • Structure:     │ Groups + Buttons (DnD)       │ • Rules       │
 │   tab › group ›  │                              │ • Scaling     │
 │   control tree   │                              │ • Advanced    │

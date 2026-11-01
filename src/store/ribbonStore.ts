@@ -303,6 +303,13 @@ export interface RibbonStore extends RibbonStoreState {
 	renameTab(location: RibbonLocation, tabId: string, newLabel: string): void;
 	deleteTab(location: RibbonLocation, tabId: string): void;
 	reorderTabs(location: RibbonLocation, tabIds: string[]): void;
+	/**
+	 * Moves a group one place left (-1) or right (1) in its tab (#194). Like a
+	 * tab (#163), a new group or one your customizations add is renumbered to
+	 * sit between its neighbours; when neither it nor the group it passes can
+	 * be, nothing moves (see canMoveGroup).
+	 */
+	moveGroup(location: RibbonLocation, tabId: string, groupId: string, by: -1 | 1): void;
 	setTabDisplayRules(location: RibbonLocation, tabId: string, rules: TabDisplayRule[]): void;
 	setScaling(location: RibbonLocation, tabId: string, scaling: ScalingDefinition): void;
 	hideOobButton(location: RibbonLocation, tabId: string, groupId: string, buttonId: string): void;
@@ -629,6 +636,76 @@ export function sequenceBetween(current: number, prev?: number, next?: number): 
 }
 
 /**
+ * Gives tabs or groups in their new order Sequences that publish that order
+ * (#163): the ones `canRenumber` allows are renumbered between their
+ * neighbours. One with no free value between neighbours that can't be
+ * renumbered goes where its Sequence publishes it instead.
+ */
+export function resequenceOrder<T extends { sequence: number }>(
+	ordered: T[],
+	canRenumber: (item: T) => boolean,
+): void {
+	for (let i = 1; i < ordered.length; i++) {
+		if (ordered[i].sequence > ordered[i - 1].sequence) continue;
+		if (canRenumber(ordered[i])) resequenceAround(ordered, i, canRenumber);
+		else if (canRenumber(ordered[i - 1])) resequenceAround(ordered, i - 1, canRenumber);
+	}
+	for (const item of ordered.filter(canRenumber)) {
+		const at = ordered.indexOf(item);
+		const fits =
+			(ordered[at - 1]?.sequence ?? -Infinity) < item.sequence &&
+			item.sequence < (ordered[at + 1]?.sequence ?? Infinity);
+		if (fits) continue;
+		ordered.splice(at, 1);
+		const to = ordered.findIndex((t) => t.sequence > item.sequence);
+		ordered.splice(to < 0 ? ordered.length : to, 0, item);
+	}
+}
+
+/**
+ * Items in Sequence order, which is the order Dataverse shows tabs' groups and
+ * groups' controls in (#194). The load keeps the XML's order, and a new group
+ * is added last whatever its Sequence, so the arrays can differ from it.
+ */
+export function bySequence<T extends { sequence: number }>(items: readonly T[]): T[] {
+	return [...items].sort((a, b) => a.sequence - b.sequence);
+}
+
+/** A group whose Sequence a publish can change: new, or one your customizations add (#194). */
+function groupRenumberable(
+	state: Pick<RibbonStoreState, "baseline" | "layers">,
+	location: RibbonLocation,
+): (group: RibbonGroup) => boolean {
+	const loaded = new Set(
+		state.baseline[location]?.tabs.flatMap((t) => t.groups.map((g) => g.id)) ?? [],
+	);
+	const own = new Set(ownContainerIds(state, location) ?? []);
+	return (g) => !loaded.has(g.id) || own.has(g.id);
+}
+
+/**
+ * Whether a group can move one place left (-1) or right (1) and the publish
+ * keep that order (#194): there is a place there, and the group or the one it
+ * passes can be renumbered.
+ */
+export function canMoveGroup(
+	state: Pick<RibbonStoreState, "ribbons" | "baseline" | "layers">,
+	location: RibbonLocation,
+	tabId: string,
+	groupId: string,
+	by: -1 | 1,
+): boolean {
+	const groups = bySequence(
+		state.ribbons[location].tabs.find((t) => t.id === tabId)?.groups ?? [],
+	);
+	const from = groups.findIndex((g) => g.id === groupId);
+	const other = groups[from + by];
+	if (from < 0 || !other) return false;
+	const canRenumber = groupRenumberable(state, location);
+	return canRenumber(groups[from]) || canRenumber(other);
+}
+
+/**
  * Gives the button at `at` a sequence that keeps `buttons` in display order
  * when there is no free value between its neighbours (#57 review). Only the
  * buttons `canRenumber` allows (the moved one, your own, new ones) change; the
@@ -802,8 +879,10 @@ function loadedButton(
 function isMoveInPlace(group: RibbonGroup, src: DragSource, dst: DragTarget): boolean {
 	if (src.location !== dst.location || src.tabId !== dst.tabId || src.groupId !== dst.groupId)
 		return false;
-	const idx = group.buttons.findIndex((b) => b.id === src.buttonId);
-	const next = group.buttons[idx + 1]?.id;
+	// In Sequence order, where moveButton places it (#194 review).
+	const buttons = bySequence(group.buttons);
+	const idx = buttons.findIndex((b) => b.id === src.buttonId);
+	const next = buttons[idx + 1]?.id;
 	return dst.beforeButtonId
 		? dst.beforeButtonId === src.buttonId || dst.beforeButtonId === next
 		: next === undefined;
@@ -1167,6 +1246,10 @@ export const useRibbonStore = create<RibbonStore>()(
 						const dstGroup = dstTab?.groups.find((g) => g.id === dst.groupId);
 						if (!dstGroup) return;
 						const [button] = srcGroup.buttons.splice(btnIdx, 1);
+						// Placed among the destination's controls in Sequence order, the
+						// order Unified Interface (and the Structure tree and group cards)
+						// show; the load keeps the XML's order, which can differ (#194).
+						dstGroup.buttons.sort((a, b) => a.sequence - b.sequence);
 						const insertIdx = dst.beforeButtonId
 							? dstGroup.buttons.findIndex((b) => b.id === dst.beforeButtonId)
 							: dstGroup.buttons.length;
@@ -1936,25 +2019,7 @@ export const useRibbonStore = create<RibbonStore>()(
 							state.baseline[location]?.tabs.map((t) => t.id) ?? [],
 						);
 						const own = new Set(ownContainerIds(state, location) ?? []);
-						const canRenumber = (t: RibbonTab) => !loaded.has(t.id) || own.has(t.id);
-						for (let i = 1; i < ordered.length; i++) {
-							if (ordered[i].sequence > ordered[i - 1].sequence) continue;
-							if (canRenumber(ordered[i])) resequenceAround(ordered, i, canRenumber);
-							else if (canRenumber(ordered[i - 1]))
-								resequenceAround(ordered, i - 1, canRenumber);
-						}
-						// No free value between neighbours that can't be renumbered: such a tab
-						// goes where its Sequence publishes it, not where it was dropped.
-						for (const tab of ordered.filter(canRenumber)) {
-							const at = ordered.indexOf(tab);
-							const fits =
-								(ordered[at - 1]?.sequence ?? -Infinity) < tab.sequence &&
-								tab.sequence < (ordered[at + 1]?.sequence ?? Infinity);
-							if (fits) continue;
-							ordered.splice(at, 1);
-							const to = ordered.findIndex((t) => t.sequence > tab.sequence);
-							ordered.splice(to < 0 ? ordered.length : to, 0, tab);
-						}
+						resequenceOrder(ordered, (t) => !loaded.has(t.id) || own.has(t.id));
 					},
 					{
 						ts: new Date().toISOString(),
@@ -1963,6 +2028,42 @@ export const useRibbonStore = create<RibbonStore>()(
 						op: "reordered",
 						target: "Tabs",
 						detail: location,
+						icon: "arrow_sort",
+						color: "info",
+					},
+				),
+			);
+		},
+
+		moveGroup(location, tabId, groupId, by) {
+			const state = get();
+			if (!canMoveGroup(state, location, tabId, groupId, by)) return;
+			const label =
+				state.ribbons[location].tabs
+					.find((t) => t.id === tabId)
+					?.groups.find((g) => g.id === groupId)?.label ?? groupId;
+			set((s) =>
+				commitMutation(
+					s,
+					(ribbons) => {
+						const tab = ribbons[location].tabs.find((t) => t.id === tabId);
+						if (!tab) return;
+						// Moved among the groups as shown: in Sequence order.
+						tab.groups.sort((a, b) => a.sequence - b.sequence);
+						const from = tab.groups.findIndex((g) => g.id === groupId);
+						const [group] = tab.groups.splice(from, 1);
+						tab.groups.splice(from + by, 0, group);
+						// As for tabs (#163): the Sequence orders groups in Dataverse.
+						const canRenumber = groupRenumberable(s, location);
+						resequenceOrder(tab.groups, canRenumber);
+					},
+					{
+						ts: new Date().toISOString(),
+						userId: "",
+						userName: "You",
+						op: "reordered",
+						target: label,
+						detail: by < 0 ? "Moved left" : "Moved right",
 						icon: "arrow_sort",
 						color: "info",
 					},

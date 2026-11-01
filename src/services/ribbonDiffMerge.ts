@@ -433,7 +433,7 @@ export interface ScopeMergeOptions {
 	deletedContainerIds?: Iterable<string>;
 	/** Controls the layer adds that were moved or re-sequenced this session (#26). */
 	movedControls?: Iterable<MovedControl>;
-	/** Tabs the layer adds that were reordered this session: their new Sequence (#163). */
+	/** Tabs and groups the layer adds that were reordered this session: their new Sequence (#163, #194). */
 	resequencedContainers?: Iterable<{ id: string; sequence: number }>;
 	/** TabDisplayRules (by TabCommand) the session removed from a tab the layer adds (#49). */
 	removedTabCommands?: Iterable<string>;
@@ -1024,15 +1024,26 @@ export function mergeScopeChanges(
 		merged.customActions.set(key, xml);
 	}
 
-	// Reordered tabs the layer adds (#163): their CustomAction and Tab take the
-	// new Sequence.
+	// Reordered tabs and groups the layer adds (#163, #194): the Tab or Group
+	// takes the new Sequence, and so does its CustomAction when it is the
+	// CustomAction's own element (a group can be written inside the layer's tab).
 	for (const { id, sequence } of options.resequencedContainers ?? []) {
 		for (const [key, xml] of merged.customActions) {
 			const ca = elementOf(xml);
-			const root = firstChild(ca, "CommandUIDefinition")?.firstElementChild;
-			if (ca.tagName !== "CustomAction" || root?.getAttribute("Id") !== id) continue;
-			ca.setAttribute("Sequence", String(sequence));
-			root.setAttribute("Sequence", String(sequence));
+			const def = firstChild(ca, "CommandUIDefinition");
+			if (ca.tagName !== "CustomAction" || !def) continue;
+			const root = def.firstElementChild;
+			const el =
+				root?.getAttribute("Id") === id
+					? root
+					: Array.from(def.getElementsByTagName("*")).find(
+							(e) =>
+								(e.tagName === "Group" || e.tagName === "Tab") &&
+								e.getAttribute("Id") === id,
+						);
+			if (!el) continue;
+			el.setAttribute("Sequence", String(sequence));
+			if (el === root) ca.setAttribute("Sequence", String(sequence));
 			merged.customActions.set(key, serializer().serializeToString(ca));
 		}
 	}

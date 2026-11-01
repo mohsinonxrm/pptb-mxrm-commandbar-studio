@@ -388,7 +388,7 @@ describe("#194 the Structure tree", () => {
 		key(tabNode(SECOND), "ContextMenu");
 		expect(menuLabel()).toBe("Actions for Second");
 		key(document.querySelector('[role="menu"]'), "Escape");
-		await act(() => new Promise((r) => requestAnimationFrame(() => r(undefined))));
+		await act(() => new Promise((r) => setTimeout(r)));
 		expect(document.querySelector('[role="menu"]')).toBeNull();
 		expect(document.activeElement).toBe(tabNode(SECOND));
 	});
@@ -425,7 +425,7 @@ describe("#194 the Structure tree", () => {
 		key(buttonNode(MAIN, MGMT, `${MAIN}.Edit`), "ContextMenu");
 		expect(menuLabel()).toBe("Actions for Edit");
 		key(document.querySelector('[role="menu"]'), "Escape");
-		await act(() => new Promise((r) => requestAnimationFrame(() => r(undefined))));
+		await act(() => new Promise((r) => setTimeout(r)));
 		expect(document.activeElement).toBe(buttonNode(MAIN, MGMT, `${MAIN}.Edit`));
 	});
 
