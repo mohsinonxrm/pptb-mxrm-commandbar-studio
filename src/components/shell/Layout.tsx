@@ -78,9 +78,10 @@ const useStyles = makeStyles({
 	},
 	// Properties opens below the top bar: over it, it hid Publish, Search and
 	// the tools while you edited (#229).
+	// The bar is TOP_BAR_HEIGHT plus its 1px bottom border, which stays in view.
 	belowTopBar: {
-		top: `${TOP_BAR_HEIGHT}px`,
-		height: `calc(100vh - ${TOP_BAR_HEIGHT}px)`,
+		top: `${TOP_BAR_HEIGHT + 1}px`,
+		height: `calc(100vh - ${TOP_BAR_HEIGHT + 1}px)`,
 	},
 });
 

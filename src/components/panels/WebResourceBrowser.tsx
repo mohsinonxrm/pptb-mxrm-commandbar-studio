@@ -205,14 +205,15 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 
 	// The list fills its box, measured whenever what's around it changes (the
 	// box's height comes from the dialog, not from the list); a resize observer
-	// alone doesn't report while the window is hidden.
+	// alone doesn't report while the window is hidden. clientHeight, not the
+	// bounding box: the dialog opens scaled, and a measure mid-animation left
+	// the list short (review).
 	const boxRef = useRef<HTMLDivElement>(null);
 	const [boxHeight, setBoxHeight] = useState(0);
 	const hasReference = selectedId !== null;
 	useLayoutEffect(() => {
-		const h = Math.floor(boxRef.current?.getBoundingClientRect().height ?? 0);
-		if (h !== boxHeight) setBoxHeight(h);
-	}, [open, loading, error, warning, hasReference, boxHeight]);
+		setBoxHeight(boxRef.current?.clientHeight ?? 0);
+	}, [open, loading, error, warning, hasReference]);
 	useEffect(() => {
 		const box = boxRef.current;
 		if (!box || typeof ResizeObserver === "undefined") return;
@@ -246,6 +247,8 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 
 	useEffect(() => {
 		if (!open) return;
+		// Each opening starts with no choice: the last one may be another caller's (review).
+		setSelectedId(null);
 		setLoading(true);
 		setError(null);
 		setWarning(null);

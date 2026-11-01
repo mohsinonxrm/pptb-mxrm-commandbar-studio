@@ -77,9 +77,13 @@ describe("#229 web resource browser", () => {
 		webResourceBrowserCallbackRegistry.set((wr) => chosen.push(wr.name));
 		await openBrowser();
 		const row = dialog().querySelector<HTMLElement>('[data-web-resource="new_/scripts/a.js"]')!;
+		// The row's own Enter handler. That the grid's focus manager lets Enter
+		// through (useFocusableGroup) was checked live in PPTB: jsdom doesn't run it.
 		act(() => {
+			row.focus();
 			row.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
 		});
+		expect(row.tabIndex).toBeGreaterThanOrEqual(0);
 		expect(chosen).toEqual(["new_/scripts/a.js"]);
 		expect(useUIStore.getState().webResourceBrowserOpen).toBe(false);
 	});

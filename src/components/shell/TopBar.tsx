@@ -709,7 +709,7 @@ function HelpContent() {
 				Your changes are kept as a draft for each table automatically, until you publish or
 				discard them.
 			</Text>
-			<dl className={styles.shortcuts} aria-label="Keyboard shortcuts">
+			<dl className={styles.shortcuts}>
 				{SHORTCUTS.map(([keys, action]) => (
 					<Fragment key={keys}>
 						<dt>{keys}</dt>
