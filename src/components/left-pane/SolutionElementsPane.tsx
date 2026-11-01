@@ -1,388 +1,571 @@
+import React, { useMemo, useState } from "react";
 import {
+	Badge,
+	Button,
+	Menu,
+	MenuDivider,
+	MenuGroupHeader,
+	MenuItem,
+	MenuList,
+	MenuPopover,
+	MenuTrigger,
+	SearchBox,
+	Text,
+	Tooltip,
+	Tree,
+	TreeItem,
+	TreeItemLayout,
 	makeStyles,
 	tokens,
-	Text,
-	Tab,
-	TabList,
-	Button,
-	Subtitle2,
-	Badge,
-	Tooltip,
+	type TreeOpenChangeData,
 } from "@fluentui/react-components";
 import {
 	AddRegular,
-	CodeRegular,
 	AppsAddInRegular,
+	CodeRegular,
 	DocumentTableRegular,
+	FilterRegular,
+	MoreHorizontalRegular,
 } from "@fluentui/react-icons";
-import { useRibbonStore } from "@/store/ribbonStore";
+import { bySequence, loadedLabelIdsOf, useRibbonStore } from "@/store/ribbonStore";
+import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
-import { useMemo, useState } from "react";
-import type { RibbonLocation } from "@/types/ribbon";
+import { useDisplayText } from "@/hooks/useDisplayText";
+import { LOCATION_INFO } from "@/constants/locationInfo";
 import { generateCommandId, generateRuleId } from "@/utils/idGenerator";
 import { groupControls } from "@/utils/ribbonMenu";
+import { reusedButton } from "@/utils/reuseButton";
+import { distinguishingSegment } from "@/utils/idSegment";
+import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
+
+/**
+ * The left pane's Solution tab (#194): your buttons, the commands, the rules
+ * and the templates, as one tree with a branch each and a count, searched
+ * together. A row shows the distinguishing part of its id (the full id is its
+ * description) and how much it's used. A button is reused in another group
+ * with Add to group… (its menu) or by dragging it onto the Modern command bar.
+ */
 
 const DRAG_SE_MIME = "application/x-rw-se";
 
-const LOCATION_SHORT: Record<RibbonLocation, string> = {
-	HomepageGrid: "Home",
-	SubGrid: "Sub",
-	Form: "Form",
-	Application: "App",
-};
-
 const useStyles = makeStyles({
-	root: {
-		display: "flex",
-		flexDirection: "column",
-		height: "100%",
-		overflow: "hidden",
-		backgroundColor: tokens.colorNeutralBackground2,
-	},
+	root: { display: "flex", flexDirection: "column", height: "100%", minHeight: 0 },
 	header: {
-		padding: `${tokens.spacingHorizontalS} ${tokens.spacingHorizontalM}`,
-		borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-		flexShrink: 0,
-	},
-	tabs: {
-		flexShrink: 0,
-		borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-	},
-	scrollArea: {
-		flex: 1,
-		overflowY: "auto",
-		padding: tokens.spacingHorizontalXS,
-	},
-	item: {
 		display: "flex",
 		alignItems: "center",
-		gap: tokens.spacingHorizontalS,
-		padding: `${tokens.spacingHorizontalXS} ${tokens.spacingHorizontalS}`,
-		cursor: "pointer",
-		borderRadius: tokens.borderRadiusMedium,
-		":hover": { backgroundColor: tokens.colorNeutralBackground3 },
+		gap: tokens.spacingHorizontalXS,
+		padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalS}`,
+		flexShrink: 0,
 	},
-	draggableItem: {
-		display: "flex",
-		alignItems: "center",
-		gap: tokens.spacingHorizontalS,
-		padding: `${tokens.spacingHorizontalXS} ${tokens.spacingHorizontalS}`,
-		cursor: "grab",
-		borderRadius: tokens.borderRadiusMedium,
-		userSelect: "none",
-		":hover": { backgroundColor: tokens.colorNeutralBackground3 },
-		":active": { cursor: "grabbing" },
-	},
-	itemName: {
-		flex: 1,
-		fontFamily: tokens.fontFamilyMonospace,
-		fontSize: tokens.fontSizeBase200,
+	search: { flex: 1, minWidth: 0 },
+	body: { flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" },
+	name: {
+		display: "block",
+		minWidth: 0,
 		overflow: "hidden",
 		textOverflow: "ellipsis",
 		whiteSpace: "nowrap",
 	},
-	gripHandle: {
-		color: tokens.colorNeutralForeground4,
-		fontSize: tokens.fontSizeBase200,
-		flexShrink: 0,
-		lineHeight: 1,
+	muted: { color: tokens.colorNeutralForeground3, whiteSpace: "nowrap" },
+	meta: { display: "flex", alignItems: "center", gap: tokens.spacingHorizontalXS },
+	empty: {
+		padding: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM}`,
+		color: tokens.colorNeutralForeground3,
 	},
 });
 
-type SubTab = "buttons" | "commands" | "rules" | "templates";
+type Branch = "buttons" | "commands" | "rules" | "templates";
+
+interface ButtonRow {
+	button: RibbonButton;
+	location: RibbonLocation;
+	tabId: string;
+	groupId: string;
+	isNew: boolean;
+}
+
+/** A button's menu: Go to it, or add a copy of it to a group of the tab that's open. */
+interface ButtonMenuState {
+	row: ButtonRow;
+	anchor: HTMLElement;
+}
+
+/** Rows a branch shows at first, and adds with "Show more". */
+const PAGE = 100;
+
+const isMenuKey = (e: React.KeyboardEvent) =>
+	e.key === "ContextMenu" || (e.shiftKey && e.key === "F10");
 
 export function SolutionElementsPane() {
 	const styles = useStyles();
-	const [subTab, setSubTab] = useState<SubTab>("commands");
+	const captionOf = useDisplayText();
 	const commands = useRibbonStore((s) => s.commands);
 	const displayRules = useRibbonStore((s) => s.displayRules);
 	const enableRules = useRibbonStore((s) => s.enableRules);
 	const templates = useRibbonStore((s) => s.templates);
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const baseline = useRibbonStore((s) => s.baseline);
+	const locLabels = useRibbonStore((s) => s.locLabels);
+	const lang = useRibbonStore((s) => s.baseLanguageCode);
 	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
 	const upsertEnableRule = useRibbonStore((s) => s.upsertEnableRule);
+	const createButton = useRibbonStore((s) => s.createButton);
+	const location = useSelectionStore((s) => s.location);
+	const tabId = useSelectionStore((s) => s.tabId);
+	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 	const openCommandEditor = useUIStore((s) => s.openCommandEditor);
 	const openRuleEditor = useUIStore((s) => s.openRuleEditor);
+	const announce = useUIStore((s) => s.announce);
+	const noteStructureChoice = useUIStore((s) => s.noteStructureChoice);
 
-	// Collect all custom buttons across all locations
-	const customButtons = useMemo(() => {
-		const result: {
-			button: import("@/types/ribbon").RibbonButton;
-			location: RibbonLocation;
-			tabId: string;
-			groupId: string;
-			isNew: boolean;
-		}[] = [];
+	const [query, setQuery] = useState("");
+	const [openItems, setOpenItems] = useState<Set<string>>(() => new Set(["buttons"]));
+	const [buttonMenu, setButtonMenu] = useState<ButtonMenuState | null>(null);
+	// How many rows each branch shows; "Show more" adds a page.
+	const [shownLimit, setShownLimit] = useState<Partial<Record<Branch, number>>>({});
 
+	// Your buttons on every ribbon, menu items too (#27).
+	const buttons = useMemo(() => {
+		const rows: ButtonRow[] = [];
 		for (const loc of Object.keys(ribbons) as RibbonLocation[]) {
-			const ribbon = ribbons[loc];
-			const baseRibbon = baseline[loc];
-			for (const tab of ribbon.tabs) {
+			const loaded = new Set(
+				baseline[loc].tabs
+					.flatMap((t) => t.groups.flatMap((g) => groupControls(g)))
+					.map((b) => b.id),
+			);
+			for (const tab of ribbons[loc].tabs)
+				for (const group of tab.groups)
+					for (const button of groupControls(group))
+						if (button.custom)
+							rows.push({
+								button,
+								location: loc,
+								tabId: tab.id,
+								groupId: group.id,
+								isNew: !loaded.has(button.id),
+							});
+		}
+		return rows;
+	}, [ribbons, baseline]);
+
+	// How many controls use each command, and how many commands each rule.
+	// How many tabs, groups and controls use each command (a tab's or group's
+	// own Command, a control's Command and PopulateQueryCommand), and how many
+	// commands use each rule, per kind, as the rule editor counts them.
+	const usage = useMemo(() => {
+		const byCommand = new Map<string, number>();
+		const count = (id: string | undefined) => {
+			if (id) byCommand.set(id, (byCommand.get(id) ?? 0) + 1);
+		};
+		for (const loc of Object.keys(ribbons) as RibbonLocation[])
+			for (const tab of ribbons[loc].tabs) {
+				count(tab.commandId);
 				for (const group of tab.groups) {
-					// Menu items too (#27).
-					for (const btn of groupControls(group)) {
-						if (!btn.custom) continue;
-						// Check if button was in baseline (not new)
-						const inBaseline = baseRibbon.tabs
-							.flatMap((t) => t.groups)
-							.flatMap((g) => groupControls(g))
-							.some((b) => b.id === btn.id);
-						result.push({
-							button: btn,
-							location: loc,
-							tabId: tab.id,
-							groupId: group.id,
-							isNew: !inBaseline,
-						});
+					count(group.source?.attributes.Command);
+					for (const b of groupControls(group)) {
+						count(b.commandId);
+						count(b.source?.attributes.PopulateQueryCommand);
 					}
 				}
 			}
+		const byEnable = new Map<string, number>();
+		const byDisplay = new Map<string, number>();
+		for (const c of commands) {
+			for (const id of new Set(c.enableRules)) byEnable.set(id, (byEnable.get(id) ?? 0) + 1);
+			for (const id of new Set(c.displayRules))
+				byDisplay.set(id, (byDisplay.get(id) ?? 0) + 1);
 		}
-		return result;
-	}, [ribbons, baseline]);
+		return { byCommand, byEnable, byDisplay };
+	}, [ribbons, commands]);
+
+	const buttonText = (b: RibbonButton) =>
+		captionOf(b.label, locLabels, undefined, b.source?.labelToken) || b.id;
+
+	const q = query.trim().toLowerCase();
+	const hit = (...texts: string[]) => !q || texts.some((t) => t.toLowerCase().includes(q));
+	const shownButtons = buttons.filter((r) => hit(buttonText(r.button), r.button.id));
+	const shownCommands = commands.filter((c) => hit(c.id));
+	const rules = [
+		...enableRules.map((r) => ({ id: r.id, kind: "enable" as const })),
+		...displayRules.map((r) => ({ id: r.id, kind: "display" as const })),
+	];
+	const shownRules = rules.filter((r) => hit(r.id));
+	const shownTemplates = templates.filter((t) => hit(t.id));
+	// Searching opens every branch with a match; while searching, branches are
+	// toggled in a set of the search's own, so the open state from before comes back.
+	const matchOpen = q
+		? new Set(
+				(
+					[
+						["buttons", shownButtons],
+						["commands", shownCommands],
+						["rules", shownRules],
+						["templates", shownTemplates],
+					] as const
+				)
+					.filter(([, list]) => list.length > 0)
+					.map(([b]) => b as string),
+			)
+		: null;
+	const [searchOpen, setSearchOpen] = useState<{ q: string; open: Set<string> } | null>(null);
+	const effectiveOpen = matchOpen
+		? searchOpen?.q === q
+			? searchOpen.open
+			: matchOpen
+		: openItems;
 
 	const createAndOpenCommand = () => {
-		const existingIds = new Set(commands.map((c) => c.id));
-		const newId = generateCommandId("New", "Command", existingIds);
+		const newId = generateCommandId("New", "Command", new Set(commands.map((c) => c.id)));
 		upsertCommand({ id: newId, enableRules: [], displayRules: [], actions: [] });
 		openCommandEditor(newId);
 	};
-
 	const createAndOpenRule = () => {
-		const existingIds = new Set([
-			...enableRules.map((r) => r.id),
-			...displayRules.map((r) => r.id),
-		]);
-		const newId = generateRuleId("New", "Enable", existingIds);
+		const newId = generateRuleId(
+			"New",
+			"Enable",
+			new Set([...enableRules.map((r) => r.id), ...displayRules.map((r) => r.id)]),
+		);
 		upsertEnableRule({ id: newId, steps: [] });
 		openRuleEditor(newId, "enable");
+	};
+
+	/** Selects a button where it is; in the narrow drawer that closes it and opens Properties (#194). */
+	const goTo = (row: ButtonRow) => {
+		selectButtonInContext(row.location, row.tabId, row.groupId, row.button.id);
+		noteStructureChoice();
+	};
+
+	// The groups a button can be added to: the open tab's, in the order shown.
+	const tab = ribbons[location].tabs.find((t) => t.id === tabId);
+	const targetGroups = tab ? bySequence(tab.groups) : [];
+	const crossScope =
+		!!buttonMenu &&
+		(buttonMenu.row.location === "Application") !== (location === "Application");
+	const addToGroup = (row: ButtonRow, groupId: string, groupLabel: string) => {
+		if (!tab) return;
+		createButton({
+			location,
+			tabId: tab.id,
+			groupId,
+			button: reusedButton(row.button, loadedLabelIdsOf(useRibbonStore.getState())),
+		});
+		announce(`A copy of ${buttonText(row.button)} was added to ${groupLabel}.`);
+	};
+
+	const leaf = (
+		key: string,
+		content: React.ReactNode,
+		aside: React.ReactElement | null,
+		description: string,
+		onChoose: () => void,
+		extra: Partial<React.ComponentProps<typeof TreeItem>> = {},
+		actions?: React.ReactElement,
+	) => (
+		<TreeItem
+			key={key}
+			itemType="leaf"
+			value={key}
+			aria-description={description}
+			onClick={onChoose}
+			{...extra}
+		>
+			{/* No Tooltip per row: hundreds of them made a branch slow to open. */}
+			<TreeItemLayout aside={aside} actions={actions}>
+				<span className={styles.name} title={description}>
+					{content}
+				</span>
+			</TreeItemLayout>
+		</TreeItem>
+	);
+
+	/**
+	 * A branch renders its rows only while it's open, PAGE at a time: a table has
+	 * hundreds of commands and rules, and rendering them all made every open slow.
+	 */
+	const branch = <T,>(
+		value: Branch,
+		label: string,
+		items: readonly T[],
+		row: (item: T) => React.ReactElement,
+		emptyText: string,
+	) => {
+		const open = effectiveOpen.has(value);
+		const limit = shownLimit[value] ?? PAGE;
+		return (
+			<TreeItem key={value} itemType="branch" value={value}>
+				<TreeItemLayout
+					aside={
+						<Text size={100} className={styles.muted}>
+							{items.length}
+						</Text>
+					}
+				>
+					{label}
+				</TreeItemLayout>
+				<Tree>
+					{open &&
+						(items.length === 0
+							? none(emptyText)
+							: [
+									...items.slice(0, limit).map((item) =>
+										React.cloneElement(row(item), {
+											"data-branch-row": value,
+										}),
+									),
+									...(items.length > limit
+										? [
+												<TreeItem
+													key={`more:${value}`}
+													itemType="leaf"
+													value={`more:${value}`}
+													onClick={() => {
+														// The row clicked goes away: focus the first new one.
+														setTimeout(() => {
+															const rows =
+																document.querySelectorAll<HTMLElement>(
+																	`[data-branch-row="${value}"]`,
+																);
+															rows[limit]?.focus();
+														});
+														setShownLimit((m) => ({
+															...m,
+															[value]: limit + PAGE,
+														}));
+													}}
+												>
+													<TreeItemLayout>
+														<span className={styles.muted}>
+															Show{" "}
+															{Math.min(PAGE, items.length - limit)}{" "}
+															more of {items.length - limit}
+														</span>
+													</TreeItemLayout>
+												</TreeItem>,
+											]
+										: []),
+								])}
+				</Tree>
+			</TreeItem>
+		);
+	};
+
+	const used = (n: number | undefined) => (n ? `used ${n}×` : "not used");
+	const none = (text: string) => (
+		<TreeItem itemType="leaf" value={`none:${text}`} aria-disabled>
+			<TreeItemLayout>
+				<span className={styles.muted}>{text}</span>
+			</TreeItemLayout>
+		</TreeItem>
+	);
+
+	const buttonRow = (row: ButtonRow) => {
+		const key = `button:${row.location}:${row.button.id}`;
+		const openMenu = (anchor: HTMLElement) => setButtonMenu({ row, anchor });
+		return leaf(
+			key,
+			buttonText(row.button),
+			<span className={styles.meta}>
+				<Badge size="small" appearance="outline">
+					{LOCATION_INFO[row.location].label}
+				</Badge>
+				{row.isNew && (
+					<Badge size="small" color="brand" appearance="tint">
+						New
+					</Badge>
+				)}
+			</span>,
+			`${row.button.id} · ${LOCATION_INFO[row.location].label}`,
+			() => goTo(row),
+			{
+				draggable: true,
+				onDragStart: (e: React.DragEvent) => {
+					// The whole button: a copy keeps its icon, images and command (#60).
+					e.dataTransfer.setData(DRAG_SE_MIME, JSON.stringify({ button: row.button }));
+					e.dataTransfer.effectAllowed = "copy";
+				},
+				onContextMenu: (e: React.MouseEvent<HTMLDivElement>) => {
+					e.preventDefault();
+					openMenu(e.currentTarget);
+				},
+				onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => {
+					if (e.target === e.currentTarget && isMenuKey(e)) {
+						e.preventDefault();
+						openMenu(e.currentTarget);
+					}
+				},
+			},
+			<Button
+				appearance="subtle"
+				size="small"
+				icon={<MoreHorizontalRegular />}
+				aria-label={`Actions for ${buttonText(row.button)}`}
+				onClick={(e) => openMenu(e.currentTarget)}
+			/>,
+		);
 	};
 
 	return (
 		<div className={styles.root}>
 			<div className={styles.header}>
-				<Subtitle2>Solution Elements</Subtitle2>
+				<SearchBox
+					size="small"
+					className={styles.search}
+					placeholder="Search buttons, commands, rules"
+					aria-label="Search the solution's elements"
+					contentBefore={<FilterRegular />}
+					value={query}
+					onChange={(_, d) => setQuery(d.value)}
+				/>
+				<Menu>
+					<MenuTrigger disableButtonEnhancement>
+						<Tooltip content="New command or rule" relationship="label">
+							<Button appearance="subtle" size="small" icon={<AddRegular />} />
+						</Tooltip>
+					</MenuTrigger>
+					<MenuPopover>
+						<MenuList>
+							<MenuItem icon={<CodeRegular />} onClick={createAndOpenCommand}>
+								New command
+							</MenuItem>
+							<MenuItem icon={<AppsAddInRegular />} onClick={createAndOpenRule}>
+								New rule
+							</MenuItem>
+						</MenuList>
+					</MenuPopover>
+				</Menu>
 			</div>
-			<TabList
-				className={styles.tabs}
-				selectedValue={subTab}
-				onTabSelect={(_, d) => setSubTab(d.value as SubTab)}
-				size="small"
-			>
-				<Tab value="buttons">Buttons ({customButtons.length})</Tab>
-				<Tab value="commands">Commands ({commands.length})</Tab>
-				<Tab value="rules">Rules ({enableRules.length + displayRules.length})</Tab>
-				<Tab value="templates">Templates ({templates.length})</Tab>
-			</TabList>
-
-			<div className={styles.scrollArea}>
-				{/* ── Buttons ── */}
-				{subTab === "buttons" && (
-					<>
-						<Text
-							size={100}
-							style={{
-								color: tokens.colorNeutralForeground3,
-								padding: `4px ${tokens.spacingHorizontalS}`,
-								display: "block",
-							}}
-						>
-							Drag onto the ribbon canvas to add a button
-						</Text>
-						{customButtons.map(({ button, location, isNew }) => (
-							<Tooltip
-								key={`${location}::${button.id}`}
-								content={`${button.id} · ${LOCATION_SHORT[location]} ribbon`}
-								relationship="label"
-							>
-								<div
-									className={styles.draggableItem}
-									draggable
-									onDragStart={(e) => {
-										e.dataTransfer.setData(
-											DRAG_SE_MIME,
-											// The whole button: a copy keeps its icon, images and command (#60).
-											JSON.stringify({ button }),
-										);
-										e.dataTransfer.effectAllowed = "copy";
-									}}
-									title="Drag onto a ribbon group to add this button"
-								>
-									<span className={styles.gripHandle}>⋮⋮</span>
-									<AppsAddInRegular
-										fontSize={14}
-										style={{
-											color: tokens.colorNeutralForeground3,
-											flexShrink: 0,
-										}}
-									/>
-									<Text className={styles.itemName}>
-										{button.label || button.id}
+			<div className={styles.body}>
+				<Tree
+					size="small"
+					aria-label="Solution elements"
+					openItems={effectiveOpen}
+					onOpenChange={(_, d: TreeOpenChangeData) => {
+						const next = new Set(effectiveOpen);
+						if (d.open) next.add(String(d.value));
+						else next.delete(String(d.value));
+						if (q) setSearchOpen({ q, open: next });
+						else setOpenItems(next);
+					}}
+				>
+					{branch(
+						"buttons",
+						"Buttons",
+						shownButtons,
+						buttonRow,
+						q ? "No buttons match." : "None of your buttons yet.",
+					)}
+					{branch(
+						"commands",
+						"Commands",
+						shownCommands,
+						(c) =>
+							leaf(
+								`command:${c.id}`,
+								distinguishingSegment(c.id),
+								<Text size={100} className={styles.muted}>
+									{used(usage.byCommand.get(c.id))}
+								</Text>,
+								c.id,
+								() => openCommandEditor(c.id),
+							),
+						q ? "No commands match." : "No commands.",
+					)}
+					{branch(
+						"rules",
+						"Rules",
+						shownRules,
+						(r) =>
+							leaf(
+								`rule:${r.kind}:${r.id}`,
+								distinguishingSegment(r.id),
+								<span className={styles.meta}>
+									<Text size={100} className={styles.muted}>
+										{used(
+											(r.kind === "enable"
+												? usage.byEnable
+												: usage.byDisplay
+											).get(r.id),
+										)}
 									</Text>
-									<Badge size="small" appearance="outline">
-										{LOCATION_SHORT[location]}
+									<Badge
+										size="small"
+										appearance="tint"
+										color={r.kind === "enable" ? "success" : "informative"}
+									>
+										{r.kind === "enable" ? "Enable" : "Display"}
 									</Badge>
-									{isNew && (
-										<Badge size="small" color="brand" appearance="tint">
-											NEW
-										</Badge>
-									)}
-								</div>
-							</Tooltip>
-						))}
-						{customButtons.length === 0 && (
-							<Text
-								size={200}
-								style={{
-									color: tokens.colorNeutralForeground3,
-									padding: 8,
-									display: "block",
-								}}
-							>
-								No custom buttons yet. Add one from the ribbon canvas — in{" "}
-								<strong>Modern command bar</strong> use the <strong>+ Add</strong>{" "}
-								button at the end of the bar; in <strong>Classic ribbon</strong> use
-								the <strong>+</strong> inside any group.
-							</Text>
-						)}
-					</>
-				)}
-
-				{/* ── Commands ── */}
-				{subTab === "commands" && (
-					<>
-						<Button
-							appearance="subtle"
-							size="small"
-							icon={<AddRegular />}
-							onClick={createAndOpenCommand}
-							style={{ width: "100%", justifyContent: "flex-start", marginBottom: 4 }}
-						>
-							New command
-						</Button>
-						{commands.map((cmd) => (
-							<div
-								key={cmd.id}
-								className={styles.item}
-								onClick={() => openCommandEditor(cmd.id)}
-								role="button"
-								tabIndex={0}
-								onKeyDown={(e) => e.key === "Enter" && openCommandEditor(cmd.id)}
-							>
-								<CodeRegular
-									fontSize={14}
-									style={{ color: tokens.colorNeutralForeground3 }}
-								/>
-								<Text className={styles.itemName}>{cmd.id}</Text>
-								<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-									{cmd.actions.length} action{cmd.actions.length !== 1 ? "s" : ""}
-								</Text>
-							</div>
-						))}
-						{commands.length === 0 && (
-							<Text
-								size={200}
-								style={{
-									color: tokens.colorNeutralForeground3,
-									padding: 8,
-									display: "block",
-								}}
-							>
-								No commands yet
-							</Text>
-						)}
-					</>
-				)}
-
-				{/* ── Rules ── */}
-				{subTab === "rules" && (
-					<>
-						<Button
-							appearance="subtle"
-							size="small"
-							icon={<AddRegular />}
-							onClick={createAndOpenRule}
-							style={{ width: "100%", justifyContent: "flex-start", marginBottom: 4 }}
-						>
-							New rule
-						</Button>
-						{enableRules.map((r) => (
-							<div
-								key={r.id}
-								className={styles.item}
-								onClick={() => openRuleEditor(r.id, "enable")}
-								role="button"
-								tabIndex={0}
-								onKeyDown={(e) =>
-									e.key === "Enter" && openRuleEditor(r.id, "enable")
-								}
-							>
-								<Text className={styles.itemName}>{r.id}</Text>
-								<Badge size="small" color="success" appearance="tint">
-									Enable
-								</Badge>
-							</div>
-						))}
-						{displayRules.map((r) => (
-							<div
-								key={r.id}
-								className={styles.item}
-								onClick={() => openRuleEditor(r.id, "display")}
-								role="button"
-								tabIndex={0}
-								onKeyDown={(e) =>
-									e.key === "Enter" && openRuleEditor(r.id, "display")
-								}
-							>
-								<Text className={styles.itemName}>{r.id}</Text>
-								<Badge size="small" color="informative" appearance="tint">
-									Display
-								</Badge>
-							</div>
-						))}
-						{enableRules.length === 0 && displayRules.length === 0 && (
-							<Text
-								size={200}
-								style={{
-									color: tokens.colorNeutralForeground3,
-									padding: 8,
-									display: "block",
-								}}
-							>
-								No rules yet
-							</Text>
-						)}
-					</>
-				)}
-
-				{/* ── Templates ── */}
-				{subTab === "templates" && (
-					<>
-						{templates.map((t) => (
-							<div key={t.id} className={styles.item}>
-								<DocumentTableRegular
-									fontSize={14}
-									style={{ color: tokens.colorNeutralForeground3 }}
-								/>
-								<Text className={styles.itemName}>{t.id}</Text>
-							</div>
-						))}
-						{templates.length === 0 && (
-							<Text
-								size={200}
-								style={{
-									color: tokens.colorNeutralForeground3,
-									padding: 8,
-									display: "block",
-								}}
-							>
-								No templates defined
-							</Text>
-						)}
-					</>
-				)}
+								</span>,
+								r.id,
+								() => openRuleEditor(r.id, r.kind),
+							),
+						q ? "No rules match." : "No rules.",
+					)}
+					{branch(
+						"templates",
+						"Templates",
+						shownTemplates,
+						(t) =>
+							leaf(
+								`template:${t.id}`,
+								<span>
+									<DocumentTableRegular aria-hidden />{" "}
+									{distinguishingSegment(t.id)}
+								</span>,
+								null,
+								t.id,
+								() => undefined,
+							),
+						q ? "No templates match." : "No templates.",
+					)}
+				</Tree>
 			</div>
+
+			{buttonMenu && (
+				<Menu
+					key={`${buttonMenu.row.location}:${buttonMenu.row.button.id}`}
+					open
+					onOpenChange={(_, d) => !d.open && setButtonMenu(null)}
+					positioning={{ target: buttonMenu.anchor, position: "below", align: "start" }}
+				>
+					<MenuTrigger disableButtonEnhancement>
+						<span hidden />
+					</MenuTrigger>
+					<MenuPopover>
+						<MenuList aria-label={`Actions for ${buttonText(buttonMenu.row.button)}`}>
+							<MenuItem onClick={() => goTo(buttonMenu.row)}>Go to button</MenuItem>
+							<MenuDivider />
+							<MenuGroupHeader>Add a copy to a group of this tab</MenuGroupHeader>
+							{crossScope && (
+								<MenuGroupHeader>
+									{location === "Application"
+										? "A table's button can't go on the application ribbon."
+										: "An application ribbon button can't go on a table's ribbon."}
+								</MenuGroupHeader>
+							)}
+							{targetGroups.length === 0 ? (
+								<MenuItem disabled>No groups on this tab</MenuItem>
+							) : (
+								targetGroups.map((g) => {
+									const label =
+										captionOf(g.label, locLabels, lang, g.source?.titleToken) ||
+										g.id;
+									return (
+										<MenuItem
+											key={g.id}
+											// A table's command isn't published with the application
+											// ribbon, nor the other way round (review).
+											disabled={crossScope}
+											onClick={() => addToGroup(buttonMenu.row, g.id, label)}
+										>
+											Add to {label}
+										</MenuItem>
+									);
+								})
+							)}
+						</MenuList>
+					</MenuPopover>
+				</Menu>
+			)}
 		</div>
 	);
 }

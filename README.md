@@ -181,10 +181,10 @@ Nothing else writes to Dataverse:
 │                  │ Groups + Buttons (DnD)       │               │
 │   tab › group ›  │                              │ • Scaling     │
 │   control tree   │                              │ • Advanced    │
-│ • Solution:      │                              │               │
-│   Buttons, Com-  │                              │               │
-│   mands, Rules,  │                              │               │
-│   Templates      │                              │               │
+│ • Solution: one  │                              │               │
+│   tree: Buttons, │                              │               │
+│   Commands,      │                              │               │
+│   Rules, Templ.  │                              │               │
 ├──────────────────┴──────────────────────────────┴───────────────┤
 │ Bottom Panel: Commands │ Display Rules │ Enable Rules │ History  │
 │              │ Console (runtime + publish log)                  │
@@ -196,7 +196,7 @@ menu (right-click, Shift+F10 or the Menu key) has its actions: a tab's Rename…
 rules…, Add group…, Move up / down and Delete tab…, and the same group and button menus as the
 canvas.
 
-Below 1200 px wide, the left pane becomes a rail with one button and opens as a drawer, and
+Below 1200 px wide, the left pane becomes a rail with a Structure and a Solution button, each opening it as a drawer on that tab, and
 Properties opens as a drawer when you select something, so the canvas keeps the width.
 
 ---

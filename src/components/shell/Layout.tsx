@@ -1,9 +1,13 @@
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Button, OverlayDrawer, Tooltip, makeStyles, tokens } from "@fluentui/react-components";
-import { PanelLeftExpandRegular, PanelRightExpandRegular } from "@fluentui/react-icons";
+import {
+	BoxRegular,
+	PanelRightExpandRegular,
+	TextBulletListTreeRegular,
+} from "@fluentui/react-icons";
 import { TopBar } from "./TopBar";
 import { ShellMessages } from "./ShellMessages";
-import { useUIStore } from "@/store/uiStore";
+import { useUIStore, type LeftPaneTab } from "@/store/uiStore";
 import { PropertiesHostContext } from "@/components/properties-pane/propertiesHost";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -75,6 +79,11 @@ const useStyles = makeStyles({
 	},
 });
 
+const LEFT_TABS: { value: LeftPaneTab; label: string; icon: React.ReactElement }[] = [
+	{ value: "structure", label: "Structure", icon: <TextBulletListTreeRegular /> },
+	{ value: "solution", label: "Solution", icon: <BoxRegular /> },
+];
+
 /** Below this window width the side panes stop taking canvas width (#179). */
 const NARROW_WIDTH = 1200;
 
@@ -112,6 +121,8 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const selectedGroupId = useSelectionStore((s) => s.selectedGroupId);
 	const activeTable = useSessionStore((s) => s.activeEntity?.logicalName ?? null);
 	const [leftOpen, setLeftOpen] = useState(false);
+	const leftPaneTab = useUIStore((s) => s.leftPaneTab);
+	const setLeftPaneTab = useUIStore((s) => s.setLeftPaneTab);
 	const selectedModernId = useModernCommandStore((s) => s.selectedCommandId);
 	const [propsOpenState, setPropsOpen] = useState(false);
 	// Show orphans and similar actions ask for Properties (#179 review).
@@ -227,14 +238,20 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			<div className={styles.body}>
 				{narrow ? (
 					<nav className={styles.rail} aria-label="Side panes">
-						<Tooltip content="Structure and solution" relationship="label">
-							<Button
-								appearance="subtle"
-								icon={<PanelLeftExpandRegular />}
-								aria-expanded={leftOpen}
-								onClick={() => setLeftOpen(true)}
-							/>
-						</Tooltip>
+						{/* The left pane's two tabs, each opening it as a drawer (#194). */}
+						{LEFT_TABS.map(({ value, label, icon }) => (
+							<Tooltip key={value} content={label} relationship="label">
+								<Button
+									appearance="subtle"
+									icon={icon}
+									aria-pressed={leftOpen && leftPaneTab === value}
+									onClick={() => {
+										setLeftPaneTab(value);
+										setLeftOpen(true);
+									}}
+								/>
+							</Tooltip>
+						))}
 						{rightPaneMode !== "hidden" && (
 							<Tooltip content="Properties" relationship="label">
 								<Button
@@ -266,7 +283,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 							size="small"
 							open={leftOpen}
 							onOpenChange={(_, d) => setLeftOpen(d.open)}
-							aria-label="Structure and solution"
+							aria-label={leftPaneTab === "structure" ? "Structure" : "Solution"}
 						>
 							<div className={styles.drawerBody}>
 								<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>

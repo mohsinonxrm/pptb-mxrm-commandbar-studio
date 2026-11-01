@@ -375,6 +375,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   menu, as in Unified Interface, and the selected command is always in view. Choosing a command
   selects it on the cards, in the tree and in Properties. It's marked **Preview: rules not applied**:
   display and enable rules are evaluated by Simulate mode (#191).
+- **The Solution tab is one tree (#194, step 5).** Buttons, Commands, Rules and Templates are
+  branches with a count, searched together; a branch with matches opens. Each row shows the part of
+  its id that tells it apart (e.g. `ExactlyOneSelected`, not `EnableRule`), with the whole id as its
+  description, and how much it's used (`used 3×`, Enable / Display). A branch lists 100 rows at a
+  time (**Show n more**), so the 498 commands of a table open at once. Choosing a command or rule
+  opens its editor; a button is selected, and its menu (right-click, Shift+F10 or ⋯) has **Go to
+  button** and **Add to** each group of the open tab, which adds your copy of it there. **+** makes a
+  new command or rule.
+- **Two rail buttons below 1200 px (#194).** **Structure** and **Solution** each open the left pane
+  as a drawer on that tab.
 - **Groups can be moved within their tab (#194).** Like tabs (#163), a group your customizations add,
   or a new one, gets a Sequence between its new neighbours and the publish writes it. Two other
   groups can't change places, so Move left / Move right are off there and say why. In the Structure

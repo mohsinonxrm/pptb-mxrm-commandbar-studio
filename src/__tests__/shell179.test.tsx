@@ -218,7 +218,7 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 		render(shell());
 		expect(container.textContent).toContain("LEFT PANE");
 		expect(container.textContent).toContain("PROPERTIES");
-		expect(byName("Structure and solution")).toBeUndefined();
+		expect(byName("Structure")).toBeUndefined();
 	});
 
 	it("turns them into a rail and overlay drawers below 1200 px", () => {
@@ -226,7 +226,7 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 		render(shell());
 		expect(container.textContent).not.toContain("LEFT PANE");
 		expect(container.textContent).not.toContain("PROPERTIES");
-		click(byName("Structure and solution"));
+		click(byName("Structure"));
 		expect(document.body.textContent).toContain("LEFT PANE");
 
 		// Opening a table closes the left drawer; selecting a button opens Properties.
@@ -239,7 +239,7 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 		// Opening a node's menu in the Structure drawer selects it but keeps the
 		// drawer (and the menu) open, without Properties taking the focus;
 		// choosing a node closes it and opens Properties (#194).
-		click(byName("Structure and solution"));
+		click(byName("Structure"));
 		expect(document.body.textContent).toContain("LEFT PANE");
 		act(() => useSelectionStore.getState().selectButton("G", "B2"));
 		expect(document.body.textContent).toContain("LEFT PANE");
@@ -258,7 +258,9 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 		setWidth(1024);
 		render(shell());
 		const toggle = () =>
-			buttons().find((b) => b.getAttribute("aria-pressed") !== null && b.closest("nav"));
+			buttons().find(
+				(b) => b.getAttribute("aria-label") === "Properties" && b.closest("nav"),
+			);
 		click(toggle());
 		expect(document.body.textContent).toContain("PROPERTIES");
 		expect(toggle()?.getAttribute("aria-pressed")).toBe("true");
@@ -277,10 +279,20 @@ describe("#179 tool-wide messages and the narrow layout", () => {
 		expect(useUIStore.getState().propertiesRequested).toBe(false);
 	});
 
+	it("has a rail button for each left pane tab, opening the drawer on it (#194)", () => {
+		setWidth(1024);
+		render(shell());
+		click(byName("Solution"));
+		expect(useUIStore.getState().leftPaneTab).toBe("solution");
+		expect(document.body.textContent).toContain("LEFT PANE");
+		expect(byName("Solution")?.getAttribute("aria-pressed")).toBe("true");
+		expect(byName("Structure")?.getAttribute("aria-pressed")).toBe("false");
+	});
+
 	it("closes the drawers when the window crosses the narrow width", () => {
 		setWidth(1024);
 		render(shell());
-		click(byName("Structure and solution"));
+		click(byName("Structure"));
 		expect(document.body.textContent).toContain("LEFT PANE");
 		setWidth(1600);
 		setWidth(1024);
