@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 Changed
+
+- **The Insider icon's gold corner is bigger, two-tone and flush with the edge (#236).** Betas
+  show a gold corner on the tool icon. It was small and light, and a blue sliver showed between it
+  and the hexagon's edge. It's now about 1.5 times larger, sits on both edges, and is split on the
+  same diagonal as the blue in two golds (`#CC8A00` and `#F2A100`), so it reads at the 20–24 px
+  PPTB shows. FetchXML Studio and Dataverse Request Studio use the same stamp. Restart PPTB to see
+  it: PPTB keeps tool icons until it restarts.
+
+### 🔧 Fixed
+
+- **The Structure pane's hint wraps inside its padding.** With no table chosen, the second line
+  of "Choose a table to see its tabs, groups and buttons." started at the pane's edge.
+
 ### 🏗️ Technical
 
 - **Release workflow hardening (#250, as FetchXML Studio #188).**
