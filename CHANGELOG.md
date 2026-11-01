@@ -375,6 +375,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   menu, as in Unified Interface, and the selected command is always in view. Choosing a command
   selects it on the cards, in the tree and in Properties. It's marked **Preview: rules not applied**:
   display and enable rules are evaluated by Simulate mode (#191).
+- **The List view fits and sorts (#183).** The grid is as tall as its rows, so only the canvas
+  scrolls, with the header kept in view; nothing scrolls sideways at 1024 px.
+  - **Columns:** #, Label (with its icon, and the id in its tooltip), Kind (`Split button`, not
+    `splitButton`), Group, Visible and **⋯**. ID and Command are in the **Columns** menu.
+  - **Sorting** works on every column; rows start in the order the tab shows them.
+  - **Rows are selected** with a click or Enter, as everywhere else (no radio buttons); the row's
+    menu is the button menu (**⋯**, right-click, Shift+F10).
+  - **Modern commands** are a collapsible section below the grid, with columns that truncate
+    instead of scrolling sideways.
+  - **Menus no longer select what they're opened on,** in the List and on the group cards: in a
+    narrow window that opened Properties, which took the focus and closed the menu.
 - **The Solution tab is one tree (#194, step 5).** Buttons, Commands, Rules and Templates are
   branches with a count, searched together; a branch with matches opens. Each row shows the part of
   its id that tells it apart (e.g. `ExactlyOneSelected`, not `EnableRule`), with the whole id as its
