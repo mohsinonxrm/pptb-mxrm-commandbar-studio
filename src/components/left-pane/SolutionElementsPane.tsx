@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import {
 	Badge,
 	Button,
+	CounterBadge,
 	Menu,
 	MenuDivider,
 	MenuGroupHeader,
@@ -34,6 +35,7 @@ import { useDisplayText } from "@/hooks/useDisplayText";
 import { LOCATION_INFO } from "@/constants/locationInfo";
 import { generateCommandId, generateRuleId } from "@/utils/idGenerator";
 import { groupControls } from "@/utils/ribbonMenu";
+import { ribbonUsage } from "@/utils/usage";
 import { reusedButton } from "@/utils/reuseButton";
 import { distinguishingSegment } from "@/utils/idSegment";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
@@ -109,6 +111,7 @@ export function SolutionElementsPane() {
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
 	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
 	const upsertEnableRule = useRibbonStore((s) => s.upsertEnableRule);
+	const upsertDisplayRule = useRibbonStore((s) => s.upsertDisplayRule);
 	const createButton = useRibbonStore((s) => s.createButton);
 	const location = useSelectionStore((s) => s.location);
 	const tabId = useSelectionStore((s) => s.tabId);
@@ -149,34 +152,8 @@ export function SolutionElementsPane() {
 	}, [ribbons, baseline]);
 
 	// How many controls use each command, and how many commands each rule.
-	// How many tabs, groups and controls use each command (a tab's or group's
-	// own Command, a control's Command and PopulateQueryCommand), and how many
-	// commands use each rule, per kind, as the rule editor counts them.
-	const usage = useMemo(() => {
-		const byCommand = new Map<string, number>();
-		const count = (id: string | undefined) => {
-			if (id) byCommand.set(id, (byCommand.get(id) ?? 0) + 1);
-		};
-		for (const loc of Object.keys(ribbons) as RibbonLocation[])
-			for (const tab of ribbons[loc].tabs) {
-				count(tab.commandId);
-				for (const group of tab.groups) {
-					count(group.source?.attributes.Command);
-					for (const b of groupControls(group)) {
-						count(b.commandId);
-						count(b.source?.attributes.PopulateQueryCommand);
-					}
-				}
-			}
-		const byEnable = new Map<string, number>();
-		const byDisplay = new Map<string, number>();
-		for (const c of commands) {
-			for (const id of new Set(c.enableRules)) byEnable.set(id, (byEnable.get(id) ?? 0) + 1);
-			for (const id of new Set(c.displayRules))
-				byDisplay.set(id, (byDisplay.get(id) ?? 0) + 1);
-		}
-		return { byCommand, byEnable, byDisplay };
-	}, [ribbons, commands]);
+	// How much each command and rule is used, as the bottom panel counts it.
+	const usage = useMemo(() => ribbonUsage(ribbons, commands), [ribbons, commands]);
 
 	const buttonText = (b: RibbonButton) =>
 		captionOf(b.label, locLabels, undefined, b.source?.labelToken) || b.id;
@@ -219,14 +196,16 @@ export function SolutionElementsPane() {
 		upsertCommand({ id: newId, enableRules: [], displayRules: [], actions: [] });
 		openCommandEditor(newId);
 	};
-	const createAndOpenRule = () => {
+	// An enable rule or a display rule, as chosen (#185).
+	const createAndOpenRule = (kind: "enable" | "display") => {
 		const newId = generateRuleId(
 			"New",
-			"Enable",
+			kind === "enable" ? "Enable" : "Display",
 			new Set([...enableRules.map((r) => r.id), ...displayRules.map((r) => r.id)]),
 		);
-		upsertEnableRule({ id: newId, steps: [] });
-		openRuleEditor(newId, "enable");
+		if (kind === "enable") upsertEnableRule({ id: newId, steps: [] });
+		else upsertDisplayRule({ id: newId, steps: [] });
+		openRuleEditor(newId, kind);
 	};
 
 	/** Selects a button where it is; in the narrow drawer that closes it and opens Properties (#194). */
@@ -295,9 +274,13 @@ export function SolutionElementsPane() {
 			<TreeItem key={value} itemType="branch" value={value}>
 				<TreeItemLayout
 					aside={
-						<Text size={100} className={styles.muted}>
-							{items.length}
-						</Text>
+						<CounterBadge
+							size="small"
+							appearance="ghost"
+							color="informative"
+							count={items.length}
+							showZero
+						/>
 					}
 				>
 					{label}
@@ -427,8 +410,17 @@ export function SolutionElementsPane() {
 							<MenuItem icon={<CodeRegular />} onClick={createAndOpenCommand}>
 								New command
 							</MenuItem>
-							<MenuItem icon={<AppsAddInRegular />} onClick={createAndOpenRule}>
-								New rule
+							<MenuItem
+								icon={<AppsAddInRegular />}
+								onClick={() => createAndOpenRule("enable")}
+							>
+								New enable rule
+							</MenuItem>
+							<MenuItem
+								icon={<AppsAddInRegular />}
+								onClick={() => createAndOpenRule("display")}
+							>
+								New display rule
 							</MenuItem>
 						</MenuList>
 					</MenuPopover>
@@ -504,17 +496,21 @@ export function SolutionElementsPane() {
 						"templates",
 						"Templates",
 						shownTemplates,
-						(t) =>
-							leaf(
-								`template:${t.id}`,
-								<span>
-									<DocumentTableRegular aria-hidden />{" "}
-									{distinguishingSegment(t.id)}
-								</span>,
-								null,
-								t.id,
-								() => undefined,
-							),
+						// Plain rows: nothing happens on a template yet (#185).
+						(t) => (
+							<TreeItem
+								key={`template:${t.id}`}
+								itemType="leaf"
+								value={`template:${t.id}`}
+								aria-description={t.id}
+							>
+								<TreeItemLayout iconBefore={<DocumentTableRegular />}>
+									<span className={styles.name} title={t.id}>
+										{distinguishingSegment(t.id)}
+									</span>
+								</TreeItemLayout>
+							</TreeItem>
+						),
 						q ? "No templates match." : "No templates.",
 					)}
 				</Tree>
