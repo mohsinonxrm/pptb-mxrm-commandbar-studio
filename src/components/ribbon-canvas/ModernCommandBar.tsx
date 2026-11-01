@@ -13,7 +13,7 @@ import { useUIStore } from "@/store/uiStore";
 import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import { ButtonContextMenu, type ButtonMenuTarget } from "@/components/shared/ButtonContextMenu";
 import type { RibbonButton, RibbonTab, RibbonLocation } from "@/types/ribbon";
-import { copyControl } from "@/utils/ribbonMenu";
+import { reusedButton } from "@/utils/reuseButton";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
 import { overrideNote } from "@/services/modernCommands";
@@ -245,34 +245,12 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 				const src = JSON.parse(sePayload) as { button?: RibbonButton };
 				const seButton = src?.button;
 				if (seButton) {
-					// Use a copy-suffixed ID so we don't clash with the source
-					// button (which may still live in another tab).
-					const stamp = `_copy_${Date.now()}`;
+					// A copy of the whole button with an id of its own (#60).
 					createButton({
 						location,
 						tabId: tab.id,
 						groupId,
-						button: {
-							// A copy of the whole button — icon, images, command, tooltips —
-							// as a new control (#60): no LocLabel tokens of the original, and
-							// a menu with ids of its own (#27).
-							...copyControl(
-								seButton,
-								`${seButton.id}${stamp}`,
-								loadedLabelIdsOf(useRibbonStore.getState()),
-							),
-							label: seButton.label ?? "New Button",
-							kind: seButton.kind ?? "button",
-							// No sequence — not 50, nor the source's (the spread brought it):
-							// the store places it after the group's last button, where it's shown (#164).
-							sequence: undefined,
-							templateAlias: seButton.templateAlias ?? "o1",
-							commandId: seButton.commandId ?? "",
-							hidden: false,
-							oob: false,
-							custom: true,
-							managed: false,
-						},
+						button: reusedButton(seButton, loadedLabelIdsOf(useRibbonStore.getState())),
 					});
 				}
 			} catch {
