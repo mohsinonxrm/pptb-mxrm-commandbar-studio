@@ -200,7 +200,9 @@ hand. Only one release run per ref runs at a time. If a run fails after publishi
 **Rehearse a release** after the version bump and before the tag, on a branch whose workflow
 changed: `gh workflow run release.yml --ref <branch>` (or Actions → *Release* → *Run workflow*
 once the default branch has the manual trigger). It runs every check and `npm publish
---dry-run`, and creates no GitHub Release. npm's dry run refuses a version that's already
+--dry-run`, and creates no GitHub Release. A stable or hotfix version that isn't on `main` yet
+is rehearsed as the channel its tag will get (`latest`, or `support-X.Y` when that branch
+exists), with a warning; the tag push still decides the channel. npm's dry run refuses a version that's already
 published, so on an unbumped branch the rehearsal stops with a notice after the checks. It
 doesn't exercise the npm token exchange or provenance signing. A manual run never publishes,
 even on a tag.

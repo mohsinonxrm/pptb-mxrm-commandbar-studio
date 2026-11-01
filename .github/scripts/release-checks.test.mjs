@@ -38,6 +38,12 @@ describe("checkReleaseFiles", () => {
 		expect(checkReleaseFiles(files)).toEqual([]);
 	});
 
+	it("passes on a CHANGELOG checked out with CRLF line endings", () => {
+		expect(
+			checkReleaseFiles({ ...files, changelog: changelog.replace(/\n/g, "\r\n") }),
+		).toEqual([]);
+	});
+
 	it("allows entries under [Unreleased] above the release", () => {
 		const withPending = changelog.replace(
 			"## [Unreleased]\n",

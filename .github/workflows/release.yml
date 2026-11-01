@@ -81,6 +81,15 @@ jobs:
                 dist_tag="support-$line"; latest=false
               elif git merge-base --is-ancestor "$GITHUB_SHA" origin/main && [ "$line" = "${main_version%.*}" ]; then
                 dist_tag=latest; latest=true
+              elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+                # A rehearsal of a stable or hotfix version before it reaches main: the tag
+                # decides the channel. Assume the one it will get, so every check still runs.
+                if git rev-parse --verify --quiet "origin/support/$line" >/dev/null; then
+                  dist_tag="support-$line"; latest=false
+                else
+                  dist_tag=latest; latest=true
+                fi
+                echo "::warning::$version isn't on main's release line ($main_version) or support/$line yet. Rehearsing as npm \"$dist_tag\"; the tag push decides the channel."
               else
                 echo "::error::Stable version $version is on neither main's release line ($main_version) nor support/$line. Tag the release → main merge commit (RELEASING.md)."
                 exit 1
