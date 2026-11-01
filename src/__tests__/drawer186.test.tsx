@@ -144,7 +144,9 @@ describe("#186 the editor drawer", () => {
 
 		act(() => ui().openRuleEditor(RULE, "enable"));
 		await flush();
-		expect(drawer()?.textContent).toContain("Edit command ›Edit enable rule");
+		// Back names the command; one level down there's no trail as well (#229).
+		expect(drawer()?.textContent).toContain("Edit commandEdit enable rule");
+		expect(drawer()?.textContent).not.toContain("›");
 		// One drawer, never two.
 		expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
 		act(() => button("Edit command")!.click());

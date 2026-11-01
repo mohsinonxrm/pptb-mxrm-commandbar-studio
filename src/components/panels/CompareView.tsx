@@ -238,10 +238,11 @@ export const CompareView: React.FC<{ historyIndex?: number }> = ({ historyIndex 
 					: "The published XML (left) and the XML with your changes (right)."}
 			</Caption1>
 			<div className={styles.bar}>
-				<Badge appearance="tint" color="success">
+				{/* A count of none isn't news: neutral, not green or red (#229). */}
+				<Badge appearance="tint" color={added ? "success" : "informative"}>
 					+{added} lines
 				</Badge>
-				<Badge appearance="tint" color="danger">
+				<Badge appearance="tint" color={removed ? "danger" : "informative"}>
 					-{removed} lines
 				</Badge>
 				<div className={styles.spacer} />

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import {
 	makeStyles,
 	tokens,
@@ -66,9 +66,12 @@ import { usePublishState } from "@/hooks/usePublishState";
  * Replaces the old top bar plus the sub-header row.
  */
 
+/** The top bar's height: the narrow Properties drawer opens below it. */
+export const TOP_BAR_HEIGHT = 48;
+
 const useStyles = makeStyles({
 	root: {
-		height: "48px",
+		height: `${TOP_BAR_HEIGHT}px`,
 		display: "flex",
 		alignItems: "center",
 		gap: tokens.spacingHorizontalS,
@@ -166,7 +169,27 @@ const useStyles = makeStyles({
 		gap: tokens.spacingVerticalS,
 		maxWidth: "320px",
 	},
+	// Key, then what it does: one shortcut a line (#229).
+	shortcuts: {
+		display: "grid",
+		gridTemplateColumns: "auto 1fr",
+		columnGap: tokens.spacingHorizontalM,
+		rowGap: tokens.spacingVerticalXXS,
+		margin: 0,
+		fontSize: tokens.fontSizeBase200,
+		lineHeight: tokens.lineHeightBase200,
+		"& dt": { fontWeight: tokens.fontWeightSemibold, whiteSpace: "nowrap" },
+		"& dd": { margin: 0 },
+	},
 });
+
+const SHORTCUTS: [string, string][] = [
+	["Ctrl+K", "Search"],
+	["Ctrl+S", "Publish"],
+	["Ctrl+Z / Ctrl+Y", "Undo / redo"],
+	["Ctrl+D", "Duplicate"],
+	["Ctrl+X / Ctrl+V", "Move a button"],
+];
 
 export function TopBar() {
 	const styles = useStyles();
@@ -686,12 +709,14 @@ function HelpContent() {
 				Your changes are kept as a draft for each table automatically, until you publish or
 				discard them.
 			</Text>
-			<Text size={200}>
-				<strong>Ctrl+K</strong> search · <strong>Ctrl+S</strong> publish ·{" "}
-				<strong>Ctrl+Z</strong> / <strong>Ctrl+Y</strong> undo / redo ·{" "}
-				<strong>Ctrl+D</strong> duplicate · <strong>Ctrl+X</strong> /{" "}
-				<strong>Ctrl+V</strong> move a button
-			</Text>
+			<dl className={styles.shortcuts}>
+				{SHORTCUTS.map(([keys, action]) => (
+					<Fragment key={keys}>
+						<dt>{keys}</dt>
+						<dd>{action}</dd>
+					</Fragment>
+				))}
+			</dl>
 			<Button
 				size="small"
 				onClick={async () => setCopied((await copyText(DOCS_URL)).ok ? "yes" : "no")}

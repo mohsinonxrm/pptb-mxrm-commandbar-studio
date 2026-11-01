@@ -235,7 +235,9 @@ describe("#186 the command's actions", () => {
 			id: "cbstest_/approve.js",
 			editable: false,
 		});
-		expect(drawer().textContent).toContain("Edit command ›View script");
+		// Back names the command; one level down there's no trail as well (#229).
+		expect(drawer().textContent).toContain("Edit commandView script");
+		expect(drawer().textContent).not.toContain("›");
 		await until(() => !!document.querySelector('[data-testid="script"]'));
 		expect(document.querySelector('[data-testid="script"]')?.textContent).toBe(
 			"function approve() {}",

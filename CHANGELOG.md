@@ -385,6 +385,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **No content text below Caption 1 (12 px):** small text, badges and counters are a size up across
     Edit mode, the panes, the bottom panel and the dialogs (the Classic canvas's tiles excepted).
   - **The bottom panel's grids no longer scroll sideways** because of their own vertical scrollbar.
+- **Visual pass, part 2 (#229):** every dialog, the editor drawer's views and the publish dialog,
+  from screenshots in PPTB Desktop at 1024 and 1920 px.
+  - **Dialogs open on the right control.** New button, New group, New tab and Rename start in their
+    name field, not on the close button. Unpublished changes from an earlier session start on
+    **Restore changes**, so Enter keeps your work instead of discarding it.
+  - **Small dialogs' buttons fit on one line** ("Create group", "Change template" no longer wrap).
+  - **Choose a web resource** (from Properties or a JavaScript action) uses the same dialog as the
+    rest of CBS. Its list fills the dialog at any window size, Enter chooses a row, and Cancel or Close
+    never delivers a choice later.
+  - **Below 1200 px, Properties opens under the top bar**, so Publish, Search and the tools stay in
+    reach while you edit.
+  - **The List view's header sticks to the top edge;** rows no longer show above it as you scroll.
+  - **Rule steps fit the drawer:** a step's dropdowns no longer run out of its box, and the step
+    list opens inside the drawer.
+  - **Translations:** Label, Tooltip title and Tooltip body line up at the top.
+  - **The publish dialog** shows **What Publish imports** wide, and Solution version at the size of
+    the fields around it.
+  - **Icon names wrap between words** ("Clipboard / Paste", not "ClipboardPast / e").
+  - **Help lists the shortcuts** one to a line. **Compare** shows a count of none in neutral, not
+    red. The bottom panel's grids say they fill in once the ribbon loads, instead of "No
+    commands." while it loads. One level into the editor drawer, the header no longer repeats the
+    Back button's name.
+  - **The URL Action Composer is gone.** Nothing opened it, and URL actions are edited in the command
+    editor.
 - **The bottom panel's Commands and rules are grids (#185).** Hundreds of rows stay quick
   (virtualized), the header stays put while the rows scroll, and nothing scrolls sideways: ids are
   cut to their column with the whole id in a tooltip.

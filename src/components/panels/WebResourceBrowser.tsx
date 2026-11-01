@@ -1,26 +1,32 @@
 import { writeGuard } from "@/services/hostConnection";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+	createContext,
+	useContext,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	makeStyles,
+	mergeClasses,
 	tokens,
-	Dialog,
-	DialogSurface,
-	DialogBody,
-	DialogTitle,
-	DialogContent,
-	DialogActions,
 	Button,
 	SearchBox,
+	Spinner,
 	Text,
-	Subtitle2,
 	Checkbox,
 	Select,
 	MessageBar,
 	MessageBarBody,
 	DataGridHeaderCell,
 	DataGridCell,
+	TableCellLayout,
 	createTableColumn,
+	useFocusableGroup,
 	type TableColumnDefinition,
+	type TableColumnSizingOptions,
 } from "@fluentui/react-components";
 import {
 	DataGrid,
@@ -29,12 +35,12 @@ import {
 	DataGridRow,
 } from "@fluentui-contrib/react-data-grid-react-window";
 import {
-	DismissRegular,
 	ArrowUploadRegular,
 	DocumentRegular,
 	CodeRegular,
 	ImageRegular,
 } from "@fluentui/react-icons";
+import { AppDialog } from "@/components/shared/AppDialog";
 import { useUIStore } from "@/store/uiStore";
 import type { WebResource } from "@/types/webResource";
 import {
@@ -48,69 +54,39 @@ import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
 
+/**
+ * Choose a web resource (a script library, an icon), or upload one. It uses
+ * the one dialog shell (#190); the list fills the dialog's height, measured,
+ * so it neither leaves a gap nor runs past the actions at any window size
+ * (#229).
+ */
+
 const useStyles = makeStyles({
-	surface: {
-		width: "780px",
-		maxWidth: "95vw",
-		height: "80vh",
-		maxHeight: "80vh",
-	},
-	body: {
+	// A fixed height: the list fills what the toolbar and messages leave.
+	content: {
 		display: "flex",
 		flexDirection: "column",
-		height: "100%",
-		overflow: "hidden",
-		gap: tokens.spacingHorizontalS,
+		gap: tokens.spacingVerticalS,
+		height: "min(560px, calc(100vh - 220px))",
+		minHeight: "240px",
+		overflowY: "hidden",
 	},
 	toolbar: {
 		display: "flex",
 		alignItems: "center",
+		flexWrap: "wrap",
 		gap: tokens.spacingHorizontalS,
 		flexShrink: 0,
 	},
-	grid: {
-		flex: 1,
-		overflow: "hidden",
-	},
-	gridWrap: {
-		height: "100%",
-	},
-	gridRow: {
-		display: "flex",
-		alignItems: "center",
-		gap: tokens.spacingHorizontalS,
-		padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
-		cursor: "pointer",
-		borderRadius: tokens.borderRadiusMedium,
-		":hover": { backgroundColor: tokens.colorNeutralBackground3 },
-	},
-	gridRowSelected: {
-		backgroundColor: tokens.colorBrandBackground2,
-	},
-	gridHeader: {
-		display: "flex",
-		alignItems: "center",
-		gap: tokens.spacingHorizontalS,
-		padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
-		borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
+	search: { flex: 1, minWidth: "200px" },
+	box: { flex: 1, minHeight: 0, overflowX: "auto", overflowY: "hidden" },
+	row: { cursor: "pointer" },
+	muted: { color: tokens.colorNeutralForeground3 },
+	state: { padding: tokens.spacingVerticalL, textAlign: "center" },
+	reference: {
 		flexShrink: 0,
-	},
-	col1: { width: "24px", flexShrink: 0 },
-	col2: { width: "32px", flexShrink: 0 },
-	col3: { flex: 1, overflow: "hidden" },
-	col4: { width: "60px", flexShrink: 0, textAlign: "right" },
-	col5: { width: "100px", flexShrink: 0, color: tokens.colorNeutralForeground3 },
-	nameCell: {
-		overflow: "hidden",
-		textOverflow: "ellipsis",
-		whiteSpace: "nowrap",
-	},
-	descCell: {
-		fontSize: tokens.fontSizeBase200,
-		color: tokens.colorNeutralForeground3,
-		overflow: "hidden",
-		textOverflow: "ellipsis",
-		whiteSpace: "nowrap",
+		overflowWrap: "anywhere",
+		fontFamily: tokens.fontFamilyMonospace,
 	},
 });
 
@@ -142,6 +118,68 @@ const TYPE_OPTIONS: { label: string; value: string }[] = [
 	{ label: ".resx", value: "resx" },
 ];
 
+const columns: TableColumnDefinition<WebResource>[] = [
+	createTableColumn<WebResource>({
+		columnId: "name",
+		renderHeaderCell: () => "Name",
+		renderCell: (wr) => (
+			<TableCellLayout
+				truncate
+				media={TYPE_ICONS[getExt(wr.name)] ?? <DocumentRegular />}
+				description={wr.description || undefined}
+			>
+				{wr.name}
+			</TableCellLayout>
+		),
+	}),
+	createTableColumn<WebResource>({
+		columnId: "modified",
+		renderHeaderCell: () => "Modified",
+		renderCell: (wr) => (
+			<TableCellLayout truncate>
+				{wr.modifiedOn ? new Date(wr.modifiedOn).toLocaleDateString() : "—"}
+			</TableCellLayout>
+		),
+	}),
+];
+
+const SIZING: TableColumnSizingOptions = {
+	name: { minWidth: 240, idealWidth: 720 },
+	modified: { minWidth: 96, idealWidth: 120 },
+};
+
+const ROW_HEIGHT = 52;
+/** The grid's header row is about this tall; the rows get the rest of the box. */
+const HEADER_HEIGHT = 34;
+
+/** What a row needs, by context: the body's renderer stays the same function (#242 review). */
+const RowContext = createContext<{ choose: (wr: WebResource) => void }>({ choose: () => {} });
+
+function ResourceRow({ item, style }: { item: WebResource; style: React.CSSProperties }) {
+	const styles = useStyles();
+	const { choose } = useContext(RowContext);
+	return (
+		<DataGridRow<WebResource>
+			style={style}
+			className={styles.row}
+			data-web-resource={item.name}
+			onDoubleClick={() => choose(item)}
+			onKeyDown={(e: React.KeyboardEvent) => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					choose(item);
+				}
+			}}
+		>
+			{({ renderCell }) => <DataGridCell>{renderCell(item)}</DataGridCell>}
+		</DataGridRow>
+	);
+}
+
+const renderRow = ({ item }: { item: WebResource }, style: React.CSSProperties) => (
+	<ResourceRow item={item} style={style} />
+);
+
 interface WebResourceBrowserProps {
 	onSelect?: (wr: WebResource) => void;
 }
@@ -165,6 +203,32 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 	const [customOnly, setCustomOnly] = useState(true);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 
+	// The list fills its box, measured whenever what's around it changes (the
+	// box's height comes from the dialog, not from the list); a resize observer
+	// alone doesn't report while the window is hidden. clientHeight, not the
+	// bounding box: the dialog opens scaled, and a measure mid-animation left
+	// the list short (review).
+	const boxRef = useRef<HTMLDivElement>(null);
+	const [boxHeight, setBoxHeight] = useState(0);
+	const hasReference = selectedId !== null;
+	useLayoutEffect(() => {
+		setBoxHeight(boxRef.current?.clientHeight ?? 0);
+	}, [open, loading, error, warning, hasReference]);
+	useEffect(() => {
+		const box = boxRef.current;
+		if (!box || typeof ResizeObserver === "undefined") return;
+		const observer = new ResizeObserver(([entry]) =>
+			setBoxHeight(Math.floor(entry.contentRect.height)),
+		);
+		observer.observe(box);
+		return () => observer.disconnect();
+	}, [open]);
+	// Enter chooses a row: the grid's focus manager would otherwise take it.
+	const passEnter = useFocusableGroup({
+		tabBehavior: "unlimited",
+		ignoreDefaultKeydown: { Enter: true },
+	});
+
 	const filtered = useMemo(() => {
 		const q = search.toLowerCase();
 		return webResources.filter((wr) => {
@@ -181,66 +245,10 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 
 	const selectedWr = filtered.find((wr) => wr.id === selectedId) ?? null;
 
-	const columns: TableColumnDefinition<WebResource>[] = [
-		createTableColumn<WebResource>({
-			columnId: "type",
-			renderHeaderCell: () => (
-				<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-					Type
-				</Text>
-			),
-			renderCell: (wr) => {
-				const ext = getExt(wr.name);
-				const icon = TYPE_ICONS[ext] ?? <DocumentRegular />;
-				return (
-					<div className={styles.col2} style={{ color: tokens.colorNeutralForeground3 }}>
-						{icon}
-					</div>
-				);
-			},
-		}),
-		createTableColumn<WebResource>({
-			columnId: "name",
-			renderHeaderCell: () => (
-				<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-					Name
-				</Text>
-			),
-			renderCell: (wr) => (
-				<div className={styles.col3}>
-					<div className={styles.nameCell}>
-						<Text
-							style={{
-								fontFamily: tokens.fontFamilyMonospace,
-								fontSize: tokens.fontSizeBase200,
-							}}
-						>
-							{wr.name}
-						</Text>
-					</div>
-					{wr.description && <div className={styles.descCell}>{wr.description}</div>}
-				</div>
-			),
-		}),
-		createTableColumn<WebResource>({
-			columnId: "modified",
-			renderHeaderCell: () => (
-				<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-					Modified
-				</Text>
-			),
-			renderCell: (wr) => (
-				<div className={styles.col5}>
-					<Text size={200}>
-						{wr.modifiedOn ? new Date(wr.modifiedOn).toLocaleDateString() : "—"}
-					</Text>
-				</div>
-			),
-		}),
-	];
-
 	useEffect(() => {
 		if (!open) return;
+		// Each opening starts with no choice: the last one may be another caller's (review).
+		setSelectedId(null);
 		setLoading(true);
 		setError(null);
 		setWarning(null);
@@ -327,218 +335,164 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 		}
 	};
 
-	const handleSelect = () => {
-		if (selectedWr) {
-			// Invoke any callback registered by the caller (e.g. IdentitySection,
-			// CommandEditorPanel) before falling back to the optional onSelect prop.
-			webResourceBrowserCallbackRegistry.invoke(selectedWr);
-			onSelect?.(selectedWr);
-			closeWebResourceBrowser();
-		}
+	/** Every way out clears the caller's callback: a choice not made is never delivered later. */
+	const close = () => {
+		webResourceBrowserCallbackRegistry.clear();
+		closeWebResourceBrowser();
 	};
+	const choose = (wr: WebResource) => {
+		// Invoke any callback registered by the caller (e.g. IdentitySection,
+		// CommandEditorPanel) before falling back to the optional onSelect prop.
+		webResourceBrowserCallbackRegistry.invoke(wr);
+		onSelect?.(wr);
+		closeWebResourceBrowser();
+	};
+
+	const bodyHeight = Math.max(ROW_HEIGHT, boxHeight - HEADER_HEIGHT);
 
 	return (
 		<>
 			{replaceConfirm.dialog}
-			<Dialog
+			<AppDialog
 				open={open}
-				onOpenChange={(_, d) => {
-					if (!d.open) {
-						webResourceBrowserCallbackRegistry.clear();
-						closeWebResourceBrowser();
-					}
-				}}
-			>
-				<DialogSurface className={styles.surface}>
-					<DialogBody style={{ height: "100%" }}>
-						<DialogTitle
-							action={
-								<Button
-									appearance="subtle"
-									icon={<DismissRegular />}
-									onClick={closeWebResourceBrowser}
-									aria-label="Close"
-								/>
-							}
+				onOpenChange={(next) => !next && close()}
+				title="Choose a web resource"
+				size="large"
+				contentClassName={styles.content}
+				startActions={
+					<>
+						<Button
+							icon={<ArrowUploadRegular />}
+							disabled={uploading}
+							onClick={() => uploadInputRef.current?.click()}
 						>
-							<Subtitle2>Web Resource Browser</Subtitle2>
-						</DialogTitle>
+							{uploading ? "Uploading…" : "Upload…"}
+						</Button>
+						<EnvironmentBadge prefix="Uploads to" />
+					</>
+				}
+				actions={
+					<>
+						<Button appearance="secondary" onClick={close}>
+							Cancel
+						</Button>
+						<Button
+							appearance="primary"
+							disabled={!selectedWr}
+							onClick={() => selectedWr && choose(selectedWr)}
+						>
+							Select
+						</Button>
+					</>
+				}
+			>
+				<input
+					ref={uploadInputRef}
+					type="file"
+					accept=".js,.html,.svg,.png,.css,.xml,.resx,.jpg,.gif,.ico,.xsl"
+					style={{ display: "none" }}
+					onChange={(e) => {
+						const file = e.target.files?.[0];
+						e.currentTarget.value = "";
+						if (file) void handleUpload(file);
+					}}
+				/>
+				<div className={styles.toolbar}>
+					<SearchBox
+						aria-label="Search the web resources by name"
+						placeholder="Search by name…"
+						value={search}
+						onChange={(_, d) => setSearch(d.value)}
+						className={styles.search}
+					/>
+					<Select
+						aria-label="Type"
+						value={typeFilter}
+						onChange={(_, d) => setTypeFilter(d.value)}
+					>
+						{TYPE_OPTIONS.map((o) => (
+							<option key={o.value} value={o.value}>
+								{o.label}
+							</option>
+						))}
+					</Select>
+					<Checkbox
+						label="Custom only"
+						checked={customOnly}
+						onChange={(_, d) => setCustomOnly(d.checked === true)}
+					/>
+				</div>
 
-						<DialogContent className={styles.body}>
-							<input
-								ref={uploadInputRef}
-								type="file"
-								accept=".js,.html,.svg,.png,.css,.xml,.resx,.jpg,.gif,.ico,.xsl"
-								style={{ display: "none" }}
-								onChange={(e) => {
-									const file = e.target.files?.[0];
-									e.currentTarget.value = "";
-									if (file) void handleUpload(file);
+				{error && (
+					<MessageBar intent="error">
+						<MessageBarBody>{error}</MessageBarBody>
+					</MessageBar>
+				)}
+				{warning && (
+					<MessageBar intent="warning">
+						<MessageBarBody>{warning}</MessageBarBody>
+					</MessageBar>
+				)}
+
+				<div ref={boxRef} className={styles.box} {...passEnter}>
+					{loading ? (
+						<Spinner
+							className={styles.state}
+							size="small"
+							label="Loading web resources…"
+						/>
+					) : filtered.length === 0 ? (
+						<Text as="p" className={mergeClasses(styles.state, styles.muted)}>
+							{webResources.length === 0
+								? "No web resources in this environment."
+								: "No web resources match."}
+						</Text>
+					) : (
+						<RowContext.Provider value={{ choose }}>
+							<DataGrid
+								items={filtered}
+								columns={columns}
+								columnSizingOptions={SIZING}
+								resizableColumns
+								getRowId={(item) => item.id}
+								focusMode="composite"
+								selectionMode="single"
+								subtleSelection
+								aria-label="Web resources"
+								selectedItems={selectedId ? new Set([selectedId]) : new Set()}
+								onSelectionChange={(_, data) => {
+									const id = [...data.selectedItems][0] as string | undefined;
+									setSelectedId(id ?? null);
 								}}
-							/>
-							<div className={styles.toolbar}>
-								<SearchBox
-									aria-label="Search the web resources by name"
-									placeholder="Search by name…"
-									value={search}
-									onChange={(_, d) => setSearch(d.value)}
-									size="small"
-									style={{ flex: 1 }}
-								/>
-								<Select
-									size="small"
-									value={typeFilter}
-									onChange={(_, d) => setTypeFilter(d.value)}
-									style={{ width: "100px" }}
-								>
-									{TYPE_OPTIONS.map((o) => (
-										<option key={o.value} value={o.value}>
-											{o.label}
-										</option>
-									))}
-								</Select>
-								<Checkbox
-									label="Custom only"
-									checked={customOnly}
-									onChange={(_, d) => setCustomOnly(d.checked === true)}
-								/>
-							</div>
-
-							{error && (
-								<MessageBar intent="error">
-									<MessageBarBody>{error}</MessageBarBody>
-								</MessageBar>
-							)}
-							{warning && (
-								<MessageBar intent="warning">
-									<MessageBarBody>{warning}</MessageBarBody>
-								</MessageBar>
-							)}
-
-							<div className={styles.grid}>
-								{loading && (
-									<Text
-										style={{
-											color: tokens.colorNeutralForeground3,
-											padding: tokens.spacingHorizontalM,
-										}}
-									>
-										Loading web resources…
-									</Text>
-								)}
-								{!loading && filtered.length === 0 && (
-									<Text
-										style={{
-											color: tokens.colorNeutralForeground3,
-											padding: tokens.spacingHorizontalM,
-											textAlign: "center",
-										}}
-									>
-										No web resources found.
-									</Text>
-								)}
-								{!loading && filtered.length > 0 && (
-									<DataGrid
-										className={styles.gridWrap}
-										items={filtered}
-										columns={columns}
-										getRowId={(item) => item.id}
-										focusMode="composite"
-										selectionMode="single"
-										subtleSelection
-										selectedItems={
-											selectedId ? new Set([selectedId]) : new Set()
-										}
-										onSelectionChange={(_, data) => {
-											const id = [...data.selectedItems][0] as
-												string | undefined;
-											setSelectedId(id ?? null);
-										}}
-									>
-										<DataGridHeader>
-											<DataGridRow>
-												{({ renderHeaderCell }) => (
-													<DataGridHeaderCell>
-														{renderHeaderCell()}
-													</DataGridHeaderCell>
-												)}
-											</DataGridRow>
-										</DataGridHeader>
-										<DataGridBody<WebResource>
-											itemSize={56}
-											height={360}
-											listProps={{ width: "100%" }}
-										>
-											{({ item, rowId }, style) => (
-												<DataGridRow<WebResource>
-													key={rowId}
-													style={style}
-													className={`${styles.gridRow} ${item.id === selectedId ? styles.gridRowSelected : ""}`}
-													onDoubleClick={() => {
-														setSelectedId(item.id);
-														webResourceBrowserCallbackRegistry.invoke(
-															item,
-														);
-														onSelect?.(item);
-														closeWebResourceBrowser();
-													}}
-												>
-													{({ renderCell }) => (
-														<DataGridCell>
-															{renderCell(item)}
-														</DataGridCell>
-													)}
-												</DataGridRow>
-											)}
-										</DataGridBody>
-									</DataGrid>
-								)}
-							</div>
-
-							{selectedWr && (
-								<div
-									style={{
-										padding: tokens.spacingHorizontalXS,
-										backgroundColor: tokens.colorNeutralBackground3,
-										borderRadius: tokens.borderRadiusMedium,
-										flexShrink: 0,
-									}}
-								>
-									<Text
-										size={200}
-										style={{ fontFamily: tokens.fontFamilyMonospace }}
-									>
-										$webresource:{selectedWr.name}
-									</Text>
-								</div>
-							)}
-						</DialogContent>
-
-						<DialogActions fluid>
-							<Button
-								appearance="subtle"
-								icon={<ArrowUploadRegular />}
-								disabled={uploading}
-								onClick={() => uploadInputRef.current?.click()}
 							>
-								{uploading ? "Uploading…" : "Upload"}
-							</Button>
-							<EnvironmentBadge prefix="Uploads to" />
-							<div style={{ flex: 1 }} />
-							<Button appearance="secondary" onClick={closeWebResourceBrowser}>
-								Cancel
-							</Button>
-							<Button
-								appearance="primary"
-								disabled={!selectedWr}
-								onClick={handleSelect}
-							>
-								Select
-							</Button>
-						</DialogActions>
-					</DialogBody>
-				</DialogSurface>
-			</Dialog>
+								<DataGridHeader>
+									<DataGridRow>
+										{({ renderHeaderCell }) => (
+											<DataGridHeaderCell>
+												{renderHeaderCell()}
+											</DataGridHeaderCell>
+										)}
+									</DataGridRow>
+								</DataGridHeader>
+								<DataGridBody<WebResource>
+									itemSize={ROW_HEIGHT}
+									height={bodyHeight}
+									listProps={{ width: "100%" }}
+								>
+									{renderRow}
+								</DataGridBody>
+							</DataGrid>
+						</RowContext.Provider>
+					)}
+				</div>
+
+				{selectedWr && (
+					<Text size={200} className={styles.reference}>
+						<span className={styles.muted}>Reference: </span>$webresource:
+						{selectedWr.name}
+					</Text>
+				)}
+			</AppDialog>
 		</>
 	);
 };

@@ -125,6 +125,7 @@ export const NewTabModal: React.FC = () => {
 						value={label}
 						onChange={(_, d) => setLabel(d.value)}
 						placeholder="My Tab"
+						data-autofocus
 					/>
 				</Field>
 				<Field

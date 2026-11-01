@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
 	Button,
 	Dialog,
@@ -19,6 +19,10 @@ import { DismissRegular } from "@fluentui/react-icons";
  * The one dialog shell every modal uses (#190, #187): DialogSurface ›
  * DialogBody › DialogTitle / DialogContent / DialogActions, three widths, and
  * only the content scrolls so the actions never leave the surface.
+ *
+ * Focus: Fluent focuses the first focusable element on open, which is the
+ * close button, after React's `autoFocus` has run. A field marked
+ * `data-autofocus` takes it back (#229).
  */
 
 export type AppDialogSize = "small" | "medium" | "large";
@@ -47,6 +51,9 @@ const useStyles = makeStyles({
 		minHeight: 0,
 		overflowY: "auto",
 	},
+	// Fluent's body is a `1fr 1fr auto` grid and end actions start at its
+	// second column: alone, they'd get half the width and wrap "Create group".
+	wholeRow: { gridColumnStart: 1 },
 	danger: {
 		backgroundColor: tokens.colorStatusDangerBackground3,
 		color: tokens.colorNeutralForegroundOnBrand,
@@ -91,9 +98,15 @@ export const AppDialog: React.FC<AppDialogProps> = ({
 }) => {
 	const styles = useStyles();
 	const showClose = modalType !== "alert";
+	const surfaceRef = useRef<HTMLDivElement>(null);
+	// Runs after Fluent's own first-focus effect, in the same commit.
+	useEffect(() => {
+		if (!open) return;
+		surfaceRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+	}, [open]);
 	return (
 		<Dialog modalType={modalType} open={open} onOpenChange={(_, d) => onOpenChange(d.open)}>
-			<DialogSurface className={mergeClasses(styles.surface, styles[size])}>
+			<DialogSurface ref={surfaceRef} className={mergeClasses(styles.surface, styles[size])}>
 				<DialogBody className={styles.body}>
 					<DialogTitle
 						action={
@@ -118,7 +131,12 @@ export const AppDialog: React.FC<AppDialogProps> = ({
 							{startActions && (
 								<DialogActions position="start">{startActions}</DialogActions>
 							)}
-							<DialogActions position="end">{actions}</DialogActions>
+							<DialogActions
+								position="end"
+								className={startActions ? undefined : styles.wholeRow}
+							>
+								{actions}
+							</DialogActions>
 						</>
 					)}
 				</DialogBody>

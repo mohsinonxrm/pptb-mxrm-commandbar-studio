@@ -57,7 +57,7 @@ export const NewGroupModal: React.FC = () => {
 			}
 		>
 			<Field label="Label" required>
-				<Input value={label} onChange={(_, d) => setLabel(d.value)} autoFocus />
+				<Input value={label} onChange={(_, d) => setLabel(d.value)} data-autofocus />
 			</Field>
 			<Field
 				label="Group template"

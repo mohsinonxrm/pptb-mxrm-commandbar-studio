@@ -713,7 +713,8 @@ export const BulkPublishModal: React.FC = () => {
 		<AppDialog
 			open={bulkPublishOpen}
 			onOpenChange={(open) => !open && !publishing && handleClose()}
-			size="medium"
+			// XML reads better wide, as in the editor drawer (#229).
+			size={view === "xml" ? "large" : "medium"}
 			title={view === "xml" ? "What Publish imports" : title}
 			startActions={
 				editing ? (
@@ -1017,7 +1018,6 @@ export const BulkPublishModal: React.FC = () => {
 									/>
 									<Field label="Solution version">
 										<Input
-											size="small"
 											value={
 												incrementSolutionVersion
 													? nextVersion

@@ -5,7 +5,7 @@ import {
 	PanelRightExpandRegular,
 	TextBulletListTreeRegular,
 } from "@fluentui/react-icons";
-import { TopBar } from "./TopBar";
+import { TOP_BAR_HEIGHT, TopBar } from "./TopBar";
 import { ShellMessages } from "./ShellMessages";
 import { useUIStore, type LeftPaneTab } from "@/store/uiStore";
 import { PropertiesHostContext } from "@/components/properties-pane/propertiesHost";
@@ -28,7 +28,6 @@ const ImportXmlModal = lazy(() => import("@/components/modals/ImportXmlModal"));
 const CommandPalette = lazy(() => import("@/components/command-palette/CommandPalette"));
 const IconPickerModal = lazy(() => import("@/components/modals/IconPickerModal"));
 const WebResourceBrowser = lazy(() => import("@/components/panels/WebResourceBrowser"));
-const UrlComposerModal = lazy(() => import("@/components/panels/UrlComposerModal"));
 const HideInsteadOfDeleteModal = lazy(() => import("@/components/modals/HideInsteadOfDeleteModal"));
 
 const useStyles = makeStyles({
@@ -76,6 +75,13 @@ const useStyles = makeStyles({
 		width: "100%",
 		height: "100%",
 		overflow: "hidden",
+	},
+	// Properties opens below the top bar: over it, it hid Publish, Search and
+	// the tools while you edited (#229).
+	// The bar is TOP_BAR_HEIGHT plus its 1px bottom border, which stays in view.
+	belowTopBar: {
+		top: `${TOP_BAR_HEIGHT + 1}px`,
+		height: `calc(100vh - ${TOP_BAR_HEIGHT + 1}px)`,
 	},
 });
 
@@ -182,7 +188,6 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			s.commandPaletteOpen ||
 			s.iconPickerOpen ||
 			s.webResourceBrowserOpen ||
-			s.urlComposerOpen ||
 			s.hideInsteadOfDelete !== null,
 	);
 	const focusReturnRef = useRef<HTMLElement | null>(null);
@@ -296,6 +301,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 								position="end"
 								size="small"
 								modalType="non-modal"
+								className={styles.belowTopBar}
 								open={propsOpen}
 								onOpenChange={(_, d) =>
 									d.open ? setPropsOpen(true) : closeProps()
@@ -371,7 +377,6 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 					<CommandPalette />
 					<IconPickerModal />
 					<WebResourceBrowser />
-					<UrlComposerModal />
 					<HideInsteadOfDeleteModal />
 				</Suspense>
 			</ErrorBoundary>

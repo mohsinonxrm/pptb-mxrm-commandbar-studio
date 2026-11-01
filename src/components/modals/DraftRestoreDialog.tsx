@@ -28,10 +28,12 @@ export function DraftRestoreDialog() {
 			actions={
 				<>
 					<DangerButton onClick={discardDraft}>Discard changes</DangerButton>
+					{/* Focus starts here, not on Discard: Enter keeps the work (#229). */}
 					<Button
 						appearance="primary"
 						disabled={!!restoreError}
 						onClick={() => restoreDraft()}
+						data-autofocus
 					>
 						Restore changes
 					</Button>

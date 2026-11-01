@@ -64,6 +64,11 @@ const useStyles = makeStyles({
 		gap: tokens.spacingHorizontalS,
 		alignItems: "end",
 		minWidth: 0,
+		// A cell can be narrower than its content: a Select is as wide as its
+		// longest option, and ran out of the step's box (#229). The Field is a
+		// grid of its own, and the select a flex item in its root.
+		"& > *": { minWidth: 0, gridTemplateColumns: "minmax(0, 1fr)" },
+		"& select": { minWidth: 0 },
 	},
 	number: { maxWidth: "140px" },
 	muted: { color: tokens.colorNeutralForeground3 },
@@ -620,6 +625,7 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 					<Popover
 						open={orPicker === target}
 						onOpenChange={(_, d) => setOrPicker(d.open ? target : null)}
+						positioning="below-start"
 					>
 						<PopoverTrigger>
 							<Button icon={<AddRegular />} appearance="secondary" size="small">

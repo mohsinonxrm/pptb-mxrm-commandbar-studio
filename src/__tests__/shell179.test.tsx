@@ -49,7 +49,6 @@ vi.mock("@/components/command-palette/CommandPalette", () => ({ default: () => n
 vi.mock("@/components/panels/TranslationsView", () => ({ default: () => null }));
 vi.mock("@/components/modals/IconPickerModal", () => ({ default: () => null }));
 vi.mock("@/components/panels/WebResourceBrowser", () => ({ default: () => null }));
-vi.mock("@/components/panels/UrlComposerModal", () => ({ default: () => null }));
 vi.mock("@/components/panels/CompareView", () => ({ default: () => null }));
 vi.mock("@/components/modals/HideInsteadOfDeleteModal", () => ({ default: () => null }));
 
