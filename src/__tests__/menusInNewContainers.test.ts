@@ -79,7 +79,14 @@ const generate = (current: RibbonDefinition, baseline: RibbonDefinition) =>
 			id: `${id}.Command`,
 			enableRules: [],
 			displayRules: [],
-			actions: [{ kind: "javascript", library: "$webresource:mxrm_/x.js", functionName: "go", params: [] }],
+			actions: [
+				{
+					kind: "javascript",
+					library: "$webresource:mxrm_/x.js",
+					functionName: "go",
+					params: [],
+				},
+			],
 		})) as never,
 		enableRules: [],
 		displayRules: [],
@@ -98,15 +105,23 @@ describe("a new flyout in a new group (#62 × #66)", () => {
 		const groupCa = cas.find((c) => c.getAttribute("Location") === `${TAB}.Groups._children`)!;
 		const fly = groupCa.querySelector('Group > Controls > FlyoutAnchor[Id="mxrm.Fly"]')!;
 		expect(fly).toBeTruthy();
-		const items = Array.from(fly.querySelectorAll("Menu > MenuSection > Controls > Button")).map((b) =>
-			b.getAttribute("Id"),
-		);
+		const items = Array.from(
+			fly.querySelectorAll("Menu > MenuSection > Controls > Button"),
+		).map((b) => b.getAttribute("Id"));
 		expect(items).toEqual(["mxrm.Fly.A", "mxrm.Fly.B"]);
 		// No separate CustomAction for the flyout or its items.
 		expect(cas.filter((c) => /mxrm\.Fly/.test(c.getAttribute("Id") ?? ""))).toEqual([]);
 		// Every item's command is written.
-		const commandIds = Array.from(doc(xml).getElementsByTagName("CommandDefinition")).map((c) => c.getAttribute("Id"));
-		expect(commandIds).toEqual(expect.arrayContaining(["mxrm.Fly.Command", "mxrm.Fly.A.Command", "mxrm.Fly.B.Command"]));
+		const commandIds = Array.from(doc(xml).getElementsByTagName("CommandDefinition")).map((c) =>
+			c.getAttribute("Id"),
+		);
+		expect(commandIds).toEqual(
+			expect.arrayContaining([
+				"mxrm.Fly.Command",
+				"mxrm.Fly.A.Command",
+				"mxrm.Fly.B.Command",
+			]),
+		);
 		// The group's MaxSize takes a free Sequence (#66), not its own 20 or the Scale's 80.
 		const maxSize = cas
 			.map((c) => c.querySelector(`MaxSize[GroupId="${GROUP}"]`))
@@ -119,7 +134,9 @@ describe("a new flyout in a new group (#62 × #66)", () => {
 	it("once in the layer, its items are owned, edited and deleted in place", () => {
 		const { current, baseline } = withFlyoutInNewGroup();
 		const existing = parseRibbonDiffParts(generate(current, baseline));
-		expect([...ownControlIds(existing)]).toEqual(expect.arrayContaining([GROUP, "mxrm.Fly", "mxrm.Fly.A", "mxrm.Fly.B"]));
+		expect([...ownControlIds(existing)]).toEqual(
+			expect.arrayContaining([GROUP, "mxrm.Fly", "mxrm.Fly.A", "mxrm.Fly.B"]),
+		);
 
 		// Next session: the layer's group is in the baseline; item A is renamed, B deleted.
 		const loaded: RibbonDefinition = JSON.parse(JSON.stringify(current));
@@ -131,7 +148,9 @@ describe("a new flyout in a new group (#62 × #66)", () => {
 		const merged = mergeScopeChanges(existing, delta, { deletedControlIds: ["mxrm.Fly.B"] });
 
 		const all = [...merged.customActions.values()].join("");
-		const groupCas = [...merged.customActions.values()].filter((x) => x.includes(`<Group Id="${GROUP}"`));
+		const groupCas = [...merged.customActions.values()].filter((x) =>
+			x.includes(`<Group Id="${GROUP}"`),
+		);
 		expect(groupCas).toHaveLength(1);
 		const a = doc(groupCas[0]).querySelector('Button[Id="mxrm.Fly.A"]')!;
 		expect(a).toBeTruthy();

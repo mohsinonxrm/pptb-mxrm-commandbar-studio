@@ -13,7 +13,11 @@ import { parseRibbonXml } from "@/services/xmlParser";
 import { hasOobOverrideChanges } from "@/services/xmlGenerator";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { applyButtonOrigin } from "@/utils/ribbonProvenance";
-import { controlCommandIds, isReadOnlyControlKind, KIND_BY_CONTROL_TAG } from "@/utils/controlKinds";
+import {
+	controlCommandIds,
+	isReadOnlyControlKind,
+	KIND_BY_CONTROL_TAG,
+} from "@/utils/controlKinds";
 
 /**
  * Applies a RibbonDiffXml (e.g. exported by Ribbon Workbench or from a
@@ -316,7 +320,9 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 	 * loaded-ribbon parser: placed where a ribbon's tabs are (the parser reads
 	 * no tab from a CustomAction, #42), with the XML's TabDisplayRules.
 	 */
-	const tabDisplayRulesXml = elementChildren(root.querySelector(":scope > RuleDefinitions > TabDisplayRules"))
+	const tabDisplayRulesXml = elementChildren(
+		root.querySelector(":scope > RuleDefinitions > TabDisplayRules"),
+	)
 		.map((e) => serializer.serializeToString(e))
 		.join("");
 	const parseFragment = (tabXml: string): RibbonTab | undefined =>
@@ -342,9 +348,14 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		if (src.tooltipBodyToken) button.tooltipBody = text(src.tooltipBodyToken, "");
 	};
 	/** `$LocLabels:` references neither the XML nor the session defines: their text won't show unless another solution defines it. */
-	const checkLabels = (item: { id: string; source?: { attributes: Record<string, string>; xml?: string } }) => {
+	const checkLabels = (item: {
+		id: string;
+		source?: { attributes: Record<string, string>; xml?: string };
+	}) => {
 		// A control kept verbatim (#42): its children's references too.
-		for (const v of item.source?.xml ? [item.source.xml] : Object.values(item.source?.attributes ?? {}))
+		for (const v of item.source?.xml
+			? [item.source.xml]
+			: Object.values(item.source?.attributes ?? {}))
 			for (const [, id] of v.matchAll(LOC_LABEL_REF))
 				if (!locLabels.some((l) => l.id === id)) {
 					notApplied.push(
@@ -691,7 +702,8 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 	for (const location of LOCATIONS)
 		for (const tab of ribbons[location].tabs)
 			for (const group of tab.groups)
-				for (const b of group.buttons) for (const id of controlCommandIds(b)) usedCommands.add(id);
+				for (const b of group.buttons)
+					for (const id of controlCommandIds(b)) usedCommands.add(id);
 	for (const c of addedTabCommands) usedCommands.add(c);
 	const usedEnable = new Set<string>();
 	const usedDisplay = new Set<string>();

@@ -19,7 +19,10 @@ async function bootstrap() {
 	const logInfo = useRuntimeLogStore.getState().logInfo;
 	const win = window as Window & typeof globalThis;
 	const toolboxAPI = win.toolboxAPI;
-	const { connection, theme, warnings } = await connectToHost({ toolboxAPI, dataverseAPI: win.dataverseAPI });
+	const { connection, theme, warnings } = await connectToHost({
+		toolboxAPI,
+		dataverseAPI: win.dataverseAPI,
+	});
 	logInfo("startup", "Connected to PPTB host runtime.");
 	for (const w of warnings) useRuntimeLogStore.getState().logWarn("startup", w);
 	logInfo("startup", `Host theme loaded: ${theme}.`);

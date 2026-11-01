@@ -57,10 +57,14 @@ beforeEach(() => {
 			Form: ribbon("Form", false),
 			Application: ribbon("Application", false),
 		},
-		commands: [{ id: "Cmd1", enableRules: ["Enable1"], displayRules: ["Display1"], actions: [] }],
+		commands: [
+			{ id: "Cmd1", enableRules: ["Enable1"], displayRules: ["Display1"], actions: [] },
+		],
 		enableRules: [{ id: "Enable1", steps: [] }],
 		displayRules: [{ id: "Display1", steps: [] }],
-		locLabels: [{ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "One" }] }],
+		locLabels: [
+			{ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "One" }] },
+		],
 	});
 });
 
@@ -222,7 +226,9 @@ describe("batch (#34)", () => {
 	it("nested batches join the outer one; an empty batch records nothing", () => {
 		store().batch(() => {
 			store().upsertEnableRule({ id: "Enable2", steps: [] });
-			store().batch(() => store().upsertCommand({ ...command("Cmd1")!, enableRules: ["Enable2"] }));
+			store().batch(() =>
+				store().upsertCommand({ ...command("Cmd1")!, enableRules: ["Enable2"] }),
+			);
 		});
 		expect(store().past).toHaveLength(1);
 		store().batch(() => store().upsertCommand({ ...command("Cmd1")! }));
@@ -332,7 +338,14 @@ describe("typing is one undo step (#34 review)", () => {
 			const cmd = command("Cmd1")!;
 			store().upsertCommand({
 				...cmd,
-				actions: [{ kind: "javascript", library: "$webresource:x.js", functionName: text.slice(0, i), params: [] }],
+				actions: [
+					{
+						kind: "javascript",
+						library: "$webresource:x.js",
+						functionName: text.slice(0, i),
+						params: [],
+					},
+				],
 			});
 		}
 	};
@@ -352,12 +365,26 @@ describe("typing is one undo step (#34 review)", () => {
 				location: "HomepageGrid",
 				tabId: "Tab1",
 				groupId: "Group1",
-				button: { id: "Button2", label: "B2", kind: "button", sequence: 20, templateAlias: "o1", commandId: "Cmd2", hidden: false, oob: false, custom: true, managed: false },
+				button: {
+					id: "Button2",
+					label: "B2",
+					kind: "button",
+					sequence: 20,
+					templateAlias: "o1",
+					commandId: "Cmd2",
+					hidden: false,
+					oob: false,
+					custom: true,
+					managed: false,
+				},
 			});
 			store().upsertCommand({ id: "Cmd2", enableRules: [], displayRules: [], actions: [] });
 		});
 		for (const name of ["f", "fo", "foo"]) {
-			store().upsertCommand({ ...command("Cmd2")!, actions: [{ kind: "javascript", library: "x.js", functionName: name, params: [] }] });
+			store().upsertCommand({
+				...command("Cmd2")!,
+				actions: [{ kind: "javascript", library: "x.js", functionName: name, params: [] }],
+			});
 		}
 		expect(store().past).toHaveLength(2);
 
@@ -372,21 +399,39 @@ describe("typing is one undo step (#34 review)", () => {
 		vi.useFakeTimers({ toFake: ["Date"] });
 		try {
 			vi.setSystemTime(Date.UTC(2026, 0, 1));
-			store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "On" }] });
+			store().upsertLocLabel({
+				id: "Button1.LabelText",
+				titles: [{ languageCode: 1033, description: "On" }],
+			});
 			vi.setSystemTime(Date.UTC(2026, 0, 1) + 500);
-			store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "Onx" }] });
+			store().upsertLocLabel({
+				id: "Button1.LabelText",
+				titles: [{ languageCode: 1033, description: "Onx" }],
+			});
 			expect(store().past).toHaveLength(1);
 
 			vi.setSystemTime(Date.UTC(2026, 0, 1) + 2000);
-			store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "Onxy" }] });
+			store().upsertLocLabel({
+				id: "Button1.LabelText",
+				titles: [{ languageCode: 1033, description: "Onxy" }],
+			});
 			expect(store().past).toHaveLength(2);
 
-			store().upsertEnableRule({ id: "Enable1", steps: [{ kind: "CommandClientTypeRule", type: "Modern" }] });
-			store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "Onxyz" }] });
+			store().upsertEnableRule({
+				id: "Enable1",
+				steps: [{ kind: "CommandClientTypeRule", type: "Modern" }],
+			});
+			store().upsertLocLabel({
+				id: "Button1.LabelText",
+				titles: [{ languageCode: 1033, description: "Onxyz" }],
+			});
 			expect(store().past).toHaveLength(4);
 
 			store().undo();
-			store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "Q" }] });
+			store().upsertLocLabel({
+				id: "Button1.LabelText",
+				titles: [{ languageCode: 1033, description: "Q" }],
+			});
 			expect(store().past).toHaveLength(4);
 		} finally {
 			vi.useRealTimers();
@@ -408,9 +453,15 @@ describe("typing is one undo step (#34 review)", () => {
 	});
 
 	it("typing after a publish starts a new step", () => {
-		store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "A" }] });
+		store().upsertLocLabel({
+			id: "Button1.LabelText",
+			titles: [{ languageCode: 1033, description: "A" }],
+		});
 		store().markPublished();
-		store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "AB" }] });
+		store().upsertLocLabel({
+			id: "Button1.LabelText",
+			titles: [{ languageCode: 1033, description: "AB" }],
+		});
 		expect(store().past).toHaveLength(2);
 	});
 });
@@ -418,7 +469,10 @@ describe("typing is one undo step (#34 review)", () => {
 describe("undo across a publish (#34 review)", () => {
 	it("a published un-hide does not come back as pending on undo", () => {
 		store().setLayerHideUnhidden("entity", "X.Hidden", true);
-		store().upsertLocLabel({ id: "Button1.LabelText", titles: [{ languageCode: 1033, description: "Edited" }] });
+		store().upsertLocLabel({
+			id: "Button1.LabelText",
+			titles: [{ languageCode: 1033, description: "Edited" }],
+		});
 		store().markPublished();
 		expect(store().pendingUnhides.entity).toEqual([]);
 
@@ -453,7 +507,10 @@ describe("undo across a publish (#34 review)", () => {
 
 	it("undo back to the loaded state clears the change count", () => {
 		store().upsertCommand({ ...command("Cmd1")!, enableRules: [] });
-		store().upsertDisplayRule({ id: "Display1", steps: [{ kind: "CommandClientTypeRule", type: "Modern" }] });
+		store().upsertDisplayRule({
+			id: "Display1",
+			steps: [{ kind: "CommandClientTypeRule", type: "Modern" }],
+		});
 		store().undo();
 		expect(store().mutationsSincePublish).toBe(1);
 		store().undo();

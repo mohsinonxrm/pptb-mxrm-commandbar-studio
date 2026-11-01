@@ -31,7 +31,12 @@ function read(key: string, now: number): RecentPublish | null {
 		const raw = sessionStorage.getItem(key);
 		if (!raw) return null;
 		const value = JSON.parse(raw) as Partial<RecentPublish>;
-		if (typeof value.at !== "number" || !value.publishedAt || typeof value.publishedAt !== "object") return null;
+		if (
+			typeof value.at !== "number" ||
+			!value.publishedAt ||
+			typeof value.publishedAt !== "object"
+		)
+			return null;
 		const publishedAt = Object.fromEntries(
 			Object.entries(value.publishedAt).filter(
 				(e): e is [string, number] => typeof e[1] === "number" && now - e[1] < WINDOW_MS,
@@ -69,6 +74,10 @@ export function rememberPublish(
 }
 
 /** The table's recent publishes in this window (entries still within the window), or null. */
-export function recentPublishOf(orgUrl: string, entityLogicalName: string, now = Date.now()): RecentPublish | null {
+export function recentPublishOf(
+	orgUrl: string,
+	entityLogicalName: string,
+	now = Date.now(),
+): RecentPublish | null {
 	return read(keyOf(orgUrl, entityLogicalName), now);
 }

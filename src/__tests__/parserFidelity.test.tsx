@@ -24,8 +24,18 @@ import { ClassicRibbon } from "@/components/ribbon-canvas/ClassicRibbon";
 import { PropertiesPane } from "@/components/properties-pane/PropertiesPane";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
-import { DISPLAY_ONLY_RULE_KINDS, ENABLE_ONLY_RULE_KINDS, RULE_KIND_LABELS } from "@/constants/ruleKinds";
-import type { CommandDefinition, RibbonButton, RibbonDefinition, RibbonLocation, RibbonTab } from "@/types/ribbon";
+import {
+	DISPLAY_ONLY_RULE_KINDS,
+	ENABLE_ONLY_RULE_KINDS,
+	RULE_KIND_LABELS,
+} from "@/constants/ruleKinds";
+import type {
+	CommandDefinition,
+	RibbonButton,
+	RibbonDefinition,
+	RibbonLocation,
+	RibbonTab,
+} from "@/types/ribbon";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 if (typeof window.ResizeObserver === "undefined") {
@@ -80,9 +90,11 @@ ${opts.customActions ?? ""}
 </RibbonDefinition></RibbonDefinitions>`;
 }
 
-const parse = (xml: string, location: RibbonLocation = "HomepageGrid") => parseRibbonXml(xml, location, E);
+const parse = (xml: string, location: RibbonLocation = "HomepageGrid") =>
+	parseRibbonXml(xml, location, E);
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
-const controlsOf = (def: RibbonDefinition) => def.tabs.flatMap((t) => t.groups.flatMap((g) => g.buttons));
+const controlsOf = (def: RibbonDefinition) =>
+	def.tabs.flatMap((t) => t.groups.flatMap((g) => g.buttons));
 const control = (def: RibbonDefinition, id: string) => controlsOf(def).find((b) => b.id === id)!;
 
 function generate(
@@ -125,7 +137,8 @@ function customActionContent(rdx: string): { location: string; el: Element }[] {
 }
 
 const sameElement = (a: Element | string, b: Element | string) =>
-	canonicalXml(typeof a === "string" ? parseXmlElement(a) : a) === canonicalXml(typeof b === "string" ? parseXmlElement(b) : b);
+	canonicalXml(typeof a === "string" ? parseXmlElement(a) : a) ===
+	canonicalXml(typeof b === "string" ? parseXmlElement(b) : b);
 
 // ---------------------------------------------------------------------------
 
@@ -147,7 +160,9 @@ describe("#42 tabs come only from Ribbon > Tabs and Ribbon > ContextualTabs", ()
 	});
 
 	it("a RibbonDiffXml (a layer or an import) has no tabs of its own", () => {
-		const { ribbon } = parse(`<RibbonDiffXml>${phantomCa}<CommandDefinitions /></RibbonDiffXml>`);
+		const { ribbon } = parse(
+			`<RibbonDiffXml>${phantomCa}<CommandDefinitions /></RibbonDiffXml>`,
+		);
 		expect(ribbon.tabs).toEqual([]);
 		expect(ribbon.scalingByTab).toBeUndefined();
 	});
@@ -166,10 +181,19 @@ describe("#42 tabs come only from Ribbon > Tabs and Ribbon > ContextualTabs", ()
 
 	it("still imports a tab from a RibbonDiffXml CustomAction, with its display rules", () => {
 		const loaded = parse(ribbonDoc(BUTTON)).ribbon;
-		const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: E, tabs: [] });
+		const empty = (location: RibbonLocation): RibbonDefinition => ({
+			location,
+			entityLogicalName: E,
+			tabs: [],
+		});
 		const result = importRibbonDiffXml({
 			xml: `<RibbonDiffXml>${phantomCa}<CommandDefinitions /><RuleDefinitions><TabDisplayRules><TabDisplayRule TabCommand="${PHANTOM}.Command"><EntityRule EntityName="${E}" Context="Form" AppliesTo="PrimaryEntity" /></TabDisplayRule></TabDisplayRules><DisplayRules /><EnableRules /></RuleDefinitions></RibbonDiffXml>`,
-			ribbons: { HomepageGrid: loaded, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+			ribbons: {
+				HomepageGrid: loaded,
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
 			commands: [],
 			enableRules: [],
 			displayRules: [],
@@ -186,7 +210,12 @@ describe("#42 tabs come only from Ribbon > Tabs and Ribbon > ContextualTabs", ()
 
 describe("#42 tab Template and tab / group Description", () => {
 	it("doesn't read a Template on a tab (not in RibbonCore TabType)", () => {
-		const { ribbon } = parse(ribbonDoc(BUTTON).replace('Title="Main"', 'Title="Main" Template="Mscrm.Templates.Ribbon.Flexible2"'));
+		const { ribbon } = parse(
+			ribbonDoc(BUTTON).replace(
+				'Title="Main"',
+				'Title="Main" Template="Mscrm.Templates.Ribbon.Flexible2"',
+			),
+		);
 		expect(ribbon.tabs[0]).not.toHaveProperty("template");
 	});
 
@@ -200,7 +229,12 @@ describe("#42 tab Template and tab / group Description", () => {
 	});
 
 	it("parse → generate → parse keeps Description of a new tab and its group, and writes no Template on the tab", () => {
-		const loaded = parse(ribbonDoc(BUTTON).replace('Title="Main"', 'Title="Main" Template="Mscrm.Templates.Ribbon.Flexible2"')).ribbon;
+		const loaded = parse(
+			ribbonDoc(BUTTON).replace(
+				'Title="Main"',
+				'Title="Main" Template="Mscrm.Templates.Ribbon.Flexible2"',
+			),
+		).ribbon;
 		const baseline: RibbonDefinition = { ...clone(loaded), tabs: [] };
 		const rdx = generate(loaded, baseline);
 		const [tabCa] = customActionContent(rdx).filter((c) => c.el.tagName === "Tab");
@@ -230,11 +264,18 @@ describe("#42 tab Template and tab / group Description", () => {
 			commands: [],
 			enableRules: [],
 			displayRules: [],
-			locLabels: [{ id: "mxrm.G.Localized.Description", titles: [{ languageCode: 1033, description: "Approvals" }] }],
+			locLabels: [
+				{
+					id: "mxrm.G.Localized.Description",
+					titles: [{ languageCode: 1033, description: "Approvals" }],
+				},
+			],
 			entityLogicalName: E,
 			location: "HomepageGrid",
 		});
-		const labels = Array.from(parseXmlElement(rdx).getElementsByTagName("LocLabel")).map((l) => l.getAttribute("Id"));
+		const labels = Array.from(parseXmlElement(rdx).getElementsByTagName("LocLabel")).map((l) =>
+			l.getAttribute("Id"),
+		);
 		expect(labels).toContain("mxrm.G.Localized.Description");
 	});
 
@@ -242,12 +283,35 @@ describe("#42 tab Template and tab / group Description", () => {
 		const baseline = parse(ribbonDoc(BUTTON)).ribbon;
 		const current = clone(baseline);
 		current.tabs[0].groups.push(
-			{ id: "mxrm.G.Described", label: "Described", description: "Has one", sequence: 20, template: "Flexible2", buttons: [] },
-			{ id: "mxrm.G.Plain", label: "Plain", sequence: 30, template: "Flexible2", buttons: [] },
+			{
+				id: "mxrm.G.Described",
+				label: "Described",
+				description: "Has one",
+				sequence: 20,
+				template: "Flexible2",
+				buttons: [],
+			},
+			{
+				id: "mxrm.G.Plain",
+				label: "Plain",
+				sequence: 30,
+				template: "Flexible2",
+				buttons: [],
+			},
 		);
-		const groups = customActionContent(generate(current, baseline)).filter((c) => c.el.tagName === "Group");
-		expect(groups.find((g) => g.el.getAttribute("Id") === "mxrm.G.Described")!.el.getAttribute("Description")).toBe("Has one");
-		expect(groups.find((g) => g.el.getAttribute("Id") === "mxrm.G.Plain")!.el.hasAttribute("Description")).toBe(false);
+		const groups = customActionContent(generate(current, baseline)).filter(
+			(c) => c.el.tagName === "Group",
+		);
+		expect(
+			groups
+				.find((g) => g.el.getAttribute("Id") === "mxrm.G.Described")!
+				.el.getAttribute("Description"),
+		).toBe("Has one");
+		expect(
+			groups
+				.find((g) => g.el.getAttribute("Id") === "mxrm.G.Plain")!
+				.el.hasAttribute("Description"),
+		).toBe(false);
 	});
 });
 
@@ -270,7 +334,10 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 	});
 
 	it("the MainFilters ToggleButton of the real contact grid ribbon is on the canvas", () => {
-		const xml = readFileSync(resolve(__dirname, "../__fixtures__/ribbon/contact-homepage-menus.xml"), "utf-8");
+		const xml = readFileSync(
+			resolve(__dirname, "../__fixtures__/ribbon/contact-homepage-menus.xml"),
+			"utf-8",
+		);
 		const { ribbon } = parseRibbonXml(xml, "HomepageGrid", "contact");
 		const toggle = control(ribbon, "Mscrm.HomepageGrid.contact.MainFilters");
 		expect(toggle.kind).toBe("toggleButton");
@@ -282,7 +349,9 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 		const current = clone(baseline);
 		for (const [, id] of READ_ONLY) control(current, id).hidden = true;
 		const rdx = generate(current, baseline);
-		const hides = Array.from(parseXmlElement(rdx).getElementsByTagName("HideCustomAction")).map((h) => h.getAttribute("Location"));
+		const hides = Array.from(parseXmlElement(rdx).getElementsByTagName("HideCustomAction")).map(
+			(h) => h.getAttribute("Location"),
+		);
 		expect(hides).toEqual(READ_ONLY.map(([, id]) => id));
 		expect(customActionContent(rdx)).toEqual([]);
 		expect(plan(current, baseline).unsupported).toEqual([]);
@@ -317,7 +386,8 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 		).join("")}</CustomActions></RibbonDiffXml>`;
 		const layer = parseRibbonDiffParts(layerXml);
 		const merged = mergeScopeChanges(layer, parseRibbonDiffParts(rdx));
-		for (const [key, xml] of layer.customActions) expect(merged.customActions.get(key)).toBe(xml);
+		for (const [key, xml] of layer.customActions)
+			expect(merged.customActions.get(key)).toBe(xml);
 	});
 
 	it("your own: moved (CustomAction relocated, XML kept) and deleted (CustomAction removed)", () => {
@@ -333,7 +403,9 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 		other.buttons.push({ ...toggle, sequence: 10 });
 		const p = plan(current, baseline);
 		expect(p.unsupported).toEqual([]);
-		expect(p.movedButtons).toEqual([{ id: "mxrm.T.Toggle", groupId: `${TAB}.Other`, sequence: 10 }]);
+		expect(p.movedButtons).toEqual([
+			{ id: "mxrm.T.Toggle", groupId: `${TAB}.Other`, sequence: 10 },
+		]);
 		expect(p.deletedButtonIds).toEqual(["mxrm.T.Spinner"]);
 
 		const layer = parseRibbonDiffParts(
@@ -367,15 +439,22 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 		const p = plan(current, baseline);
 		expect(p.movedButtons).toEqual([]);
 		expect(p.deletedButtonIds).toEqual([]);
-		expect(p.unsupported.some((u) => u.includes(dropDown.id) && u.startsWith("Moving"))).toBe(true);
-		expect(p.unsupported.some((u) => u.includes(`Mscrm.HomepageGrid.${E}.Label`) && u.startsWith("Removing"))).toBe(true);
+		expect(p.unsupported.some((u) => u.includes(dropDown.id) && u.startsWith("Moving"))).toBe(
+			true,
+		);
+		expect(
+			p.unsupported.some(
+				(u) => u.includes(`Mscrm.HomepageGrid.${E}.Label`) && u.startsWith("Removing"),
+			),
+		).toBe(true);
 	});
 
 	it("placed where the loaded ribbon doesn't have them (e.g. pasted onto the form), they are written verbatim", () => {
 		const grid = parse(ribbonDoc(ALL_CONTROLS)).ribbon;
 		const formBaseline = parse(ribbonDoc(""), "Form").ribbon;
 		const form = clone(formBaseline);
-		for (const [, id] of READ_ONLY) form.tabs[0].groups[0].buttons.push(clone(control(grid, id)));
+		for (const [, id] of READ_ONLY)
+			form.tabs[0].groups[0].buttons.push(clone(control(grid, id)));
 		const rdx = generate(form, formBaseline, "Form");
 		const written = customActionContent(rdx);
 		for (const [xml, id] of READ_ONLY) {
@@ -388,13 +467,28 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 
 	it("a group imported with them keeps them (not dropped) and publishes them verbatim, with their commands", () => {
 		const loaded = parse(ribbonDoc(BUTTON)).ribbon;
-		const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: E, tabs: [] });
+		const empty = (location: RibbonLocation): RibbonDefinition => ({
+			location,
+			entityLogicalName: E,
+			tabs: [],
+		});
 		const G = "mxrm.Imported.Group";
 		const result = importRibbonDiffXml({
-			xml: `<RibbonDiffXml><CustomActions><CustomAction Id="${G}.CustomAction" Location="${TAB}.Groups._children" Sequence="30"><CommandUIDefinition><Group Id="${G}" Title="Imported" Sequence="30" Template="Mscrm.Templates.Flexible2"><Controls Id="${G}.Controls">${TOGGLE}${SPINNER}</Controls></Group></CommandUIDefinition></CustomAction></CustomActions><CommandDefinitions>${["mxrm.T.Toggle.Command", "mxrm.T.Toggle.Query"]
-				.map((id) => `<CommandDefinition Id="${id}"><EnableRules /><DisplayRules /><Actions /></CommandDefinition>`)
+			xml: `<RibbonDiffXml><CustomActions><CustomAction Id="${G}.CustomAction" Location="${TAB}.Groups._children" Sequence="30"><CommandUIDefinition><Group Id="${G}" Title="Imported" Sequence="30" Template="Mscrm.Templates.Flexible2"><Controls Id="${G}.Controls">${TOGGLE}${SPINNER}</Controls></Group></CommandUIDefinition></CustomAction></CustomActions><CommandDefinitions>${[
+				"mxrm.T.Toggle.Command",
+				"mxrm.T.Toggle.Query",
+			]
+				.map(
+					(id) =>
+						`<CommandDefinition Id="${id}"><EnableRules /><DisplayRules /><Actions /></CommandDefinition>`,
+				)
 				.join("")}</CommandDefinitions></RibbonDiffXml>`,
-			ribbons: { HomepageGrid: loaded, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+			ribbons: {
+				HomepageGrid: loaded,
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
 			commands: [],
 			enableRules: [],
 			displayRules: [],
@@ -410,7 +504,9 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 		expect(sameElement(inline[0], TOGGLE)).toBe(true);
 		expect(sameElement(inline[1], SPINNER)).toBe(true);
 		// Its QueryCommand is written with it, not only its Command.
-		const commands = Array.from(parseXmlElement(rdx).getElementsByTagName("CommandDefinition")).map((c) => c.getAttribute("Id"));
+		const commands = Array.from(
+			parseXmlElement(rdx).getElementsByTagName("CommandDefinition"),
+		).map((c) => c.getAttribute("Id"));
 		expect(commands.sort()).toEqual(["mxrm.T.Toggle.Command", "mxrm.T.Toggle.Query"]);
 		// …and the publish plan (whose edited commands are what the publish keeps) has both.
 		const p = planScope({
@@ -428,10 +524,19 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 
 	it("adding one to an existing group by import is reported, not silently skipped", () => {
 		const loaded = parse(ribbonDoc(BUTTON)).ribbon;
-		const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: E, tabs: [] });
+		const empty = (location: RibbonLocation): RibbonDefinition => ({
+			location,
+			entityLogicalName: E,
+			tabs: [],
+		});
 		const result = importRibbonDiffXml({
 			xml: `<RibbonDiffXml><CustomActions><CustomAction Id="x.CustomAction" Location="${TAB}.Groups._children" Sequence="30"><CommandUIDefinition><Group Id="${GROUP}" Sequence="10"><Controls Id="${GROUP}.Controls">${TOGGLE}</Controls></Group></CommandUIDefinition></CustomAction></CustomActions></RibbonDiffXml>`,
-			ribbons: { HomepageGrid: loaded, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+			ribbons: {
+				HomepageGrid: loaded,
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
 			commands: [],
 			enableRules: [],
 			displayRules: [],
@@ -439,7 +544,11 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 			entityLogicalName: E,
 			activeLocation: "HomepageGrid",
 		});
-		expect(result.notApplied.some((n) => n.startsWith("mxrm.T.Toggle:") && n.includes("<ToggleButton>"))).toBe(true);
+		expect(
+			result.notApplied.some(
+				(n) => n.startsWith("mxrm.T.Toggle:") && n.includes("<ToggleButton>"),
+			),
+		).toBe(true);
 	});
 
 	it("a copy (duplicate) carries the XML with its own ids, its MRU InitialItem included", () => {
@@ -450,17 +559,28 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 		expect(el.getElementsByTagName("Menu")[0].getAttribute("Id")).toBe("mxrm.T.DropDown2.Menu");
 		expect(el.getElementsByTagName("Button")[0].getAttribute("Id")).toBe("mxrm.T.DropDown2.A");
 		expect(el.getAttribute("Command")).toBe("mxrm.T.DropDown.Command");
-		const mru = parseXmlElement(copyControl(control(loaded, "mxrm.T.Mru"), "mxrm.T.Mru2").source!.xml!);
+		const mru = parseXmlElement(
+			copyControl(control(loaded, "mxrm.T.Mru"), "mxrm.T.Mru2").source!.xml!,
+		);
 		expect(mru.getAttribute("InitialItem")).toBe("mxrm.T.Mru2.A");
 		expect(mru.getElementsByTagName("Button")[0].getAttribute("Id")).toBe("mxrm.T.Mru2.A");
 	});
 
 	it("duplicating one, or its group, in the store keeps its XML (with new ids) and its label", () => {
 		const grid = parse(ribbonDoc(ALL_CONTROLS)).ribbon;
-		const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: E, tabs: [] });
+		const empty = (location: RibbonLocation): RibbonDefinition => ({
+			location,
+			entityLogicalName: E,
+			tabs: [],
+		});
 		const store = useRibbonStore.getState();
 		store.loadWorkspace({
-			ribbons: { HomepageGrid: grid, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+			ribbons: {
+				HomepageGrid: grid,
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
 			commands: [],
 			displayRules: [],
 			enableRules: [],
@@ -472,15 +592,29 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 		const spinnerCopy = groups[0].buttons.find((b) => b.id.includes("mxrm.T.Spinner_copy_"))!;
 		expect(spinnerCopy.label).toBe("mxrm.T.Spinner");
 		expect(parseXmlElement(spinnerCopy.source!.xml!).getAttribute("Id")).toBe(spinnerCopy.id);
-		expect(parseXmlElement(spinnerCopy.source!.xml!).getElementsByTagName("Unit")).toHaveLength(1);
+		expect(parseXmlElement(spinnerCopy.source!.xml!).getElementsByTagName("Unit")).toHaveLength(
+			1,
+		);
 		const groupCopy = groups.find((g) => g.id.includes(`${GROUP}_copy_`))!;
 		for (const b of groupCopy.buttons.filter((x) => x.kind !== "button")) {
 			expect(parseXmlElement(b.source!.xml!).getAttribute("Id")).toBe(b.id);
 		}
 		const rdx = generate(useRibbonStore.getState().ribbons.HomepageGrid, grid);
-		const copyGroup = customActionContent(rdx).find((c) => c.el.getAttribute("Id") === groupCopy.id)!;
-		const kinds = Array.from(copyGroup.el.getElementsByTagName("Controls")[0].children).map((c) => c.tagName);
-		expect(kinds).toEqual(["Button", "ToggleButton", "Label", "DropDown", "MRUSplitButton", "Spinner", "GalleryButton"]);
+		const copyGroup = customActionContent(rdx).find(
+			(c) => c.el.getAttribute("Id") === groupCopy.id,
+		)!;
+		const kinds = Array.from(copyGroup.el.getElementsByTagName("Controls")[0].children).map(
+			(c) => c.tagName,
+		);
+		expect(kinds).toEqual([
+			"Button",
+			"ToggleButton",
+			"Label",
+			"DropDown",
+			"MRUSplitButton",
+			"Spinner",
+			"GalleryButton",
+		]);
 	});
 
 	it("moving your own one with a <Menu> to another location is reported; one without moves", () => {
@@ -490,7 +624,9 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 		const form = clone(formBaseline);
 		for (const id of ["mxrm.T.DropDown", "mxrm.T.Toggle"]) {
 			form.tabs[0].groups[0].buttons.push(clone(control(grid, id)));
-			grid.tabs[0].groups[0].buttons = grid.tabs[0].groups[0].buttons.filter((b) => b.id !== id);
+			grid.tabs[0].groups[0].buttons = grid.tabs[0].groups[0].buttons.filter(
+				(b) => b.id !== id,
+			);
 		}
 		const p = planScope({
 			locations: [
@@ -510,19 +646,34 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 
 	it("renaming a command updates the XML of a read-only control that names it", () => {
 		const grid = parse(ribbonDoc(ALL_CONTROLS)).ribbon;
-		const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: E, tabs: [] });
+		const empty = (location: RibbonLocation): RibbonDefinition => ({
+			location,
+			entityLogicalName: E,
+			tabs: [],
+		});
 		const store = useRibbonStore.getState();
 		store.loadWorkspace({
-			ribbons: { HomepageGrid: grid, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
-			commands: [{ id: "mxrm.T.Toggle.Query", enableRules: [], displayRules: [], actions: [] }],
+			ribbons: {
+				HomepageGrid: grid,
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
+			commands: [
+				{ id: "mxrm.T.Toggle.Query", enableRules: [], displayRules: [], actions: [] },
+			],
 			displayRules: [],
 			enableRules: [],
 			locLabels: [],
 		});
 		expect(store.renameCommandId("mxrm.T.Toggle.Query", "mxrm.T.Toggle.State")).toBe(true);
 		const toggle = control(useRibbonStore.getState().ribbons.HomepageGrid, "mxrm.T.Toggle");
-		expect(parseXmlElement(toggle.source!.xml!).getAttribute("QueryCommand")).toBe("mxrm.T.Toggle.State");
-		expect(parseXmlElement(toggle.source!.xml!).getAttribute("Command")).toBe("mxrm.T.Toggle.Command");
+		expect(parseXmlElement(toggle.source!.xml!).getAttribute("QueryCommand")).toBe(
+			"mxrm.T.Toggle.State",
+		);
+		expect(parseXmlElement(toggle.source!.xml!).getAttribute("Command")).toBe(
+			"mxrm.T.Toggle.Command",
+		);
 	});
 
 	it("deleting your own one drops the commands only it used, QueryCommand included", () => {
@@ -531,10 +682,15 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 				"mxrm.T.Toggle.Command",
 				"mxrm.T.Toggle.Query",
 			]
-				.map((id) => `<CommandDefinition Id="${id}"><EnableRules /><DisplayRules /><Actions /></CommandDefinition>`)
+				.map(
+					(id) =>
+						`<CommandDefinition Id="${id}"><EnableRules /><DisplayRules /><Actions /></CommandDefinition>`,
+				)
 				.join("")}</CommandDefinitions></RibbonDiffXml>`,
 		);
-		const merged = mergeScopeChanges(layer, parseRibbonDiffParts("<RibbonDiffXml/>"), { deletedControlIds: ["mxrm.T.Toggle"] });
+		const merged = mergeScopeChanges(layer, parseRibbonDiffParts("<RibbonDiffXml/>"), {
+			deletedControlIds: ["mxrm.T.Toggle"],
+		});
 		expect(merged.customActions.size).toBe(0);
 		expect([...merged.commandDefinitions.keys()]).toEqual([]);
 	});
@@ -543,7 +699,9 @@ describe("#42 ToggleButton, Label, DropDown, MRUSplitButton, Spinner and Gallery
 		const baseline = parse(ribbonDoc(ALL_CONTROLS)).ribbon;
 		const current = clone(baseline);
 		control(current, "mxrm.T.Toggle").label = "Changed";
-		expect(plan(current, baseline).unsupported.some((u) => u.includes("mxrm.T.Toggle"))).toBe(true);
+		expect(plan(current, baseline).unsupported.some((u) => u.includes("mxrm.T.Toggle"))).toBe(
+			true,
+		);
 	});
 });
 
@@ -558,9 +716,18 @@ describe("#42 canvas: read-only control kinds", () => {
 		document.body.appendChild(container);
 		root = createRoot(container);
 		const grid = parse(ribbonDoc(ALL_CONTROLS)).ribbon;
-		const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: E, tabs: [] });
+		const empty = (location: RibbonLocation): RibbonDefinition => ({
+			location,
+			entityLogicalName: E,
+			tabs: [],
+		});
 		useRibbonStore.getState().loadWorkspace({
-			ribbons: { HomepageGrid: grid, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+			ribbons: {
+				HomepageGrid: grid,
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
 			commands: [],
 			displayRules: [],
 			enableRules: [],
@@ -591,28 +758,47 @@ describe("#42 canvas: read-only control kinds", () => {
 			expect(tile!.getAttribute("aria-label")).toContain(`${kind}, read-only`);
 			expect(tile!.textContent).toContain(kind);
 		}
-		expect(container.querySelector('[data-ribbon-btn-id="mxrm.T.Toggle"]')!.textContent).toContain("Filter");
+		expect(
+			container.querySelector('[data-ribbon-btn-id="mxrm.T.Toggle"]')!.textContent,
+		).toContain("Filter");
 	});
 
 	it("the properties pane shows them read-only, with Hide / Unhide", () => {
-		useSelectionStore.getState().selectButtonInContext("HomepageGrid", TAB, GROUP, "mxrm.T.Toggle");
+		useSelectionStore
+			.getState()
+			.selectButtonInContext("HomepageGrid", TAB, GROUP, "mxrm.T.Toggle");
 		render(<PropertiesPane />);
 		expect(container.textContent).toContain("Toggle button");
 		expect(container.textContent).toContain("QueryCommand");
 		// No editable label field (IdentitySection isn't shown for it).
 		expect(container.querySelector('input[value="Filter"]')).toBeNull();
-		const hide = Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Hide")!;
+		const hide = Array.from(container.querySelectorAll("button")).find(
+			(b) => b.textContent === "Hide",
+		)!;
 		act(() => hide.click());
-		expect(control(useRibbonStore.getState().ribbons.HomepageGrid, "mxrm.T.Toggle").hidden).toBe(true);
-		const unhide = Array.from(container.querySelectorAll("button")).find((b) => b.textContent === "Unhide")!;
+		expect(
+			control(useRibbonStore.getState().ribbons.HomepageGrid, "mxrm.T.Toggle").hidden,
+		).toBe(true);
+		const unhide = Array.from(container.querySelectorAll("button")).find(
+			(b) => b.textContent === "Unhide",
+		)!;
 		act(() => unhide.click());
-		expect(control(useRibbonStore.getState().ribbons.HomepageGrid, "mxrm.T.Toggle").hidden).toBe(false);
+		expect(
+			control(useRibbonStore.getState().ribbons.HomepageGrid, "mxrm.T.Toggle").hidden,
+		).toBe(false);
 	});
 });
 
 describe("#42 synthetic fixtures are schema-valid (RibbonCore.xsd / RibbonWSS.xsd)", () => {
 	// RibbonWSS.xsd TabType / GroupType / ControlsType attributes and content.
-	const TAB_ATTRIBUTES = new Set(["Command", "CssClass", "Description", "Id", "Sequence", "Title"]);
+	const TAB_ATTRIBUTES = new Set([
+		"Command",
+		"CssClass",
+		"Description",
+		"Id",
+		"Sequence",
+		"Title",
+	]);
 	const GROUP_ATTRIBUTES = new Set([
 		"Command",
 		"Description",
@@ -629,7 +815,12 @@ describe("#42 synthetic fixtures are schema-valid (RibbonCore.xsd / RibbonWSS.xs
 	const MODELLED_RULES = new Set(Object.keys(RULE_KIND_LABELS).filter((k) => k !== "RawRule"));
 	const kids = (el: Element) => Array.from(el.children);
 
-	for (const name of ["account-full.xml", "all-rule-kinds.xml", "app-ribbon.xml", "contact-full.xml"]) {
+	for (const name of [
+		"account-full.xml",
+		"all-rule-kinds.xml",
+		"app-ribbon.xml",
+		"contact-full.xml",
+	]) {
 		describe(name, () => {
 			const doc = new DOMParser().parseFromString(
 				readFileSync(resolve(__dirname, "../__fixtures__/ribbon", name), "utf-8"),
@@ -640,7 +831,10 @@ describe("#42 synthetic fixtures are schema-valid (RibbonCore.xsd / RibbonWSS.xs
 			it("tabs: TabType attributes only, <Scaling Id> then <Groups Id>, inside UI > Ribbon > Tabs", () => {
 				expect(all("Tab").length).toBeGreaterThan(0);
 				for (const tab of all("Tab")) {
-					for (const a of Array.from(tab.attributes)) expect(TAB_ATTRIBUTES, `${tab.getAttribute("Id")} @${a.name}`).toContain(a.name);
+					for (const a of Array.from(tab.attributes))
+						expect(TAB_ATTRIBUTES, `${tab.getAttribute("Id")} @${a.name}`).toContain(
+							a.name,
+						);
 					expect(kids(tab).map((c) => c.tagName)).toEqual(["Scaling", "Groups"]);
 					for (const c of kids(tab)) expect(c.getAttribute("Id")).toBeTruthy();
 					expect(tab.parentElement?.tagName).toBe("Tabs");
@@ -650,7 +844,11 @@ describe("#42 synthetic fixtures are schema-valid (RibbonCore.xsd / RibbonWSS.xs
 
 			it("groups: GroupType attributes only, <Controls Id> with no unknown attributes", () => {
 				for (const group of all("Group")) {
-					for (const a of Array.from(group.attributes)) expect(GROUP_ATTRIBUTES, `${group.getAttribute("Id")} @${a.name}`).toContain(a.name);
+					for (const a of Array.from(group.attributes))
+						expect(
+							GROUP_ATTRIBUTES,
+							`${group.getAttribute("Id")} @${a.name}`,
+						).toContain(a.name);
 					const controls = kids(group);
 					expect(controls.map((c) => c.tagName)).toEqual(["Controls"]);
 					expect(Array.from(controls[0].attributes).map((a) => a.name)).toEqual(["Id"]);
@@ -659,20 +857,40 @@ describe("#42 synthetic fixtures are schema-valid (RibbonCore.xsd / RibbonWSS.xs
 
 			it("rules: TabDisplayRules / DisplayRules / EnableRules in order, schema rule elements in their allowed container", () => {
 				for (const defs of all("RuleDefinitions")) {
-					expect(kids(defs).map((c) => c.tagName)).toEqual(["TabDisplayRules", "DisplayRules", "EnableRules"]);
+					expect(kids(defs).map((c) => c.tagName)).toEqual([
+						"TabDisplayRules",
+						"DisplayRules",
+						"EnableRules",
+					]);
 				}
 				const steps = (rule: Element): Element[] =>
-					kids(rule).flatMap((s) => (s.tagName === "OrRule" ? kids(s).flatMap((or) => kids(or)) : [s]));
-				for (const rule of all("RuleDefinitions").flatMap((d) => kids(d).filter((c) => c.tagName === "EnableRules").flatMap(kids))) {
+					kids(rule).flatMap((s) =>
+						s.tagName === "OrRule" ? kids(s).flatMap((or) => kids(or)) : [s],
+					);
+				for (const rule of all("RuleDefinitions").flatMap((d) =>
+					kids(d)
+						.filter((c) => c.tagName === "EnableRules")
+						.flatMap(kids),
+				)) {
 					for (const s of steps(rule)) {
 						expect(MODELLED_RULES, s.tagName).toContain(s.tagName);
-						expect(DISPLAY_ONLY_RULE_KINDS.has(s.tagName as never), `${s.tagName} in an EnableRule`).toBe(false);
+						expect(
+							DISPLAY_ONLY_RULE_KINDS.has(s.tagName as never),
+							`${s.tagName} in an EnableRule`,
+						).toBe(false);
 					}
 				}
-				for (const rule of all("RuleDefinitions").flatMap((d) => kids(d).filter((c) => c.tagName === "DisplayRules").flatMap(kids))) {
+				for (const rule of all("RuleDefinitions").flatMap((d) =>
+					kids(d)
+						.filter((c) => c.tagName === "DisplayRules")
+						.flatMap(kids),
+				)) {
 					for (const s of steps(rule)) {
 						expect(MODELLED_RULES, s.tagName).toContain(s.tagName);
-						expect(ENABLE_ONLY_RULE_KINDS.has(s.tagName as never), `${s.tagName} in a DisplayRule`).toBe(false);
+						expect(
+							ENABLE_ONLY_RULE_KINDS.has(s.tagName as never),
+							`${s.tagName} in a DisplayRule`,
+						).toBe(false);
 					}
 				}
 			});

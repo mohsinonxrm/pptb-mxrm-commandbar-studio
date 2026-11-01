@@ -1,33 +1,20 @@
-import {
-	makeStyles,
-	tokens,
-	Text,
-	Button,
-	Divider,
-	Tag,
-	Field,
-	Select,
-} from "@fluentui/react-components";
+import { makeStyles, tokens, Text, Button, Tag } from "@fluentui/react-components";
 import { CodeRegular, AddRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
 import { generateCommandId } from "@/utils/idGenerator";
 import type { RibbonButton } from "@/types/ribbon";
 import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
+import { IdField } from "@/components/shared/IdField";
+import { IdPicker } from "@/components/shared/IdPicker";
 import React from "react";
 
 const useStyles = makeStyles({
 	root: {
-		padding: `${tokens.spacingHorizontalM}`,
 		display: "flex",
 		flexDirection: "column",
-		gap: tokens.spacingHorizontalS,
-	},
-	sectionLabel: {
-		color: tokens.colorNeutralForeground3,
-		textTransform: "uppercase",
-		letterSpacing: "0.5px",
-		marginBottom: tokens.spacingHorizontalXS,
+		gap: tokens.spacingVerticalM,
+		minWidth: 0,
 	},
 	commandRow: {
 		display: "flex",
@@ -84,24 +71,22 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 
 	return (
 		<div className={styles.root}>
-			<Divider />
-			<Text size={100} weight="semibold" className={styles.sectionLabel}>
-				Command
-			</Text>
-
 			{command ? (
 				<>
-					<div className={styles.commandRow}>
-						<Text className={styles.commandId}>{command.id}</Text>
-						<Button
-							appearance="subtle"
-							size="small"
-							icon={<CodeRegular />}
-							onClick={() => openCommandEditor(command.id)}
-						>
-							Edit
-						</Button>
-					</div>
+					<IdField
+						label="Command ID"
+						value={command.id}
+						action={
+							<Button
+								appearance="subtle"
+								size="small"
+								icon={<CodeRegular />}
+								onClick={() => openCommandEditor(command.id)}
+							>
+								Edit command
+							</Button>
+						}
+					/>
 					<CommandProvenanceBar commandId={command.id} compact />
 
 					{command.actions.length > 0 && (
@@ -126,11 +111,16 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 
 					{command.enableRules.length > 0 && (
 						<div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-							<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+							<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
 								Enable rules:
 							</Text>
 							{command.enableRules.map((r) => (
-								<Tag key={r} size="extra-small" appearance="outline" color="success">
+								<Tag
+									key={r}
+									size="extra-small"
+									appearance="outline"
+									color="success"
+								>
 									{r}
 								</Tag>
 							))}
@@ -139,11 +129,16 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 
 					{command.displayRules.length > 0 && (
 						<div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-							<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
+							<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
 								Display rules:
 							</Text>
 							{command.displayRules.map((r) => (
-								<Tag key={r} size="extra-small" appearance="outline" color="informative">
+								<Tag
+									key={r}
+									size="extra-small"
+									appearance="outline"
+									color="informative"
+								>
 									{r}
 								</Tag>
 							))}
@@ -161,24 +156,21 @@ export function CommandSection({ button, groupId, tabId, location }: CommandSect
 				</div>
 			) : (
 				<>
-					<Field label="Bind existing command" style={{ width: "100%", minWidth: 0 }}>
-						<Select
-							size="small"
-							value={selectedCommandId}
-							onChange={(_, d) => setSelectedCommandId(d.value)}
-							style={{ width: "100%", minWidth: 0 }}
-						>
-							<option value="">Select command…</option>
-							{commands.map((c) => (
-								<option key={c.id} value={c.id}>
-									{c.id}
-								</option>
-							))}
-						</Select>
-					</Field>
+					<IdPicker
+						label="Use an existing command"
+						options={commands.map((c) => c.id)}
+						selected={selectedCommandId}
+						onSelect={setSelectedCommandId}
+						noOptionsMessage="No command matches."
+					/>
 					<div style={{ display: "flex", gap: tokens.spacingHorizontalXS }}>
-						<Button appearance="outline" size="small" onClick={bindExistingCommand}>
-							Bind selected
+						<Button
+							appearance="outline"
+							size="small"
+							disabled={!selectedCommandId}
+							onClick={bindExistingCommand}
+						>
+							Bind
 						</Button>
 						<Button
 							appearance="outline"

@@ -1,4 +1,9 @@
-import type { CommandDefinition, RibbonDefinition, LocLabel, ScalingDefinition } from "@/types/ribbon";
+import type {
+	CommandDefinition,
+	RibbonDefinition,
+	LocLabel,
+	ScalingDefinition,
+} from "@/types/ribbon";
 import { parseRibbonDiffParts, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
 import {
 	DISPLAY_ONLY_RULE_TAGS,
@@ -47,7 +52,12 @@ export function validateRibbonDiffXml(
 	const doc = parser.parseFromString(xml, "application/xml");
 	const parseError = doc.querySelector("parsererror");
 	if (parseError) {
-		const parseText = parseError.textContent?.trim() ?? "Unknown";
+		// Chromium wraps the parser's message in page boilerplate (#187): keep the message.
+		const parseText =
+			(parseError.textContent ?? "")
+				.replace(/This page contains the following errors:/i, "")
+				.replace(/Below is a rendering of the page up to the first error\.?/i, "")
+				.trim() || "Unknown";
 		const lineMatch = parseText.match(/line\s+(\d+)/i);
 		errors.push({
 			message: `XML parse error: ${parseText}`,
@@ -90,7 +100,8 @@ export function validateRibbonDiffXml(
 	// We check string-level for common mistake patterns
 	if (xml.includes("& ") || xml.includes("&\n")) {
 		errors.push({
-			message: 'URL may contain an unescaped "&" — all ampersands in XML must be written as &amp;',
+			message:
+				'URL may contain an unescaped "&" — all ampersands in XML must be written as &amp;',
 			lineHint: lineHintFor(xml, "& ") ?? lineHintFor(xml, "&\n"),
 		});
 	}
@@ -190,7 +201,11 @@ function validateSchemaRules(doc: Document, xml: string): ValidationError[] {
 		errors.push({ message, elementId, lineHint: lineHintFor(xml, token), severity: "warning" });
 
 	const ruleDefs = doc.querySelector("RibbonDiffXml > RuleDefinitions");
-	const containers: { tag: "EnableRule" | "DisplayRule"; label: string; container: RuleContainer }[] = [
+	const containers: {
+		tag: "EnableRule" | "DisplayRule";
+		label: string;
+		container: RuleContainer;
+	}[] = [
 		{ tag: "EnableRule", label: "Enable", container: "enable" },
 		{ tag: "DisplayRule", label: "Display", container: "display" },
 	];
@@ -200,7 +215,11 @@ function validateSchemaRules(doc: Document, xml: string): ValidationError[] {
 			const steps = childElements(ruleEl);
 			// EnableRule / DisplayRule: choice minOccurs="1".
 			if (steps.length === 0) {
-				error(`${label} rule "${ruleId}" has no steps — the schema requires at least one`, `Id="${ruleId}"`, ruleId);
+				error(
+					`${label} rule "${ruleId}" has no steps — the schema requires at least one`,
+					`Id="${ruleId}"`,
+					ruleId,
+				);
 			}
 			const checkPlacement = (step: Element) => {
 				if (isMisplacedRuleStep(step.tagName, container)) {
@@ -229,7 +248,11 @@ function validateSchemaRules(doc: Document, xml: string): ValidationError[] {
 					if (inner.length === 0) error(`Empty <Or> in rule "${ruleId}"`, "<Or", ruleId);
 					for (const s of inner) {
 						if (s.tagName === "OrRule") {
-							error(`Rule "${ruleId}": an <Or> cannot contain another OrRule`, "<OrRule", ruleId);
+							error(
+								`Rule "${ruleId}": an <Or> cannot contain another OrRule`,
+								"<OrRule",
+								ruleId,
+							);
 						} else {
 							checkPlacement(s);
 						}
@@ -244,7 +267,8 @@ function validateSchemaRules(doc: Document, xml: string): ValidationError[] {
 	if (!ruleDefs) {
 		doc.querySelectorAll("OrRule").forEach((orEl) => {
 			const count = orEl.querySelectorAll(":scope > Or").length;
-			if (count < 2) error(`OrRule requires at least 2 <Or> children (found ${count})`, "<OrRule");
+			if (count < 2)
+				error(`OrRule requires at least 2 <Or> children (found ${count})`, "<OrRule");
 		});
 	}
 
@@ -260,7 +284,10 @@ function validateSchemaRules(doc: Document, xml: string): ValidationError[] {
 			}
 			const value = p.getAttribute("Value") ?? "";
 			if (p.tagName === "CrmParameter" && !CRM_PARAMETER_VALUE_SET.has(value)) {
-				error(`CrmParameter Value "${value}" is not a valid CrmParameterValue`, `Value="${value}"`);
+				error(
+					`CrmParameter Value "${value}" is not a valid CrmParameterValue`,
+					`Value="${value}"`,
+				);
 			}
 		}
 	});
@@ -268,7 +295,10 @@ function validateSchemaRules(doc: Document, xml: string): ValidationError[] {
 		for (const p of childElements(url)) {
 			if (!PARAMETER_TAGS.has(p.tagName)) continue;
 			if (!p.getAttribute("Name")) {
-				error(`${p.tagName} inside <Url> requires a Name (the query-string key)`, `<${p.tagName}`);
+				error(
+					`${p.tagName} inside <Url> requires a Name (the query-string key)`,
+					`<${p.tagName}`,
+				);
 			}
 			const value = p.getAttribute("Value") ?? "";
 			if (p.tagName === "CrmParameter" && !isNamedCrmParameterValue(value)) {
@@ -283,7 +313,7 @@ function validateSchemaRules(doc: Document, xml: string): ValidationError[] {
 	// Tabs and scaling (#40).
 	if (doc.querySelector("RibbonDiffXml > Scalings")) {
 		error(
-			"<Scalings> is not allowed in RibbonDiffXml — scaling changes are CustomActions with Location=\"{tabId}.Scaling._children\"",
+			'<Scalings> is not allowed in RibbonDiffXml — scaling changes are CustomActions with Location="{tabId}.Scaling._children"',
 			"<Scalings",
 		);
 	}
@@ -293,11 +323,18 @@ function validateSchemaRules(doc: Document, xml: string): ValidationError[] {
 		const scalingAt = kids.indexOf("Scaling");
 		const groupsAt = kids.indexOf("Groups");
 		if (scalingAt < 0 || (groupsAt >= 0 && scalingAt > groupsAt)) {
-			error(`Tab "${tabId}" needs a <Scaling Id> element before <Groups>`, `Id="${tabId}"`, tabId);
+			error(
+				`Tab "${tabId}" needs a <Scaling Id> element before <Groups>`,
+				`Id="${tabId}"`,
+				tabId,
+			);
 		}
 	});
 	doc.querySelectorAll("TabDisplayRule > DisplayRules").forEach(() => {
-		error("TabDisplayRule rules must be direct children — remove the <DisplayRules> wrapper", "<TabDisplayRule");
+		error(
+			"TabDisplayRule rules must be direct children — remove the <DisplayRules> wrapper",
+			"<TabDisplayRule",
+		);
 	});
 
 	return errors;
@@ -309,7 +346,14 @@ function validateSchemaRules(doc: Document, xml: string): ValidationError[] {
 
 /** What a pre-publish finding is about (stable, for tests and grouping). */
 /** Attributes that carry a control's or section's text (a `$LocLabels:` reference or literal). */
-const LABEL_ATTRIBUTES = ["LabelText", "ToolTipTitle", "ToolTipDescription", "Alt", "Title", "Description"];
+const LABEL_ATTRIBUTES = [
+	"LabelText",
+	"ToolTipTitle",
+	"ToolTipDescription",
+	"Alt",
+	"Title",
+	"Description",
+];
 
 export type PublishCheckCode =
 	| "xml-parse"
@@ -433,7 +477,14 @@ const CONTAINER_TAGS = new Set(["Tab", "Group"]);
 const PLATFORM_WEB_RESOURCES = new Set(["main_system_library.js"]);
 const MENU_CONTROL_TAGS = new Set(["FlyoutAnchor", "SplitButton"]);
 /** Controls CBS shows on the canvas (xmlParser CONTROL_TAGS): the ones a Location check applies to (#64). */
-const PLACED_TAGS = new Set(["Button", "FlyoutAnchor", "SplitButton", "TextBox", "ComboBox", "CheckBox"]);
+const PLACED_TAGS = new Set([
+	"Button",
+	"FlyoutAnchor",
+	"SplitButton",
+	"TextBox",
+	"ComboBox",
+	"CheckBox",
+]);
 const SCALING_LOCATION = /^(.+)\.Scaling\._children$/;
 const isPlatformId = (id: string) => /^(Mscrm|Microsoft)\./.test(id);
 
@@ -569,8 +620,10 @@ export function validatePublishRibbonDiff(
 	// OrRule with one alternative, a JavaScript action with no function, a
 	// cleared number, … Found here, before anything is written.
 	for (const { part, key, el } of elements) {
-		if (part !== "commandDefinitions" && part !== "enableRules" && part !== "displayRules") continue;
-		for (const message of schemaProblems(el)) add("schema", key, message, el.getAttribute("Id") ?? undefined);
+		if (part !== "commandDefinitions" && part !== "enableRules" && part !== "displayRules")
+			continue;
+		for (const message of schemaProblems(el))
+			add("schema", key, message, el.getAttribute("Id") ?? undefined);
 	}
 
 	// Dropped action kinds (#28): the command would be written without them.
@@ -600,12 +653,17 @@ export function validatePublishRibbonDiff(
 	for (const { el } of customActions) {
 		if (el.tagName !== "CustomAction") continue;
 		for (const node of Array.from(el.getElementsByTagName("*")))
-			if (node.getAttribute("Command") === OPEN_RECORD_ITEM_COMMAND_ID) openers.add(node.getAttribute("Id") ?? "");
+			if (node.getAttribute("Command") === OPEN_RECORD_ITEM_COMMAND_ID)
+				openers.add(node.getAttribute("Id") ?? "");
 	}
 	for (const { key, el } of customActions) {
 		if (el.tagName !== "HideCustomAction") continue;
 		const target = el.getAttribute("Location") ?? "";
-		if (!openers.has(target) && !isOpenRecordCarrier({ id: target, commandId: OPEN_RECORD_ITEM_COMMAND_ID })) continue;
+		if (
+			!openers.has(target) &&
+			!isOpenRecordCarrier({ id: target, commandId: OPEN_RECORD_ITEM_COMMAND_ID })
+		)
+			continue;
 		add(
 			"open-record-hidden",
 			key,
@@ -621,7 +679,9 @@ export function validatePublishRibbonDiff(
 			.flatMap((c) => childElements(c).map((r) => r.getAttribute("Id") ?? r.tagName));
 		if (rules.length === 0) continue;
 		// Mscrm.HideOnModern hides in Unified Interface; Mscrm.ShowOnlyOnModern alone shows it there (#152).
-		const hides = rules.includes("Mscrm.HideOnModern") ? HIDE_DISPLAY_RULE_IDS.filter((id) => rules.includes(id)) : [];
+		const hides = rules.includes("Mscrm.HideOnModern")
+			? HIDE_DISPLAY_RULE_IDS.filter((id) => rules.includes(id))
+			: [];
 		add(
 			"open-record-hidden",
 			key,
@@ -670,7 +730,9 @@ export function validatePublishRibbonDiff(
 	for (const { key, el } of customActions) {
 		// A CustomAction that adds an item to an existing menu has no <Menu> of its own.
 		const location = el.getAttribute("Location") ?? "";
-		const addsMenuItem = location.endsWith("._children") && menuControls.has(location.slice(0, -"._children".length));
+		const addsMenuItem =
+			location.endsWith("._children") &&
+			menuControls.has(location.slice(0, -"._children".length));
 		for (const node of Array.from(el.getElementsByTagName("*"))) {
 			const inMenu = addsMenuItem || !!node.parentElement?.closest("Menu");
 			for (const attr of LABEL_ATTRIBUTES) {
@@ -779,7 +841,8 @@ export function validatePublishRibbonDiff(
 	// already uses — a copy keeps another solution's label (#137).
 	const loadedLabelRefs = new Set<string>();
 	for (const attrs of Object.values(context.loadedAttributes ?? {}))
-		for (const value of Object.values(attrs)) if (LOC_LABEL_REF.test(value)) loadedLabelRefs.add(value);
+		for (const value of Object.values(attrs))
+			if (LOC_LABEL_REF.test(value)) loadedLabelRefs.add(value);
 	for (const { key, el } of elements) {
 		if (el.tagName === "LocLabel") continue;
 		for (const node of selfAndDescendants(el)) {
@@ -806,7 +869,8 @@ export function validatePublishRibbonDiff(
 	for (const { key, el } of customActions) {
 		const location = el.getAttribute("Location") ?? "";
 		const sequence = el.getAttribute("Sequence");
-		if (el.tagName !== "CustomAction" || !location.endsWith("._children") || !sequence) continue;
+		if (el.tagName !== "CustomAction" || !location.endsWith("._children") || !sequence)
+			continue;
 		const slot = `${location}|${sequence}`;
 		bySlot.set(slot, [...(bySlot.get(slot) ?? []), { key, id: el.getAttribute("Id") ?? key }]);
 	}
@@ -956,7 +1020,9 @@ export function validatePublishRibbonDiff(
 			if (same.length < 2 || keys.length === 0) continue;
 			// CBS gives a new group on an existing tab a MaxSize `{groupId}.MaxSize`
 			// at the group's own Sequence (#66 plans a free one instead).
-			const defaultMaxSize = same.find((s) => s.key && s.tag === "MaxSize" && s.id === `${s.groupId}.MaxSize`);
+			const defaultMaxSize = same.find(
+				(s) => s.key && s.tag === "MaxSize" && s.id === `${s.groupId}.MaxSize`,
+			);
 			const advice = defaultMaxSize
 				? `move group ${defaultMaxSize.groupId} to another position (its MaxSize takes the group's Sequence; #66 picks a free one automatically)`
 				: "give each step its own Sequence";
@@ -1026,7 +1092,10 @@ export function validatePublishRibbonDiff(
 	// group with another Controls id can be reported wrongly — a warning only.
 	if (context.places) {
 		const { entityLogicalName, tabByCollection } = context.places;
-		const tabCollections = new Set(["Mscrm.Tabs", `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs`]);
+		const tabCollections = new Set([
+			"Mscrm.Tabs",
+			`Mscrm.SubGrid.${entityLogicalName}.ContextualTabs`,
+		]);
 		for (const { key, el } of customActions) {
 			const location = el.getAttribute("Location") ?? "";
 			const parent = /^(.+)\._children$/.exec(location)?.[1];
@@ -1034,7 +1103,12 @@ export function validatePublishRibbonDiff(
 			const definition = childElements(el).find((c) => c.tagName === "CommandUIDefinition");
 			const root = definition ? childElements(definition)[0] : undefined;
 			const id = root?.getAttribute("Id") ?? "";
-			if (!root || !id || !(PLACED_TAGS.has(root.tagName) || CONTAINER_TAGS.has(root.tagName))) continue;
+			if (
+				!root ||
+				!id ||
+				!(PLACED_TAGS.has(root.tagName) || CONTAINER_TAGS.has(root.tagName))
+			)
+				continue;
 			const at = parent.split("{!EntityLogicalName}").join(entityLogicalName);
 			const tab = tabByCollection[at];
 			if (tab !== undefined) {
@@ -1051,7 +1125,11 @@ export function validatePublishRibbonDiff(
 			}
 			// A table tab, or a collection inside something the customizations add.
 			const owner = (p: string) => p.replace(/\.(Controls|Groups)$/, "");
-			if (tabCollections.has(at) || [parent, at, owner(parent), owner(at)].some((p) => addedBy.has(p))) continue;
+			if (
+				tabCollections.has(at) ||
+				[parent, at, owner(parent), owner(at)].some((p) => addedBy.has(p))
+			)
+				continue;
 			add(
 				"orphan-location",
 				key,
