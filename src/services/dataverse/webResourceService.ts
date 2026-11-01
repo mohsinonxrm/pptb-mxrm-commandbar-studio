@@ -3,6 +3,7 @@ import { useSessionStore } from "@/store/sessionStore";
 import { assertWorkspaceConnection, writeGuard, type WriteGuard } from "@/services/hostConnection";
 import type { WebResource, WebResourceType } from "@/types/webResource";
 import type { WebResourceStatus } from "@/services/xmlValidator";
+import { withBusyRetry } from "@/services/dataverse/environmentService";
 
 function getHostDataverseApi(): DataverseAPI.API {
 	const api = (window as Window & typeof globalThis).dataverseAPI;
@@ -113,6 +114,11 @@ export interface UpsertWebResourceOptions {
 		name: string;
 		managed: boolean;
 	}) => Promise<ExistingWebResourceChoice>;
+	/**
+	 * saveWebResource publishes what it created or updated (#156); false when
+	 * the caller publishes itself (ensureFluentIconWebResource).
+	 */
+	publish?: boolean;
 }
 
 export interface UpsertWebResourceResult {
@@ -125,6 +131,10 @@ export interface UpsertWebResourceResult {
 	solutionUniqueName?: string;
 	/** Set by saveWebResource when no unmanaged solution could be targeted. */
 	solutionWarning?: string;
+	/** Set by saveWebResource when the new content was published. */
+	published?: boolean;
+	/** Set by saveWebResource when the new content couldn't be published. */
+	publishWarning?: string;
 }
 
 /**
@@ -369,10 +379,30 @@ export async function saveWebResource(
 	const active = useSessionStore.getState().activeSolution;
 	const solutionUniqueName =
 		options.solutionUniqueName ?? (active && !active.isManaged ? active.uniqueName : undefined);
+	// The save, the add to the solution and the publish go to one connection (#120).
+	const guard = options.guard ?? writeGuard();
 	const result = await upsertWebResource(getHostDataverseApi(), name, content, typeCode, {
 		...options,
 		solutionUniqueName,
+		guard,
 	});
+	// A web resource must be published when it's created or updated (#156): a
+	// saved command script or replaced icon stayed the old one for users until
+	// someone ran Publish All. A publish that fails doesn't undo the save.
+	if ((result.created || result.updated) && options.publish !== false) {
+		try {
+			await withBusyRetry(`Publishing web resource ${name}`, () => publishWebResource(result.id, guard), {
+				timeoutMs: 2 * 60_000,
+				onProgress: (msg) => useRuntimeLogStore.getState().logInfo("webresource", msg),
+			});
+			result.published = true;
+		} catch (err) {
+			result.publishWarning =
+				`Web resource ${name} was saved but not published (${err instanceof Error ? err.message : String(err)}). ` +
+				`Users get the previous version until it's published: save it again, or run Publish All.`;
+			useRuntimeLogStore.getState().logWarn("webresource", result.publishWarning);
+		}
+	}
 	if (!solutionUniqueName) {
 		const why = active
 			? `the active solution ${active.uniqueName} is managed`
@@ -439,4 +469,28 @@ export async function publishWebResource(
 		operationType: "action",
 		parameters: { ParameterXml: parameterXml },
 	});
+}
+
+/** Image types of `webresourcetype`: PNG, JPG, GIF, ICO, SVG. */
+const IMAGE_MIME: Record<number, string> = {
+	5: "image/png",
+	6: "image/jpeg",
+	7: "image/gif",
+	10: "image/x-icon",
+	11: "image/svg+xml",
+};
+
+/**
+ * A `$webresource:` image as a data URI, for the canvas (#6): content and type
+ * in one query by name. Null when there's no such image web resource.
+ */
+export async function loadWebResourceImage(name: string): Promise<string | null> {
+	const api = getHostDataverseApi();
+	const result = await api.queryData(
+		`webresourceset?$select=content,webresourcetype&$filter=name eq '${name.replace(/'/g, "''")}'&$top=1`,
+	);
+	const row = result.value?.[0] as Record<string, unknown> | undefined;
+	const mime = IMAGE_MIME[Number(row?.["webresourcetype"])];
+	const content = row?.["content"];
+	return mime && typeof content === "string" && content ? `data:${mime};base64,${content}` : null;
 }

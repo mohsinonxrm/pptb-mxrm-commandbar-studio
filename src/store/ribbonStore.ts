@@ -32,6 +32,7 @@ import {
 	isOtherSolutionLabel,
 	groupControls,
 	isMenuKind,
+	MENU_ITEM_KINDS,
 	menuItemPlace,
 	newMenu,
 	newMenuSection,
@@ -578,10 +579,10 @@ export function sequenceBetween(current: number, prev?: number, next?: number): 
  * button gets the lowest unused sequence after its previous neighbour, so it
  * never shares a value with another button (it then sorts a little later).
  */
-export function resequenceAround(
-	buttons: RibbonButton[],
+export function resequenceAround<T extends { sequence: number }>(
+	buttons: T[],
 	at: number,
-	canRenumber: (b: RibbonButton) => boolean,
+	canRenumber: (b: T) => boolean,
 ): void {
 	let s = at;
 	while (s > 0 && canRenumber(buttons[s - 1])) s--;
@@ -611,6 +612,43 @@ export function resequenceAround(
 	buttons[at].sequence = seq;
 }
 
+/**
+ * Gives the item at `at` a Sequence between its neighbours, renumbering the
+ * ones `canRenumber` allows when there's no free value (#164): a duplicate
+ * took its original's Sequence + 5, which could collide with another copy or
+ * pass its next neighbour.
+ */
+function placeBetween<T extends { sequence: number }>(list: T[], at: number, canRenumber: (t: T) => boolean): void {
+	const item = list[at];
+	const seq = sequenceBetween(item.sequence, list[at - 1]?.sequence, list[at + 1]?.sequence);
+	if (seq !== undefined) {
+		item.sequence = seq;
+		return;
+	}
+	resequenceAround(list, at, canRenumber);
+	// No room between neighbours that can't be renumbered (out-of-the-box ones
+	// one apart): it goes where its Sequence publishes it, not where it was put.
+	const fits = (list[at - 1]?.sequence ?? -Infinity) < item.sequence && item.sequence < (list[at + 1]?.sequence ?? Infinity);
+	if (!fits) {
+		list.splice(at, 1);
+		const to = list.findIndex((t) => t.sequence > item.sequence);
+		list.splice(to < 0 ? list.length : to, 0, item);
+	}
+}
+
+/** The publisher prefix ids of new elements start with (#164). */
+function sessionIdPrefix(): string {
+	const { activeSolution, publisherPrefix } = useSessionStore.getState();
+	return activeSolution?.publisherPrefix?.trim() || publisherPrefix?.trim() || "new";
+}
+
+/** `id` starting with the publisher prefix: a copy of another solution's element is yours (#164). */
+function prefixedId(id: string, prefix: string): string {
+	const lower = id.toLowerCase();
+	const p = prefix.toLowerCase();
+	return lower.startsWith(`${p}.`) || lower.startsWith(`${p}_`) ? id : `${prefix}.${id}`;
+}
+
 const EMPTY_RIBBONS: Record<RibbonLocation, RibbonDefinition> = {
 	HomepageGrid: { location: "HomepageGrid", entityLogicalName: "", tabs: [] },
 	SubGrid: { location: "SubGrid", entityLogicalName: "", tabs: [] },
@@ -629,6 +667,18 @@ function controlAt(
 	const group = ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId);
 	const button = findGroupControl(group, id);
 	return group && button ? { group, button } : undefined;
+}
+
+/**
+ * Whether a control is in the location's baseline (loaded, or published this
+ * session): the publish can't change its kind (#154).
+ */
+export function isLoadedControl(
+	state: Pick<RibbonStoreState, "baseline">,
+	location: RibbonLocation,
+	id: string,
+): boolean {
+	return (state.baseline[location]?.tabs ?? []).some((t) => t.groups.some((g) => groupControls(g).some((b) => b.id === id)));
 }
 
 function isReadOnlyGlobalOobButton(
@@ -934,8 +984,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				// commands and rules aren't in the application ribbon, nor the reverse.
 				if ((src.location === "Application") !== (dst.location === "Application"))
 					return refuse("it isn't yours, and a copy can't move between the table's ribbon and the application ribbon.");
-				const { activeSolution, publisherPrefix } = useSessionStore.getState();
-				const prefix = activeSolution?.publisherPrefix?.trim() || publisherPrefix?.trim() || "new";
+				const prefix = sessionIdPrefix();
 				let moved: string | null = null;
 				let copied = false;
 				get().batch(() => {
@@ -1031,14 +1080,30 @@ export const useRibbonStore = create<RibbonStore>()(
 			const coalesceKey = typed
 				? `button:${location}:${buttonId}:${Object.keys(patch).sort().join(",")}`
 				: undefined;
-			set((state) =>
-				commitMutation(
+			set((state) => {
+				// A loaded control keeps its kind, and a menu item can only be a
+				// button or a flyout (#154). A refused kind-only edit isn't recorded.
+				const kindAllowed = (ribbons: Record<RibbonLocation, RibbonDefinition>) => {
+					const at = controlAt(ribbons, location, tabId, groupId, buttonId);
+					return (
+						!at ||
+						patch.kind === undefined ||
+						patch.kind === at.button.kind ||
+						(!isLoadedControl(state, location, buttonId) &&
+							(at.group.buttons.includes(at.button) || MENU_ITEM_KINDS.includes(patch.kind)))
+					);
+				};
+				if (Object.keys(patch).length === 1 && !kindAllowed(state.ribbons)) return {};
+				return commitMutation(
 					state,
 					(ribbons) => {
 						const button = controlAt(ribbons, location, tabId, groupId, buttonId)?.button;
 						if (!button) return;
 						if (isReadOnlyGlobalOobButton(location, tabId, button)) return;
+						const before = button.kind;
+						const allowed = kindAllowed(ribbons);
 						Object.assign(button, patch);
+						if (!allowed) button.kind = before;
 						// A button turned into a flyout / split button gets an (empty) menu.
 						if (isMenuKind(button.kind) && !button.menu) button.menu = newMenu(button.id);
 					},
@@ -1053,8 +1118,8 @@ export const useRibbonStore = create<RibbonStore>()(
 						color: "info",
 					},
 					coalesceKey,
-				),
-			);
+				);
+			});
 		},
 
 		deleteButton(location, tabId, groupId, buttonId) {
@@ -1223,17 +1288,23 @@ export const useRibbonStore = create<RibbonStore>()(
 							const platformLabel =
 								isPlatformText(btn.source?.labelToken) || isOtherSolutionLabel(btn.source?.labelToken, loadedLabelIds);
 							const copy: RibbonButton = {
-								...copyControl(btn, `${btn.id}_copy_${Date.now()}`, loadedLabelIds),
+								...copyControl(btn, `${prefixedId(btn.id, sessionIdPrefix())}_copy_${Date.now()}`, loadedLabelIds),
 								// A read-only kind is copied as loaded (#42), and a platform text
 								// (`$Resources:`) or another solution's label (#137) can't take a
 								// " (copy)" suffix (#86): both keep their label.
 								label: isReadOnlyControlKind(btn.kind) || platformLabel ? btn.label : `${btn.label} (copy)`,
-								sequence: btn.sequence + 5,
+								sequence: btn.sequence,
 							};
 							const place = menuItemPlace(group, buttonId);
 							const list = place ? place.section.controls : group.buttons;
 							const idx = list.findIndex((b) => b.id === buttonId);
 							list.splice(idx + 1, 0, copy);
+							// Right after the original, before its next neighbour (#164).
+							const own = new Set(scopeLayer(state, location)?.controlIds ?? []);
+							const loaded = new Set(
+								(state.baseline[location]?.tabs ?? []).flatMap((t) => t.groups.flatMap(groupControls)).map((b) => b.id),
+							);
+							placeBetween(list, idx + 1, (b) => b === copy || own.has(b.id) || !loaded.has(b.id));
 						}
 					},
 					{
@@ -1360,6 +1431,8 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		duplicateGroup(location, tabId, groupId) {
+			// The copy's id and title, when it kept a title it can't rename once published.
+			let keptTitle: { copyId: string; title: string } | null = null;
 			set((state) =>
 				commitMutation(
 					state,
@@ -1369,21 +1442,47 @@ export const useRibbonStore = create<RibbonStore>()(
 						const grp = tab.groups.find((g) => g.id === groupId);
 						if (!grp) return;
 						const stamp = `_copy_${Date.now()}`;
+						const prefix = sessionIdPrefix();
 						const loadedLabelIds = loadedLabelIdsOf(state);
+						const lang = state.baseLanguageCode;
+						// The group's Title as loaded: an imported group (#30) keeps it in
+						// source while its label is still the token's text; a loaded one has
+						// the token as its label.
+						const imported = grp.source?.titleToken;
+						const title =
+							imported !== undefined && resolveDisplayLabel(imported, state.locLabels, lang) === grp.label
+								? imported
+								: grp.label;
+						// A platform text (`$Resources:`) or another solution's label (#137)
+						// can't take a " (copy)" suffix — the copy took the key itself as its
+						// literal title ("Ribbon.HomepageGrid.MainTab.Management (copy)"). Like
+						// a copied button (#86), it keeps the token, so it shows the same text.
+						const keepTitle = isPlatformText(title) || isOtherSolutionLabel(title, loadedLabelIds);
 						const copy: RibbonGroup = {
 							...JSON.parse(JSON.stringify(grp)),
-							id: `${grp.id}${stamp}`,
-							// The title's text (#33), as the canvas shows it: a `$LocLabels:` /
-							// `$Resources:` token never becomes part of the copy's title text.
-							label: `${resolveDisplayLabel(grp.label, state.locLabels, state.baseLanguageCode)} (copy)`,
-							// The copy must not reuse an imported group's Title label (#30), nor its Description (#42).
-							source: undefined,
+							id: `${prefixedId(grp.id, prefix)}${stamp}`,
+							// Otherwise the title's text (#33) plus " (copy)": a `$LocLabels:`
+							// token never becomes part of the copy's title text.
+							label: keepTitle
+								? resolveDisplayLabel(title, state.locLabels, lang)
+								: `${resolveDisplayLabel(grp.label, state.locLabels, lang)} (copy)`,
+							// The copy must not reuse an imported group's other attributes (#30),
+							// nor its Description (#42); a kept title is its only token.
+							source: keepTitle ? { titleToken: title, attributes: {} } : undefined,
 							description: undefined,
-							sequence: grp.sequence + 5,
-							buttons: grp.buttons.map((b) => copyControl(b, `${b.id}${stamp}`, loadedLabelIds)),
+							sequence: grp.sequence,
+							buttons: grp.buttons.map((b) => copyControl(b, `${prefixedId(b.id, prefix)}${stamp}`, loadedLabelIds)),
 						};
 						const idx = tab.groups.findIndex((g) => g.id === groupId);
 						tab.groups.splice(idx + 1, 0, copy);
+						// Right after the original, before its next neighbour (#164). Only the
+						// copy and new groups are renumbered: a loaded group's Sequence change
+						// wouldn't publish.
+						const loadedGroups = new Set(
+							(state.baseline[location]?.tabs ?? []).flatMap((t) => t.groups.map((g) => g.id)),
+						);
+						placeBetween(tab.groups, idx + 1, (g) => g === copy || !loadedGroups.has(g.id));
+						if (keepTitle) keptTitle = { copyId: copy.id, title };
 					},
 					{
 						ts: new Date().toISOString(),
@@ -1397,6 +1496,17 @@ export const useRibbonStore = create<RibbonStore>()(
 					},
 				),
 			);
+			if (keptTitle) {
+				const { copyId, title } = keptTitle;
+				useRuntimeLogStore
+					.getState()
+					.logInfo(
+						"ribbon",
+						`Duplicate group ${groupId}: the copy ${copyId} keeps its title ${title}, which comes from ` +
+							`${isPlatformText(title) ? "the platform" : "another solution"} and can't take " (copy)". ` +
+							`Rename the copy before you publish if it should read differently: once published, only titles of your own can be renamed.`,
+					);
+			}
 		},
 
 		setGroupTemplate(location, tabId, groupId, template) {
@@ -1564,9 +1674,34 @@ export const useRibbonStore = create<RibbonStore>()(
 					state,
 					(ribbons) => {
 						const tabs = ribbons[location].tabs;
-						ribbons[location].tabs = tabIds
+						const ordered = tabIds
 							.map((id) => tabs.find((t) => t.id === id))
 							.filter((t): t is RibbonTab => t !== undefined);
+						ribbons[location].tabs = ordered;
+						// The Sequence decides the order Dataverse shows (#163): a dragged
+						// tab got none, so the publish had nothing to publish. A new tab,
+						// or one your customizations add, is renumbered to sit between its
+						// neighbours; another solution's can't be, and the publish says so.
+						const loaded = new Set(state.baseline[location]?.tabs.map((t) => t.id) ?? []);
+						const own = new Set(ownContainerIds(state, location) ?? []);
+						const canRenumber = (t: RibbonTab) => !loaded.has(t.id) || own.has(t.id);
+						for (let i = 1; i < ordered.length; i++) {
+							if (ordered[i].sequence > ordered[i - 1].sequence) continue;
+							if (canRenumber(ordered[i])) resequenceAround(ordered, i, canRenumber);
+							else if (canRenumber(ordered[i - 1])) resequenceAround(ordered, i - 1, canRenumber);
+						}
+						// No free value between neighbours that can't be renumbered: such a tab
+						// goes where its Sequence publishes it, not where it was dropped.
+						for (const tab of ordered.filter(canRenumber)) {
+							const at = ordered.indexOf(tab);
+							const fits =
+								(ordered[at - 1]?.sequence ?? -Infinity) < tab.sequence &&
+								tab.sequence < (ordered[at + 1]?.sequence ?? Infinity);
+							if (fits) continue;
+							ordered.splice(at, 1);
+							const to = ordered.findIndex((t) => t.sequence > tab.sequence);
+							ordered.splice(to < 0 ? ordered.length : to, 0, tab);
+						}
 					},
 					{
 						ts: new Date().toISOString(),

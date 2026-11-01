@@ -15,7 +15,8 @@ import {
 	MessageBarBody,
 } from "@fluentui/react-components";
 import { ImageRegular, AddRegular } from "@fluentui/react-icons";
-import { canCustomiseButton, useRibbonStore } from "@/store/ribbonStore";
+import { canCustomiseButton, isLoadedControl, useRibbonStore } from "@/store/ribbonStore";
+import { MENU_ITEM_KINDS } from "@/utils/ribbonMenu";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
@@ -107,6 +108,17 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const sessionPrefix = useSessionStore((s) => s.publisherPrefix);
 	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
+
+	// A menu item can be a button or a flyout; a loaded control keeps its kind (#154).
+	const isMenuItem = useRibbonStore(
+		(s) =>
+			!s.ribbons[location].tabs
+				.find((t) => t.id === tabId)
+				?.groups.find((g) => g.id === groupId)
+				?.buttons.some((b) => b.id === button.id),
+	);
+	const kindLocked = useRibbonStore((s) => isLoadedControl(s, location, button.id));
+	const kindOptions = [...new Set([...(isMenuItem ? MENU_ITEM_KINDS : BUTTON_KINDS), button.kind])];
 
 	function patch(update: Partial<RibbonButton>) {
 		setButtonProp(location, tabId, groupId, button.id, update);
@@ -299,12 +311,22 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 
 			<Divider />
 
-			<Field label="Kind">
+			<Field
+				label="Kind"
+				hint={
+					kindLocked
+						? "A loaded control's kind can't be changed: add a new control instead."
+						: isMenuItem
+							? "A menu holds buttons and flyouts."
+							: undefined
+				}
+			>
 				<Select
 					value={button.kind}
+					disabled={kindLocked}
 					onChange={(_, d) => patch({ kind: d.value as RibbonButton["kind"] })}
 				>
-					{BUTTON_KINDS.map((k) => (
+					{kindOptions.map((k) => (
 						<option key={k} value={k}>
 							{k}
 						</option>

@@ -1,4 +1,5 @@
 import { zipSync, strToU8 } from "fflate";
+import { invalidateApplicationRibbonCache } from "@/services/dataverse/ribbonService";
 import {
 	generateRibbonDiffXml,
 	buildCustomizationsXml,
@@ -201,6 +202,7 @@ export interface PublishRibbonInput {
 				| "movedButtons"
 				| "editedLocLabelIds"
 				| "editedTabIds"
+				| "resequencedTabs"
 				| "renamedLabels"
 				| "uncustomisedCommandIds"
 			>
@@ -298,6 +300,7 @@ export async function buildMergedRibbonDiffXml(
 		movedButtons: input.plan.movedButtons ?? [],
 		editedLocLabelIds: input.plan.editedLocLabelIds ?? [],
 		editedTabIds: input.plan.editedTabIds ?? [],
+		resequencedTabs: input.plan.resequencedTabs ?? [],
 	};
 
 	// Translation-only edits (#49): labels the layer defines whose titles
@@ -462,6 +465,7 @@ export async function buildMergedRibbonDiffXml(
 		unhiddenControlIds: input.plan.unhiddenButtonIds,
 		deletedContainerIds: plan.deletedContainerIds,
 		movedControls: plan.movedButtons,
+		resequencedContainers: plan.resequencedTabs,
 		removedTabCommands,
 		uncustomisedCommandIds,
 		retainedEnableRuleIds,
@@ -862,7 +866,10 @@ export function publishRibbon(
 	input: PublishRibbonInput,
 	onProgress?: (msg: string) => void,
 ): Promise<PublishRibbonResult> {
-	return withCloseGuard(() => publishRibbonUnguarded(input, onProgress));
+	// What the publish imported changes the application ribbon too (#4).
+	return withCloseGuard(() => publishRibbonUnguarded(input, onProgress)).finally(() =>
+		invalidateApplicationRibbonCache({ afterPublish: true }),
+	);
 }
 
 async function publishRibbonUnguarded(
@@ -1276,7 +1283,9 @@ export function publishAllAsync(
 	onProgress?: (msg: string) => void,
 	options?: { pollIntervalMs?: number; timeoutMs?: number; guard?: WriteGuard },
 ): Promise<PublishAllAsyncResult> {
-	return withCloseGuard(() => publishAllAsyncUnguarded(onProgress, options));
+	return withCloseGuard(() => publishAllAsyncUnguarded(onProgress, options)).finally(() =>
+		invalidateApplicationRibbonCache({ afterPublish: true }),
+	);
 }
 
 async function publishAllAsyncUnguarded(

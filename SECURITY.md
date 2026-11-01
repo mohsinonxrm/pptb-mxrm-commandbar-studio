@@ -51,19 +51,20 @@ ToolBox (PPTB) and talks to Dataverse only through the host's
 | Version | Supported |
 |---|---|
 | The current stable release (npm `latest`) | ✅ Fixes and security fixes |
-| The previous minor release | ✅ Critical and security fixes for 30 days after the next minor ships (npm `support-X.Y`) |
+| The previous minor release | ✅ Critical and security fixes for 30 days after the next minor ships (npm `support-X.Y`), **only when the next minor requires a newer Power Platform ToolBox** |
 | Betas (npm `beta`) | Fixed in the next beta |
 | Anything older | ❌ |
 
-**Everything before 0.7.0 is deprecated on npm and gets no further fixes**, 0.6.x and
-0.5.x included:
+**Everything before 0.8.0 is deprecated on npm and gets no further fixes**, 0.7.x, 0.6.x
+and 0.5.x included:
 - **Before 0.6.2:** these versions bundle DOMPurify 3.2.7 (in the Monaco editor), which has
   critical advisories.
-- **0.6.x:** it gets no support window after 0.7.0, because 0.7.0 needs the same Power
-  Platform ToolBox (1.2.7). Update to 0.7.0.
+- **0.6.x and 0.7.x:** they get no support window, because the next minor needs the same Power
+  Platform ToolBox (1.2.7). Update to the latest release.
 
-Use 0.7.0 or later, which requires Power Platform ToolBox 1.2.7 or later; users on an older
-PPTB need to update it. The previous-minor support window applies from 0.7 on, to 0.7.x after
-0.8.0 ships. See [RELEASING.md](RELEASING.md) → *Supported versions*.
+Use 0.8.0 or later, which requires Power Platform ToolBox 1.2.7 or later; users on an older
+PPTB need to update it. A previous minor keeps a support window only when the next minor
+raises that requirement, because only then can users be unable to update. See
+[RELEASING.md](RELEASING.md) → *Supported versions*.
 
 Thanks for helping keep the tool safe.

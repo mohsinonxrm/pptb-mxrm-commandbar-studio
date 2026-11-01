@@ -21,10 +21,14 @@ export async function decompressRibbonZip(base64Zip: string): Promise<string> {
 	);
 
 	if (!entry) {
-		// Fallback: return the first text file if the expected name is absent
-		const first = Object.values(unzipped)[0];
-		if (first) return strFromU8(first);
-		throw new Error("decompressRibbonZip: no RibbonXml.xml entry found in ZIP");
+		// No fallback to another entry (#168): the package's first one can be
+		// [Content_Types].xml, which parses fine and loaded an empty ribbon.
+		const names = Object.keys(unzipped);
+		throw new Error(
+			`Dataverse returned a ribbon package without RibbonXml.xml (it has ${
+				names.length > 0 ? names.join(", ") : "no files"
+			}).`,
+		);
 	}
 
 	return strFromU8(entry[1]);

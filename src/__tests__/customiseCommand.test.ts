@@ -1164,7 +1164,7 @@ describe("#137 — copies of controls whose labels another solution defines", ()
 		useRibbonStore
 			.getState()
 			.ribbons.HomepageGrid.tabs[0].groups.flatMap((g) => g.buttons)
-			.filter((b) => b.id.startsWith(prefix));
+			.filter((b) => b.id.includes(prefix));
 
 	it("Duplicate button keeps the labels and their text, with no label of its own", async () => {
 		loadWithOther();

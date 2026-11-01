@@ -196,11 +196,14 @@ export function deleteBlockedReason(button: RibbonButton, baseline: RibbonDefini
 /**
  * Overlays authoritative solution-layer provenance onto every button in a set
  * of ribbons (mutates in place). Buttons not present in the map keep whatever
- * the parser's heuristic set.
+ * the parser's heuristic set. Two kinds are never relabelled (#151): controls
+ * your unmanaged layer adds (`own`: the Active layer wins), and controls
+ * classed out-of-the-box, whose editing rules differ from managed ones.
  */
 export function applyProvenanceToRibbons(
 	ribbons: Record<RibbonLocation, RibbonDefinition>,
 	provenance: Map<string, ButtonProvenance>,
+	own: ReadonlySet<string> = new Set(),
 ): void {
 	if (provenance.size === 0) return;
 	for (const location of Object.keys(ribbons) as RibbonLocation[]) {
@@ -208,7 +211,7 @@ export function applyProvenanceToRibbons(
 			for (const group of tab.groups) {
 				for (const button of groupControls(group)) {
 					const p = provenance.get(button.id);
-					if (p) applyButtonOrigin(button, p);
+					if (p && !own.has(button.id) && button.origin !== "oob") applyButtonOrigin(button, p);
 				}
 			}
 		}

@@ -21,10 +21,12 @@ export function moveTargets(
 	buttonId: string | undefined,
 	locLabels: LocLabel[],
 	languageCode?: number,
+	/** How the canvas captions a label (#6); the workspace's own resolution by default. */
+	caption: (label: string, locLabels: LocLabel[], languageCode?: number, token?: string) => string = resolveDisplayLabel,
 ): MoveTarget[] {
 	const targets = tab.groups
 		.filter((g) => g.id !== currentGroupId && !(buttonId && g.buttons.some((b) => b.id === buttonId)))
-		.map((g) => ({ groupId: g.id, text: resolveDisplayLabel(g.label, locLabels, languageCode).trim() || g.id }));
+		.map((g) => ({ groupId: g.id, text: caption(g.label, locLabels, languageCode, g.source?.titleToken).trim() || g.id }));
 	const count = new Map<string, number>();
 	for (const t of targets) count.set(t.text, (count.get(t.text) ?? 0) + 1);
 	return targets.map((t) =>

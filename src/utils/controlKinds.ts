@@ -63,6 +63,9 @@ const COMMAND_ATTRIBUTE_VALUE = new RegExp(`\\s(?:${COMMAND_ATTRIBUTES.join("|")
  */
 export function controlCommandIds(button: RibbonButton): string[] {
 	const out = new Set<string>(button.commandId ? [button.commandId] : []);
+	// A dynamic flyout / split button's populate command (#133): a copy carries it.
+	const populate = button.source?.attributes["PopulateQueryCommand"];
+	if (populate && (button.kind === "flyout" || button.kind === "splitButton")) out.add(populate);
 	if (isReadOnlyControlKind(button.kind))
 		for (const m of button.source?.xml?.matchAll(COMMAND_ATTRIBUTE_VALUE) ?? []) out.add(m[1]);
 	return [...out];

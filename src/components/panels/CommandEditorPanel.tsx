@@ -34,6 +34,7 @@ import {
 } from "@/services/dataverse/webResourceService";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
 import { groupControls } from "@/utils/ribbonMenu";
+import { useStableKeys } from "@/hooks/useStableKeys";
 import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
 import { isCommandReadOnly, useCommandProvenance } from "@/hooks/useCommandProvenance";
 
@@ -131,6 +132,8 @@ const useStyles = makeStyles({
  */
 type ActionKind = "javascript" | "url";
 
+const NO_ACTIONS: RibbonAction[] = [];
+
 export const CommandEditorPanel: React.FC = () => {
 	const styles = useStyles();
 	const commandEditorOpen = useUIStore((s) => s.commandEditorOpen);
@@ -164,6 +167,9 @@ export const CommandEditorPanel: React.FC = () => {
 	const [codeWebResourceName, setCodeWebResourceName] = useState<string | null>(null);
 
 	const command = commands.find((c) => c.id === commandEditorId);
+	// Action cards keep their key when another action is removed (#22): an index
+	// key handed a card's local state (a half-typed number, …) to the next one.
+	const actionKeys = useStableKeys(`actions:${command?.id ?? ""}`, command?.actions ?? NO_ACTIONS);
 	// A command being uncustomised (#31) is removed from the layer on publish, and
 	// one uncustomised and published needs a reload: neither is editable.
 	const readOnly = isCommandReadOnly(useCommandProvenance(command?.id));
@@ -306,7 +312,7 @@ export const CommandEditorPanel: React.FC = () => {
 				inferWebResourceTypeCode(codeWebResourceName),
 				{ displayName: codeWebResourceName.split("/").pop(), guard },
 			);
-			setCodeWarning(saved.solutionWarning ?? null);
+			setCodeWarning([saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null);
 			setCodeDirty(false);
 		} catch (error: unknown) {
 			setCodeError(error instanceof Error ? error.message : "Failed to save web resource content.");
@@ -323,10 +329,14 @@ export const CommandEditorPanel: React.FC = () => {
 		const newActions = [...command.actions];
 		newActions[index] = updated;
 		updateCommand({ actions: newActions });
+		actionKeys.update();
 	};
 
 	const removeAction = (index: number) => {
 		updateCommand({ actions: command.actions.filter((_, i) => i !== index) });
+		actionKeys.remove(index);
+		// The code panel stays with its action.
+		setCodeActionIndex((open) => (open === null || open === index ? null : open > index ? open - 1 : open));
 	};
 
 	const addAction = (kind: ActionKind) => {
@@ -335,13 +345,14 @@ export const CommandEditorPanel: React.FC = () => {
 				? { kind: "javascript", library: "", functionName: "", params: [] }
 				: { kind: "url", address: "https://", params: [] };
 		updateCommand({ actions: [...command.actions, newAction] });
+		actionKeys.add();
 	};
 
 	const renderActionEditor = (action: RibbonAction, index: number) => {
 		const showCodePanel = codeActionIndex === index;
 		if (action.kind === "javascript") {
 			return (
-				<div key={index} className={styles.actionCard}>
+				<div key={actionKeys.keys[index]} className={styles.actionCard}>
 					<div className={styles.actionHeader}>
 						<Badge appearance="filled" color="success" size="small">
 							JavaScript
@@ -497,7 +508,7 @@ export const CommandEditorPanel: React.FC = () => {
 		if (action.kind === "url") {
 			const isHttpsAddress = action.address.trim().startsWith("https://");
 			return (
-				<div key={index} className={styles.actionCard}>
+				<div key={actionKeys.keys[index]} className={styles.actionCard}>
 					<div className={styles.actionHeader}>
 						<Badge appearance="filled" color="informative" size="small">
 							URL
@@ -564,7 +575,7 @@ export const CommandEditorPanel: React.FC = () => {
 			// Can't be added any more (#28); only reachable from a session saved by an
 			// older version. Publishing is blocked while the command has one.
 			return (
-				<div key={index} className={styles.actionCard}>
+				<div key={actionKeys.keys[index]} className={styles.actionCard}>
 					<div className={styles.actionHeader}>
 						<Badge appearance="filled" color="danger" size="small">
 							{action.kind === "powerFx" ? "Power Fx" : "Custom API"} — not supported
@@ -593,7 +604,7 @@ export const CommandEditorPanel: React.FC = () => {
 		if (action.kind === "outlookCommand" || action.kind === "raw") {
 			// Not editable in CBS; kept exactly as loaded when the command is re-emitted.
 			return (
-				<div key={index} className={styles.actionCard}>
+				<div key={actionKeys.keys[index]} className={styles.actionCard}>
 					<div className={styles.actionHeader}>
 						<Badge appearance="outline" size="small">
 							{action.kind === "outlookCommand" ? "Outlook command" : action.tagName}

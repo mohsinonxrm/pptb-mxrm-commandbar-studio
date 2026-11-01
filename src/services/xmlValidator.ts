@@ -11,6 +11,7 @@ import { groupControls, isDynamicMenuValue } from "@/utils/ribbonMenu";
 import { isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { MAX_LOC_LABEL_ID_LENGTH } from "@/utils/locLabelRef";
 import { OPEN_RECORD_ITEM_COMMAND_ID, isOpenRecordCarrier } from "@/utils/openRecordItem";
+import { schemaProblems } from "@/services/ribbonSchemaChecks";
 
 /** The display-rule pair "Hide with display rules" adds (ribbonStore.HIDE_DISPLAY_RULES): never both true. */
 const HIDE_DISPLAY_RULE_IDS = ["Mscrm.HideOnModern", "Mscrm.ShowOnlyOnModern"] as const;
@@ -320,6 +321,8 @@ export type PublishCheckCode =
 	| "id-prefix"
 	| "loclabel-missing"
 	| "webresource-missing"
+	| "webresource-path"
+	| "duplicate-sequence"
 	| "webresource-not-in-solution"
 	| "webresource-lookup"
 	| "scaling-collision"
@@ -327,7 +330,8 @@ export type PublishCheckCode =
 	| "duplicate-id"
 	| "orphan-location"
 	| "label-id-length"
-	| "open-record-hidden";
+	| "open-record-hidden"
+	| "schema";
 
 /** One pre-publish finding. Errors block the publish; warnings don't. */
 export interface PublishFinding {
@@ -561,6 +565,14 @@ export function validatePublishRibbonDiff(
 	const customActions = elements.filter((e) => e.part === "customActions");
 	const commandDefs = elements.filter((e) => e.part === "commandDefinitions");
 
+	// What the import's schema check would reject (#153): an empty rule, an
+	// OrRule with one alternative, a JavaScript action with no function, a
+	// cleared number, … Found here, before anything is written.
+	for (const { part, key, el } of elements) {
+		if (part !== "commandDefinitions" && part !== "enableRules" && part !== "displayRules") continue;
+		for (const message of schemaProblems(el)) add("schema", key, message, el.getAttribute("Id") ?? undefined);
+	}
+
 	// Dropped action kinds (#28): the command would be written without them.
 	// In the publish dialog the plan (publishPlan.planScope) already blocks
 	// these; this is the same rule for every other caller of publishRibbon.
@@ -689,16 +701,21 @@ export function validatePublishRibbonDiff(
 		const known = new Set([...parts.commandDefinitions.keys(), ...context.known.commandIds]);
 		for (const { key, el } of customActions) {
 			for (const node of Array.from(el.getElementsByTagName("*"))) {
-				const command = node.getAttribute("Command");
-				if (!command || known.has(command) || CONTAINER_TAGS.has(node.tagName)) continue;
-				const id = node.getAttribute("Id") ?? "";
-				add(
-					"undefined-command",
-					key,
-					`${node.tagName} ${id} uses command ${command}, which is defined neither in the customizations nor in the loaded ribbon`,
-					id,
-					isPlatformId(command),
-				);
+				if (CONTAINER_TAGS.has(node.tagName)) continue;
+				// A dynamic flyout's PopulateQueryCommand too (#133): misspelled or
+				// defined nowhere, the drop-down stays empty.
+				for (const attr of ["Command", "PopulateQueryCommand"]) {
+					const command = node.getAttribute(attr);
+					if (!command || known.has(command)) continue;
+					const id = node.getAttribute("Id") ?? "";
+					add(
+						"undefined-command",
+						key,
+						`${node.tagName} ${id} uses ${attr === "Command" ? "command" : "PopulateQueryCommand"} ${command}, which is defined neither in the customizations nor in the loaded ribbon`,
+						id,
+						isPlatformId(command),
+					);
+				}
 			}
 		}
 	}
@@ -777,6 +794,51 @@ export function validatePublishRibbonDiff(
 					key,
 					`${[node.tagName, id, attr.name].filter(Boolean).join(" ")} references $LocLabels:${labelId}, which has no <LocLabel> in these customizations — the text won't resolve unless another solution defines the label`,
 					id,
+					true,
+				);
+			}
+		}
+	}
+
+	// Siblings with the same Sequence (#164): Dataverse's order between them is
+	// undefined, so the canvas order may not be what publishes.
+	const bySlot = new Map<string, { key: string; id: string }[]>();
+	for (const { key, el } of customActions) {
+		const location = el.getAttribute("Location") ?? "";
+		const sequence = el.getAttribute("Sequence");
+		if (el.tagName !== "CustomAction" || !location.endsWith("._children") || !sequence) continue;
+		const slot = `${location}|${sequence}`;
+		bySlot.set(slot, [...(bySlot.get(slot) ?? []), { key, id: el.getAttribute("Id") ?? key }]);
+	}
+	for (const [slot, items] of bySlot) {
+		// A tie already in the published layer isn't reported on every publish.
+		if (items.length < 2 || !items.some((i) => isChanged(i.key))) continue;
+		const [location, sequence] = slot.split("|");
+		add(
+			"duplicate-sequence",
+			items.map((i) => i.key),
+			`${items.map((i) => i.id).join(" and ")} have the same Sequence (${sequence}) in ${location} — their order isn't defined; give one another Sequence`,
+			items[0].id,
+			true,
+		);
+	}
+
+	// A root-relative /WebResources/ path makes no solution dependency (#158):
+	// a ribbon should always use the `$webresource:` directive.
+	for (const { key, el } of elements) {
+		for (const node of selfAndDescendants(el)) {
+			for (const attr of Array.from(node.attributes)) {
+				if (attr.name !== "Library" && !IMAGE_ATTRIBUTES.has(attr.name)) continue;
+				const path = /^\/?WebResources\/(.+)$/i.exec(attr.value.trim())?.[1];
+				if (!path) continue;
+				add(
+					"webresource-path",
+					key,
+					`${node.tagName} ${node.getAttribute("Id") ?? ""} ${attr.name} is the path ${attr.value} — use $webresource:${path}, the only form that makes the solution depend on the web resource`.replace(
+						/\s+/g,
+						" ",
+					),
+					node.getAttribute("Id") ?? undefined,
 					true,
 				);
 			}

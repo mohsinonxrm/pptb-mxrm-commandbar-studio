@@ -231,6 +231,7 @@ function parseScaling(doc: Document): Record<string, ScalingDefinition> {
 			groupId: el.getAttribute("GroupId") ?? "",
 			size: el.getAttribute("Size") ?? "",
 			sequence: parseInt(el.getAttribute("Sequence") ?? "0", 10),
+			...(el.getAttribute("PopupSize") ? { popupSize: el.getAttribute("PopupSize")! } : {}),
 		});
 		const kids = Array.from(scalingEl.children);
 		out[tabId] = {
@@ -273,29 +274,33 @@ function applyTabDisplayRules(doc: Document, tabs: RibbonTab[]): void {
 		const target = tabsByCommandId.get(tabCommand);
 		if (!target) return;
 
+		// In document order. Several TabDisplayRules for one tab are one rule
+		// (any step shows the tab), as they're published (#155).
 		const rules: TabDisplayRule["rules"] = [];
-		tdr.querySelectorAll("EntityRule").forEach((er) => {
-			rules.push({
-				kind: "EntityRule",
-				entityName: er.getAttribute("EntityName") ?? undefined,
-				appliesTo: (er.getAttribute("AppliesTo") ?? undefined) as
-					| "PrimaryEntity"
-					| "SelectedEntity"
-					| undefined,
-				context: (er.getAttribute("Context") ?? undefined) as
-					| "Form"
-					| "HomePageGrid"
-					| "SubGridStandard"
-					| "SubGridAssociated"
-					| undefined,
-			});
-		});
-		tdr.querySelectorAll("PageRule").forEach((pr) => {
-			rules.push({ kind: "PageRule", address: pr.getAttribute("Address") ?? "" });
-		});
-		if (rules.length > 0) {
-			target.tabDisplayRules.push({ tabCommand, rules });
+		for (const step of Array.from(tdr.children)) {
+			if (step.tagName === "EntityRule") {
+				rules.push({
+					kind: "EntityRule",
+					entityName: step.getAttribute("EntityName") ?? undefined,
+					appliesTo: (step.getAttribute("AppliesTo") ?? undefined) as
+						| "PrimaryEntity"
+						| "SelectedEntity"
+						| undefined,
+					context: (step.getAttribute("Context") ?? undefined) as
+						| "Form"
+						| "HomePageGrid"
+						| "SubGridStandard"
+						| "SubGridAssociated"
+						| undefined,
+				});
+			} else if (step.tagName === "PageRule") {
+				rules.push({ kind: "PageRule", address: step.getAttribute("Address") ?? "" });
+			}
 		}
+		if (rules.length === 0) return;
+		const existing = target.tabDisplayRules.find((r) => r.tabCommand === tabCommand);
+		if (existing) existing.rules.push(...rules);
+		else target.tabDisplayRules.push({ tabCommand, rules });
 	});
 }
 

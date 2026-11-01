@@ -377,6 +377,12 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	for (const button of emittedButtons) for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
 	// A new tab's Command is defined with it (an empty command, as in
 	// Microsoft's custom-tab walkthrough) unless the model already has one.
+	// A new (imported) group's own Command too (#169 review), when the model has it.
+	for (const tab of current.tabs)
+		for (const group of tab.groups) {
+			const command = group.source?.attributes["Command"];
+			if (command && !baselineGroupIds.has(group.id)) referencedCommandIds.add(command);
+		}
 	const tabCommands: CommandDefinition[] = [];
 	for (const tab of newTabs) {
 		const id = tab.commandId!;
@@ -581,8 +587,10 @@ function generateScalingCustomActions(
 	return [...maxSizes, ...scales];
 }
 
-function generateScaleStep(tag: "MaxSize" | "Scale", step: ScaleStep): string {
-	return `<${tag} Id="${escapeXml(step.id)}" GroupId="${escapeXml(step.groupId)}" Sequence="${step.sequence}" Size="${escapeXml(step.size)}"/>`;
+export function generateScaleStep(tag: "MaxSize" | "Scale", step: ScaleStep): string {
+	// PopupSize (ScaleType only) is written back as loaded (#169).
+	const popup = tag === "Scale" && step.popupSize ? ` PopupSize="${escapeXml(step.popupSize)}"` : "";
+	return `<${tag} Id="${escapeXml(step.id)}" GroupId="${escapeXml(step.groupId)}" Sequence="${step.sequence}" Size="${escapeXml(step.size)}"${popup}/>`;
 }
 
 function generateScalingCustomAction(tabId: string, tag: "MaxSize" | "Scale", step: ScaleStep): string {
@@ -881,10 +889,16 @@ function descriptionAttr(
  */
 const CONTAINER_MODELLED_ATTRIBUTES = new Set(["Id", "Command", "Title", "Description", "Sequence", "Template"]);
 
-/** The other attributes of an imported tab / group (Description, images, …), as imported (#30). */
+/**
+ * The other attributes of an imported tab / group (Description, images, …), as
+ * imported (#30). A group's `Command` among them (#169): a tab's is modelled
+ * (commandId), a group's isn't, so it was dropped.
+ */
 function containerAttributes(container: RibbonTab | RibbonGroup): string {
+	const isGroup = "buttons" in container;
 	return Object.entries(container.source?.attributes ?? {})
-		.filter(([k]) => !CONTAINER_MODELLED_ATTRIBUTES.has(k) && !NON_DIFF_ATTRIBUTES.has(k))
+		.filter(([k]) => (isGroup && k === "Command") || !CONTAINER_MODELLED_ATTRIBUTES.has(k))
+		.filter(([k]) => !NON_DIFF_ATTRIBUTES.has(k))
 		.map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
 		.join("");
 }
@@ -907,7 +921,7 @@ export function normalizeGroupTemplate(template: string): string {
  * appear" — the ribbon-metadata compile fails to resolve the missing label).
  *
  *   - `$LocLabels:<id>`  → reference as-is; emit the matching store LocLabel
- *                          (or a placeholder so the reference still resolves).
+ *                          (none when CBS doesn't have it: another solution may, #159).
  *   - `$Resources:<key>` → built-in platform resource; reference as-is, no LocLabel.
  *   - plain text         → synthesize `$LocLabels:<conventionId>` and emit a
  *                          LocLabel whose 1033 title is the text, merged with any
@@ -924,7 +938,11 @@ function resolveLocalizedAttr(
 	if (value.startsWith("$LocLabels:")) {
 		const id = value.slice("$LocLabels:".length);
 		const existing = storeLocLabels.find((l) => l.id === id);
-		sink(existing ?? { id, titles: [{ languageCode: lang, description: id }] });
+		// A typed reference to a label CBS doesn't have is written as is (#159),
+		// like another solution's label (#137): a placeholder whose text was its
+		// id became an unmanaged label that every control using it showed. The
+		// pre-publish check warns when nothing defines it.
+		if (existing) sink(existing);
 		return value;
 	}
 	if (isPlatformText(value)) {
@@ -941,11 +959,95 @@ function resolveLocalizedAttr(
 	return locLabelRef(conventionId);
 }
 
-const IMAGE_ATTRIBUTES = ["ModernImage", "Image16by16", "Image32by32"];
-const DISALLOWED_CONTROL_ATTRIBUTES: Partial<Record<RibbonButton["kind"], string[]>> = {
-	textBox: ["LabelText", ...IMAGE_ATTRIBUTES],
-	comboBox: ["LabelText", ...IMAGE_ATTRIBUTES],
-	checkBox: IMAGE_ATTRIBUTES,
+const TOOLTIP_ATTRIBUTES = [
+	"ToolTipTitle",
+	"ToolTipDescription",
+	"ToolTipHelpKeyWord",
+	"ToolTipShortcutKey",
+	"ToolTipImage32by32",
+	"ToolTipImage32by32Class",
+	"ToolTipImage32by32Left",
+	"ToolTipImage32by32Top",
+];
+const IMAGE_ATTRIBUTES = [
+	"Image16by16",
+	"Image16by16Class",
+	"Image16by16Left",
+	"Image16by16Top",
+	"Image32by32",
+	"Image32by32Class",
+	"Image32by32Left",
+	"Image32by32Top",
+	"ModernImage",
+];
+const COMMON_ATTRIBUTES = ["Id", "Command", "Sequence", "TemplateAlias", ...TOOLTIP_ATTRIBUTES];
+const POPULATE_ATTRIBUTES = ["PopulateDynamically", "PopulateOnlyOnce", "PopulateQueryCommand", "CacheMenuVersions"];
+
+/**
+ * The attributes each editable control allows (RibbonWSS.xsd ButtonType,
+ * FlyoutAnchorType, …). TextBox / ComboBox have no LabelText or images and
+ * CheckBox no images (#41); a control whose Kind changed keeps only what its
+ * new element allows, not the old one's PopulateDynamically,
+ * ModernCommandType, … (#154).
+ */
+const CONTROL_ATTRIBUTES: Record<string, ReadonlySet<string>> = {
+	Button: new Set([
+		...COMMON_ATTRIBUTES,
+		...IMAGE_ATTRIBUTES,
+		"Alt",
+		"CommandType",
+		"CommandValueId",
+		"Description",
+		"LabelCss",
+		"LabelText",
+		"MenuItemId",
+		"ModernCommandType",
+		"Priority",
+	]),
+	FlyoutAnchor: new Set([
+		...COMMON_ATTRIBUTES,
+		...IMAGE_ATTRIBUTES,
+		...POPULATE_ATTRIBUTES,
+		"Alt",
+		"CommandMenuClose",
+		"CommandType",
+		"LabelText",
+		"ModernCommandType",
+		"ToolTipSelectedItemTitle",
+	]),
+	SplitButton: new Set([
+		...COMMON_ATTRIBUTES,
+		...IMAGE_ATTRIBUTES,
+		...POPULATE_ATTRIBUTES,
+		"Alt",
+		"CommandMenuClose",
+		"CommandMenuOpen",
+		"CommandType",
+		"LabelText",
+		"MenuAlt",
+		"MenuCommand",
+		"ToolTipSelectedItemTitle",
+	]),
+	CheckBox: new Set([...COMMON_ATTRIBUTES, "Alt", "LabelText", "MenuItemId", "QueryCommand"]),
+	TextBox: new Set([...COMMON_ATTRIBUTES, "ImeEnabled", "MaxLength", "QueryCommand", "ShowAsLabel", "Width"]),
+	ComboBox: new Set([
+		...COMMON_ATTRIBUTES,
+		...POPULATE_ATTRIBUTES,
+		"AllowFreeForm",
+		"Alt",
+		"AltArrow",
+		"AutoComplete",
+		"AutoCompleteDelay",
+		"CommandMenuClose",
+		"CommandMenuOpen",
+		"CommandPreview",
+		"CommandPreviewRevert",
+		"ImeEnabled",
+		"InitialItem",
+		"QueryCommand",
+		"ToolTipSelectedItemTitle",
+		"Width",
+	]),
 };
 
 /** Attributes RetrieveEntityRibbon adds to controls that are not valid in RibbonDiffXml. */
@@ -1007,18 +1109,23 @@ function resolveButtonText(
 export function effectiveModernImage(button: RibbonButton): string | undefined {
 	const src = button.source;
 	const isWebResource = (v?: string): v is string => !!v?.startsWith("$webresource:");
+	// A bare web resource name picked in CBS counts as the web resource it names
+	// (#158). Picked means changed from what was loaded, compared as written.
+	const ref = (v?: string) => (v && !v.startsWith("/") && /[/.]/.test(v) ? webResourceRef(v) : v);
+	const image32 = ref(button.image32);
+	const image16 = ref(button.image16);
 	const pickedImages = (
 		[
-			[button.image32, "Image32by32"],
-			[button.image16, "Image16by16"],
+			[button.image32, image32, "Image32by32"],
+			[button.image16, image16, "Image16by16"],
 		] as const
 	)
-		.filter(([value, attr]) => isWebResource(value) && value !== src?.attributes[attr])
-		.map(([value]) => value);
+		.filter(([raw, value, attr]) => isWebResource(value) && raw !== src?.attributes[attr])
+		.map(([, value]) => value);
 	if (src && normalizeModernImage(src.modernImage) === button.icon && pickedImages.length === 0) {
 		return src.modernImage;
 	}
-	return pickedImages[0] ?? [button.image32, button.image16, button.icon].find(isWebResource);
+	return pickedImages[0] ?? [image32, image16, button.icon].find(isWebResource);
 }
 
 function generateButtonElement(
@@ -1063,13 +1170,15 @@ function generateButtonElement(
 	// "New", /_imgs/ paths). A bare Fluent icon name chosen in CBS is a
 	// canvas-preview value only and must never be emitted (it doesn't resolve).
 	const isResourceRef = (v?: string) => !!v && (v.startsWith("$webresource:") || v.includes("/") || v.includes("."));
+	// With the directive (#158): a bare `new_/icons/x.svg` was written as is.
+	const imageRef = (v?: string) => (isResourceRef(v) ? webResourceRef(v!) : undefined);
 	set("ModernImage", effectiveModernImage(button));
-	set("Image16by16", isResourceRef(button.image16) ? button.image16 : undefined);
-	set("Image32by32", isResourceRef(button.image32) ? button.image32 : undefined);
+	set("Image16by16", imageRef(button.image16));
+	set("Image32by32", imageRef(button.image32));
 
-	// RibbonCore.xsd: TextBox / ComboBox have no LabelText or images, CheckBox
-	// has no images — emit only what the control type allows (#41).
-	for (const name of DISALLOWED_CONTROL_ATTRIBUTES[button.kind] ?? []) attrs.delete(name);
+	// Only what the element allows (#41, #154).
+	const allowed = CONTROL_ATTRIBUTES[tag];
+	if (allowed) for (const name of [...attrs.keys()]) if (!allowed.has(name)) attrs.delete(name);
 
 	const attrXml = Array.from(attrs.entries())
 		.map(([k, v]) => `${k}="${escapeXml(v)}"`)
@@ -1181,15 +1290,35 @@ function generateVerbatimControl(
 // ---------------------------------------------------------------------------
 
 /**
- * A bare web resource name (`new_/scripts/x.js`) needs the `$webresource:`
- * directive. The directive is matched case-insensitively: out-of-the-box
- * commands use `$Webresource:Main_system_library.js`, which must be kept as is
- * (prefixing it again produced `$webresource:$Webresource:…`).
+ * A reference to a web resource as a ribbon must write it (#158): with the
+ * `$webresource:` directive, the only form that creates a solution dependency
+ * (https://learn.microsoft.com/power-apps/developer/model-driven-apps/web-resources).
+ * A bare name (`new_/scripts/x.js`) gets the directive and a root-relative
+ * `/WebResources/new_/x.js` becomes `$webresource:new_/x.js`. The directive is
+ * matched case-insensitively — out-of-the-box commands use
+ * `$Webresource:Main_system_library.js`, kept as is (prefixing it again
+ * produced `$webresource:$Webresource:…`) — and platform paths (`/_imgs/…`)
+ * and URLs stay as they are.
+ */
+export function webResourceRef(value: string): string {
+	const v = (value ?? "").trim();
+	if (!v || /^\$webresource:/i.test(v) || /^https?:\/\//i.test(v)) return v;
+	const rootRelative = v.match(/^\/?WebResources\/(.+)$/i);
+	if (rootRelative) return `$webresource:${rootRelative[1]}`;
+	// Platform paths (/_imgs/…) and relative ones (../…) aren't web resource names.
+	if (v.startsWith("/") || v.startsWith(".")) return v;
+	return `$webresource:${v}`;
+}
+
+/**
+ * A JavaScriptFunction / CustomRule Library: a web resource reference (#158).
+ * A root-relative `/WebResources/…` library is kept as loaded, so a loaded
+ * action still round-trips (and stays editable); the pre-publish check warns
+ * about it instead.
  */
 export function normalizeLibrary(library: string): string {
 	const v = (library ?? "").trim();
-	if (!v || /^\$webresource:/i.test(v) || /^https?:\/\//i.test(v) || v.startsWith("/")) return v;
-	return `$webresource:${v}`;
+	return v.startsWith("/") ? v : webResourceRef(v);
 }
 
 /** ` Name="value"`, or nothing when the value is undefined. */
@@ -1352,7 +1481,7 @@ export function generateRuleStep(step: RuleStep, indent = ""): string {
 			// Parameters are unnamed, like JavaScriptFunction's (CustomRuleType → ParameterType).
 			return element(
 				"CustomRule",
-				`${attr("FunctionName", step.functionName)}${attr("Library", step.library)}${std}`,
+				`${attr("FunctionName", step.functionName)}${attr("Library", step.library === undefined ? undefined : normalizeLibrary(step.library))}${std}`,
 				(step.params ?? []).map((p) => generateActionParam(p, false)),
 				indent,
 			);
@@ -1457,28 +1586,33 @@ function generateLocLabel(label: LocLabel): string {
  * EntityRule there; PageRule is valid only in the application ribbon
  * (RibbonTypes.xsd TabDisplayRulesEntityType vs TabDisplayRulesGlobalType — #40),
  * so it is left out of entity scopes, and a TabDisplayRule left with no rules
- * (choice minOccurs=1) is not emitted.
+ * (choice minOccurs=1) is not emitted. Entries for the same TabCommand are
+ * written as one TabDisplayRule: the layer keeps one per TabCommand, so a
+ * second one would replace the first (#155).
  */
 export function generateTabDisplayRulesForTab(tab: RibbonTab, isApplication: boolean): string {
-	return tab.tabDisplayRules
-		.map((tdr) => {
-			const steps = tdr.rules
-				.map((step) => {
-					if (step.kind === "EntityRule") {
-						return `<EntityRule${attr("EntityName", step.entityName)}${attr("AppliesTo", step.appliesTo)}${attr("Context", step.context)}/>`;
-					}
-					if (step.kind === "PageRule" && isApplication) {
-						return `<PageRule${attr("Address", step.address)}/>`;
-					}
-					return "";
-				})
-				.filter(Boolean);
-			if (steps.length === 0) return "";
-			return `<TabDisplayRule TabCommand="${escapeXml(tdr.tabCommand)}">
+	const stepsByCommand = new Map<string, string[]>();
+	for (const tdr of tab.tabDisplayRules) {
+		const steps = tdr.rules
+			.map((step) => {
+				if (step.kind === "EntityRule") {
+					return `<EntityRule${attr("EntityName", step.entityName)}${attr("AppliesTo", step.appliesTo)}${attr("Context", step.context)}/>`;
+				}
+				if (step.kind === "PageRule" && isApplication) {
+					return `<PageRule${attr("Address", step.address)}/>`;
+				}
+				return "";
+			})
+			.filter(Boolean);
+		stepsByCommand.set(tdr.tabCommand, [...(stepsByCommand.get(tdr.tabCommand) ?? []), ...steps]);
+	}
+	return [...stepsByCommand]
+		.filter(([, steps]) => steps.length > 0)
+		.map(
+			([tabCommand, steps]) => `<TabDisplayRule TabCommand="${escapeXml(tabCommand)}">
         ${steps.join("\n        ")}
-      </TabDisplayRule>`;
-		})
-		.filter(Boolean)
+      </TabDisplayRule>`,
+		)
 		.join("\n      ");
 }
 

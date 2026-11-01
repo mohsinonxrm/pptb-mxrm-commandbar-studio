@@ -11,6 +11,7 @@ import {
 	Input,
 	Spinner,
 } from "@fluentui/react-components";
+import { useDisplayText } from "@/hooks/useDisplayText";
 import {
 	TableRegular,
 	TableResizeColumnRegular,
@@ -199,6 +200,9 @@ const LOCATIONS: { value: RibbonLocation; label: string; icon: React.ReactNode; 
 
 interface RibbonCanvasProps {
 	isLoadingRibbon?: boolean;
+	/** The table being loaded and the step the load is on (#4). */
+	loadingTable?: string;
+	loadingStep?: string | null;
 	ribbonLoadError?: string | null;
 	/** The ribbon loaded, but an unmanaged layer couldn't be read (#110). */
 	layerReadError?: string | null;
@@ -207,6 +211,8 @@ interface RibbonCanvasProps {
 
 export function RibbonCanvas({
 	isLoadingRibbon = false,
+	loadingTable,
+	loadingStep = null,
 	ribbonLoadError = null,
 	layerReadError = null,
 	onRetryRibbonLoad,
@@ -220,6 +226,7 @@ export function RibbonCanvas({
 	const renameTab = useRibbonStore((s) => s.renameTab);
 	const deleteTab = useRibbonStore((s) => s.deleteTab);
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	// Tab titles in the organisation's base language: a rename replaces that
 	// language's title (#66 review m3).
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
@@ -510,7 +517,7 @@ export function RibbonCanvas({
 							Tab rules
 							{currentTab && currentTab.tabDisplayRules.length > 0 && (
 								<Badge size="small" appearance="tint" color="brand" style={{ marginLeft: 4 }}>
-									{currentTab.tabDisplayRules.length}
+									{currentTab.tabDisplayRules.reduce((n, r) => n + r.rules.length, 0)}
 								</Badge>
 							)}
 						</Button>
@@ -529,7 +536,19 @@ export function RibbonCanvas({
 							height: "100%",
 						}}
 					>
-						<Spinner label="Loading ribbon definition..." />
+						<Spinner
+							label={
+								<>
+									{loadingTable ? `Loading ${loadingTable}` : "Loading the ribbon"}
+									{loadingStep && (
+										<>
+											<br />
+											<span style={{ fontSize: "12px", opacity: 0.8 }}>{loadingStep}</span>
+										</>
+									)}
+								</>
+							}
+						/>
 					</div>
 				) : ribbonLoadError ? (
 					<MessageBar intent="error">
@@ -588,7 +607,7 @@ export function RibbonCanvas({
 					}}
 					onCancel={() => setDeletingTabId(null)}
 				>
-					Delete the tab &ldquo;{resolveDisplayLabel(deletingTab.label, locLabels, lang)}&rdquo; and its
+					Delete the tab &ldquo;{captionOf(deletingTab.label, locLabels, lang, deletingTab.source?.titleToken)}&rdquo; and its
 					groups and buttons?
 				</ConfirmDialog>
 			)}
@@ -652,10 +671,11 @@ function SortableTab({
 		id: tab.id,
 	});
 	const locLabels = useRibbonStore((s) => s.locLabels);
+	const captionOf = useDisplayText();
 	// Tab titles in the organisation's base language: a rename replaces that
 	// language's title (#66 review m3).
 	const lang = useRibbonStore((s) => s.baseLanguageCode);
-	const displayLabel = resolveDisplayLabel(tab.label, locLabels, lang);
+	const displayLabel = captionOf(tab.label, locLabels, lang, tab.source?.titleToken);
 
 	const style: React.CSSProperties = {
 		transform: CSS.Transform.toString(transform),

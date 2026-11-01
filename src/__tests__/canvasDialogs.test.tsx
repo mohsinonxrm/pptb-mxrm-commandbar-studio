@@ -215,7 +215,8 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			expect(add.getAttribute("aria-label")).toBe("Add button to Meine Gruppe");
 			expect(add.getAttribute("title")).toBe("Add button to Meine Gruppe");
 			const mgmtAdd = container.querySelector<HTMLButtonElement>(`[data-add-btn-group-id="${MGMT}"]`)!;
-			expect(mgmtAdd.getAttribute("aria-label")).toBe("Add button to Ribbon.HomepageGrid.MainTab.Management");
+			// A platform key the tool can't resolve is shown by its last segment (#6).
+			expect(mgmtAdd.getAttribute("aria-label")).toBe("Add button to Management");
 			expect(
 				container.querySelector(`[role="rowgroup"][data-ribbon-group-id="${OWN}"]`)?.getAttribute("aria-label"),
 			).toBe("Meine Gruppe");
@@ -230,13 +231,13 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			});
 			const items = [...document.querySelectorAll('[role="menuitem"]')].map((el) => el.textContent ?? "");
 			const moves = items.filter((t) => t.startsWith("Move to:"));
-			expect(moves).toEqual(["Move to: Ribbon.HomepageGrid.MainTab.Management"]);
+			expect(moves).toEqual(["Move to: Management"]);
 			expect(items.join("\n")).not.toMatch(/\$(Resources|LocLabels):/);
 		});
 
 		it("the modern bar's Move to items are resolved and leave out the button's own group", () => {
 			render(<ModernCommandBar tab={useRibbonStore.getState().ribbons.HomepageGrid.tabs[0]} location="HomepageGrid" />);
-			const tile = container.querySelector<HTMLElement>('[aria-label^="Ribbon.HomepageGrid.Edit"]');
+			const tile = container.querySelector<HTMLElement>('[aria-label^="Edit"]');
 			expect(tile).not.toBeNull();
 			act(() => {
 				tile!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
@@ -412,6 +413,13 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			act(() => container.querySelector<HTMLButtonElement>('[aria-label="Delete tab Fresh"]')!.click());
 			act(() => dialogButton("Delete tab").click());
 			expect(tabs()).not.toContain("mxrm.contact.NewTab");
+		});
+
+		it("the loading spinner names the table and the step (#4)", () => {
+			render(<RibbonCanvas isLoadingRibbon loadingTable="Account" loadingStep="Reading your customizations…" />);
+			const spinner = container.querySelector(".fui-Spinner")!;
+			expect(spinner.textContent).toContain("Loading Account");
+			expect(spinner.textContent).toContain("Reading your customizations…");
 		});
 
 		it("an unread unmanaged layer is said on the canvas, with Retry (#110)", () => {

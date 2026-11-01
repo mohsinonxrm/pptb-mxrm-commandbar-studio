@@ -9,6 +9,195 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-01
+
+Publish correctness and load performance. Tables open faster, and built-in buttons show captions
+and icons. The pre-publish check catches what the import would reject. Saved web resources are
+published, and tab reorders, duplicates and Kind changes publish as shown. This release is
+0.8.0-beta.1, whose notes below are the full list. Requires Power Platform ToolBox 1.2.7 or
+later, as 0.7 does.
+
+### Highlights
+
+- **Faster tables (#151, #4):**
+  - Provenance takes one query instead of one per component (about 0.2 s instead of 3.6–5.3 s
+    for account or contact).
+  - Metadata is read in batches, and the application ribbon is reused between tables.
+- **Built-in buttons show captions and icons (#6).** The texts managed solutions define are
+  read with each table, and about 80 out-of-the-box icons map to Fluent icons. These are for
+  display only.
+- **Nothing is written that the import would reject (#153, #154, #155):**
+  - empty rules, single-branch OrRules, missing functions or libraries, and bad numbers are
+    caught before the publish;
+  - a Kind change keeps only valid attributes;
+  - a tab has exactly one display rule.
+- **Publish behaviour:**
+  - saved scripts and icons are published (#156);
+  - Translations and Properties agree on the base language (#157);
+  - web resources are referenced with `$webresource:` (#158);
+  - typed `$LocLabels:` references are kept (#159).
+- **Tabs and duplicates:**
+  - reordering tabs publishes (#163);
+  - duplicates are placed where they're shown and get your publisher prefix (#164);
+  - dynamic flyouts' populate commands are checked (#133).
+- **Publish dialog and shell:**
+  - "Also publish all customizations" needs its own confirmation (#109);
+  - the top bar has no controls that do nothing, and narrow panes keep the canvas usable (#22).
+
+### ⚠️ Upgrading from 0.7.x
+
+- **Changes you'll notice:**
+  - **Top bar:** the State simulator, Save and Settings controls are gone. Drafts are
+    automatic, and Ctrl+S opens Publish.
+  - **Kind:** a loaded control's Kind is locked.
+  - **Tab rules:** **Tab rules** edits a single rule.
+- **Nothing else changes:** the PPTB requirement and the published format are the same.
+- **0.7.x is end of life:** 0.7.0 is deprecated on npm and gets no support window, because
+  0.8.0 needs the same PPTB (see `SECURITY.md`).
+- **Known issue:** a few platform resource keys without dots still show as raw keys on the
+  canvas, e.g. `OpenAllRecordsViewImageButtonText` (#201).
+
+## [0.8.0-beta.1] - 2026-10-25
+
+The first beta of 0.8.0 (npm `beta`), on publish correctness and load performance:
+- tables open faster;
+- built-in buttons show captions and icons;
+- the pre-publish check catches what the import would reject;
+- saved web resources are published;
+- tab reorders, duplicates and Kind changes publish as shown.
+
+It includes everything in 0.7.0-beta.3. Requires Power Platform ToolBox 1.2.7 or later.
+
+### ⚡ Performance
+
+- **Tables open faster (#151, #4).**
+  - **Provenance:** working out which managed solution adds each control took one
+    `msdyn_componentlayers` query per component, one after another. That was 35–44 queries
+    (3.6–5.3 s) for account or contact, more on orgs with more apps, and the canvas waited for
+    it. Those queries also always came back empty. It's now one query of the managed ribbon
+    layers plus one for the solution names (~0.2 s), and managed buttons show their real
+    solution and publisher. That includes buttons in managed tabs, and application-ribbon
+    buttons on the table's own command bars (such as AI Builder's flyout).
+  - **Metadata:** opening a solution reads its tables' metadata 40 per request, instead of one
+    request per table (0.15 s instead of 0.8–1.7 s for 50–400 tables, and no throttling).
+  - **Application ribbon:** it's reused for 5 minutes when you switch tables in the same
+    environment. Retry or another environment reads it again. After a publish it's read on
+    every load for 5 minutes, because Dataverse can take that long to return the new version.
+  - **Progress:** the loading spinner names the table and the step it's on.
+
+### ✨ Added
+
+- **Built-in buttons show captions and icons (#6).** The canvas used to show keys such as
+  `Ribbon.HomepageGrid.MainTab.New` and a placeholder icon for most out-of-the-box buttons.
+  - **Captions:** the texts managed solutions define (for example "Focused view" or
+    "Learning Path") are read with each table, in the org's base language. The table
+    doesn't wait for them; the captions update when they arrive.
+  - **Platform keys:** Dataverse resolves these itself, and CBS can't read them yet (see
+    below). They show their last meaningful segment instead: `…MainTab.New` → "New",
+    `…View.TabName` → "View".
+  - **Icons:** about 80 out-of-the-box `ModernImage` names (New, Export to Excel, Flows,
+    Email a Link, Assign, …) get Fluent icons. A button whose icon is a `$webresource:`
+    image shows that image.
+  - **Only references:** only a label that refers to a text CBS can't read gets a caption.
+    Literal labels, and controls without one, are shown as they are.
+  - **Display only:** what publishes is the label and icon as loaded.
+
+  The real texts of platform keys only come from `GetClientMetadata`, a 162 MB response,
+  which is more than Power Platform ToolBox passes to a tool (128 MB).
+
+### 🔧 Fixed
+
+- **Reordering tabs publishes (#163).** Dragging a tab changed only the canvas, so the
+  publish had nothing to publish and the order reverted. A new tab, or one your
+  customizations add, now gets a Sequence between its neighbours, and that Sequence is
+  published. Reordering another solution's tabs is reported, since only their Sequence
+  orders them. When there's no free Sequence between two tabs, the tab is shown where it
+  will publish.
+- **Duplicates are placed where they're shown (#164).**
+  - **Placement:** a copied button, menu item or group gets a Sequence between its
+    original and the next item (it used to get the original's + 5, which could collide
+    or pass the neighbour). When built-in neighbours leave no room, the copy is shown
+    where it will publish.
+  - **Ids:** a copy of another solution's element starts with your publisher prefix.
+  - **Solution Elements:** a button dropped from there goes after the group's last button.
+  - **Pre-publish check:** it warns when sibling customizations share a Sequence.
+- **A dynamic flyout's PopulateQueryCommand is checked (#133).** A command that's misspelled
+  or defined nowhere, which left the drop-down empty, is reported. A copied flyout
+  carries its populate command.
+- **Smaller fixes:**
+  - A ribbon package without `RibbonXml.xml` fails with a clear error instead of loading
+    an empty ribbon (#168).
+  - An imported group's `Command` (and its definition) and a Scale step's `PopupSize` are
+    no longer dropped (#169).
+  - Starting a Download in the XML drawer clears an earlier Copy message (#150).
+- **Saved web resources are published (#156).** Saving a command's script in the command
+  editor, or replacing a file through **Upload**, updated the web resource but didn't publish
+  it, so users kept the old script or icon until someone ran Publish All. They're published
+  now. If the publish fails, the save is kept and CBS says so.
+- **Translations and Properties agree on the base language (#157).** The Translations
+  dialog's base-language row edited a copy that the publish then overwrote with the
+  Properties text. It now edits the button's own text; other languages are unchanged.
+- **Web resources are always referenced with `$webresource:` (#158).** That's the only form
+  that makes the solution depend on the web resource.
+  - A custom rule's library and a typed image path get the directive.
+  - A typed `/WebResources/…` image path becomes `$webresource:…`.
+  - A loaded `/WebResources/…` library is kept as is, and the pre-publish check warns about
+    it.
+  - Platform (`/_imgs/…`) and relative paths, and URLs, are kept as they are.
+- **A typed `$LocLabels:` reference is kept as is (#159).** A label that CBS doesn't have was
+  published as a placeholder whose text was its own id. It's now written as a reference,
+  like another solution's label, and the pre-publish check warns when nothing defines it.
+  The XML import's message about it no longer says the publish would fail.
+- **Duplicating a built-in group keeps its title.** A group titled by a platform text
+  (`$Resources:`) or another solution's label was copied with the key itself as its title
+  ("Ribbon.HomepageGrid.MainTab.Management (copy)"), and that text was published. Like a
+  copied button, the copy now keeps the title as it is, so it shows the same text as the
+  original. Other groups' copies are still titled "… (copy)". To retitle such a copy, rename
+  it before you publish: once published, only titles of your own can be renamed. The
+  Console says so when you duplicate.
+- **The pre-publish check catches what the import would reject (#153).** These used to fail
+  only at import, after CBS had started writing. Now they're found first, and nothing is
+  written:
+  - a rule with no steps;
+  - an OrRule with one alternative;
+  - a JavaScript action or custom rule without a valid function name or library;
+  - a URL action without an address or with an unnamed parameter;
+  - a rule step with a required value left empty;
+  - a number that isn't one.
+
+  The same problems in customizations that are already published are warnings. A cleared
+  number parameter now keeps its last value instead of being written as `NaN`.
+- **Changing a control's Kind writes valid XML (#154).**
+  - A control keeps only the attributes its new element allows. For example, a flyout
+    turned into a button no longer carries `PopulateDynamically`.
+  - A menu item can be a button or a flyout, which is all a menu can hold.
+  - A loaded control's Kind is locked: changing it would replace the control another
+    solution or an earlier publish defined. Add a new control instead.
+- **A tab has one display rule (#155).** Adding a second rule replaced the first, so a new
+  tab could disappear from where it was meant to show.
+  - **Tab rules** now edits a single rule, and the tab shows where any of its steps
+    matches.
+  - **Applies to** and **Context** can be **Any**.
+  - A table's tab picks that table or any, instead of a free-text name.
+  - A tab your customizations don't add is read-only.
+  - A new tab with no steps says it gets the default rule when you publish.
+- **Publishing all customizations needs its own confirmation (#109).** **Also publish all
+  customizations** publishes every unpublished customization in the environment, including
+  other people's work in progress. It now shows a warning naming the environment, and
+  **Publish** waits for you to confirm it. The **Publish comment**, which was collected and
+  then dropped, is written to the Console log with the publish.
+- **The top bar has no controls that do nothing (#22).**
+  - The **State simulator**, **Save** and **Settings** controls are removed. Changes are
+    already kept as a draft for each table automatically, and Ctrl+S opens Publish.
+  - **Help** now shows the shortcuts and copies the documentation link.
+- **Narrow panes (#22).**
+  - When the window is narrow, the Tables and Properties panes give way so the canvas
+    keeps at least 40% of the width, as far as their minimum widths allow. In an 800 px pane it used to show one group at a
+    time.
+  - The top bar's solution name and search box shorten instead of overlapping.
+- **Command editor (#22):** removing an action no longer hands its card's state to the next
+  one.
+
 ## [0.7.0] - 2026-10-24
 
 Publish safety and correctness. A publish follows the connection and names the environment it

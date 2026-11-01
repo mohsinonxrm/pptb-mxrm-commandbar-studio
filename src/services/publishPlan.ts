@@ -17,7 +17,7 @@ import type {
 } from "@/types/ribbon";
 import { canUncustomiseCommand, type MovedControl } from "@/services/ribbonDiffMerge";
 import type { LayerOrphan } from "@/services/layerOrphans";
-import { groupControls, isDynamicMenuValue, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
+import { MENU_ITEM_KINDS, groupControls, isDynamicMenuValue, isMenuKind, menuItemsOf } from "@/utils/ribbonMenu";
 import { CONTROL_TAG_BY_KIND, controlCommandIds, isReadOnlyControlKind } from "@/utils/controlKinds";
 import { isOwnControl } from "@/utils/ribbonProvenance";
 import { OPEN_RECORD_ITEM_COMMAND_ID, openRecordCommandProblem } from "@/utils/openRecordItem";
@@ -119,6 +119,8 @@ export interface ScopePlan {
 	editedLocLabelIds: string[];
 	/** Tabs the layer adds whose TabDisplayRules changed (#49). */
 	editedTabIds: string[];
+	/** Tabs the layer adds that were reordered: their new Sequence (#163). */
+	resequencedTabs: { id: string; sequence: number }[];
 	/**
 	 * Tabs / groups the layer adds that were renamed: the base-language title of
 	 * the LocLabel their Title refers to is replaced with `text` (#58).
@@ -200,6 +202,7 @@ export function planScope(input: PlanInput): ScopePlan {
 	const deletedContainers: string[] = [];
 	const moved: MovedControl[] = [];
 	const editedTabIds: string[] = [];
+	const resequencedTabs: { id: string; sequence: number }[] = [];
 	const renamedLabels: RenamedLabel[] = [];
 	// Who uses each label (tab / group titles, button texts), as loaded.
 	const labelUsers = new Map<string, Set<string>>();
@@ -307,11 +310,17 @@ export function planScope(input: PlanInput): ScopePlan {
 		// Every command a control uses: a verbatim control's QueryCommand, … too (#42).
 		for (const { button } of cur.values()) for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
 
-		for (const [key, { button }] of cur) {
+		for (const [key, { button, menu }] of cur) {
 			const refs = buttonLabelRefs(button);
 			refs.forEach((id) => referencedLabels.add(id));
 			const b = base.get(key)?.button;
 			const emitted = !b || hasOobOverrideChanges(b, button);
+			// Only an item this publish writes: a loaded one is left as it is (#154).
+			if (emitted && menu && !MENU_ITEM_KINDS.includes(button.kind ?? "button")) {
+				unsupported.push(
+					`Menu item "${button.label}" (${button.id}) is a ${CONTROL_TAG_BY_KIND[button.kind] ?? button.kind} — a menu can hold buttons and flyouts only; change its Kind`,
+				);
+			}
 			for (const id of [buttonLabelId(button.id), buttonTooltipTitleId(button.id), buttonTooltipBodyId(button.id)]) {
 				if (emitted) generatorLabels.add(id);
 				else if (!refs.includes(id)) unreferencedConventionLabels.set(id, button);
@@ -419,6 +428,29 @@ export function planScope(input: PlanInput): ScopePlan {
 
 		const baseGroups = new Map(baseline.tabs.flatMap((t) => t.groups.map((g) => [g.id, g] as const)));
 		const baseTabs = new Map(baseline.tabs.map((t) => [t.id, t] as const));
+
+		// Tab order (#163): a tab your customizations add publishes its new
+		// Sequence; two others swapped can't be — only their Sequence orders them.
+		const baseOrder = baseline.tabs.map((t) => t.id).filter((id) => current.tabs.some((t) => t.id === id));
+		const curOrder = current.tabs.map((t) => t.id).filter((id) => baseTabs.has(id));
+		const fixed = (id: string) => !ownContainers.has(id);
+		const fixedBase = baseOrder.filter(fixed);
+		const fixedCur = curOrder.filter(fixed);
+		const reordered = fixedCur.find((id, i) => id !== fixedBase[i]);
+		if (reordered) {
+			const tab = current.tabs.find((t) => t.id === reordered)!;
+			unsupported.push(
+				input.layer
+					? `Reordering tab "${tab.label}" (${tab.id}) — only tabs your customizations add can be reordered; drag it back`
+					: `Reordering tab "${tab.label}" (${tab.id}) — your unmanaged customizations couldn't be read, so it isn't known whether the tab is yours; use Retry, or drag it back`,
+			);
+		}
+		for (const tab of current.tabs) {
+			const bt = baseTabs.get(tab.id);
+			if (bt && ownContainers.has(tab.id) && bt.sequence !== tab.sequence) {
+				resequencedTabs.push({ id: tab.id, sequence: tab.sequence });
+			}
+		}
 		const curTabIds = new Set(current.tabs.map((t) => t.id));
 		const curGroupIds = new Set(current.tabs.flatMap((t) => t.groups.map((g) => g.id)));
 		for (const tab of current.tabs) {
@@ -459,6 +491,9 @@ export function planScope(input: PlanInput): ScopePlan {
 				const bg = baseGroups.get(g.id);
 				if (!bg) {
 					generatorLabels.add(`${g.id}.Title`);
+					// An imported group's own Command is published with it (#169 review).
+					const groupCommand = g.source?.attributes["Command"];
+					if (groupCommand) referencedCommandIds.add(groupCommand);
 					// An imported group keeps its own Title label (#30).
 					const titleRef = locRef(g.source?.titleToken);
 					if (titleRef) generatorLabels.add(titleRef);
@@ -631,6 +666,7 @@ export function planScope(input: PlanInput): ScopePlan {
 			moved.length > 0 ||
 			editedLocLabelIds.length > 0 ||
 			editedTabIds.length > 0 ||
+			resequencedTabs.length > 0 ||
 			renamedLabels.length > 0,
 		editedCommandIds,
 		uncustomisedCommandIds,
@@ -642,6 +678,7 @@ export function planScope(input: PlanInput): ScopePlan {
 		movedButtons: moved,
 		editedLocLabelIds,
 		editedTabIds,
+		resequencedTabs,
 		renamedLabels,
 		unsupported: [...new Set(unsupported)],
 		warnings: [...new Set(warnings)],
