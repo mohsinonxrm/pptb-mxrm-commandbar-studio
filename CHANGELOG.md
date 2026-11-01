@@ -9,6 +9,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-01
+
+Publish correctness and load performance. Tables open faster, and built-in buttons show captions
+and icons. The pre-publish check catches what the import would reject. Saved web resources are
+published, and tab reorders, duplicates and Kind changes publish as shown. This release is
+0.8.0-beta.1, whose notes below are the full list. Requires Power Platform ToolBox 1.2.7 or
+later, as 0.7 does.
+
+### Highlights
+
+- **Faster tables (#151, #4):**
+  - Provenance takes one query instead of one per component (about 0.2 s instead of 3.6–5.3 s
+    for account or contact).
+  - Metadata is read in batches, and the application ribbon is reused between tables.
+- **Built-in buttons show captions and icons (#6).** The texts managed solutions define are
+  read with each table, and about 80 out-of-the-box icons map to Fluent icons. These are for
+  display only.
+- **Nothing is written that the import would reject (#153, #154, #155):**
+  - empty rules, single-branch OrRules, missing functions or libraries, and bad numbers are
+    caught before the publish;
+  - a Kind change keeps only valid attributes;
+  - a tab has exactly one display rule.
+- **Publish behaviour:**
+  - saved scripts and icons are published (#156);
+  - Translations and Properties agree on the base language (#157);
+  - web resources are referenced with `$webresource:` (#158);
+  - typed `$LocLabels:` references are kept (#159).
+- **Tabs and duplicates:**
+  - reordering tabs publishes (#163);
+  - duplicates are placed where they're shown and get your publisher prefix (#164);
+  - dynamic flyouts' populate commands are checked (#133).
+- **Publish dialog and shell:**
+  - "Also publish all customizations" needs its own confirmation (#109);
+  - the top bar has no controls that do nothing, and narrow panes keep the canvas usable (#22).
+
+### ⚠️ Upgrading from 0.7.x
+
+- **Changes you'll notice:**
+  - **Top bar:** the State simulator, Save and Settings controls are gone. Drafts are
+    automatic, and Ctrl+S opens Publish.
+  - **Kind:** a loaded control's Kind is locked.
+  - **Tab rules:** **Tab rules** edits a single rule.
+- **Nothing else changes:** the PPTB requirement and the published format are the same.
+- **0.7.x is end of life:** 0.7.0 is deprecated on npm and gets no support window, because
+  0.8.0 needs the same PPTB (see `SECURITY.md`).
+- **Known issue:** a few platform resource keys without dots still show as raw keys on the
+  canvas, e.g. `OpenAllRecordsViewImageButtonText` (#201).
+
 ## [0.8.0-beta.1] - 2026-10-25
 
 The first beta of 0.8.0 (npm `beta`), on publish correctness and load performance:
