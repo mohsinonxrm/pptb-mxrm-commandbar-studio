@@ -524,19 +524,19 @@ export function StructurePane() {
 			</div>
 			<div className={styles.body}>
 				{!hasTable ? (
-					<Text as="p" size={200} className={styles.empty}>
+					<Text as="p" block size={200} className={styles.empty}>
 						Choose a table to see its tabs, groups and buttons.
 					</Text>
 				) : !loaded ? (
-					<Text as="p" size={200} className={styles.empty}>
+					<Text as="p" block size={200} className={styles.empty}>
 						Shown once the table&apos;s ribbon is loaded.
 					</Text>
 				) : tabs.length === 0 ? (
-					<Text as="p" size={200} className={styles.empty}>
+					<Text as="p" block size={200} className={styles.empty}>
 						This location has no tabs.
 					</Text>
 				) : visibleTabs.length === 0 ? (
-					<Text as="p" size={200} className={styles.empty}>
+					<Text as="p" block size={200} className={styles.empty}>
 						Nothing matches &ldquo;{filter.trim()}&rdquo;.
 					</Text>
 				) : (
