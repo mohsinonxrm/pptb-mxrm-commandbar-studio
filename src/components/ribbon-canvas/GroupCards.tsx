@@ -311,14 +311,12 @@ export function GroupCards({ tab, location }: { tab: RibbonTab; location: Ribbon
 							onSelectButton={(b) =>
 								selectButtonInContext(location, tab.id, group.id, b.id)
 							}
-							onGroupMenu={(anchor) => {
-								selectGroup(group.id);
-								setGroupMenu({ group, anchor });
-							}}
-							onButtonMenu={(b, anchor) => {
-								selectButtonInContext(location, tab.id, group.id, b.id);
-								setButtonMenu({ button: b, groupId: group.id, anchor });
-							}}
+							// Opening a menu doesn't select: in a narrow window that opens
+							// Properties, which takes the focus and closes the menu (#183).
+							onGroupMenu={(anchor) => setGroupMenu({ group, anchor })}
+							onButtonMenu={(b, anchor) =>
+								setButtonMenu({ button: b, groupId: group.id, anchor })
+							}
 							onAddButton={() => openNewButton(group.id)}
 						/>
 					))}
