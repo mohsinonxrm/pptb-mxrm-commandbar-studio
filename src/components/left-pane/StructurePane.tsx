@@ -34,6 +34,7 @@ import { useDraftStore } from "@/store/draftStore";
 import { useUIStore } from "@/store/uiStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { useDisplayText } from "@/hooks/useDisplayText";
+import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import { ButtonContextMenu, type ButtonMenuTarget } from "@/components/shared/ButtonContextMenu";
 import { GroupContextMenu, type GroupMenuTarget } from "@/components/shared/GroupContextMenu";
@@ -370,12 +371,12 @@ export function StructurePane() {
 					iconBefore={<RibbonButtonIcon button={button} size={16} />}
 					aside={
 						button.hidden ? (
-							<Badge size="small" appearance="outline" color="subtle">
+							<Badge size="medium" appearance="outline" color="subtle">
 								Hidden
 							</Badge>
 						) : (
 							<Text
-								size={100}
+								size={200}
 								className={styles.muted}
 								aria-label={`Sequence ${button.sequence}`}
 							>
@@ -434,7 +435,7 @@ export function StructurePane() {
 					iconBefore={<GroupRegular />}
 					aside={
 						<Text
-							size={100}
+							size={200}
 							className={styles.muted}
 							aria-label={`${group.buttons.length} controls`}
 						>
@@ -474,7 +475,7 @@ export function StructurePane() {
 					iconBefore={<TabDesktopRegular />}
 					aside={
 						<Text
-							size={100}
+							size={200}
 							className={styles.muted}
 							aria-label={`${tab.groups.length} groups`}
 						>
@@ -653,7 +654,8 @@ export function StructurePane() {
 				<RenameGroupDialog
 					open
 					noun="tab"
-					initialLabel={tabText(renamingTab)}
+					// The title itself, not the display text, which an edit would write back.
+					initialLabel={resolveDisplayLabel(renamingTab.label, locLabels, lang)}
 					onRename={(label) => {
 						renameTab(location, renamingTab.id, label);
 						setRenamingTab(null);

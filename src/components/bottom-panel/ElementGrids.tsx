@@ -55,7 +55,7 @@ const useStyles = makeStyles({
 		display: "inline-flex",
 		padding: "0 6px",
 		borderRadius: tokens.borderRadiusMedium,
-		fontSize: tokens.fontSizeBase100,
+		fontSize: tokens.fontSizeBase200,
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
 		backgroundColor: tokens.colorNeutralBackground3,
 		flexShrink: 0,
@@ -65,7 +65,7 @@ const useStyles = makeStyles({
 	// Fills what the panel leaves; the rows scroll inside it. When the panel is
 	// too short for the header and a row, the box scrolls, so no row is out of
 	// reach (review).
-	box: { flex: 1, minHeight: 0, minWidth: 0, overflowX: "hidden", overflowY: "auto" },
+	box: { flex: 1, minHeight: 0, minWidth: 0, overflowX: "auto", overflowY: "auto" },
 });
 
 const ACTION_SHORT: Record<RibbonAction["kind"], string> = {
@@ -84,7 +84,7 @@ const header = (text: string) => (
 );
 
 const used = (n: number | undefined, noun: string) => (
-	<Badge size="small" appearance="tint" color={n ? "brand" : "informative"}>
+	<Badge size="medium" appearance="tint" color={n ? "brand" : "informative"}>
 		{n ?? 0} {noun}
 		{n === 1 ? "" : "s"}
 	</Badge>
@@ -258,7 +258,10 @@ function ElementGrid<T>({
 						<DataGridBody<T>
 							itemSize={ROW_HEIGHT}
 							height={Math.min(bodyHeight, items.length * ROW_HEIGHT)}
-							listProps={{ width: "100%" }}
+							// The list's own vertical scrollbar would push the rows into a
+							// sideways scroll of their own (#229): the box scrolls the header
+							// and rows together when the columns are wider than the panel.
+							listProps={{ width: "100%", style: { overflowX: "hidden" } }}
 						>
 							{renderRow as never}
 						</DataGridBody>
@@ -368,10 +371,10 @@ export function CommandsGrid({
 			items={commands}
 			columns={columns}
 			sizing={{
-				id: { defaultWidth: 280, minWidth: 120 },
-				actions: { defaultWidth: 90, minWidth: 48 },
-				enable: { defaultWidth: 200, minWidth: 80 },
-				display: { defaultWidth: 200, minWidth: 80 },
+				id: { defaultWidth: 260, minWidth: 120 },
+				actions: { defaultWidth: 84, minWidth: 48 },
+				enable: { defaultWidth: 180, minWidth: 80 },
+				display: { defaultWidth: 180, minWidth: 80 },
 				used: { defaultWidth: 100, minWidth: 72 },
 				edit: { defaultWidth: 60, minWidth: 52 },
 			}}

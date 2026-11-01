@@ -833,7 +833,7 @@ export const BulkPublishModal: React.FC = () => {
 											<Badge
 												appearance="tint"
 												color={badge.color}
-												size="small"
+												size="medium"
 												className={styles.badge}
 											>
 												{badge.text}
@@ -1111,7 +1111,7 @@ export const BulkPublishModal: React.FC = () => {
 										<Badge
 											appearance="filled"
 											color={STATUS_COLOR[status]}
-											size="small"
+											size="medium"
 											className={styles.badge}
 										>
 											{STATUS_TEXT[status]}

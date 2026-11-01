@@ -147,7 +147,7 @@ export function ModernCommandChip({
 				{cmd.hidden && <EyeOffRegular fontSize={12} aria-hidden />}
 				<Badge
 					style={{ flexShrink: 0 }}
-					size="small"
+					size="medium"
 					appearance="tint"
 					color="important"
 					icon={<LockClosedRegular />}
@@ -157,7 +157,7 @@ export function ModernCommandChip({
 				{showApp && (
 					<Badge
 						style={{ flexShrink: 0 }}
-						size="small"
+						size="medium"
 						appearance="outline"
 						color="informative"
 					>

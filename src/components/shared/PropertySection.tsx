@@ -97,7 +97,7 @@ export const PropertySection: React.FC<PropertySectionProps> = ({
 					{!!count && (
 						<CounterBadge
 							count={count}
-							size="small"
+							size="medium"
 							appearance="ghost"
 							color="informative"
 							className={styles.count}

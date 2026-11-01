@@ -113,18 +113,18 @@ export function TablePicker() {
 						>
 							{e.displayName}
 						</Text>
-						<Text size={100} className={mergeClasses(styles.logical, styles.ellipsis)}>
+						<Text size={200} className={mergeClasses(styles.logical, styles.ellipsis)}>
 							{e.logicalName}
 						</Text>
 					</div>
 					{changes > 0 ? (
-						<Badge appearance="tint" color="brand" size="small">
+						<Badge appearance="tint" color="brand" size="medium">
 							{changes} change{changes === 1 ? "" : "s"}
 						</Badge>
 					) : (
 						!isActive &&
 						drafts.has(e.logicalName) && (
-							<Badge appearance="tint" color="brand" size="small">
+							<Badge appearance="tint" color="brand" size="medium">
 								Draft
 							</Badge>
 						)

@@ -143,7 +143,7 @@ export function CommandProvenanceBar({
 		<Badge
 			appearance={provenance === "oob" ? "outline" : "filled"}
 			color={BADGE_COLOR[provenance]}
-			size="small"
+			size="medium"
 		>
 			{COMMAND_PROVENANCE_LABEL[provenance]}
 		</Badge>

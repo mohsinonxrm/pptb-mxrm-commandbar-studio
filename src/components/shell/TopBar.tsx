@@ -143,7 +143,7 @@ const useStyles = makeStyles({
 		padding: "0 4px",
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
 		borderRadius: tokens.borderRadiusSmall,
-		fontSize: tokens.fontSizeBase100,
+		fontSize: tokens.fontSizeBase200,
 		"@media (max-width: 1180px)": { display: "none" },
 	},
 	/**
@@ -192,6 +192,7 @@ export function TopBar() {
 		<header className={styles.root}>
 			<div className={styles.brand}>
 				<div className={styles.brandMark} aria-hidden="true">
+					{/* A mark, not content text: three letters fit its 24 px box at 10 px. */}
 					<Text size={100} weight="bold">
 						CBS
 					</Text>
@@ -302,7 +303,7 @@ function SolutionPicker() {
 					<Text size={200} weight="semibold">
 						{o.solution.friendlyName || o.solution.uniqueName}
 					</Text>
-					<Text size={100} className={styles.muted}>
+					<Text size={200} className={styles.muted}>
 						{o.solution.uniqueName} · v{o.solution.version}
 						{o.solution.publisherName ? ` · ${o.solution.publisherName}` : ""}
 					</Text>
@@ -391,7 +392,7 @@ function SolutionPicker() {
 						{filteredChildren}
 					</Combobox>
 				</Field>
-				<Text size={100} className={styles.muted}>
+				<Text size={200} className={styles.muted}>
 					{comboOptions.length} unmanaged solution
 					{comboOptions.length !== 1 ? "s" : ""} available
 				</Text>
@@ -410,7 +411,7 @@ function SolutionPicker() {
 						<Badge
 							appearance="tint"
 							color={defaultPublisher ? "warning" : "informative"}
-							size="small"
+							size="medium"
 						>
 							{prefix}_
 						</Badge>

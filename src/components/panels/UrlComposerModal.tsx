@@ -56,7 +56,7 @@ const useStyles = makeStyles({
 		backgroundColor: tokens.colorStatusWarningBackground1,
 		borderRadius: tokens.borderRadiusMedium,
 		padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
-		fontSize: tokens.fontSizeBase100,
+		fontSize: tokens.fontSizeBase200,
 	},
 });
 
@@ -177,7 +177,7 @@ export const UrlComposerModal: React.FC = () => {
 												{sp.key}
 											</code>
 											<Text
-												size={100}
+												size={200}
 												style={{ color: tokens.colorNeutralForeground3 }}
 											>
 												{sp.desc}
@@ -186,7 +186,7 @@ export const UrlComposerModal: React.FC = () => {
 									))}
 								</div>
 								<Text
-									size={100}
+									size={200}
 									style={{
 										color: tokens.colorStatusWarningForeground1,
 										marginTop: tokens.spacingVerticalXS,
@@ -204,7 +204,7 @@ export const UrlComposerModal: React.FC = () => {
 								Custom query parameters
 							</Text>
 							<Text
-								size={100}
+								size={200}
 								style={{
 									color: tokens.colorNeutralForeground3,
 									display: "block",

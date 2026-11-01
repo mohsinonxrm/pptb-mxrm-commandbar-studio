@@ -126,7 +126,7 @@ export function UsersBar({ tab, location }: { tab: RibbonTab; location: RibbonLo
 				<Text size={200} className={mergeClasses(styles.muted, styles.ellipsis)}>
 					{tabText} · {items.length} command{items.length === 1 ? "" : "s"}
 				</Text>
-				<Badge appearance="outline" color="informative" size="small">
+				<Badge appearance="outline" color="informative" size="medium">
 					Preview: rules not applied
 				</Badge>
 				<InfoLabel

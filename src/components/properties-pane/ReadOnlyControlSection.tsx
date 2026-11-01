@@ -38,7 +38,7 @@ const useStyles = makeStyles({
 		borderRadius: tokens.borderRadiusMedium,
 		backgroundColor: tokens.colorNeutralBackground3,
 		fontFamily: tokens.fontFamilyMonospace,
-		fontSize: tokens.fontSizeBase100,
+		fontSize: tokens.fontSizeBase200,
 		whiteSpace: "pre-wrap",
 		overflowWrap: "anywhere",
 	},

@@ -65,7 +65,7 @@ export function EnvironmentBadge({
 				</span>
 				{environment && (
 					<Badge
-						size="small"
+						size="medium"
 						appearance={production ? "filled" : "tint"}
 						color={production ? "warning" : "informative"}
 					>

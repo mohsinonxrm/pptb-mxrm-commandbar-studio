@@ -423,7 +423,7 @@ function GroupCard({
 						<Text weight="semibold" size={300} className={styles.ellipsis}>
 							{title}
 						</Text>
-						<Text size={100} className={mergeClasses(styles.ellipsis, styles.muted)}>
+						<Text size={200} className={mergeClasses(styles.ellipsis, styles.muted)}>
 							{group.template || "Flexible2"}
 						</Text>
 					</Button>
@@ -533,15 +533,15 @@ function ButtonRow({ button, groupId, text, locked, selected, onSelect, onMenu }
 					<RibbonButtonIcon button={button} size={16} />
 					<span className={mergeClasses(styles.label, styles.ellipsis)}>{text}</span>
 					{button.hidden ? (
-						<Badge size="small" appearance="outline" color="subtle">
+						<Badge size="medium" appearance="outline" color="subtle">
 							Hidden
 						</Badge>
 					) : yours ? (
-						<Badge size="small" appearance="tint" color="brand">
+						<Badge size="medium" appearance="tint" color="brand">
 							Yours
 						</Badge>
 					) : null}
-					<Text size={100} className={styles.muted}>
+					<Text size={200} className={styles.muted}>
 						{button.sequence}
 					</Text>
 				</Button>

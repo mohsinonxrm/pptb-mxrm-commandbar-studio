@@ -19,7 +19,7 @@ export function ClassicModernOverrideBadge({
 	return (
 		<Badge
 			style={{ flexShrink: 0 }}
-			size="small"
+			size="medium"
 			appearance="tint"
 			color={hidden ? "warning" : "important"}
 			title={text}

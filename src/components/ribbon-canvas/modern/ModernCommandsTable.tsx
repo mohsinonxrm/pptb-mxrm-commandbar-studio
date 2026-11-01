@@ -107,10 +107,10 @@ export function ModernCommandsTable({
 						Modern commands ({rows.length})
 					</Text>
 				</Button>
-				<Badge style={{ flexShrink: 0 }} size="small" appearance="tint" color="important">
+				<Badge style={{ flexShrink: 0 }} size="medium" appearance="tint" color="important">
 					read-only
 				</Badge>
-				<Text size={100} truncate wrap={false} className={styles.note}>
+				<Text size={200} truncate wrap={false} className={styles.note}>
 					Built with the command designer (appaction). Edit them there.
 				</Text>
 			</div>
@@ -195,7 +195,7 @@ export function ModernCommandsTable({
 												)}
 												<Badge
 													style={{ flexShrink: 0 }}
-													size="small"
+													size="medium"
 													appearance="tint"
 													color="important"
 												>
@@ -212,7 +212,7 @@ export function ModernCommandsTable({
 									<TableCell>
 										<Badge
 											style={{ flexShrink: 0 }}
-											size="small"
+											size="medium"
 											appearance="outline"
 										>
 											{TYPE_SHORT[cmd.type]}
