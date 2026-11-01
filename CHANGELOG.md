@@ -368,6 +368,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Each card's ⋮ menu** is the group menu: Add button…, Rename…, Duplicate group, Change
     template…, **Move left / Move right** and Delete group. **+ Add button** is at the foot of the
     card.
+- **"How users see it" (#194, step 4).** Above the group cards, the tab's commands as the Unified
+  Interface command bar lists them: groups and buttons in Sequence order, without the ones your
+  customizations or a modern command hide, a button a migrated modern command replaces under that
+  command's name, and the visible modern commands among them. What doesn't fit goes into a **⋮ n**
+  menu, as in Unified Interface, and the selected command is always in view. Choosing a command
+  selects it on the cards, in the tree and in Properties. It's marked **Preview: rules not applied**:
+  display and enable rules are evaluated by Simulate mode (#191).
 - **Groups can be moved within their tab (#194).** Like tabs (#163), a group your customizations add,
   or a new one, gets a Sequence between its new neighbours and the publish writes it. Two other
   groups can't change places, so Move left / Move right are off there and say why. In the Structure
