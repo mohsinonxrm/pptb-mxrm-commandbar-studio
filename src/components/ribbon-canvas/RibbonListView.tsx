@@ -77,6 +77,9 @@ const useStyles = makeStyles({
 	mono: { fontFamily: tokens.fontFamilyMonospace, color: tokens.colorNeutralForeground3 },
 	badge: { marginLeft: tokens.spacingHorizontalXS, flexShrink: 0 },
 	labelMain: { display: "flex", alignItems: "center", minWidth: 0, overflow: "hidden" },
+	// The layout and its content wrapper may shrink to the cell: at their
+	// automatic minimum, a long label pushed the badge into the next column (#229).
+	shrink: { minWidth: 0 },
 	ellipsis: {
 		minWidth: 0,
 		overflow: "hidden",
@@ -201,7 +204,8 @@ export function RibbonListView({ tab, location }: { tab: RibbonTab; location: Ri
 				<Tooltip content={`${label} (${button.id})`} relationship="description">
 					<TableCellLayout
 						media={<RibbonButtonIcon button={button} size={16} />}
-						className={button.hidden ? styles.hidden : undefined}
+						className={mergeClasses(styles.shrink, button.hidden && styles.hidden)}
+						content={{ className: styles.shrink }}
 						main={{ className: styles.labelMain }}
 					>
 						{/* The label truncates; the modern badge after it never does (review). */}
