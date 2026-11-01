@@ -10,7 +10,7 @@ import {
 	DialogContent,
 	DialogActions,
 	Button,
-	Input,
+	SearchBox,
 	Text,
 	Subtitle2,
 	Checkbox,
@@ -30,7 +30,6 @@ import {
 } from "@fluentui-contrib/react-data-grid-react-window";
 import {
 	DismissRegular,
-	SearchRegular,
 	ArrowUploadRegular,
 	DocumentRegular,
 	CodeRegular,
@@ -378,8 +377,8 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 								}}
 							/>
 							<div className={styles.toolbar}>
-								<Input
-									contentBefore={<SearchRegular />}
+								<SearchBox
+									aria-label="Search the web resources by name"
 									placeholder="Search by name…"
 									value={search}
 									onChange={(_, d) => setSearch(d.value)}

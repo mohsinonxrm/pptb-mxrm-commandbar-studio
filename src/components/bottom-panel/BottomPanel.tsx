@@ -5,9 +5,9 @@ import {
 	TabList,
 	Button,
 	Text,
-	Badge,
-	Tooltip,
-	Input,
+	CounterBadge,
+	SearchBox,
+	mergeClasses,
 } from "@fluentui/react-components";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore, type HistoryEntry } from "@/store/ribbonStore";
@@ -22,10 +22,10 @@ import {
 	BranchCompareRegular,
 	PersonRegular,
 	CopyRegular,
-	SearchRegular,
 } from "@fluentui/react-icons";
 import { useMemo, useState } from "react";
-import { groupControls } from "@/utils/ribbonMenu";
+import { ribbonUsage } from "@/utils/usage";
+import { CommandsGrid, RulesGrid } from "./ElementGrids";
 import { copyText } from "@/utils/hostIO";
 
 const useStyles = makeStyles({
@@ -46,53 +46,21 @@ const useStyles = makeStyles({
 	},
 	content: {
 		flex: 1,
+		minHeight: 0,
 		overflowY: "auto",
 		padding: `${tokens.spacingHorizontalXS} ${tokens.spacingHorizontalM}`,
 	},
+	// A grid scrolls its own rows: the panel doesn't scroll too.
+	gridContent: { overflow: "hidden", display: "flex", flexDirection: "column" },
+	tabCount: { marginLeft: tokens.spacingHorizontalXS },
 	toolbar: {
+		flexShrink: 0,
 		display: "flex",
 		alignItems: "center",
 		gap: tokens.spacingHorizontalXS,
 		paddingBottom: tokens.spacingHorizontalXS,
 		borderBottom: `1px solid ${tokens.colorNeutralStroke3}`,
 		marginBottom: tokens.spacingHorizontalXS,
-	},
-	table: {
-		width: "100%",
-		borderCollapse: "collapse" as const,
-		fontSize: tokens.fontSizeBase200,
-	},
-	th: {
-		textAlign: "left" as const,
-		padding: `4px ${tokens.spacingHorizontalS}`,
-		fontWeight: tokens.fontWeightSemibold,
-		color: tokens.colorNeutralForeground3,
-		fontSize: tokens.fontSizeBase100,
-		borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-		whiteSpace: "nowrap" as const,
-	},
-	td: {
-		padding: `4px ${tokens.spacingHorizontalS}`,
-		borderBottom: `1px solid ${tokens.colorNeutralStroke3}`,
-		verticalAlign: "middle" as const,
-	},
-	mono: {
-		fontFamily: tokens.fontFamilyMonospace,
-		fontSize: tokens.fontSizeBase200,
-		cursor: "pointer",
-		color: tokens.colorBrandForeground1,
-		":hover": { textDecoration: "underline" },
-	},
-	chip: {
-		display: "inline-flex",
-		alignItems: "center",
-		padding: "1px 6px",
-		borderRadius: tokens.borderRadiusMedium,
-		fontSize: tokens.fontSizeBase100,
-		border: `1px solid ${tokens.colorNeutralStroke2}`,
-		backgroundColor: tokens.colorNeutralBackground3,
-		marginRight: "3px",
-		fontFamily: tokens.fontFamilyMonospace,
 	},
 	historyRow: {
 		display: "flex",
@@ -226,35 +194,18 @@ export function BottomPanel() {
 		openRuleEditor(newId, "display");
 	};
 
-	// Compute actual refs counts: how many buttons reference each command
-	const commandRefs = useMemo(() => {
-		const map: Record<string, number> = {};
-		for (const ribbon of Object.values(ribbons)) {
-			for (const tab of ribbon.tabs) {
-				for (const group of tab.groups) {
-					for (const btn of groupControls(group)) {
-						if (btn.commandId) {
-							map[btn.commandId] = (map[btn.commandId] ?? 0) + 1;
-						}
-					}
-				}
-			}
-		}
-		return map;
-	}, [ribbons]);
-
-	// Compute how many commands reference each rule
-	const ruleRefs = useMemo(() => {
-		const map: Record<string, number> = {};
-		for (const cmd of commands) {
-			for (const rId of [...cmd.enableRules, ...cmd.displayRules]) {
-				map[rId] = (map[rId] ?? 0) + 1;
-			}
-		}
-		return map;
-	}, [commands]);
+	// How much each command and rule is used, as the Solution tab counts it.
+	const usage = useMemo(() => ribbonUsage(ribbons, commands), [ribbons, commands]);
 
 	const panelHeight = bottomPanelCollapsed ? 32 : bottomPanelHeight;
+	// The grids' rows scroll inside them, under a header that stays put. The
+	// grid measures the space it has; this estimate (the panel less its tabs,
+	// toolbar, grid header and padding) is used until it has (#185).
+	const gridHeight = Math.max(36, bottomPanelHeight - 116);
+	const gridTab =
+		activeBottomTab === "commands" ||
+		activeBottomTab === "displayRules" ||
+		activeBottomTab === "enableRules";
 
 	function resolveHistoryUserName(entry: HistoryEntry): string {
 		if (entry.userName && entry.userName !== "You") return entry.userName;
@@ -278,10 +229,54 @@ export function BottomPanel() {
 					size="small"
 					style={{ flex: 1 }}
 				>
-					<Tab value="commands">Commands ({commands.length})</Tab>
-					<Tab value="displayRules">Display rules ({displayRules.length})</Tab>
-					<Tab value="enableRules">Enable rules ({enableRules.length})</Tab>
-					<Tab value="history">History ({history.length})</Tab>
+					<Tab value="commands">
+						Commands
+						<CounterBadge
+							className={styles.tabCount}
+							size="small"
+							appearance="ghost"
+							color="informative"
+							count={commands.length}
+							showZero
+							overflowCount={9999}
+						/>
+					</Tab>
+					<Tab value="displayRules">
+						Display rules
+						<CounterBadge
+							className={styles.tabCount}
+							size="small"
+							appearance="ghost"
+							color="informative"
+							count={displayRules.length}
+							showZero
+							overflowCount={9999}
+						/>
+					</Tab>
+					<Tab value="enableRules">
+						Enable rules
+						<CounterBadge
+							className={styles.tabCount}
+							size="small"
+							appearance="ghost"
+							color="informative"
+							count={enableRules.length}
+							showZero
+							overflowCount={9999}
+						/>
+					</Tab>
+					<Tab value="history">
+						History
+						<CounterBadge
+							className={styles.tabCount}
+							size="small"
+							appearance="ghost"
+							color="informative"
+							count={history.length}
+							showZero
+							overflowCount={9999}
+						/>
+					</Tab>
 					<Tab value="console">Console</Tab>
 				</TabList>
 				<Button
@@ -294,7 +289,7 @@ export function BottomPanel() {
 			</div>
 
 			{!bottomPanelCollapsed && (
-				<div className={styles.content}>
+				<div className={mergeClasses(styles.content, gridTab && styles.gridContent)}>
 					{/* ── Commands ── */}
 					{activeBottomTab === "commands" && (
 						<>
@@ -307,11 +302,11 @@ export function BottomPanel() {
 								>
 									New command
 								</Button>
-								<Input
+								<SearchBox
 									size="small"
-									contentBefore={<SearchRegular />}
 									placeholder={`Filter ${commands.length} command${commands.length !== 1 ? "s" : ""}…`}
 									value={commandsFilter}
+									aria-label="Filter the commands"
 									onChange={(_, d) => setCommandsFilter(d.value)}
 									style={{ minWidth: 0, flex: 1, maxWidth: 360 }}
 								/>
@@ -325,132 +320,14 @@ export function BottomPanel() {
 									</Text>
 								)}
 							</div>
-							<table className={styles.table}>
-								<thead>
-									<tr>
-										<th className={styles.th}>Command</th>
-										<th className={styles.th}>Actions</th>
-										<th className={styles.th}>Enable rules</th>
-										<th className={styles.th}>Display rules</th>
-										<th className={styles.th}>Refs</th>
-										<th className={styles.th}></th>
-									</tr>
-								</thead>
-								<tbody>
-									{filteredCommands.map((cmd) => (
-										<tr key={cmd.id}>
-											<td className={styles.td}>
-												<span
-													className={styles.mono}
-													onClick={() => openCommandEditor(cmd.id)}
-													role="button"
-													tabIndex={0}
-													onKeyDown={(e) =>
-														e.key === "Enter" &&
-														openCommandEditor(cmd.id)
-													}
-												>
-													{cmd.id}
-												</span>
-											</td>
-											<td className={styles.td}>
-												{cmd.actions.map((a, i) => (
-													<span key={i} className={styles.chip}>
-														{a.kind === "javascript"
-															? "JS"
-															: a.kind === "url"
-																? "URL"
-																: a.kind === "powerFx"
-																	? "Fx"
-																	: a.kind === "customApi"
-																		? "API"
-																		: a.kind ===
-																			  "outlookCommand"
-																			? "Outlook"
-																			: "XML"}
-													</span>
-												))}
-												{cmd.actions.length === 0 && (
-													<Text
-														size={100}
-														style={{
-															color: tokens.colorNeutralForeground3,
-														}}
-													>
-														—
-													</Text>
-												)}
-											</td>
-											<td className={styles.td}>
-												{cmd.enableRules.map((r) => (
-													<Tooltip
-														key={r}
-														content={r}
-														relationship="label"
-													>
-														<span
-															className={styles.chip}
-															style={{
-																cursor: "pointer",
-																color: tokens.colorBrandForeground1,
-															}}
-															onClick={() =>
-																openRuleEditor(r, "enable")
-															}
-														>
-															{r.split(".").pop()}
-														</span>
-													</Tooltip>
-												))}
-											</td>
-											<td className={styles.td}>
-												{cmd.displayRules.map((r) => (
-													<Tooltip
-														key={r}
-														content={r}
-														relationship="label"
-													>
-														<span
-															className={styles.chip}
-															style={{
-																cursor: "pointer",
-																color: tokens.colorBrandForeground1,
-															}}
-															onClick={() =>
-																openRuleEditor(r, "display")
-															}
-														>
-															{r.split(".").pop()}
-														</span>
-													</Tooltip>
-												))}
-											</td>
-											<td className={styles.td}>
-												<Badge
-													size="small"
-													appearance="tint"
-													color={
-														commandRefs[cmd.id]
-															? "brand"
-															: "informative"
-													}
-												>
-													{commandRefs[cmd.id] ?? 0}
-												</Badge>
-											</td>
-											<td className={styles.td}>
-												<Button
-													appearance="subtle"
-													size="small"
-													onClick={() => openCommandEditor(cmd.id)}
-												>
-													Edit
-												</Button>
-											</td>
-										</tr>
-									))}
-								</tbody>
-							</table>
+							<CommandsGrid
+								commands={filteredCommands}
+								usage={usage.byCommand}
+								height={gridHeight}
+								onOpen={openCommandEditor}
+								onOpenRule={openRuleEditor}
+								emptyText={commandsFilter ? "No commands match." : "No commands."}
+							/>
 						</>
 					)}
 
@@ -466,11 +343,11 @@ export function BottomPanel() {
 								>
 									New display rule
 								</Button>
-								<Input
+								<SearchBox
 									size="small"
-									contentBefore={<SearchRegular />}
 									placeholder={`Filter ${displayRules.length} display rule${displayRules.length !== 1 ? "s" : ""}…`}
 									value={displayRulesFilter}
+									aria-label="Filter the display rules"
 									onChange={(_, d) => setDisplayRulesFilter(d.value)}
 									style={{ minWidth: 0, flex: 1, maxWidth: 360 }}
 								/>
@@ -484,12 +361,17 @@ export function BottomPanel() {
 									</Text>
 								)}
 							</div>
-							<RulesTable
+							<RulesGrid
 								rules={filteredDisplayRules}
 								kind="display"
-								ruleRefs={ruleRefs}
-								onEdit={(id) => openRuleEditor(id, "display")}
-								styles={styles}
+								usage={usage.byDisplay}
+								height={gridHeight}
+								onOpen={(id) => openRuleEditor(id, "display")}
+								emptyText={
+									displayRulesFilter
+										? "No display rules match."
+										: "No display rules."
+								}
 							/>
 						</>
 					)}
@@ -506,11 +388,11 @@ export function BottomPanel() {
 								>
 									New enable rule
 								</Button>
-								<Input
+								<SearchBox
 									size="small"
-									contentBefore={<SearchRegular />}
 									placeholder={`Filter ${enableRules.length} enable rule${enableRules.length !== 1 ? "s" : ""}…`}
 									value={enableRulesFilter}
+									aria-label="Filter the enable rules"
 									onChange={(_, d) => setEnableRulesFilter(d.value)}
 									style={{ minWidth: 0, flex: 1, maxWidth: 360 }}
 								/>
@@ -524,12 +406,17 @@ export function BottomPanel() {
 									</Text>
 								)}
 							</div>
-							<RulesTable
+							<RulesGrid
 								rules={filteredEnableRules}
 								kind="enable"
-								ruleRefs={ruleRefs}
-								onEdit={(id) => openRuleEditor(id, "enable")}
-								styles={styles}
+								usage={usage.byEnable}
+								height={gridHeight}
+								onOpen={(id) => openRuleEditor(id, "enable")}
+								emptyText={
+									enableRulesFilter
+										? "No enable rules match."
+										: "No enable rules."
+								}
 							/>
 						</>
 					)}
@@ -539,11 +426,11 @@ export function BottomPanel() {
 						<>
 							{history.length > 0 && (
 								<div className={styles.toolbar}>
-									<Input
+									<SearchBox
 										size="small"
-										contentBefore={<SearchRegular />}
 										placeholder={`Filter ${history.length} entr${history.length !== 1 ? "ies" : "y"}…`}
 										value={historyFilter}
+										aria-label="Filter the history"
 										onChange={(_, d) => setHistoryFilter(d.value)}
 										style={{ minWidth: 0, flex: 1, maxWidth: 360 }}
 									/>
@@ -722,92 +609,6 @@ export function BottomPanel() {
 }
 
 // ── Sub-components ────────────────────────────────────────────
-
-type StylesObj = ReturnType<ReturnType<typeof makeStyles>>;
-
-interface RulesTableProps {
-	rules: import("@/types/ribbon").EnableRule[] | import("@/types/ribbon").DisplayRule[];
-	kind: "enable" | "display";
-	ruleRefs: Record<string, number>;
-	onEdit: (id: string) => void;
-	styles: StylesObj;
-}
-
-function RulesTable({ rules, kind, ruleRefs, onEdit, styles }: RulesTableProps) {
-	return (
-		<table className={styles.table}>
-			<thead>
-				<tr>
-					<th className={styles.th}>Rule</th>
-					<th className={styles.th}>Steps</th>
-					<th className={styles.th}>Used by</th>
-					<th className={styles.th}>Type</th>
-					<th className={styles.th}></th>
-				</tr>
-			</thead>
-			<tbody>
-				{rules.map((r) => (
-					<tr key={r.id}>
-						<td className={styles.td}>
-							<span
-								className={styles.mono}
-								onClick={() => onEdit(r.id)}
-								role="button"
-								tabIndex={0}
-								onKeyDown={(e) => e.key === "Enter" && onEdit(r.id)}
-							>
-								{r.id}
-							</span>
-						</td>
-						<td className={styles.td}>
-							{r.steps.slice(0, 3).map((s, i) => (
-								<span key={i} className={styles.chip}>
-									{s.kind.replace(/Rule$/, "")}
-								</span>
-							))}
-							{r.steps.length > 3 && (
-								<span
-									className={styles.chip}
-									style={{ color: tokens.colorNeutralForeground3 }}
-								>
-									+{r.steps.length - 3}
-								</span>
-							)}
-							{r.steps.length === 0 && (
-								<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-									—
-								</Text>
-							)}
-						</td>
-						<td className={styles.td}>
-							<Badge
-								size="small"
-								appearance="tint"
-								color={ruleRefs[r.id] ? "brand" : "informative"}
-							>
-								{ruleRefs[r.id] ?? 0} cmd{ruleRefs[r.id] !== 1 ? "s" : ""}
-							</Badge>
-						</td>
-						<td className={styles.td}>
-							<Badge
-								size="small"
-								appearance="outline"
-								color={kind === "enable" ? "success" : "informative"}
-							>
-								{kind}
-							</Badge>
-						</td>
-						<td className={styles.td}>
-							<Button appearance="subtle" size="small" onClick={() => onEdit(r.id)}>
-								Edit
-							</Button>
-						</td>
-					</tr>
-				))}
-			</tbody>
-		</table>
-	);
-}
 
 function ConsoleRow({
 	ts,

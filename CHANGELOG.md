@@ -375,6 +375,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   menu, as in Unified Interface, and the selected command is always in view. Choosing a command
   selects it on the cards, in the tree and in Properties. It's marked **Preview: rules not applied**:
   display and enable rules are evaluated by Simulate mode (#191).
+- **The bottom panel's Commands and rules are grids (#185).** Hundreds of rows stay quick
+  (virtualized), the header stays put while the rows scroll, and nothing scrolls sideways: ids are
+  cut to their column with the whole id in a tooltip.
+  - **A command's rules are tags** that show the part of the id that tells them apart
+    (`ExactlyOneSelected`, not `EnableRule`), and open that rule.
+  - **One target per row:** a click or Space marks the row, **Edit**, Enter or a double-click opens
+    the editor. The rules' constant Type column is gone.
+  - **Counts** are badges on the tabs; a tab opens a collapsed panel.
+  - **Used by** counts the same way as the Solution tab: a command by the tabs, groups and controls
+    that use it, a rule by the commands that list it, per kind.
+- **Search fields are SearchBoxes (#185),** with a clear button: the bottom panel's filters and the web
+  resource browser's search.
+- **The Solution tab's + makes a New enable rule or a New display rule (#185),** not always an enable
+  rule. Template rows are plain rows, and branch counts are badges.
 - **The List view fits and sorts (#183).** The grid is as tall as its rows, so only the canvas
   scrolls, with the header kept in view; nothing scrolls sideways at 1024 px.
   - **Columns:** #, Label (with its icon, and the id in its tooltip), Kind (`Split button`, not
