@@ -28,7 +28,6 @@ const ImportXmlModal = lazy(() => import("@/components/modals/ImportXmlModal"));
 const CommandPalette = lazy(() => import("@/components/command-palette/CommandPalette"));
 const IconPickerModal = lazy(() => import("@/components/modals/IconPickerModal"));
 const WebResourceBrowser = lazy(() => import("@/components/panels/WebResourceBrowser"));
-const UrlComposerModal = lazy(() => import("@/components/panels/UrlComposerModal"));
 const HideInsteadOfDeleteModal = lazy(() => import("@/components/modals/HideInsteadOfDeleteModal"));
 
 const useStyles = makeStyles({
@@ -182,7 +181,6 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			s.commandPaletteOpen ||
 			s.iconPickerOpen ||
 			s.webResourceBrowserOpen ||
-			s.urlComposerOpen ||
 			s.hideInsteadOfDelete !== null,
 	);
 	const focusReturnRef = useRef<HTMLElement | null>(null);
@@ -371,7 +369,6 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 					<CommandPalette />
 					<IconPickerModal />
 					<WebResourceBrowser />
-					<UrlComposerModal />
 					<HideInsteadOfDeleteModal />
 				</Suspense>
 			</ErrorBoundary>

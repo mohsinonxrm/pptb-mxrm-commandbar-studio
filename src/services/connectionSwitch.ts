@@ -31,7 +31,6 @@ const WORKSPACE_PANELS = [
 	"newGroupOpen",
 	"importXmlOpen",
 	"webResourceBrowserOpen",
-	"urlComposerOpen",
 	"newTabOpen",
 ] as const satisfies readonly (keyof UIStore)[];
 

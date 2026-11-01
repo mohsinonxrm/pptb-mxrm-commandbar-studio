@@ -110,7 +110,6 @@ export interface UIStore {
 	/** Why the import dialog opened empty, e.g. the clipboard couldn't be read (#122). */
 	importXmlNote: string;
 	webResourceBrowserOpen: boolean;
-	urlComposerOpen: boolean;
 	/** A diff is shown in the editor drawer (#186). */
 	diffViewerOpen: boolean;
 	diffViewerMode: "history" | "compare";
@@ -165,8 +164,6 @@ export interface UIStore {
 	closeImportXml(): void;
 	openWebResourceBrowser(): void;
 	closeWebResourceBrowser(): void;
-	openUrlComposer(): void;
-	closeUrlComposer(): void;
 	/** Compare with published, or what history entry `historyIndex` changed (#186). */
 	openDiffViewer(mode: "history" | "compare", historyIndex?: number): void;
 	closeDiffViewer(): void;
@@ -223,7 +220,6 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	importXmlSeed: "",
 	importXmlNote: "",
 	webResourceBrowserOpen: false,
-	urlComposerOpen: false,
 	diffViewerOpen: false,
 	diffViewerMode: "compare",
 	tabDisplayRulesOpen: false,
@@ -297,8 +293,6 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	closeImportXml: () => set({ importXmlOpen: false }),
 	openWebResourceBrowser: () => set({ webResourceBrowserOpen: true }),
 	closeWebResourceBrowser: () => set({ webResourceBrowserOpen: false }),
-	openUrlComposer: () => set({ urlComposerOpen: true }),
-	closeUrlComposer: () => set({ urlComposerOpen: false }),
 	openDiffViewer: (mode, historyIndex) =>
 		set((s) => editorState(pushView(s.editorStack, { kind: "diff", id: mode, historyIndex }))),
 	closeDiffViewer: () => set((s) => editorState(s.editorStack.filter((v) => v.kind !== "diff"))),

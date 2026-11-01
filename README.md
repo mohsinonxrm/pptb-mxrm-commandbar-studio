@@ -300,16 +300,21 @@ CBS runs in two modes:
 ```
 src/
   components/
-    shell/               — TopBar, ShellMessages, Layout (resizable panes; rail + drawers below 1200 px)
-    ribbon-canvas/       — RibbonCanvas, ClassicRibbon, ModernCommandBar, RibbonListView
+    shell/               — TopBar, TablePicker, ShellMessages, Layout (resizable panes;
+                           rail + drawers below 1200 px)
+    left-pane/           — LeftPane (Structure | Solution): StructurePane (tab › group ›
+                           control tree), SolutionElementsPane (your solution's elements)
+    ribbon-canvas/       — RibbonCanvas, CanvasHeader, UsersBar ("How users see it"),
+                           GroupCards, RibbonListView, ClassicRibbon, ModernCommandBar
     properties-pane/     — PropertiesPane (header + collapsible sections) and its sections
-    bottom-panel/        — BottomPanel (Commands / Rules / History / Console tabs)
+    bottom-panel/        — BottomPanel (Commands / Rules / History / Console tabs),
+                           ElementGrids (the virtualized Commands and Rules grids)
     panels/              — EditorDrawer (command, rule, script, tab display rule, XML,
                            compare and translations views): CommandEditor, RuleEditor,
                            TabDisplayRules, XmlView, CompareView, TranslationsView;
-                           WebResourceBrowser, UrlComposer
-    modals/              — BulkPublish, IconPicker, NewButton/Group/Tab,
-                           HideOobWarning, ImportXml, ConfirmDialog
+                           WebResourceBrowser
+    modals/              — BulkPublish, IconPicker, NewButton/Group/Tab, RenameGroup,
+                           ChangeGroupTemplate, HideOobWarning, ImportXml, ConfirmDialog
     command-palette/     — CommandPalette (Ctrl+K)
     shared/              — MonacoEditor, FluentIcon, CrmParameterEditor,
                            RuleStepEditor, RuleStepPicker, ResizableHandle,
