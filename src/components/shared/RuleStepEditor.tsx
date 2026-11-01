@@ -5,10 +5,16 @@ import {
 	Select,
 	Input,
 	Checkbox,
+	Combobox,
 	Field,
 	Badge,
 	Button,
+	Caption1,
+	InfoLabel,
+	Option,
+	SpinButton,
 	Text,
+	Tooltip,
 	Popover,
 	PopoverTrigger,
 	PopoverSurface,
@@ -23,6 +29,7 @@ const useStyles = makeStyles({
 	step: {
 		display: "flex",
 		flexDirection: "column",
+		minWidth: 0,
 		gap: tokens.spacingVerticalXS,
 		padding: tokens.spacingVerticalS,
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
@@ -32,7 +39,14 @@ const useStyles = makeStyles({
 	header: {
 		display: "flex",
 		alignItems: "center",
-		justifyContent: "space-between",
+		gap: tokens.spacingHorizontalXS,
+	},
+	title: {
+		flex: 1,
+		minWidth: 0,
+		display: "flex",
+		alignItems: "center",
+		gap: tokens.spacingHorizontalXS,
 	},
 	kindBadge: {
 		flexShrink: 0,
@@ -41,13 +55,23 @@ const useStyles = makeStyles({
 		display: "flex",
 		flexDirection: "column",
 		gap: tokens.spacingVerticalXS,
+		minWidth: 0,
 	},
+	// Fields side by side while they fit, then wrapped (#189).
 	row: {
-		display: "flex",
+		display: "grid",
+		gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
 		gap: tokens.spacingHorizontalS,
-		alignItems: "flex-end",
-		flexWrap: "wrap",
+		alignItems: "end",
+		minWidth: 0,
+		// A cell can be narrower than its content: a Select is as wide as its
+		// longest option, and ran out of the step's box (#229). The Field is a
+		// grid of its own, and the select a flex item in its root.
+		"& > *": { minWidth: 0, gridTemplateColumns: "minmax(0, 1fr)" },
+		"& select": { minWidth: 0 },
 	},
+	number: { maxWidth: "140px" },
+	muted: { color: tokens.colorNeutralForeground3 },
 	nested: {
 		display: "flex",
 		flexDirection: "column",
@@ -58,6 +82,7 @@ const useStyles = makeStyles({
 	nestedToolbar: {
 		display: "flex",
 		alignItems: "center",
+		flexWrap: "wrap",
 		gap: tokens.spacingHorizontalXS,
 	},
 	pickerSurface: {
@@ -74,19 +99,76 @@ interface RuleStepEditorProps {
 	onRemove: () => void;
 	/** The rule type this step belongs to; restricts what can be added inside an OrRule (#41). */
 	container?: RuleContainer;
+	/** The step's place in its rule, shown before its kind (#186). */
+	number?: number;
+	/** More actions for the step (move up / down), before Remove (#186). */
+	menu?: React.ReactNode;
 }
 
-const PRIVILEGE_TYPES = [
-	"Create",
-	"Read",
-	"Write",
-	"Delete",
-	"Assign",
-	"Share",
-	"Append",
-	"AppendTo",
-] as const;
-const PRIVILEGE_DEPTHS = ["None", "Basic", "Local", "Deep", "Global"] as const;
+/** An option: the value written to the XML, and what it's called (#189). */
+type Choice = readonly [value: string, label: string];
+
+/** "DuplicateDetectionEnabled" → "Duplicate detection enabled". */
+const words = (name: string) =>
+	name
+		.replace(/([a-z])([A-Z])/g, "$1 $2")
+		.replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+		.replace(/^Is /, "")
+		.toLowerCase()
+		.replace(/^./, (c) => c.toUpperCase());
+
+const APPLIES_TO: Choice[] = [
+	["PrimaryEntity", "Primary table (the form or grid)"],
+	["SelectedEntity", "Selected records"],
+];
+const CONTEXTS: Choice[] = [
+	["Form", "Form"],
+	["HomePageGrid", "Home page grid"],
+	["SubGridStandard", "Sub-grid"],
+	["SubGridAssociated", "Associated grid"],
+];
+const FORM_STATES: Choice[] = [
+	["Create", "New record"],
+	["Existing", "Existing record"],
+	["ReadOnly", "Read-only"],
+	["Disabled", "Disabled"],
+	["BulkEdit", "Bulk edit"],
+];
+const FORM_TYPES: Choice[] = [
+	["Main", "Main"],
+	["Preview", "Preview"],
+	["AppointmentBook", "Appointment book"],
+	["Dashboard", "Dashboard"],
+	["Quick", "Quick view"],
+	["QuickCreate", "Quick create"],
+	["Card", "Card"],
+	["MainInteractionCentric", "Main (interactive experience)"],
+];
+const DEVICE_TYPES: Choice[] = [
+	["None", "None"],
+	["Phone", "Phone"],
+	["Tablet", "Tablet"],
+	["Web", "Web"],
+	["Outlook", "Outlook"],
+	["InteractionCentric", "Interactive experience"],
+];
+const PRIVILEGE_TYPES: Choice[] = [
+	["Create", "Create"],
+	["Read", "Read"],
+	["Write", "Write"],
+	["Delete", "Delete"],
+	["Assign", "Assign"],
+	["Share", "Share"],
+	["Append", "Append"],
+	["AppendTo", "Append to"],
+];
+const PRIVILEGE_DEPTHS: Choice[] = [
+	["None", "None"],
+	["Basic", "User (Basic)"],
+	["Local", "Business unit (Local)"],
+	["Deep", "Parent: child business units (Deep)"],
+	["Global", "Organization (Global)"],
+];
 const ENTITY_PROPERTIES: EntityProperty[] = [
 	"DuplicateDetectionEnabled",
 	"GridFiltersEnabled",
@@ -107,6 +189,13 @@ const ENTITY_PROPERTIES: EntityProperty[] = [
 	"HasFeedback",
 	"IsBPFEntity",
 ];
+const ORGANIZATION_SETTINGS = [
+	"IsSharepointEnabled",
+	"IsSOPIntegrationEnabled",
+	"IsFiscalCalendarDefined",
+	"IsReadFormModeDefined",
+	"IsBPFEntityCustomizationFeatureEnabled",
+] as const;
 const MISC_PRIVILEGE_SUGGESTIONS = [
 	"ExportToExcel",
 	"MailMerge",
@@ -115,11 +204,99 @@ const MISC_PRIVILEGE_SUGGESTIONS = [
 	"PublishReports",
 ];
 
+/** A Select of `choices`; `anyLabel` adds an empty first option meaning "not set". */
+function ChoiceSelect({
+	label,
+	info,
+	value,
+	choices,
+	anyLabel,
+	disabled,
+	onChange,
+}: {
+	label: string;
+	/** Help shown by an InfoLabel next to the label (not a nested label, #189). */
+	info?: string;
+	value: string | undefined;
+	choices: readonly Choice[];
+	anyLabel?: string;
+	disabled?: boolean;
+	onChange: (value: string | undefined) => void;
+}) {
+	return (
+		<Field
+			label={
+				info
+					? {
+							children: (_: unknown, slotProps: Record<string, unknown>) => (
+								<InfoLabel {...slotProps} info={info}>
+									{label}
+								</InfoLabel>
+							),
+						}
+					: label
+			}
+		>
+			<Select
+				value={value ?? ""}
+				disabled={disabled}
+				onChange={(_, d) => onChange(d.value || undefined)}
+			>
+				{anyLabel !== undefined && <option value="">{anyLabel}</option>}
+				{choices.map(([v, text]) => (
+					<option key={v} value={v}>
+						{text}
+					</option>
+				))}
+			</Select>
+		</Field>
+	);
+}
+
+/** A whole number; empty is `undefined` unless `required`, which keeps the last value. */
+function WholeNumber({
+	label,
+	value,
+	required,
+	min = 0,
+	onChange,
+}: {
+	label: string;
+	value: number | undefined;
+	required?: boolean;
+	min?: number;
+	onChange: (value: number | undefined) => void;
+}) {
+	const styles = useStyles();
+	return (
+		<Field label={label}>
+			<SpinButton
+				className={styles.number}
+				min={min}
+				value={value ?? null}
+				onChange={(_, d) => {
+					const typed = d.displayValue?.trim();
+					const next =
+						d.value !== undefined && d.value !== null
+							? d.value
+							: typed
+								? parseInt(typed, 10)
+								: undefined;
+					if (next === undefined) return required ? undefined : onChange(undefined);
+					if (Number.isInteger(next) && next >= min) onChange(next);
+				}}
+			/>
+		</Field>
+	);
+}
+
 export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 	step,
 	onChange,
 	onRemove,
 	container,
+	number,
+	menu,
 }) => {
 	const styles = useStyles();
 	// Which OrRule picker is open: an existing group's index, or "new" for a new <Or>.
@@ -131,161 +308,127 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 	const hasStandardAttributes = step.kind !== "OrRule" && step.kind !== "RawRule";
 	const invertResult = hasStandardAttributes ? step.invertResult : undefined;
 	const defaultVal = hasStandardAttributes ? step.default : undefined;
+	const kindLabel = RULE_KIND_LABELS[step.kind] ?? step.kind;
 
 	const setField = (patch: Partial<RuleStep>) => {
 		onChange({ ...step, ...patch } as RuleStep);
 	};
 
-	const toInt = (value: string) => {
-		if (!value.trim()) return undefined;
-		const parsed = parseInt(value, 10);
-		return Number.isNaN(parsed) ? undefined : parsed;
-	};
+	const tableField = (value: string | undefined, onSet: (v: string | undefined) => void) => (
+		<Field label="Table" hint="Its logical name; empty for any.">
+			<Input value={value ?? ""} onChange={(_, d) => onSet(d.value || undefined)} />
+		</Field>
+	);
 
 	const renderFields = () => {
 		switch (step.kind) {
 			case "CommandClientTypeRule":
 				return (
-					<Field label="Type">
-						<Select
-							value={step.type}
-							onChange={(_, d) => setField({ type: d.value as "Modern" | "Refresh" | "Legacy" })}
-						>
-							<option value="Modern">Modern (Unified Interface: web, tablets and phones)</option>
-							<option value="Refresh">Refresh (legacy updated web client)</option>
-							<option value="Legacy">Legacy (classic ribbon + Outlook list views)</option>
-						</Select>
-					</Field>
+					<ChoiceSelect
+						label="Client"
+						value={step.type}
+						choices={[
+							// Named with the platform value (#152): the docs and the XML use it.
+							["Modern", "Modern (Unified Interface: web, tablets and phones)"],
+							["Refresh", "Refresh (legacy updated web client)"],
+							["Legacy", "Legacy (classic ribbon + Outlook list views)"],
+						]}
+						onChange={(v) => setField({ type: v as "Modern" | "Refresh" | "Legacy" })}
+					/>
 				);
 
 			case "CrmClientTypeRule":
 				return (
-					<Field label="Type">
-						<Select
-							value={step.type}
-							onChange={(_, d) => setField({ type: d.value as "Web" | "Outlook" })}
-						>
-							<option value="Web">Web</option>
-							<option value="Outlook">Outlook</option>
-						</Select>
-					</Field>
+					<ChoiceSelect
+						label="Client"
+						value={step.type}
+						choices={[
+							["Web", "Web"],
+							["Outlook", "Outlook"],
+						]}
+						onChange={(v) => setField({ type: v as "Web" | "Outlook" })}
+					/>
 				);
 
 			case "FormStateRule":
 				return (
-					<Field label="State">
-						<Select
-							value={step.state}
-							onChange={(_, d) => setField({ state: d.value as typeof step.state })}
-						>
-							{["Create", "Existing", "ReadOnly", "Disabled", "BulkEdit"].map((s) => (
-								<option key={s} value={s}>
-									{s}
-								</option>
-							))}
-						</Select>
-					</Field>
+					<ChoiceSelect
+						label="State"
+						value={step.state}
+						choices={FORM_STATES}
+						onChange={(v) => setField({ state: v as typeof step.state })}
+					/>
 				);
 
 			case "FormTypeRule":
 				return (
-					<Field label="Type">
-						<Select
-							value={step.type}
-							onChange={(_, d) => setField({ type: d.value as typeof step.type })}
-						>
-							{[
-								"Main",
-								"Preview",
-								"AppointmentBook",
-								"Dashboard",
-								"Quick",
-								"QuickCreate",
-								"Card",
-								"MainInteractionCentric",
-							].map((t) => (
-								<option key={t} value={t}>
-									{t}
-								</option>
-							))}
-						</Select>
-					</Field>
+					<ChoiceSelect
+						label="Form type"
+						value={step.type}
+						choices={FORM_TYPES}
+						onChange={(v) => setField({ type: v as typeof step.type })}
+					/>
 				);
 
 			case "SelectionCountRule":
 				return (
 					<div className={styles.row}>
-						<Field label="Minimum">
-							<Input
-								type="number"
-								value={String(step.minimum ?? "")}
-								onChange={(_, d) => setField({ minimum: toInt(d.value) })}
-								style={{ width: "80px" }}
-							/>
-						</Field>
-						<Field label="Maximum">
-							<Input
-								type="number"
-								value={String(step.maximum ?? "")}
-								onChange={(_, d) => setField({ maximum: toInt(d.value) })}
-								style={{ width: "80px" }}
-							/>
-						</Field>
-						<Field label="Applies To">
-							<Select
-								value={step.appliesTo ?? ""}
-								onChange={(_, d) =>
-									setField({ appliesTo: d.value as "PrimaryEntity" | "SelectedEntity" | undefined })
-								}
-							>
-								<option value="">Any</option>
-								<option value="PrimaryEntity">PrimaryEntity</option>
-								<option value="SelectedEntity">SelectedEntity</option>
-							</Select>
-						</Field>
+						<WholeNumber
+							label="At least"
+							value={step.minimum}
+							onChange={(minimum) => setField({ minimum })}
+						/>
+						<WholeNumber
+							label="At most"
+							value={step.maximum}
+							onChange={(maximum) => setField({ maximum })}
+						/>
+						<ChoiceSelect
+							label="Applies to"
+							value={step.appliesTo}
+							choices={APPLIES_TO}
+							anyLabel="Any"
+							onChange={(v) =>
+								setField({
+									appliesTo: v as "PrimaryEntity" | "SelectedEntity" | undefined,
+								})
+							}
+						/>
 					</div>
 				);
 
 			case "EntityRule":
 				return (
 					<div className={styles.row}>
-						<Field label="Entity name">
-							<Input
-								value={step.entityName ?? ""}
-								onChange={(_, d) => setField({ entityName: d.value || undefined })}
-							/>
-						</Field>
-						<Field label="Applies To">
-							<Select
-								value={step.appliesTo ?? ""}
-								onChange={(_, d) =>
-									setField({ appliesTo: d.value as "PrimaryEntity" | "SelectedEntity" | undefined })
-								}
-							>
-								<option value="">Any</option>
-								<option value="PrimaryEntity">PrimaryEntity</option>
-								<option value="SelectedEntity">SelectedEntity</option>
-							</Select>
-						</Field>
-						<Field label="Context">
-							<Select
-								value={step.context ?? ""}
-								onChange={(_, d) => setField({ context: d.value || undefined })}
-							>
-								<option value="">Any</option>
-								<option value="Form">Form</option>
-								<option value="HomePageGrid">HomePageGrid</option>
-								<option value="SubGridStandard">SubGridStandard</option>
-								<option value="SubGridAssociated">SubGridAssociated</option>
-							</Select>
-						</Field>
+						{tableField(step.entityName, (entityName) => setField({ entityName }))}
+						<ChoiceSelect
+							label="Applies to"
+							value={step.appliesTo}
+							choices={APPLIES_TO}
+							anyLabel="Any"
+							onChange={(v) =>
+								setField({
+									appliesTo: v as "PrimaryEntity" | "SelectedEntity" | undefined,
+								})
+							}
+						/>
+						<ChoiceSelect
+							label="Where"
+							value={step.context}
+							choices={CONTEXTS}
+							anyLabel="Anywhere"
+							onChange={(context) => setField({ context })}
+						/>
 					</div>
 				);
 
 			case "FormEntityContextRule":
 				return (
-					<Field label="Entity name">
-						<Input value={step.entityName} onChange={(_, d) => setField({ entityName: d.value })} />
+					<Field label="The form's table" hint="Its logical name.">
+						<Input
+							value={step.entityName}
+							onChange={(_, d) => setField({ entityName: d.value })}
+						/>
 					</Field>
 				);
 
@@ -293,213 +436,163 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 				return (
 					<>
 						<div className={styles.row}>
-							<Field label="Library ($webresource:)">
+							<Field
+								label="Library"
+								hint="A JavaScript web resource ($webresource:…)."
+							>
 								<Input
 									value={step.library}
 									onChange={(_, d) => setField({ library: d.value })}
-									placeholder="$webresource:..."
+									placeholder="$webresource:publisher_/scripts/file.js"
 								/>
 							</Field>
-							<Field label="Function name">
+							<Field
+								label="Function"
+								hint="The function's full name, including its namespace."
+							>
 								<Input
 									value={step.functionName}
 									onChange={(_, d) => setField({ functionName: d.value })}
 								/>
 							</Field>
 						</div>
-						<Field label="Parameters">
+						<Field label="Parameters, in order">
 							<CrmParameterEditor
 								params={step.params ?? []}
-								onChange={(params) => setField({ params: params.length ? params : undefined })}
+								onChange={(params) =>
+									setField({ params: params.length ? params : undefined })
+								}
 							/>
 						</Field>
-						<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-							Async support: on Unified Interface, custom rules can return Promise&lt;boolean&gt;;
-							unresolved promises default to false after 10 seconds.
-						</Text>
+						<Caption1 className={styles.muted}>
+							In Unified Interface the function can return a Promise of true or false;
+							one that hasn&apos;t settled after 10 seconds counts as false.
+						</Caption1>
 					</>
 				);
 
 			case "CrmOfflineAccessStateRule":
 				return (
-					<Field label="State">
-						<Select
-							value={step.state}
-							onChange={(_, d) => setField({ state: d.value as "Offline" | "Online" })}
-						>
-							<option value="Online">Online</option>
-							<option value="Offline">Offline</option>
-						</Select>
-					</Field>
+					<ChoiceSelect
+						label="State"
+						value={step.state}
+						choices={[
+							["Online", "Online"],
+							["Offline", "Offline"],
+						]}
+						onChange={(v) => setField({ state: v as "Offline" | "Online" })}
+					/>
 				);
 
 			case "CrmOutlookClientTypeRule":
 				return (
-					<Field label="Type">
-						<Select
-							value={step.type}
-							onChange={(_, d) =>
-								setField({ type: d.value as "CrmForOutlook" | "CrmForOutlookOfflineAccess" })
-							}
-						>
-							<option value="CrmForOutlook">CrmForOutlook</option>
-							<option value="CrmForOutlookOfflineAccess">CrmForOutlookOfflineAccess</option>
-						</Select>
-					</Field>
+					<ChoiceSelect
+						label="Outlook client"
+						value={step.type}
+						choices={[
+							["CrmForOutlook", "Outlook"],
+							["CrmForOutlookOfflineAccess", "Outlook with offline access"],
+						]}
+						onChange={(v) =>
+							setField({ type: v as "CrmForOutlook" | "CrmForOutlookOfflineAccess" })
+						}
+					/>
 				);
 
 			case "CrmOutlookClientVersionRule":
 				return (
 					<div className={styles.row}>
-						<Field label="Major">
-							<Input
-								type="number"
-								value={String(step.major)}
-								onChange={(_, d) => setField({ major: toInt(d.value) ?? step.major })}
-								style={{ width: "84px" }}
-							/>
-						</Field>
-						<Field label="Minor">
-							<Input
-								type="number"
-								value={String(step.minor ?? "")}
-								onChange={(_, d) => setField({ minor: toInt(d.value) })}
-								style={{ width: "84px" }}
-							/>
-						</Field>
-						<Field label="Build">
-							<Input
-								type="number"
-								value={String(step.build ?? "")}
-								onChange={(_, d) => setField({ build: toInt(d.value) })}
-								style={{ width: "84px" }}
-							/>
-						</Field>
-						<Field label="Revision">
-							<Input
-								type="number"
-								value={String(step.revision ?? "")}
-								onChange={(_, d) => setField({ revision: toInt(d.value) })}
-								style={{ width: "84px" }}
-							/>
-						</Field>
+						<WholeNumber
+							label="Major"
+							value={step.major}
+							required
+							onChange={(major) => major !== undefined && setField({ major })}
+						/>
+						<WholeNumber
+							label="Minor"
+							value={step.minor}
+							onChange={(minor) => setField({ minor })}
+						/>
+						<WholeNumber
+							label="Build"
+							value={step.build}
+							onChange={(build) => setField({ build })}
+						/>
+						<WholeNumber
+							label="Revision"
+							value={step.revision}
+							onChange={(revision) => setField({ revision })}
+						/>
 					</div>
 				);
 
 			case "DeviceTypeRule":
 				return (
-					<Field label="Device type">
-						<Select
-							value={step.type}
-							onChange={(_, d) => setField({ type: d.value as typeof step.type })}
-						>
-							<option value="None">None</option>
-							<option value="Phone">Phone</option>
-							<option value="Tablet">Tablet</option>
-							<option value="Web">Web</option>
-							<option value="Outlook">Outlook</option>
-							<option value="InteractionCentric">InteractionCentric</option>
-						</Select>
-					</Field>
+					<ChoiceSelect
+						label="Device"
+						value={step.type}
+						choices={DEVICE_TYPES}
+						onChange={(v) => setField({ type: v as typeof step.type })}
+					/>
 				);
 
 			case "EntityPrivilegeRule":
 				return (
 					<div className={styles.row}>
-						<Field label="Entity (optional)">
-							<Input
-								value={step.entityName ?? ""}
-								onChange={(_, d) => setField({ entityName: d.value || undefined })}
-							/>
-						</Field>
-						<Field label="Applies To">
-							<Select
-								value={step.appliesTo ?? ""}
-								onChange={(_, d) =>
-									setField({
-										appliesTo: (d.value || undefined) as
-											| "PrimaryEntity"
-											| "SelectedEntity"
-											| undefined,
-									})
-								}
-							>
-								<option value="">Any</option>
-								<option value="PrimaryEntity">PrimaryEntity</option>
-								<option value="SelectedEntity">SelectedEntity</option>
-							</Select>
-						</Field>
-						<Field label="Privilege">
-							<Select
-								value={step.privilegeType}
-								onChange={(_, d) =>
-									setField({ privilegeType: d.value as typeof step.privilegeType })
-								}
-							>
-								{PRIVILEGE_TYPES.map((v) => (
-									<option key={v} value={v}>
-										{v}
-									</option>
-								))}
-							</Select>
-						</Field>
-						<Field label="Depth">
-							<Select
-								value={step.privilegeDepth}
-								onChange={(_, d) =>
-									setField({ privilegeDepth: d.value as typeof step.privilegeDepth })
-								}
-							>
-								{PRIVILEGE_DEPTHS.map((v) => (
-									<option key={v} value={v}>
-										{v}
-									</option>
-								))}
-							</Select>
-						</Field>
+						{tableField(step.entityName, (entityName) => setField({ entityName }))}
+						<ChoiceSelect
+							label="Applies to"
+							value={step.appliesTo}
+							choices={APPLIES_TO}
+							anyLabel="Any"
+							onChange={(v) =>
+								setField({
+									appliesTo: v as "PrimaryEntity" | "SelectedEntity" | undefined,
+								})
+							}
+						/>
+						<ChoiceSelect
+							label="Privilege"
+							value={step.privilegeType}
+							choices={PRIVILEGE_TYPES}
+							onChange={(v) =>
+								setField({ privilegeType: v as typeof step.privilegeType })
+							}
+						/>
+						<ChoiceSelect
+							label="Depth"
+							value={step.privilegeDepth}
+							choices={PRIVILEGE_DEPTHS}
+							onChange={(v) =>
+								setField({ privilegeDepth: v as typeof step.privilegeDepth })
+							}
+						/>
 					</div>
 				);
 
 			case "EntityPropertyRule":
 				return (
 					<div className={styles.row}>
-						<Field label="Entity (optional)">
-							<Input
-								value={step.entityName ?? ""}
-								onChange={(_, d) => setField({ entityName: d.value || undefined })}
-							/>
-						</Field>
-						<Field label="Applies To">
-							<Select
-								value={step.appliesTo ?? ""}
-								onChange={(_, d) =>
-									setField({
-										appliesTo: (d.value || undefined) as
-											| "PrimaryEntity"
-											| "SelectedEntity"
-											| undefined,
-									})
-								}
-							>
-								<option value="">Any</option>
-								<option value="PrimaryEntity">PrimaryEntity</option>
-								<option value="SelectedEntity">SelectedEntity</option>
-							</Select>
-						</Field>
-						<Field label="Property">
-							<Select
-								value={step.propertyName}
-								onChange={(_, d) => setField({ propertyName: d.value as EntityProperty })}
-							>
-								{ENTITY_PROPERTIES.map((v) => (
-									<option key={v} value={v}>
-										{v}
-									</option>
-								))}
-							</Select>
-						</Field>
+						{tableField(step.entityName, (entityName) => setField({ entityName }))}
+						<ChoiceSelect
+							label="Applies to"
+							value={step.appliesTo}
+							choices={APPLIES_TO}
+							anyLabel="Any"
+							onChange={(v) =>
+								setField({
+									appliesTo: v as "PrimaryEntity" | "SelectedEntity" | undefined,
+								})
+							}
+						/>
+						<ChoiceSelect
+							label="Property"
+							value={step.propertyName}
+							choices={ENTITY_PROPERTIES.map((p) => [p, words(p)] as const)}
+							onChange={(v) => setField({ propertyName: v as EntityProperty })}
+						/>
 						<Checkbox
-							label="Property value"
+							label="The property is true"
 							checked={step.propertyValue}
 							onChange={(_, d) => setField({ propertyValue: d.checked === true })}
 						/>
@@ -509,11 +602,17 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 			case "ValueRule":
 				return (
 					<div className={styles.row}>
-						<Field label="Field">
-							<Input value={step.field} onChange={(_, d) => setField({ field: d.value })} />
+						<Field label="Column" hint="Its logical name.">
+							<Input
+								value={step.field}
+								onChange={(_, d) => setField({ field: d.value })}
+							/>
 						</Field>
-						<Field label="Value">
-							<Input value={step.value} onChange={(_, d) => setField({ value: d.value })} />
+						<Field label="Equals">
+							<Input
+								value={step.value}
+								onChange={(_, d) => setField({ value: d.value })}
+							/>
 						</Field>
 					</div>
 				);
@@ -526,6 +625,7 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 					<Popover
 						open={orPicker === target}
 						onOpenChange={(_, d) => setOrPicker(d.open ? target : null)}
+						positioning="below-start"
 					>
 						<PopoverTrigger>
 							<Button icon={<AddRegular />} appearance="secondary" size="small">
@@ -540,7 +640,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 									setGroups(
 										target === "new"
 											? [...step.groups, [newStep]]
-											: step.groups.map((g, gi) => (gi === target ? [...g, newStep] : g)),
+											: step.groups.map((g, gi) =>
+													gi === target ? [...g, newStep] : g,
+												),
 									);
 									setOrPicker(null);
 								}}
@@ -552,7 +654,7 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 					<div className={styles.nested}>
 						{step.groups.map((group, gi) => (
 							<div key={gi} className={styles.nested}>
-								<Text size={100} weight="semibold">
+								<Text size={200} weight="semibold">
 									{gi === 0 ? "Either" : "Or"}
 									{group.length > 1 ? " (all of)" : ""}
 								</Text>
@@ -564,7 +666,9 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 										onChange={(updated) =>
 											setGroups(
 												step.groups.map((g, i) =>
-													i === gi ? g.map((s, j) => (j === si ? updated : s)) : g,
+													i === gi
+														? g.map((s, j) => (j === si ? updated : s))
+														: g,
 												),
 											)
 										}
@@ -581,10 +685,10 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							</div>
 						))}
 						<div className={styles.nestedToolbar}>
-							{picker("new", "Add Or branch")}
-							<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-								An OrRule needs at least two branches.
-							</Text>
+							{picker("new", "Add an Or branch")}
+							<Caption1 className={styles.muted}>
+								An Or needs at least two branches.
+							</Caption1>
 						</div>
 					</div>
 				);
@@ -600,7 +704,7 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 							/>
 						</Field>
 						<Checkbox
-							label="Expected value"
+							label="The bit is set"
 							checked={step.expectedValue}
 							onChange={(_, d) => setField({ expectedValue: d.checked === true })}
 						/>
@@ -610,93 +714,88 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 			case "RawRule":
 				return (
 					<>
-						<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-							Command Bar Studio doesn&apos;t edit this rule; it is kept exactly as loaded.
-						</Text>
-						<pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: "11px" }}>{step.xml}</pre>
+						<Caption1 className={styles.muted}>
+							Command Bar Studio doesn&apos;t edit this rule; it is kept exactly as
+							loaded.
+						</Caption1>
+						<pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: "11px" }}>
+							{step.xml}
+						</pre>
 					</>
 				);
 
 			case "SkuRule":
 				return (
-					<Field label="SKU">
-						<Select
-							value={step.sku}
-							onChange={(_, d) => setField({ sku: d.value as "OnPremise" | "Online" | "Spla" })}
-						>
-							<option value="Online">Online</option>
-							<option value="OnPremise">OnPremise</option>
-							<option value="Spla">Spla</option>
-						</Select>
-					</Field>
+					<ChoiceSelect
+						label="Deployment"
+						value={step.sku}
+						choices={[
+							["Online", "Online"],
+							["OnPremise", "On-premises"],
+							["Spla", "Hosted (SPLA)"],
+						]}
+						onChange={(v) => setField({ sku: v as "OnPremise" | "Online" | "Spla" })}
+					/>
 				);
 
 			case "OrganizationSettingRule":
 				return (
-					<Field label="Setting">
-						<Select
-							value={step.setting}
-							onChange={(_, d) => setField({ setting: d.value as typeof step.setting })}
-						>
-							{[
-								"IsSharepointEnabled",
-								"IsSOPIntegrationEnabled",
-								"IsFiscalCalendarDefined",
-								"IsReadFormModeDefined",
-								"IsBPFEntityCustomizationFeatureEnabled",
-							].map((s) => (
-								<option key={s} value={s}>
-									{s}
-								</option>
-							))}
-						</Select>
-					</Field>
+					<ChoiceSelect
+						label="Setting is on"
+						value={step.setting}
+						choices={ORGANIZATION_SETTINGS.map((s) => [s, words(s)] as const)}
+						onChange={(v) => setField({ setting: v as typeof step.setting })}
+					/>
 				);
 
 			case "MiscellaneousPrivilegeRule":
 				return (
 					<div className={styles.row}>
-						<Field label="Privilege name">
-							<Input
+						<Field label="Privilege">
+							<Combobox
+								freeform
 								value={step.privilegeName}
-								onChange={(_, d) => setField({ privilegeName: d.value })}
 								placeholder="ExportToExcel"
-								list="misc-privilege-suggestions"
-							/>
-							<datalist id="misc-privilege-suggestions">
-								{MISC_PRIVILEGE_SUGGESTIONS.map((value) => (
-									<option key={value} value={value} />
-								))}
-							</datalist>
-						</Field>
-						<Field label="Depth (optional)">
-							<Select
-								value={step.privilegeDepth ?? ""}
-								onChange={(_, d) =>
-									setField({ privilegeDepth: (d.value || undefined) as typeof step.privilegeDepth })
+								onChange={(e) => setField({ privilegeName: e.target.value })}
+								onOptionSelect={(_, d) =>
+									d.optionValue && setField({ privilegeName: d.optionValue })
 								}
 							>
-								<option value="">Any</option>
-								{PRIVILEGE_DEPTHS.map((v) => (
-									<option key={v} value={v}>
-										{v}
-									</option>
+								{MISC_PRIVILEGE_SUGGESTIONS.map((value) => (
+									<Option key={value} value={value}>
+										{value}
+									</Option>
 								))}
-							</Select>
+							</Combobox>
 						</Field>
+						<ChoiceSelect
+							label="Depth"
+							value={step.privilegeDepth}
+							choices={PRIVILEGE_DEPTHS}
+							anyLabel="Any"
+							onChange={(v) =>
+								setField({ privilegeDepth: v as typeof step.privilegeDepth })
+							}
+						/>
 					</div>
 				);
 
 			case "OptionSetRule":
 				return (
 					<div className={styles.row}>
-						<Field label="Option set">
-							<Input value={step.optionSet} onChange={(_, d) => setField({ optionSet: d.value })} />
+						<Field label="Choice column">
+							<Input
+								value={step.optionSet}
+								onChange={(_, d) => setField({ optionSet: d.value })}
+							/>
 						</Field>
 						<Field label="State code">
-							<Input value={step.stateCode} onChange={(_, d) => setField({ stateCode: d.value })} />
+							<Input
+								value={step.stateCode}
+								onChange={(_, d) => setField({ stateCode: d.value })}
+							/>
 						</Field>
-						<Field label="Object type code">
+						<Field label="Table type code">
 							<Input
 								value={step.objectTypeCode}
 								onChange={(_, d) => setField({ objectTypeCode: d.value })}
@@ -709,51 +808,49 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 				return (
 					<div className={styles.row}>
 						<Checkbox
-							label="Tracked in CRM"
+							label="The item is tracked"
 							checked={step.trackedInCrm}
 							onChange={(_, d) => setField({ trackedInCrm: d.checked === true })}
 						/>
-						<Field label="Applies To">
-							<Select
-								value={step.appliesTo ?? "PrimaryEntity"}
-								onChange={(_, d) => setField({ appliesTo: d.value as "PrimaryEntity" })}
-							>
-								<option value="PrimaryEntity">PrimaryEntity</option>
-							</Select>
-						</Field>
+						<ChoiceSelect
+							label="Applies to"
+							value={step.appliesTo ?? "PrimaryEntity"}
+							choices={APPLIES_TO.slice(0, 1)}
+							onChange={(v) => setField({ appliesTo: v as "PrimaryEntity" })}
+						/>
 					</div>
 				);
 
 			case "OutlookRenderTypeRule":
 				return (
-					<Field label="Render type">
-						<Select
-							value={step.type}
-							onChange={(_, d) => setField({ type: d.value as "Web" | "Outlook" })}
-						>
-							<option value="Web">Web</option>
-							<option value="Outlook">Outlook</option>
-						</Select>
-					</Field>
+					<ChoiceSelect
+						label="Shown in"
+						value={step.type}
+						choices={[
+							["Web", "Web"],
+							["Outlook", "Outlook"],
+						]}
+						onChange={(v) => setField({ type: v as "Web" | "Outlook" })}
+					/>
 				);
 
 			case "OutlookVersionRule":
 				return (
-					<Field label="Outlook version">
-						<Select
-							value={step.version}
-							onChange={(_, d) => setField({ version: d.value as "2003" | "2007" | "2010" })}
-						>
-							<option value="2003">2003</option>
-							<option value="2007">2007</option>
-							<option value="2010">2010</option>
-						</Select>
-					</Field>
+					<ChoiceSelect
+						label="Outlook version"
+						value={step.version}
+						choices={[
+							["2003", "2003"],
+							["2007", "2007"],
+							["2010", "2010"],
+						]}
+						onChange={(v) => setField({ version: v as "2003" | "2007" | "2010" })}
+					/>
 				);
 
 			case "PageRule":
 				return (
-					<Field label="Address pattern">
+					<Field label="Page address contains">
 						<Input
 							value={step.address}
 							onChange={(_, d) => setField({ address: d.value })}
@@ -765,126 +862,124 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 			case "RecordPrivilegeRule":
 				return (
 					<div className={styles.row}>
-						<Field label="Privilege">
-							<Select
-								value={step.privilegeType}
-								onChange={(_, d) =>
-									setField({ privilegeType: d.value as typeof step.privilegeType })
-								}
-							>
-								{PRIVILEGE_TYPES.map((v) => (
-									<option key={v} value={v}>
-										{v}
-									</option>
-								))}
-							</Select>
-						</Field>
-						<Field label="Applies To">
-							<Select
-								value={step.appliesTo ?? ""}
-								onChange={(_, d) =>
-									setField({ appliesTo: (d.value || undefined) as "PrimaryEntity" | undefined })
-								}
-							>
-								<option value="">Default</option>
-								<option value="PrimaryEntity">PrimaryEntity</option>
-							</Select>
-						</Field>
+						<ChoiceSelect
+							label="Privilege"
+							value={step.privilegeType}
+							choices={PRIVILEGE_TYPES}
+							onChange={(v) =>
+								setField({ privilegeType: v as typeof step.privilegeType })
+							}
+						/>
+						<ChoiceSelect
+							label="Applies to"
+							value={step.appliesTo}
+							choices={APPLIES_TO.slice(0, 1)}
+							anyLabel="The selected record"
+							onChange={(v) =>
+								setField({ appliesTo: v as "PrimaryEntity" | undefined })
+							}
+						/>
 					</div>
 				);
 
 			case "RelationshipTypeRule":
 				return (
 					<div className={styles.row}>
-						<Field label="Applies To">
-							<Select value={step.appliesTo} disabled>
-								<option value="SelectedEntity">SelectedEntity</option>
-							</Select>
-						</Field>
-						<Field label="Relationship type">
-							<Select
-								value={step.relationshipType ?? ""}
-								onChange={(_, d) =>
-									setField({
-										relationshipType: (d.value || undefined) as
-											| "OneToMany"
-											| "ManyToMany"
-											| "NoRelationship"
-											| undefined,
-									})
-								}
-							>
-								<option value="">Any</option>
-								<option value="OneToMany">OneToMany</option>
-								<option value="ManyToMany">ManyToMany</option>
-								<option value="NoRelationship">NoRelationship</option>
-							</Select>
-						</Field>
-						<Checkbox
-							label="Allow custom relationship"
-							checked={step.allowCustomRelationship === true}
-							onChange={(_, d) => setField({ allowCustomRelationship: d.checked === true })}
+						<ChoiceSelect
+							label="Applies to"
+							value={step.appliesTo}
+							choices={APPLIES_TO.slice(1)}
+							disabled
+							onChange={() => {}}
+						/>
+						<ChoiceSelect
+							label="Relationship"
+							value={step.relationshipType}
+							choices={[
+								["OneToMany", "One-to-many"],
+								["ManyToMany", "Many-to-many"],
+								["NoRelationship", "No relationship"],
+							]}
+							anyLabel="Any"
+							onChange={(v) =>
+								setField({
+									relationshipType: v as
+										"OneToMany" | "ManyToMany" | "NoRelationship" | undefined,
+								})
+							}
 						/>
 						<Checkbox
-							label="Allow system relationship"
+							label="Custom relationships too"
+							checked={step.allowCustomRelationship === true}
+							onChange={(_, d) =>
+								setField({ allowCustomRelationship: d.checked === true })
+							}
+						/>
+						<Checkbox
+							label="System relationships too"
 							checked={step.allowSystemRelationship === true}
-							onChange={(_, d) => setField({ allowSystemRelationship: d.checked === true })}
+							onChange={(_, d) =>
+								setField({ allowSystemRelationship: d.checked === true })
+							}
 						/>
 					</div>
 				);
 
 			default:
-				return (
-					<Text size={200} italic style={{ color: tokens.colorNeutralForeground3 }}>
-						{step.kind} — no additional parameters
-					</Text>
-				);
+				return <Caption1 className={styles.muted}>Nothing to set for this step.</Caption1>;
 		}
 	};
 
 	return (
-		<div className={styles.step} role="listitem">
+		<div className={styles.step}>
 			<div className={styles.header}>
-				<Badge appearance="outline" size="small" className={styles.kindBadge}>
-					{RULE_KIND_LABELS[step.kind] ?? step.kind}
-				</Badge>
-				<Button
-					appearance="subtle"
-					icon={<DismissRegular />}
-					size="small"
-					onClick={onRemove}
-					aria-label={`Remove ${step.kind} step`}
-				/>
+				<div className={styles.title}>
+					{number !== undefined && <Text weight="semibold">{number}.</Text>}
+					<Badge appearance="outline" size="medium" className={styles.kindBadge}>
+						{kindLabel}
+					</Badge>
+				</div>
+				{menu}
+				<Tooltip content={`Remove ${kindLabel} step`} relationship="label">
+					<Button
+						appearance="subtle"
+						icon={<DismissRegular />}
+						size="small"
+						onClick={onRemove}
+					/>
+				</Tooltip>
 			</div>
 			<div className={styles.fields}>
 				{renderFields()}
-				<div className={styles.row}>
-					{hasStandardAttributes && (
-						<>
-							<Field label="Default" title="Value the rule returns when it cannot be evaluated.">
-								<Select
-									value={defaultVal === undefined ? "" : String(defaultVal)}
-									onChange={(_, d) =>
-										setField({ default: d.value === "" ? undefined : d.value === "true" })
-									}
-								>
-									<option value="">(not set)</option>
-									<option value="true">true</option>
-									<option value="false">false</option>
-								</Select>
-							</Field>
+				{hasStandardAttributes && (
+					<div className={styles.row}>
+						<ChoiceSelect
+							label="If it can't be evaluated"
+							info="What the step counts as when it can't be evaluated."
+							value={defaultVal === undefined ? undefined : String(defaultVal)}
+							choices={[
+								["true", "Passes"],
+								["false", "Fails"],
+							]}
+							anyLabel="Not set"
+							onChange={(v) =>
+								setField({ default: v === undefined ? undefined : v === "true" })
+							}
+						/>
+						<Field hint="The step passes when its condition is false.">
 							<Checkbox
 								label="Invert result"
 								checked={invertResult === true}
-								title="Reverse the evaluated result."
 								onChange={(_, d) =>
 									// Unchecked → no attribute (same meaning as false).
-									setField({ invertResult: d.checked === true ? true : undefined })
+									setField({
+										invertResult: d.checked === true ? true : undefined,
+									})
 								}
 							/>
-						</>
-					)}
-				</div>
+						</Field>
+					</div>
+				)}
 			</div>
 		</div>
 	);

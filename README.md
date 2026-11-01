@@ -37,9 +37,9 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Translations edit the labels a button publishes to; another solution's label, shared with every control that uses it, is read-only there
 - Command binding with action summary chips
 - Display rules + Enable rules pill lists with inline add/remove
-- Scaling summary with link to full editor
+- Scaling summary (read-only: the tab's groups and scaling steps)
 - Advanced: form ribbon scope selector, `Mscrm.OpenRecordItem` override toggle, client-type filter shortcuts (Unified Interface evaluates as `Modern`; one filter per command)
-- Conflict banner — surfaces managed-solution provenance via solution-layer API
+- Provenance notice — names the managed solution and publisher a button comes from
 
 ### ⚡ Command Editor
 - JavaScript function: library (with Browse… to Web Resource Browser), function name, positional CrmParameter editor
@@ -59,27 +59,28 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Plain-English `summarizeRule()` output
 - CustomRule async note (Promise\<boolean\> on Unified Interface)
 
-### 🔤 Localization Editor
-- Multi-LCID label / tooltip title / tooltip body per button
-- Locale chip row with active/inactive state
-- "Insert line break" (`&#x200b;&#x200b;`)
-- 20 built-in LCIDs; add any custom LCID by number
+### 🔤 Translations
+- A view of the editor drawer: changes apply as you type, and one Ctrl Z undoes the whole edit
+- Label / tooltip title / tooltip body per language; the base language is the button's own text
+- Languages by name (20 built in); add any other by its LCID
+- A line-break button in each label field (Dataverse's `&#x200b;&#x200b;`)
+- A built-in or another solution's button is read-only until you customise it
 
 ### 🖼️ Icon Picker
-- **Fluent icons** tab — 85 icon catalogue with category filter + regular/filled variant; auto-uploads selected icon as SVG web resource
-- **Web resources** tab — browseable list of SVG resources in the org with search
-- **Custom upload** tab — drag-and-drop SVG → create web resource
+- **Fluent icons** tab — 87 icons with search, a category filter and Regular / Filled; arrow keys move between them, Enter picks one. **Use** uploads it as an SVG web resource in your solution
+- **Web resources** tab — the environment's SVG web resources with search; the first 300 show, and the count says when to search for the rest
+- **Upload SVG** tab — drop an SVG or choose one; it's uploaded as a web resource in your solution
 
-### 🗂️ Scaling Editor
-- MaxSize + Scale step sequence management
-- Document-order-based scaling behavior per MS docs (order of `<Scale>` elements, not Sequence values)
-- Validation: non-overlapping MaxSize/Scale ranges
+### 🗂️ Scaling
+- Read-only for now: Properties shows a tab's groups and scaling steps. Scaling only shapes the classic ribbon; Unified Interface ignores it.
+- Editing returns once changes to scaling can be published ([#165](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/165)).
 
 ### 🗃️ Tab Display Rules Editor
 - One display rule per tab; the tab shows where any of its steps matches
 - `EntityRule` (all 4 contexts, or any) + `PageRule`
 - Info note: entity-scoped tabs can only use EntityRule; global tabs can use both
 - Read-only for a tab your customizations don't add
+- A view of the editor drawer: changes apply as you edit, and one Ctrl Z undoes the whole edit
 
 ### 🌐 Web Resource Browser
 - Virtualized list with type filter, custom-only toggle, search
@@ -91,11 +92,12 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Live URL preview; `&` → `&amp;` escaping handled automatically
 - WinMode: Navigate / Dialog / Popup
 
-### 📊 XML Drawer + Diff Viewer
-- Per-location RibbonDiffXml view in Monaco (read-only + editable import path)
+### 📊 XML and Compare
+- Views of the editor drawer: the XML of your changes opens on the location you're on, one location per tab, in Monaco (read-only; **Import this XML** hands it to the import dialog)
 - **Copy** and **Download** use Power Platform ToolBox's clipboard and Save dialog (the browser's outside it) and say whether the XML was copied, where it was saved, or why not
-- "Format XML" button
-- Monaco `DiffEditor` compare-to-baseline
+- **Format** button
+- **Compare with published**: Monaco `DiffEditor`, side by side or unified, with an empty state when nothing has changed
+- History's **View diff** shows what that one change did
 - CBS-specific completions: `$LocLabels:`, `$webresource:`, `Command=`, `ModernImage=`
 
 ### 🔄 Publish Pipeline
@@ -109,13 +111,12 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Labels are written in the organization's base language, read before every publish; if it can't be read, the publish stops. The system Default solution isn't offered as a target
 - `Mscrm.OpenRecordItem` override support — emitted as a system-command override when the user defines a JS action on it
 
-### 🧩 Solution Conflict Drawer
-- Provenance: which managed solution adds a control, read from the managed ribbon layers (`ribbondiffs`) in one query (falls back to the namespace heuristic when unavailable)
-- Banner in properties pane for managed-solution buttons
-- Live solution-layer fetch in the drawer
+### 🧩 Solution provenance
+- Which managed solution adds a control, read from the managed ribbon layers (`ribbondiffs`) in one query (falls back to the namespace heuristic when unavailable)
+- Notice in the properties pane for managed-solution buttons. Dataverse layers ribbon customizations per table, not per button, so there's no per-button layer list
 
 ### ⌨️ Keyboard Shortcuts + Command Palette
-- `Ctrl+K` — Command Palette (search buttons, commands, rules, entities, actions)
+- `Ctrl+K` — Command Palette: search buttons, commands, rules and tables, and run actions. Arrow keys and Enter; `/` for actions only, `@` for tables only. Choosing a button selects it on the canvas; only actions that can run now are listed
 - `Ctrl+Z/Y`, `Ctrl+Shift+Z` — Undo / Redo (80-entry stack)
 - `Ctrl+D` — Duplicate selected button
 - `Ctrl+S` — Open Bulk Publish
@@ -151,7 +152,7 @@ started (if the tool's connection changes in Power Platform ToolBox, the operati
 
 | Operation | When | What it does in Dataverse |
 |---|---|---|
-| **Publish** | **Publish All** in the top bar, or Ctrl+S | Builds a solution package for the selected unmanaged solution with the table's **complete** ribbon customization (what is in the solution's layer, plus your changes) and imports it **twice** (`ImportSolution` with `OverwriteUnmanagedCustomizations`), then publishes the table (`PublishXml`) and reads the layer back to verify it. It first publishes the table (`PublishXml`), so ribbon changes imported elsewhere but not yet published become part of the layer it reads, instead of being replaced; the publish at the end would publish them anyway. Just before each import it reads the layer again: if it changed since it was read (published from another session or tool), nothing is imported. The same for the application ribbon, when the solution contains the Application Ribbons component. **Also publish all customizations** adds `PublishAllXmlAsync`, which publishes everything unpublished in the environment (anyone's), so it asks for its own confirmation. The **Publish comment** is written to the Console log. |
+| **Publish** | **Publish n changes** in the top bar, or Ctrl+S | Builds a solution package for the selected unmanaged solution with the table's **complete** ribbon customization (what is in the solution's layer, plus your changes) and imports it **twice** (`ImportSolution` with `OverwriteUnmanagedCustomizations`), then publishes the table (`PublishXml`) and reads the layer back to verify it. It first publishes the table (`PublishXml`), so ribbon changes imported elsewhere but not yet published become part of the layer it reads, instead of being replaced; the publish at the end would publish them anyway. Just before each import it reads the layer again: if it changed since it was read (published from another session or tool), nothing is imported. The same for the application ribbon, when the solution contains the Application Ribbons component. **Also publish all customizations** adds `PublishAllXmlAsync`, which publishes everything unpublished in the environment (anyone's), so it asks for its own confirmation. The **Publish comment** is written to the Console log. |
 | **Upload a web resource** | Web resource browser → **Upload**; icon picker → **Upload SVG** | Creates a web resource named `<prefix>_/<folder>/<file name>` and adds it to the selected unmanaged solution (`AddSolutionComponent`). If one with that name exists you choose **Replace** (its content changes everywhere it is used), **Keep existing** or **Cancel**; a managed one can only be kept. It is published (`PublishXml`), so a replaced file is live at once. |
 | **Pick a Fluent icon** | Icon picker → Fluent icons | Creates the SVG web resource `<prefix>_/icons/cbs/<icon>.svg` (an existing one is reused, never overwritten), adds it to the solution and publishes it (`PublishXml`). |
 | **Pick an existing web resource as an icon** | Icon picker → Web resource | Adds the web resource to the selected unmanaged solution (`AddSolutionComponent`). |
@@ -160,29 +161,43 @@ started (if the tool's connection changes in Power Platform ToolBox, the operati
 Nothing else writes to Dataverse:
 - **Unsaved changes** are kept as a draft in the browser storage of Power Platform ToolBox on your machine (`localStorage`), per environment, solution and table. A note of the last publish is kept for the session (`sessionStorage`).
 - **Export** writes a RibbonDiffXml file where you choose; **Import RibbonDiffXml** only changes the workspace until you publish.
+- **Import RibbonDiffXml** (XML → Import XML…): paste the XML on the left; **Preview** lists each change (Add / Update / Hide) and every problem on the right. Click a problem with a line to go to it. **Import n changes** is one change, which Undo takes back.
 
 ## 🖼️ Interface Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ TopBar: Solution picker │ Ctrl+K │ Undo/Redo │ Help │ Publish   │
-│ SubHeader: Breadcrumb   │ N changes since publish │ Preview …   │
+│ TopBar: Environment │ Solution │ Table │ Search (Ctrl+K)        │
+│   Undo/Redo │ XML ▾ │ Open in D365 │ View ▾ │ Help │ Publish n  │
+│   (tools move into a ⋯ menu when the window is narrow)          │
+├─────────────────────────────────────────────────────────────────┤
+│ Messages that need action (one at a time, + n more)             │
 ├──────────────────┬──────────────────────────────┬───────────────┤
 │ Left Pane        │ Ribbon Canvas                │ Properties    │
-│ • Tables         │ Location: Home/Sub/Form/App  │ • Identity    │
-│   (solution      │ Tab strip (drag-reorder)     │ • Command     │
-│   scope only)    │ View: Classic / Modern / List│ • Rules       │
-│ • Solution       │ Groups + Buttons (DnD)       │ • Scaling     │
-│   Elements       │                              │ • Advanced    │
-│   – Buttons      │                              │               │
-│   – Commands     │                              │               │
-│   – Rules        │                              │               │
-│   – Templates    │                              │               │
+│ [Structure|      │ Location: Home/Sub/Form/App  │ • Identity    │
+│  Solution]       │ View: Group cards / Classic /│ • Command     │
+│                  │   Modern / List              │               │
+│ • Structure:     │ How users see it (preview)   │ • Rules       │
+│                  │ Groups + Buttons (DnD)       │               │
+│   tab › group ›  │                              │ • Scaling     │
+│   control tree   │                              │ • Advanced    │
+│ • Solution: one  │                              │               │
+│   tree: Buttons, │                              │               │
+│   Commands,      │                              │               │
+│   Rules, Templ.  │                              │               │
 ├──────────────────┴──────────────────────────────┴───────────────┤
 │ Bottom Panel: Commands │ Display Rules │ Enable Rules │ History  │
 │              │ Console (runtime + publish log)                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+The **Structure** tree is where you choose the location's tab, group or button, and each node's
+menu (right-click, Shift+F10 or the Menu key) has its actions: a tab's Rename…, Tab display
+rules…, Add group…, Move up / down and Delete tab…, and the same group and button menus as the
+canvas.
+
+Below 1200 px wide, the left pane becomes a rail with a Structure and a Solution button, each opening it as a drawer on that tab, and
+Properties opens as a drawer when you select something, so the canvas keeps the width.
 
 ---
 
@@ -194,7 +209,7 @@ Command Bar Studio runs **inside [Power Platform ToolBox](https://www.powerplatf
 2. Connect to a Dataverse environment
 3. Open Command Bar Studio from the tool list
 4. Pick an unmanaged solution from the TopBar
-5. Select a table from the left pane
+5. Pick a table from the TopBar (only the solution's tables are listed)
 6. Edit ribbon buttons visually; click **Publish** when done
 
 Icons you pick or upload, and scripts you save, are created as web resources and
@@ -237,13 +252,15 @@ npm test
 # Lint (zero warnings allowed)
 npm run lint
 
-# Check / apply Prettier formatting
+# Check / apply Prettier formatting (CI fails when format:check does)
 npm run format:check
 npm run format
 
 # Validate the PPTB tool manifest
 npm run validate
 ```
+
+The one-off Prettier pass (#118) is listed in `.git-blame-ignore-revs`, which GitHub's blame view skips. To skip it in local `git blame` too, run `git config blame.ignoreRevsFile .git-blame-ignore-revs` once.
 
 ### Standalone vs PPTB-embedded
 
@@ -283,18 +300,25 @@ CBS runs in two modes:
 ```
 src/
   components/
-    shell/               — TopBar, SubHeader, Layout (resizable 4-pane)
-    ribbon-canvas/       — RibbonCanvas, ClassicRibbon, ModernCommandBar, RibbonListView
-    properties-pane/     — PropertiesPane + 6 section components
-    bottom-panel/        — BottomPanel (Commands / Rules / History / Console tabs)
-    panels/              — CommandEditor, RuleEditor, ScalingEditor, TabDisplayRules,
-                           ConflictDrawer, WebResourceBrowser, UrlComposer,
-                           DiffViewer, XmlDrawer
-    modals/              — BulkPublish, IconPicker, LocalizationEditor, NewButton/Group/Tab,
-                           HideOobWarning, ImportXml, MoveToFlyout
+    shell/               — TopBar, TablePicker, ShellMessages, Layout (resizable panes;
+                           rail + drawers below 1200 px)
+    left-pane/           — LeftPane (Structure | Solution): StructurePane (tab › group ›
+                           control tree), SolutionElementsPane (your solution's elements)
+    ribbon-canvas/       — RibbonCanvas, CanvasHeader, UsersBar ("How users see it"),
+                           GroupCards, RibbonListView, ClassicRibbon, ModernCommandBar
+    properties-pane/     — PropertiesPane (header + collapsible sections) and its sections
+    bottom-panel/        — BottomPanel (Commands / Rules / History / Console tabs),
+                           ElementGrids (the virtualized Commands and Rules grids)
+    panels/              — EditorDrawer (command, rule, script, tab display rule, XML,
+                           compare and translations views): CommandEditor, RuleEditor,
+                           TabDisplayRules, XmlView, CompareView, TranslationsView;
+                           WebResourceBrowser
+    modals/              — BulkPublish, IconPicker, NewButton/Group/Tab, RenameGroup,
+                           ChangeGroupTemplate, HideOobWarning, ImportXml, ConfirmDialog
     command-palette/     — CommandPalette (Ctrl+K)
     shared/              — MonacoEditor, FluentIcon, CrmParameterEditor,
-                           RuleStepEditor, RuleStepPicker, ResizableHandle
+                           RuleStepEditor, RuleStepPicker, ResizableHandle,
+                           ButtonContextMenu (the one button menu, #182)
   services/
     xmlGenerator.ts      — RibbonDiffXml generator (all 30 rule kinds)
     xmlParser.ts         — Merged ribbon XML parser (all 30 rule kinds)
@@ -305,7 +329,6 @@ src/
       ribbonService.ts         — RetrieveEntityRibbon / RetrieveApplicationRibbon
       publishService.ts        — Layer merge, solution ZIP packaging, import, publish and verification
       ribbonProvenanceService.ts — managed-solution provenance from the managed ribbondiffs
-      conflictService.ts       — fetchConflictLayersForElement
       webResourceService.ts    — loadWebResources / loadWebResourceByName / loadWebResourceContent
   store/
     ribbonStore.ts       — Ribbon state, 80-entry undo/redo, mutationsSincePublish

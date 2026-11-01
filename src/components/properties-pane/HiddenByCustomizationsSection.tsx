@@ -1,4 +1,4 @@
-import { Button, Caption1, makeStyles, Subtitle2, Text, tokens, Tooltip } from "@fluentui/react-components";
+import { Button, Caption1, makeStyles, Text, tokens, Tooltip } from "@fluentui/react-components";
 import { EyeOffRegular } from "@fluentui/react-icons";
 import { useRibbonStore, type LayerScope } from "@/store/ribbonStore";
 
@@ -52,10 +52,13 @@ export function HiddenByCustomizationsSection() {
 
 	return (
 		<section className={styles.root} aria-label="Hidden by customizations">
-			<Subtitle2>Hidden by customizations</Subtitle2>
+			<Text as="h3" size={300} weight="semibold">
+				Hidden by customizations
+			</Text>
 			<Caption1>
-				Hidden by a HideCustomAction in your unmanaged customizations, so they aren&apos;t on the canvas. Un-hiding
-				takes effect when you publish; reload afterwards to see them.
+				Hidden by a HideCustomAction in your unmanaged customizations, so they aren&apos;t
+				on the canvas. Un-hiding takes effect when you publish; reload afterwards to see
+				them.
 			</Caption1>
 			{rows.map((r) => {
 				const pending = pendingUnhides[r.scope].includes(r.location);
@@ -66,7 +69,9 @@ export function HiddenByCustomizationsSection() {
 							content={`${r.location} (${r.scope === "entity" ? "this table" : "application ribbon"})`}
 							relationship="description"
 						>
-							<Text className={`${styles.id} ${pending ? styles.pending : ""}`}>{r.location}</Text>
+							<Text className={`${styles.id} ${pending ? styles.pending : ""}`}>
+								{r.location}
+							</Text>
 						</Tooltip>
 						<Button
 							size="small"

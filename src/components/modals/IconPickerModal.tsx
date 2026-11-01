@@ -1,34 +1,37 @@
 import { useReplaceWebResourceConfirm } from "@/hooks/useReplaceWebResourceConfirm";
 import { webResourceRef } from "@/services/xmlGenerator";
 import { writeGuard } from "@/services/hostConnection";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import {
 	makeStyles,
+	mergeClasses,
 	tokens,
-	Dialog,
-	DialogSurface,
-	DialogBody,
-	DialogTitle,
-	DialogContent,
-	DialogActions,
 	Button,
+	Caption1,
+	Dropdown,
+	Field,
 	Input,
+	MessageBar,
+	MessageBarBody,
+	Option,
+	SearchBox,
+	Spinner,
 	Tab,
 	TabList,
 	Text,
-	Badge,
-	Subtitle2,
-	Switch,
-	Combobox,
-	Option,
+	ToggleButton,
+	Tooltip,
+	useArrowNavigationGroup,
 } from "@fluentui/react-components";
-import { DismissRegular, SearchRegular, CloudArrowUpRegular } from "@fluentui/react-icons";
+import { CloudArrowUpRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import FluentIcon, { fluentIconToSvg } from "@/components/shared/FluentIcon";
+import { WordBreaks } from "@/components/shared/WordBreaks";
+import { AppDialog } from "@/components/shared/AppDialog";
 import { EnvironmentBadge } from "@/components/shell/EnvironmentBadge";
 import {
 	addExistingWebResourceToActiveSolution,
@@ -193,26 +196,14 @@ const ALL_CATEGORIES = [
 ];
 
 const useStyles = makeStyles({
-	surface: {
-		width: "720px",
-		maxWidth: "95vw",
-		height: "min(580px, 90vh)",
-		maxHeight: "90vh",
-		overflow: "hidden",
-	},
-	dialogBody: {
+	// The dialog's content is one column the active tab fills (#187).
+	content: {
 		display: "flex",
 		flexDirection: "column",
-		height: "100%",
-		minHeight: 0,
-	},
-	body: {
-		display: "flex",
-		flexDirection: "column",
-		flex: 1,
-		minHeight: 0,
-		overflow: "hidden",
-		gap: tokens.spacingHorizontalS,
+		gap: tokens.spacingVerticalS,
+		height: "min(560px, calc(100vh - 240px))",
+		minHeight: "320px",
+		overflowY: "hidden",
 	},
 	toolbar: {
 		display: "flex",
@@ -221,79 +212,101 @@ const useStyles = makeStyles({
 		flexWrap: "wrap",
 		flexShrink: 0,
 	},
-	categoryPicker: {
-		minWidth: "180px",
-		maxWidth: "220px",
-	},
+	search: { flex: "1 1 220px", minWidth: 0 },
+	category: { minWidth: "160px" },
+	variant: { display: "flex", gap: tokens.spacingHorizontalXS },
 	iconGrid: {
 		display: "grid",
-		gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))",
+		gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))",
 		gap: tokens.spacingHorizontalXS,
 		overflowY: "auto",
 		flex: 1,
 		minHeight: 0,
-		padding: tokens.spacingHorizontalXS,
+		padding: tokens.spacingHorizontalXXS,
 	},
 	iconTile: {
 		display: "flex",
 		flexDirection: "column",
 		alignItems: "center",
 		justifyContent: "center",
-		gap: "4px",
-		padding: tokens.spacingHorizontalXS,
-		borderRadius: tokens.borderRadiusMedium,
-		border: "1px solid transparent",
-		cursor: "pointer",
-		minHeight: "64px",
-		":hover": {
-			backgroundColor: tokens.colorNeutralBackground3,
-			border: `1px solid ${tokens.colorNeutralStroke1}`,
-		},
+		gap: tokens.spacingVerticalXS,
+		minHeight: "72px",
+		height: "auto",
+		padding: tokens.spacingVerticalS,
+		fontWeight: tokens.fontWeightRegular,
 	},
 	iconTileSelected: {
 		backgroundColor: tokens.colorBrandBackground2,
 		border: `1px solid ${tokens.colorBrandStroke1}`,
 	},
 	iconLabel: {
-		fontSize: tokens.fontSizeBase100,
+		fontSize: tokens.fontSizeBase200,
 		textAlign: "center",
-		lineHeight: 1.2,
-		wordBreak: "break-word",
-		color: tokens.colorNeutralForeground2,
+		lineHeight: tokens.lineHeightBase200,
+		overflowWrap: "anywhere",
 	},
-	webResourceList: {
-		flex: 1,
-		overflowY: "auto",
-	},
-	webResourceRow: {
+	muted: { color: tokens.colorNeutralForeground3 },
+	selection: {
 		display: "flex",
 		alignItems: "center",
 		gap: tokens.spacingHorizontalS,
-		padding: `${tokens.spacingHorizontalXS} ${tokens.spacingHorizontalS}`,
-		cursor: "pointer",
+		padding: `${tokens.spacingVerticalXS} ${tokens.spacingHorizontalS}`,
+		backgroundColor: tokens.colorNeutralBackground3,
 		borderRadius: tokens.borderRadiusMedium,
-		":hover": { backgroundColor: tokens.colorNeutralBackground3 },
+		flexShrink: 0,
+		minWidth: 0,
 	},
-	uploadArea: {
+	selectionText: { minWidth: 0, display: "flex", flexDirection: "column" },
+	resourceList: {
+		listStyleType: "none",
+		margin: 0,
+		padding: tokens.spacingHorizontalXXS,
+		flex: 1,
+		minHeight: 0,
+		overflowY: "auto",
+		display: "flex",
+		flexDirection: "column",
+		gap: tokens.spacingVerticalXXS,
+	},
+	resourceRow: {
+		width: "100%",
+		justifyContent: "flex-start",
+		fontFamily: tokens.fontFamilyMonospace,
+		fontWeight: tokens.fontWeightRegular,
+		fontSize: tokens.fontSizeBase200,
+		textAlign: "start",
+		overflowWrap: "anywhere",
+	},
+	dropZone: {
 		flex: 1,
 		display: "flex",
 		flexDirection: "column",
 		alignItems: "center",
 		justifyContent: "center",
-		gap: tokens.spacingHorizontalM,
+		gap: tokens.spacingVerticalM,
+		padding: tokens.spacingVerticalL,
+		textAlign: "center",
 		border: `2px dashed ${tokens.colorNeutralStroke2}`,
 		borderRadius: tokens.borderRadiusMedium,
 		color: tokens.colorNeutralForeground3,
+	},
+	dropZoneActive: {
+		border: `2px dashed ${tokens.colorBrandStroke1}`,
+		backgroundColor: tokens.colorBrandBackground2,
 	},
 });
 
 type IconPickerTab = "fluent" | "webresource" | "upload";
 
-interface IconPickerModalProps {
-	onSelect?: (icon: string, image16: string, image32: string) => void;
-}
+/** Web resource rows shown at once; the count says when search should narrow it (#187). */
+const VISIBLE_WEB_RESOURCES = 300;
 
-export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
+/**
+ * Choose an icon for the selected button (#187): a Fluent icon (uploaded as an
+ * SVG web resource), an SVG web resource, or an uploaded SVG. Using an icon
+ * writes to Dataverse, so it's an explicit choice, not applied as you click.
+ */
+export const IconPickerModal: React.FC = () => {
 	const styles = useStyles();
 	// An SVG upload never replaces an existing web resource without asking (#121).
 	const replaceConfirm = useReplaceWebResourceConfirm();
@@ -320,6 +333,11 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 	const [loadingWebResources, setLoadingWebResources] = useState(false);
 	const [iconSearch, setIconSearch] = useState("");
 	const [uploading, setUploading] = useState(false);
+	const [dragging, setDragging] = useState(false);
+	const fileInput = useRef<HTMLInputElement>(null);
+	// Arrow keys move between the icons and the rows (#187): Tab enters and leaves once.
+	const gridNavigation = useArrowNavigationGroup({ axis: "grid-linear" });
+	const listNavigation = useArrowNavigationGroup({ axis: "vertical" });
 
 	React.useEffect(() => {
 		if (!open) {
@@ -364,15 +382,23 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 		// active solution (reused if it already exists), and the button points
 		// at that. `icon` keeps the Fluent name for the CBS canvas preview only.
 		if (!activeSolution || activeSolution.isManaged) {
-			setIconError("Select an unmanaged solution first — the icon is added to it as an SVG web resource.");
+			setIconError(
+				"Select an unmanaged solution first — the icon is added to it as an SVG web resource.",
+			);
 			return;
 		}
 		setUploading(true);
 		try {
-			const wr = await ensureFluentIconWebResource(selectedIcon, variant, publisherPrefix, fluentIconToSvg, {
-				busy: { onProgress: (msg) => logs.logInfo("webresource", msg) },
-				guard,
-			});
+			const wr = await ensureFluentIconWebResource(
+				selectedIcon,
+				variant,
+				publisherPrefix,
+				fluentIconToSvg,
+				{
+					busy: { onProgress: (msg) => logs.logInfo("webresource", msg) },
+					guard,
+				},
+			);
 			if (wr.publishError) {
 				logs.logWarn(
 					"webresource",
@@ -393,7 +419,10 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 			// Leave the button unchanged: a Fluent name alone would never be
 			// published (the classic ribbon can't resolve it).
 			const message = err instanceof Error ? err.message : String(err);
-			logs.logError("webresource", `Fluent icon "${selectedIcon}" could not be added as a web resource: ${message}`);
+			logs.logError(
+				"webresource",
+				`Fluent icon "${selectedIcon}" could not be added as a web resource: ${message}`,
+			);
 			setIconError(`Could not add the icon as a web resource: ${message}`);
 		} finally {
 			setUploading(false);
@@ -411,7 +440,9 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 		setIconNote(null);
 		// An existing web resource must also be in the active solution, or a
 		// solution export misses the icon the ribbon references (#61).
-		const name = path.startsWith("$webresource:") ? path.slice("$webresource:".length).trim() : null;
+		const name = path.startsWith("$webresource:")
+			? path.slice("$webresource:".length).trim()
+			: null;
 		let note: string | null = null;
 		if (name) {
 			setUploading(true);
@@ -419,7 +450,10 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 				const known = webResources.find((wr) => wr.name === name);
 				const added = await addExistingWebResourceToActiveSolution(name, known, guard);
 				if (added.solutionUniqueName) {
-					logs.logInfo("webresource", `Added web resource ${name} to solution ${added.solutionUniqueName}.`);
+					logs.logInfo(
+						"webresource",
+						`Added web resource ${name} to solution ${added.solutionUniqueName}.`,
+					);
 				}
 				note = added.solutionWarning ?? null;
 			} catch (err) {
@@ -453,7 +487,9 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 		// Same rule as the Fluent tab: the SVG must land in an unmanaged solution,
 		// or a ribbon referencing it fails to import elsewhere (#19).
 		if (!activeSolution || activeSolution.isManaged) {
-			setIconError("Select an unmanaged solution first — the SVG is added to it as a web resource.");
+			setIconError(
+				"Select an unmanaged solution first — the SVG is added to it as a web resource.",
+			);
 			return;
 		}
 		setIconError(null);
@@ -475,7 +511,9 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 				onExisting: replaceConfirm.onExisting,
 			});
 			// Shown here too, not only in the Console (#156 review).
-			setIconNote([saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null);
+			setIconNote(
+				[saved.solutionWarning, saved.publishWarning].filter(Boolean).join(" ") || null,
+			);
 			setWebResourcePath(`$webresource:${name}`);
 			setActiveTab("webresource");
 			const rows = await loadWebResources("svg");
@@ -490,215 +528,32 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 		}
 	};
 
+	const uploadFile = (file: File | undefined) => {
+		if (!file) return;
+		if (!/\.svg$/i.test(file.name)) {
+			setIconError(`${file.name} isn't an SVG file.`);
+			return;
+		}
+		void handleUploadSvg(file);
+	};
+
+	const selectedWebResource = webResourcePath.startsWith("$webresource:")
+		? webResourcePath.slice("$webresource:".length)
+		: webResourcePath;
+
 	return (
 		<>
-		{replaceConfirm.dialog}
-		<Dialog open={open} onOpenChange={(_, d) => !d.open && closeIconPicker()}>
-			<DialogSurface className={styles.surface}>
-				<DialogBody className={styles.dialogBody}>
-					<DialogTitle
-						action={
-							<Button
-								appearance="subtle"
-								icon={<DismissRegular />}
-								onClick={closeIconPicker}
-								aria-label="Close"
-							/>
-						}
-					>
-						<Subtitle2>Choose Icon</Subtitle2>
-					</DialogTitle>
-
-					<DialogContent className={styles.body}>
-						<TabList
-							selectedValue={activeTab}
-							onTabSelect={(_, d) => setActiveTab(d.value as IconPickerTab)}
-							size="small"
-						>
-							<Tab value="fluent">Fluent icons</Tab>
-							<Tab value="webresource">Web resources</Tab>
-							<Tab value="upload">Upload SVG</Tab>
-						</TabList>
-
-						{activeTab === "fluent" && (
-							<>
-								<div className={styles.toolbar}>
-									<Input
-										contentBefore={<SearchRegular />}
-										placeholder="Search icons…"
-										value={search}
-										onChange={(_, d) => setSearch(d.value)}
-										size="small"
-										style={{ flex: 1 }}
-									/>
-									<Combobox
-										className={styles.categoryPicker}
-										placeholder="Category"
-										value={category}
-										onOptionSelect={(_, data) => setCategory(String(data.optionValue ?? "All"))}
-									>
-										{ALL_CATEGORIES.map((cat) => (
-											<Option key={cat} value={cat} text={cat}>
-												{cat}
-											</Option>
-										))}
-									</Combobox>
-									<Switch
-										label={variant === "regular" ? "Regular" : "Filled"}
-										checked={variant === "filled"}
-										onChange={(_, d) => setVariant(d.checked ? "filled" : "regular")}
-									/>
-								</div>
-								<div className={styles.iconGrid}>
-									{filteredIcons.map((icon) => {
-										return (
-											<div
-												key={icon.name}
-												className={`${styles.iconTile} ${selectedIcon === icon.name ? styles.iconTileSelected : ""}`}
-												onClick={() => setSelectedIcon(icon.name)}
-												role="option"
-												aria-selected={selectedIcon === icon.name}
-												title={`${icon.name} — ${icon.category}`}
-											>
-												<FluentIcon name={toSnakeCase(icon.name)} size={24} variant={variant} />
-												<span className={styles.iconLabel}>{icon.name}</span>
-											</div>
-										);
-									})}
-								</div>
-								{selectedIcon && (
-									<div
-										style={{
-											display: "flex",
-											alignItems: "center",
-											gap: tokens.spacingHorizontalS,
-											padding: tokens.spacingHorizontalXS,
-											backgroundColor: tokens.colorNeutralBackground3,
-											borderRadius: tokens.borderRadiusMedium,
-											flexShrink: 0,
-										}}
-									>
-										<Text size={200} style={{ fontFamily: tokens.fontFamilyMonospace }}>
-											ModernImage=&quot;$webresource:
-											{fluentIconWebResourceName(publisherPrefix || "new", selectedIcon, variant)}&quot;
-										</Text>
-										<Badge appearance="tint" color="success">
-											Selected
-										</Badge>
-									</div>
-								)}
-							</>
-						)}
-
-						{activeTab === "webresource" && (
-							<div
-								style={{
-									display: "flex",
-									flexDirection: "column",
-									gap: tokens.spacingHorizontalS,
-									flex: 1,
-								}}
-							>
-								<Input
-									contentBefore={<SearchRegular />}
-									placeholder="Search SVG web resources..."
-									value={iconSearch}
-									onChange={(_, d) => setIconSearch(d.value)}
-									size="small"
-								/>
-								<div className={styles.webResourceList}>
-									{loadingWebResources && (
-										<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-											Loading web resources...
-										</Text>
-									)}
-									{!loadingWebResources &&
-										visibleWebResources.slice(0, 200).map((wr) => {
-											const path = `$webresource:${wr.name}`;
-											const selected = webResourcePath === path;
-											return (
-												<div
-													key={wr.id}
-													className={styles.webResourceRow}
-													onClick={() => setWebResourcePath(path)}
-													style={{
-														backgroundColor: selected ? tokens.colorBrandBackground2 : undefined,
-													}}
-												>
-													<Text size={200} style={{ fontFamily: tokens.fontFamilyMonospace }}>
-														{path}
-													</Text>
-												</div>
-											);
-										})}
-								</div>
-								<Input
-									placeholder="$webresource:publisher_/icons/…"
-									value={webResourcePath}
-									onChange={(_, d) => setWebResourcePath(d.value)}
-								/>
-								<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-									Both image16 and image32 will be set to this path. Use SVG for best results across
-									all DPI levels.
-								</Text>
-							</div>
-						)}
-
-						{activeTab === "upload" && (
-							<div className={styles.uploadArea}>
-								<CloudArrowUpRegular fontSize={48} style={{ opacity: 0.4 }} />
-								<Text>Drag an SVG file here, or click to browse</Text>
-								<Text size={200} style={{ color: tokens.colorNeutralForeground3 }}>
-									The file will be uploaded as a web resource in the active solution.
-								</Text>
-								<input
-									type="file"
-									accept=".svg"
-									style={{ display: "none" }}
-									id="icon-upload-input"
-									disabled={uploading}
-									onChange={(e) => {
-										const file = e.target.files?.[0];
-										// The same file can be picked again (e.g. after Cancel).
-										e.target.value = "";
-										if (!file) return;
-										void handleUploadSvg(file);
-									}}
-								/>
-								<label
-									htmlFor="icon-upload-input"
-									style={{
-										display: "inline-block",
-										cursor: "pointer",
-										padding: "6px 12px",
-										background: tokens.colorBrandBackground,
-										color: tokens.colorNeutralForegroundOnBrand,
-										borderRadius: tokens.borderRadiusMedium,
-										fontSize: tokens.fontSizeBase300,
-									}}
-								>
-									{uploading ? "Uploading..." : "Browse for SVG"}
-								</label>
-							</div>
-						)}
-						{iconError && (
-							<Text role="alert" size={200} style={{ color: tokens.colorPaletteRedForeground1, flexShrink: 0 }}>
-								{iconError}
-							</Text>
-						)}
-						{iconNote && (
-							<Text role="status" size={200} style={{ color: tokens.colorPaletteMarigoldForeground1, flexShrink: 0 }}>
-								Icon applied. {iconNote}
-							</Text>
-						)}
-					</DialogContent>
-
-					<DialogActions>
-						<EnvironmentBadge prefix="Saves to" />
-						<div style={{ flex: 1 }} />
-						<Button appearance="secondary" onClick={closeIconPicker}>
-							Cancel
-						</Button>
+			{replaceConfirm.dialog}
+			<AppDialog
+				open={open}
+				onOpenChange={(o) => !o && closeIconPicker()}
+				title="Choose an icon"
+				size="large"
+				contentClassName={styles.content}
+				startActions={<EnvironmentBadge prefix="Saves to" />}
+				actions={
+					<>
+						<Button onClick={closeIconPicker}>Cancel</Button>
 						{activeTab === "fluent" && (
 							<Button
 								appearance="primary"
@@ -717,10 +572,245 @@ export const IconPickerModal: React.FC<IconPickerModalProps> = () => {
 								{uploading ? "Adding icon…" : "Use web resource"}
 							</Button>
 						)}
-					</DialogActions>
-				</DialogBody>
-			</DialogSurface>
-		</Dialog>
+					</>
+				}
+			>
+				<TabList
+					selectedValue={activeTab}
+					onTabSelect={(_, d) => setActiveTab(d.value as IconPickerTab)}
+				>
+					<Tab value="fluent">Fluent icons</Tab>
+					<Tab value="webresource">Web resources</Tab>
+					<Tab value="upload">Upload SVG</Tab>
+				</TabList>
+
+				{iconError && (
+					<MessageBar intent="error">
+						<MessageBarBody>{iconError}</MessageBarBody>
+					</MessageBar>
+				)}
+				{iconNote && (
+					<MessageBar intent="warning">
+						<MessageBarBody>Icon applied. {iconNote}</MessageBarBody>
+					</MessageBar>
+				)}
+
+				{activeTab === "fluent" && (
+					<>
+						<div className={styles.toolbar}>
+							<SearchBox
+								className={styles.search}
+								placeholder="Search icons"
+								aria-label="Search icons"
+								value={search}
+								onChange={(_, d) => setSearch(d.value)}
+							/>
+							<Dropdown
+								className={styles.category}
+								aria-label="Category"
+								value={category === "All" ? "All categories" : category}
+								selectedOptions={[category]}
+								onOptionSelect={(_, d) =>
+									setCategory(String(d.optionValue ?? "All"))
+								}
+							>
+								{ALL_CATEGORIES.map((cat) => (
+									<Option
+										key={cat}
+										value={cat}
+										text={cat === "All" ? "All categories" : cat}
+									>
+										{cat === "All" ? "All categories" : cat}
+									</Option>
+								))}
+							</Dropdown>
+							{/* Two toggles, so the labels don't change with the state (#187). */}
+							<div className={styles.variant} role="group" aria-label="Icon style">
+								<ToggleButton
+									checked={variant === "regular"}
+									onClick={() => setVariant("regular")}
+								>
+									Regular
+								</ToggleButton>
+								<ToggleButton
+									checked={variant === "filled"}
+									onClick={() => setVariant("filled")}
+								>
+									Filled
+								</ToggleButton>
+							</div>
+						</div>
+						<div
+							className={styles.iconGrid}
+							role="group"
+							aria-label={`${filteredIcons.length} icons`}
+							{...gridNavigation}
+						>
+							{filteredIcons.map((icon) => {
+								const selected = selectedIcon === icon.name;
+								return (
+									<Tooltip
+										key={icon.name}
+										content={`${icon.name} · ${icon.category}`}
+										relationship="description"
+									>
+										<Button
+											appearance="subtle"
+											aria-pressed={selected}
+											className={mergeClasses(
+												styles.iconTile,
+												selected && styles.iconTileSelected,
+											)}
+											onClick={() => setSelectedIcon(icon.name)}
+										>
+											<FluentIcon
+												name={toSnakeCase(icon.name)}
+												size={24}
+												variant={variant}
+											/>
+											<span className={styles.iconLabel}>
+												<WordBreaks text={icon.name} />
+											</span>
+										</Button>
+									</Tooltip>
+								);
+							})}
+							{filteredIcons.length === 0 && (
+								<Text className={styles.muted}>No icon matches.</Text>
+							)}
+						</div>
+						{selectedIcon && (
+							<div className={styles.selection} role="status">
+								<FluentIcon
+									name={toSnakeCase(selectedIcon)}
+									size={24}
+									variant={variant}
+								/>
+								<span className={styles.selectionText}>
+									<Text weight="semibold">
+										{selectedIcon} ·{" "}
+										{variant === "regular" ? "Regular" : "Filled"}
+									</Text>
+									<Caption1 className={styles.muted}>
+										Added to your solution as{" "}
+										{fluentIconWebResourceName(
+											publisherPrefix || "new",
+											selectedIcon,
+											variant,
+										)}
+									</Caption1>
+								</span>
+							</div>
+						)}
+					</>
+				)}
+
+				{activeTab === "webresource" && (
+					<>
+						<SearchBox
+							placeholder="Search SVG web resources"
+							aria-label="Search SVG web resources"
+							value={iconSearch}
+							onChange={(_, d) => setIconSearch(d.value)}
+						/>
+						{loadingWebResources ? (
+							<Spinner size="small" label="Loading web resources…" />
+						) : (
+							<>
+								<Caption1 className={styles.muted} role="status">
+									{visibleWebResources.length > VISIBLE_WEB_RESOURCES
+										? `Showing ${VISIBLE_WEB_RESOURCES} of ${visibleWebResources.length.toLocaleString()} SVG web resources. Search to find others.`
+										: visibleWebResources.length === webResources.length
+											? `${webResources.length.toLocaleString()} SVG web resources`
+											: `${visibleWebResources.length} of ${webResources.length.toLocaleString()} SVG web resources`}
+								</Caption1>
+								<ul
+									className={styles.resourceList}
+									aria-label="SVG web resources"
+									{...listNavigation}
+								>
+									{visibleWebResources
+										.slice(0, VISIBLE_WEB_RESOURCES)
+										.map((wr) => {
+											const path = `$webresource:${wr.name}`;
+											const selected = webResourcePath === path;
+											return (
+												<li key={wr.id}>
+													<Button
+														appearance="subtle"
+														aria-pressed={selected}
+														className={mergeClasses(
+															styles.resourceRow,
+															selected && styles.iconTileSelected,
+														)}
+														onClick={() => setWebResourcePath(path)}
+													>
+														{wr.name}
+													</Button>
+												</li>
+											);
+										})}
+								</ul>
+							</>
+						)}
+						<Field
+							label="Web resource"
+							hint="Image16 and Image32 are both set to it. SVG works at every size."
+						>
+							<Input
+								placeholder="publisher_/icons/icon.svg"
+								value={selectedWebResource}
+								onChange={(_, d) =>
+									setWebResourcePath(d.value ? webResourceRef(d.value) : "")
+								}
+							/>
+						</Field>
+					</>
+				)}
+
+				{activeTab === "upload" && (
+					<div
+						className={mergeClasses(styles.dropZone, dragging && styles.dropZoneActive)}
+						onDragOver={(e) => {
+							e.preventDefault();
+							setDragging(true);
+						}}
+						onDragLeave={() => setDragging(false)}
+						onDrop={(e) => {
+							e.preventDefault();
+							setDragging(false);
+							uploadFile(e.dataTransfer.files?.[0]);
+						}}
+					>
+						<CloudArrowUpRegular fontSize={48} />
+						<Text>Drop an SVG file here</Text>
+						<Caption1>
+							It&apos;s uploaded as a web resource in your solution, then listed under
+							Web resources to use.
+						</Caption1>
+						<input
+							ref={fileInput}
+							type="file"
+							accept=".svg"
+							hidden
+							disabled={uploading}
+							onChange={(e) => {
+								const file = e.target.files?.[0];
+								// The same file can be picked again (e.g. after Cancel).
+								e.target.value = "";
+								uploadFile(file);
+							}}
+						/>
+						<Button
+							appearance="primary"
+							disabled={uploading}
+							onClick={() => fileInput.current?.click()}
+						>
+							{uploading ? "Uploading…" : "Choose SVG…"}
+						</Button>
+					</div>
+				)}
+			</AppDialog>
 		</>
 	);
 };

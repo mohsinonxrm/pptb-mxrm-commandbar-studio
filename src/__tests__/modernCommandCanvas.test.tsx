@@ -424,6 +424,18 @@ describe("modern commands on the canvas", () => {
 		expect(labels()).toEqual(["New", "Refresh"]);
 	});
 
+	it("the list view's modern commands are a collapsible section that doesn't scroll sideways (#183)", () => {
+		render(<ModernCommandsTable tab={tab()} location="HomepageGrid" />);
+		const toggle = [...container.querySelectorAll("button")].find((b) =>
+			b.textContent?.startsWith("Modern commands ("),
+		)!;
+		expect(toggle.getAttribute("aria-expanded")).toBe("true");
+		expect(container.querySelector("table")).toBeTruthy();
+		act(() => toggle.click());
+		expect(toggle.getAttribute("aria-expanded")).toBe("false");
+		expect(container.querySelector("table")).toBeNull();
+	});
+
 	it("modern command rows in the list view are keyboard-selectable", () => {
 		render(<ModernCommandsTable tab={tab()} location="HomepageGrid" />);
 		const row = [...container.querySelectorAll("tr")].find((r) =>

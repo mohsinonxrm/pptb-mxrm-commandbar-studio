@@ -2,20 +2,21 @@ import { getPrimaryConnection, writeGuard } from "@/services/hostConnection";
 import { requiresTypedConfirmation } from "@/components/shared/targetScopeRules";
 import React, { useState } from "react";
 import {
+	Accordion,
+	AccordionHeader,
+	AccordionItem,
+	AccordionPanel,
 	Badge,
 	Button,
+	Caption1,
 	Checkbox,
-	Dialog,
-	DialogActions,
-	DialogBody,
-	DialogContent,
-	DialogSurface,
-	DialogTitle,
 	Dropdown,
 	Field,
 	Input,
 	MessageBar,
+	MessageBarActions,
 	MessageBarBody,
+	MessageBarTitle,
 	Option,
 	ProgressBar,
 	Spinner,
@@ -24,7 +25,21 @@ import {
 	Text,
 	makeStyles,
 	tokens,
+	type BadgeProps,
 } from "@fluentui/react-components";
+import {
+	AddRegular,
+	ArrowLeftRegular,
+	ArrowMoveRegular,
+	CodeRegular,
+	CopyRegular,
+	DeleteRegular,
+	EditRegular,
+	EyeOffRegular,
+	EyeRegular,
+} from "@fluentui/react-icons";
+import { AppDialog } from "@/components/shared/AppDialog";
+import { MonacoEditor } from "@/components/shared/MonacoEditor";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -40,11 +55,12 @@ import {
 import { fetchLayerSnapshot } from "@/services/dataverse/ribbonLayerService";
 import { rememberPublish } from "@/utils/recentPublish";
 import { loadWebResourceStatus } from "@/services/dataverse/webResourceService";
-import { planScope, type ScopePlan } from "@/services/publishPlan";
 import type { RibbonDiffParts } from "@/services/ribbonDiffMerge";
+import type { PublishChangeKind } from "@/services/publishSummary";
 import type { PublishFinding } from "@/services/xmlValidator";
 import type { RibbonLocation } from "@/types/ribbon";
-import { groupControls } from "@/utils/ribbonMenu";
+import { ENTITY_LOCATIONS, usePublishPlan } from "@/hooks/usePublishPlan";
+import { copyText } from "@/utils/hostIO";
 import { TargetScope } from "@/components/shared/TargetScope";
 
 const useStyles = makeStyles({
@@ -53,6 +69,30 @@ const useStyles = makeStyles({
 		flexDirection: "column",
 		gap: tokens.spacingVerticalM,
 	},
+	changes: {
+		listStyleType: "none",
+		margin: 0,
+		padding: 0,
+		display: "flex",
+		flexDirection: "column",
+		gap: tokens.spacingVerticalXS,
+	},
+	change: {
+		display: "flex",
+		alignItems: "flex-start",
+		gap: tokens.spacingHorizontalS,
+	},
+	changeIcon: {
+		flexShrink: 0,
+		fontSize: "16px",
+		marginTop: "2px",
+		color: tokens.colorNeutralForeground3,
+	},
+	changeText: { flex: 1, minWidth: 0, overflowWrap: "anywhere" },
+	badge: { flexShrink: 0 },
+	list: { margin: `${tokens.spacingVerticalXS} 0 0`, paddingLeft: "20px" },
+	options: { display: "flex", flexDirection: "column", gap: tokens.spacingVerticalS },
+	timing: { color: tokens.colorNeutralForeground3 },
 	progressList: {
 		display: "flex",
 		flexDirection: "column",
@@ -63,24 +103,68 @@ const useStyles = makeStyles({
 		alignItems: "center",
 		gap: tokens.spacingHorizontalS,
 	},
+	xmlHeader: {
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "space-between",
+		gap: tokens.spacingHorizontalS,
+	},
+	xml: {
+		height: "360px",
+		border: `1px solid ${tokens.colorNeutralStroke2}`,
+		borderRadius: tokens.borderRadiusMedium,
+		overflow: "hidden",
+	},
 });
 
 type PublishStatus = "pending" | "publishing" | "success" | "error";
 
+/** Status in words (#188): no raw enums in the progress list. */
+const STATUS_TEXT: Record<PublishStatus, string> = {
+	pending: "Waiting",
+	publishing: "Publishing…",
+	success: "Done",
+	error: "Failed",
+};
+const STATUS_COLOR: Record<PublishStatus, BadgeProps["color"]> = {
+	pending: "subtle",
+	publishing: "informative",
+	success: "success",
+	error: "danger",
+};
+
+const CHANGE_BADGE: Record<
+	PublishChangeKind,
+	{ text: string; color: BadgeProps["color"]; icon: React.ReactElement }
+> = {
+	new: { text: "New", color: "success", icon: <AddRegular /> },
+	change: { text: "Change", color: "brand", icon: <EditRegular /> },
+	move: { text: "Move", color: "informative", icon: <ArrowMoveRegular /> },
+	show: { text: "Show", color: "informative", icon: <EyeRegular /> },
+	hide: { text: "Hide", color: "warning", icon: <EyeOffRegular /> },
+	delete: { text: "Delete", color: "danger", icon: <DeleteRegular /> },
+};
+
 type ScopeFinding = PublishFinding & { scope: string };
 
-const FindingList: React.FC<{ findings: ScopeFinding[]; showScope: boolean }> = ({ findings, showScope }) => (
-	<ul style={{ margin: `${tokens.spacingVerticalXS} 0 0`, paddingLeft: 20 }}>
-		{findings.map((f, i) => (
-			<li key={i}>
-				{showScope && <strong>{f.scope}: </strong>}
-				{f.message}
-			</li>
-		))}
-	</ul>
-);
+const FindingList: React.FC<{ findings: ScopeFinding[]; showScope: boolean }> = ({
+	findings,
+	showScope,
+}) => {
+	const styles = useStyles();
+	return (
+		<ul className={styles.list}>
+			{findings.map((f, i) => (
+				<li key={i}>
+					{showScope && <strong>{f.scope}: </strong>}
+					{f.message}
+				</li>
+			))}
+		</ul>
+	);
+};
 
-const ENTITY_LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form"];
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** How long the pre-publish check may hold Publish back (#35). */
 const PRECHECK_TIMEOUT_MS = 30_000;
@@ -91,12 +175,14 @@ const PRECHECK_TIMEOUT_MS = 30_000;
  * ribbon. Only the table loaded in CBS can be published: CBS holds no edits
  * for other tables, and publishing them would only publish whatever someone
  * else left unpublished.
+ *
+ * The dialog (#188) says what will publish first, one row per change; when
+ * publishing is blocked, why, above them. Everything else is folded away.
  */
 export const BulkPublishModal: React.FC = () => {
 	const styles = useStyles();
 	const bulkPublishOpen = useUIStore((s) => s.bulkPublishOpen);
 	const closeBulkPublish = useUIStore((s) => s.closeBulkPublish);
-	const openXmlDrawer = useUIStore((s) => s.openXmlDrawer);
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const baseline = useRibbonStore((s) => s.baseline);
 	const commands = useRibbonStore((s) => s.commands);
@@ -106,28 +192,25 @@ export const BulkPublishModal: React.FC = () => {
 	const baselineEnableRules = useRibbonStore((s) => s.baselineEnableRules);
 	const baselineDisplayRules = useRibbonStore((s) => s.baselineDisplayRules);
 	const locLabels = useRibbonStore((s) => s.locLabels);
-	const baselineLocLabels = useRibbonStore((s) => s.baselineLocLabels);
-	const layers = useRibbonStore((s) => s.layers);
-	const pendingUnhides = useRibbonStore((s) => s.pendingUnhides);
-	const orphans = useRibbonStore((s) => s.orphans);
-	const pendingOrphanDeletes = useRibbonStore((s) => s.pendingOrphanDeletes);
-	const customisedCommandIds = useRibbonStore((s) => s.customisedCommandIds);
-	const uncustomisedCommandIds = useRibbonStore((s) => s.uncustomisedCommandIds);
 	const baseLanguageCode = useRibbonStore((s) => s.baseLanguageCode);
 	const baseLanguageUnknown = useRibbonStore((s) => s.baseLanguageUnknown);
 	const setLayerSnapshot = useRibbonStore((s) => s.setLayerSnapshot);
 	const markPublished = useRibbonStore((s) => s.markPublished);
-	const mutationsSincePublish = useRibbonStore((s) => s.mutationsSincePublish);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	const activeEntity = useSessionStore((s) => s.activeEntity);
 	const connectionUrl = useSessionStore((s) => s.connectionUrl);
 	const publisherPrefix = useSessionStore((s) => s.publisherPrefix);
 	const solutionRibbonComponentIds = useSessionStore((s) => s.solutionRibbonComponentIds);
-
-	// Application-ribbon publish needs the solution to contain Application
-	// Ribbons (componenttype 50); otherwise Dataverse rejects the import.
-	const solutionSupportsAppRibbon =
-		Array.isArray(solutionRibbonComponentIds) && solutionRibbonComponentIds.length > 0;
+	const {
+		entityPlan,
+		appPlan,
+		solutionSupportsAppRibbon,
+		includeApplicationRibbon,
+		scopes,
+		unsupported,
+		warnings,
+		changes,
+	} = usePublishPlan();
 
 	const [publishing, setPublishing] = useState(false);
 	const [statusMap, setStatusMap] = useState<Record<string, PublishStatus>>({});
@@ -138,14 +221,17 @@ export const BulkPublishModal: React.FC = () => {
 	// it needs its own confirmation, cleared whenever the choice changes.
 	const [publishAllConfirmed, setPublishAllConfirmed] = useState(false);
 	const publishAllBlocked = publishStrategy === "allAsync" && !publishAllConfirmed;
-	const connectionName = useSessionStore((s) => s.connectionName || s.connectionUrl || "this environment");
+	const connectionName = useSessionStore(
+		(s) => s.connectionName || s.connectionUrl || "this environment",
+	);
 	// The target block's verdict (#121): false while the connection is read, and on Production
 	// until the confirmation word is typed; with the environment type it was given for.
 	const [target, setTarget] = useState<{ confirmed: boolean; environment?: string }>({
 		confirmed: false,
 	});
 	const onTargetChange = React.useCallback(
-		(confirmed: boolean, environment: string | undefined) => setTarget({ confirmed, environment }),
+		(confirmed: boolean, environment: string | undefined) =>
+			setTarget({ confirmed, environment }),
 		[],
 	);
 	const targetConfirmed = target.confirmed;
@@ -157,7 +243,14 @@ export const BulkPublishModal: React.FC = () => {
 	const [errorMessages, setErrorMessages] = useState<{ scope: string; message: string }[]>([]);
 	// Scopes being published in the current run (frozen when Publish is clicked).
 	const [runScopes, setRunScopes] = useState<string[]>([]);
-	const [verifications, setVerifications] = useState<{ scope: string; result: PublishVerification }[]>([]);
+	// The number of changes the run publishes, for "Published n changes" afterwards.
+	const [runCount, setRunCount] = useState(0);
+	const [verifications, setVerifications] = useState<
+		{ scope: string; result: PublishVerification }[]
+	>([]);
+	// The XML view (#188): what each import writes, without leaving the dialog.
+	const [view, setView] = useState<"summary" | "xml">("summary");
+	const [openSections, setOpenSections] = useState<string[]>([]);
 
 	const nextVersion = React.useMemo(() => {
 		const base = solutionVersion || activeSolution?.version || "1.0.0.0";
@@ -171,83 +264,27 @@ export const BulkPublishModal: React.FC = () => {
 		setSolutionVersion(activeSolution?.version ?? "1.0.0.0");
 	}, [activeSolution?.version]);
 
-	const planFor = React.useCallback(
-		(locations: RibbonLocation[], scope: "entity" | "application", excludeCommandIds?: Set<string>): ScopePlan =>
-			planScope({
-				locations: locations.map((l) => ({ current: ribbons[l], baseline: baseline[l] })),
-				excludeCommandIds,
-				locLabels,
-				baselineLocLabels,
-				layer: layers[scope] ?? undefined,
-				unhiddenLayerHideIds: pendingUnhides[scope],
-				deletedOrphans: orphans[scope].filter((o) => pendingOrphanDeletes[scope].includes(o.id)),
-				customisedCommandIds,
-				// Per scope: uncustomising for the table leaves the application ribbon's copy (#31).
-				uncustomisedCommandIds: uncustomisedCommandIds[scope],
-				commands,
-				baselineCommands,
-				enableRules,
-				baselineEnableRules,
-				displayRules,
-				baselineDisplayRules,
-			}),
-		[
-			ribbons,
-			baseline,
-			commands,
-			baselineCommands,
-			enableRules,
-			baselineEnableRules,
-			displayRules,
-			baselineDisplayRules,
-			locLabels,
-			baselineLocLabels,
-			layers,
-			pendingUnhides,
-			orphans,
-			pendingOrphanDeletes,
-			customisedCommandIds,
-			uncustomisedCommandIds,
-		],
-	);
-	const entityPlan = React.useMemo(
-		() => (activeEntity ? planFor(ENTITY_LOCATIONS, "entity") : null),
-		[activeEntity, planFor],
-	);
-	// Commands used by the table's buttons are published with the table only:
-	// most out-of-the-box commands are shared with the application ribbon, and
-	// an edit made for this table must not reach every table.
-	const appPlan = React.useMemo(() => {
-		const tableCommands = new Set<string>();
-		if (activeEntity) {
-			for (const l of ENTITY_LOCATIONS)
-				for (const tab of ribbons[l].tabs)
-					for (const group of tab.groups)
-						for (const button of groupControls(group)) if (button.commandId) tableCommands.add(button.commandId);
-		}
-		return planFor(["Application"], "application", tableCommands);
-	}, [planFor, activeEntity, ribbons]);
-	const includeApplicationRibbon = appPlan.hasChanges && solutionSupportsAppRibbon;
-	const unsupported = [...(entityPlan?.unsupported ?? []), ...appPlan.unsupported];
-	const warnings = [...(entityPlan?.warnings ?? []), ...appPlan.warnings];
-	const scopes = [
-		...(activeEntity && entityPlan?.hasChanges ? [activeEntity.logicalName] : []),
-		...(includeApplicationRibbon ? ["Application ribbon"] : []),
-	];
 	// Typed on a Production connection (#121): the table's logical name, or "application ribbon".
-	const confirmWord = activeEntity && entityPlan?.hasChanges ? activeEntity.logicalName : "application ribbon";
+	const confirmWord =
+		activeEntity && entityPlan?.hasChanges ? activeEntity.logicalName : "application ribbon";
 
 	// Pre-publish check (#35): validates the RibbonDiffXml each scope would
 	// import (existing layer + changes). It runs once the plan has nothing
 	// unsupported — the plan already explains those, and a merge of them means
-	// nothing. Errors block Publish; warnings don't.
+	// nothing. Errors block Publish; warnings don't. The XML it builds is what
+	// the XML view shows.
 	const [checkState, setCheckState] = useState<"idle" | "running" | "done" | "failed">("idle");
 	const [checkFindings, setCheckFindings] = useState<ScopeFinding[]>([]);
+	const [checkXml, setCheckXml] = useState<{ scope: string; xml: string }[]>([]);
 	const [checkError, setCheckError] = useState("");
-	const canCheck = bulkPublishOpen && !!activeSolution && unsupported.length === 0 && scopes.length > 0;
+	const canCheck =
+		bulkPublishOpen && !!activeSolution && unsupported.length === 0 && scopes.length > 0;
 	const solutionId = activeSolution?.id;
 	const solutionPrefix = activeSolution?.publisherPrefix || publisherPrefix;
-	const runChecks = React.useCallback(async (): Promise<ScopeFinding[]> => {
+	const runChecks = React.useCallback(async (): Promise<{
+		findings: ScopeFinding[];
+		xml: { scope: string; xml: string }[];
+	}> => {
 		const common = {
 			commands,
 			enableRules,
@@ -260,22 +297,32 @@ export const BulkPublishModal: React.FC = () => {
 			// Labels are generated in the organisation's base language, as publishRibbon does.
 			languageCode: baseLanguageCode,
 		};
-		const options = { lookupWebResources: (names: string[]) => loadWebResourceStatus(names, solutionId) };
+		const options = {
+			lookupWebResources: (names: string[]) => loadWebResourceStatus(names, solutionId),
+		};
 		const out: ScopeFinding[] = [];
+		const xml: { scope: string; xml: string }[] = [];
 		if (activeEntity && entityPlan?.hasChanges) {
-			const { findings } = await checkBeforePublish(
+			const result = await checkBeforePublish(
 				{
 					...common,
-					entity: { logicalName: activeEntity.logicalName, schemaName: activeEntity.schemaName },
-					locations: ENTITY_LOCATIONS.map((l) => ({ current: ribbons[l], baseline: baseline[l] })),
+					entity: {
+						logicalName: activeEntity.logicalName,
+						schemaName: activeEntity.schemaName,
+					},
+					locations: ENTITY_LOCATIONS.map((l) => ({
+						current: ribbons[l],
+						baseline: baseline[l],
+					})),
 					plan: entityPlan,
 				},
 				options,
 			);
-			out.push(...findings.map((f) => ({ ...f, scope: activeEntity.logicalName })));
+			out.push(...result.findings.map((f) => ({ ...f, scope: activeEntity.logicalName })));
+			xml.push({ scope: activeEntity.logicalName, xml: result.xml });
 		}
 		if (includeApplicationRibbon) {
-			const { findings } = await checkBeforePublish(
+			const result = await checkBeforePublish(
 				{
 					...common,
 					entity: null,
@@ -284,9 +331,10 @@ export const BulkPublishModal: React.FC = () => {
 				},
 				options,
 			);
-			out.push(...findings.map((f) => ({ ...f, scope: "Application ribbon" })));
+			out.push(...result.findings.map((f) => ({ ...f, scope: "Application ribbon" })));
+			xml.push({ scope: "Application ribbon", xml: result.xml });
 		}
-		return out;
+		return { findings: out, xml };
 	}, [
 		activeEntity,
 		entityPlan,
@@ -313,14 +361,16 @@ export const BulkPublishModal: React.FC = () => {
 		// A slow environment must not hold Publish back: after the timeout the
 		// check is reported as incomplete; publishRibbon still runs its own check.
 		withCheckTimeout(runChecks(), PRECHECK_TIMEOUT_MS)
-			.then((findings) => {
+			.then(({ findings, xml }) => {
 				if (cancelled) return;
 				setCheckFindings(findings);
+				setCheckXml(xml);
 				setCheckState("done");
 			})
 			.catch((err: unknown) => {
 				if (cancelled) return;
 				setCheckFindings([]);
+				setCheckXml([]);
 				setCheckError(err instanceof Error ? err.message : String(err));
 				setCheckState("failed");
 			});
@@ -333,179 +383,206 @@ export const BulkPublishModal: React.FC = () => {
 	const showFindingScope = new Set(checkFindings.map((f) => f.scope)).size > 1;
 	const checkBlocks = canCheck && (checkState === "running" || checkErrors.length > 0);
 
-	// One close guard for the whole run (#10): it would otherwise drop between scopes.
 	const handlePublish = () =>
 		withCloseGuard(async () => {
-		if (!activeSolution || unsupported.length > 0 || scopes.length === 0 || checkBlocks || !targetConfirmed || baseLanguageUnknown || publishAllBlocked) return;
-		setPublishing(true);
-		// One guard for the whole run (#120): every scope writes to the connection
-		// the run started on. After a switch, nothing more is published or stored.
-		const guard = writeGuard();
-		const startVersion = useSessionStore.getState().connectionVersion;
-		const switched = () => useSessionStore.getState().connectionVersion !== startVersion;
-		// The confirmation holds for the environment type it was given for (#121): the connection
-		// is read again, and if it is Production now and wasn't then, the word is asked for.
-		const connection = await getPrimaryConnection().catch(() => null);
-		if (switched()) {
-			setPublishing(false);
-			return;
-		}
-		if (requiresTypedConfirmation(connection?.environment) && !requiresTypedConfirmation(target.environment)) {
-			setTarget({ confirmed: false });
-			setTargetRead((n) => n + 1);
-			setPublishing(false);
-			useRuntimeLogStore
-				.getState()
-				.logWarn("publish", `${connection?.name ?? "The connection"} is a Production environment now: type the confirmation to publish.`);
-			return;
-		}
-		setProgressMessage("");
-		setErrorMessages([]);
-		setVerifications([]);
-		setRunScopes(scopes);
-		setStatusMap(Object.fromEntries(scopes.map((s) => [s, "pending" as PublishStatus])));
+			if (
+				!activeSolution ||
+				unsupported.length > 0 ||
+				scopes.length === 0 ||
+				checkBlocks ||
+				!targetConfirmed ||
+				baseLanguageUnknown ||
+				publishAllBlocked
+			)
+				return;
+			setPublishing(true);
+			// One guard for the whole run (#120): every scope writes to the connection
+			// the run started on. After a switch, nothing more is published or stored.
+			const guard = writeGuard();
+			const startVersion = useSessionStore.getState().connectionVersion;
+			const switched = () => useSessionStore.getState().connectionVersion !== startVersion;
+			// The confirmation holds for the environment type it was given for (#121): the connection
+			// is read again, and if it is Production now and wasn't then, the word is asked for.
+			const connection = await getPrimaryConnection().catch(() => null);
+			if (switched()) {
+				setPublishing(false);
+				return;
+			}
+			if (
+				requiresTypedConfirmation(connection?.environment) &&
+				!requiresTypedConfirmation(target.environment)
+			) {
+				setTarget({ confirmed: false });
+				setTargetRead((n) => n + 1);
+				setPublishing(false);
+				useRuntimeLogStore
+					.getState()
+					.logWarn(
+						"publish",
+						`${connection?.name ?? "The connection"} is a Production environment now: type the confirmation to publish.`,
+					);
+				return;
+			}
+			setProgressMessage("");
+			setErrorMessages([]);
+			setVerifications([]);
+			setRunScopes(scopes);
+			setRunCount(changes.length);
+			setStatusMap(Object.fromEntries(scopes.map((s) => [s, "pending" as PublishStatus])));
 
-		let hadError = false;
-		const published: RibbonLocation[] = [];
-		// The layers as imported: the store takes their scaling / labels (#66 review).
-		const importedLayers: { entity?: RibbonDiffParts; application?: RibbonDiffParts } = {};
-		const errors: { scope: string; message: string }[] = [];
-		const verified: { scope: string; result: PublishVerification }[] = [];
-		const logs = useRuntimeLogStore.getState();
-		const fmt = (e: unknown) => (e instanceof Error ? e.message : String(e));
-		// The comment goes to the Console log with this publish (#109): it was collected and dropped.
-		if (publishComment.trim()) logs.logInfo("publish", `Publish comment: ${publishComment.trim()}`);
-		const common = {
-			commands,
-			enableRules,
-			displayRules,
-			locLabels,
-			baselineCommands,
-			baselineEnableRules,
-			baselineDisplayRules,
-			publishCustomizations: true,
-			// The language the canvas resolved labels in (#106 review): a fresh read could
-			// differ and turn unchanged labels into edits.
-			languageCode: baseLanguageCode,
-			solution: {
-				uniqueName: activeSolution.uniqueName,
-				friendlyName: activeSolution.friendlyName,
-				version: incrementSolutionVersion ? nextVersion : solutionVersion,
-				publisherUniqueName: activeSolution.publisherUniqueName,
-				publisherName: activeSolution.publisherName,
-				publisherPrefix: activeSolution.publisherPrefix || publisherPrefix,
-				publisherOptionValuePrefix: activeSolution.publisherOptionValuePrefix,
-			},
-		};
+			let hadError = false;
+			const published: RibbonLocation[] = [];
+			// The layers as imported: the store takes their scaling / labels (#66 review).
+			const importedLayers: { entity?: RibbonDiffParts; application?: RibbonDiffParts } = {};
+			const errors: { scope: string; message: string }[] = [];
+			const verified: { scope: string; result: PublishVerification }[] = [];
+			const logs = useRuntimeLogStore.getState();
+			const fmt = (e: unknown) => (e instanceof Error ? e.message : String(e));
+			// The comment goes to the Console log with this publish (#109): it was collected and dropped.
+			if (publishComment.trim())
+				logs.logInfo("publish", `Publish comment: ${publishComment.trim()}`);
+			const common = {
+				commands,
+				enableRules,
+				displayRules,
+				locLabels,
+				baselineCommands,
+				baselineEnableRules,
+				baselineDisplayRules,
+				publishCustomizations: true,
+				// The language the canvas resolved labels in (#106 review): a fresh read could
+				// differ and turn unchanged labels into edits.
+				languageCode: baseLanguageCode,
+				solution: {
+					uniqueName: activeSolution.uniqueName,
+					friendlyName: activeSolution.friendlyName,
+					version: incrementSolutionVersion ? nextVersion : solutionVersion,
+					publisherUniqueName: activeSolution.publisherUniqueName,
+					publisherName: activeSolution.publisherName,
+					publisherPrefix: activeSolution.publisherPrefix || publisherPrefix,
+					publisherOptionValuePrefix: activeSolution.publisherOptionValuePrefix,
+				},
+			};
 
-		if (activeEntity && entityPlan?.hasChanges) {
-			const scope = activeEntity.logicalName;
-			setStatusMap((prev) => ({ ...prev, [scope]: "publishing" }));
-			try {
-				// One import for the whole table: each import REPLACES the table's
-				// unmanaged ribbon, so all locations travel together, merged onto
-				// the existing layer (#11).
-				const result = await publishRibbon(
-					{
-						...common,
-						guard,
-						entity: {
-							logicalName: activeEntity.logicalName,
-							schemaName: activeEntity.schemaName,
-							displayName: activeEntity.displayName,
+			if (activeEntity && entityPlan?.hasChanges) {
+				const scope = activeEntity.logicalName;
+				setStatusMap((prev) => ({ ...prev, [scope]: "publishing" }));
+				try {
+					// One import for the whole table: each import REPLACES the table's
+					// unmanaged ribbon, so all locations travel together, merged onto
+					// the existing layer (#11).
+					const result = await publishRibbon(
+						{
+							...common,
+							guard,
+							entity: {
+								logicalName: activeEntity.logicalName,
+								schemaName: activeEntity.schemaName,
+								displayName: activeEntity.displayName,
+							},
+							locations: ENTITY_LOCATIONS.map((l) => ({
+								current: ribbons[l],
+								baseline: baseline[l],
+							})),
+							plan: entityPlan,
 						},
-						locations: ENTITY_LOCATIONS.map((l) => ({ current: ribbons[l], baseline: baseline[l] })),
-						plan: entityPlan,
-					},
-					(msg) => setProgressMessage(msg),
-				);
-				published.push(...ENTITY_LOCATIONS);
-				importedLayers.entity = result.parts;
-				// A reload soon after may still get the ribbon from before this
-				// publish: what it wrote isn't offered for deletion as an orphan (#64).
-				rememberPublish(connectionUrl, activeEntity.logicalName, result.changedKeys);
-				if (result.verification) verified.push({ scope, result: result.verification });
-				setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
-			} catch (err) {
-				hadError = true;
-				errors.push({ scope, message: fmt(err) });
-				logs.logError("publish", `Ribbon publish failed (${scope}): ${fmt(err)}`);
-				setStatusMap((prev) => ({ ...prev, [scope]: "error" }));
+						(msg) => setProgressMessage(msg),
+					);
+					published.push(...ENTITY_LOCATIONS);
+					importedLayers.entity = result.parts;
+					// A reload soon after may still get the ribbon from before this
+					// publish: what it wrote isn't offered for deletion as an orphan (#64).
+					rememberPublish(connectionUrl, activeEntity.logicalName, result.changedKeys);
+					if (result.verification) verified.push({ scope, result: result.verification });
+					setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
+				} catch (err) {
+					hadError = true;
+					errors.push({ scope, message: fmt(err) });
+					logs.logError("publish", `Ribbon publish failed (${scope}): ${fmt(err)}`);
+					setStatusMap((prev) => ({ ...prev, [scope]: "error" }));
+				}
+			} else if (activeEntity) {
+				published.push(...ENTITY_LOCATIONS); // nothing changed there
 			}
-		} else if (activeEntity) {
-			published.push(...ENTITY_LOCATIONS); // nothing changed there
-		}
 
-		if (includeApplicationRibbon && !switched()) {
-			const scope = "Application ribbon";
-			setStatusMap((prev) => ({ ...prev, [scope]: "publishing" }));
-			try {
-				const result = await publishRibbon(
-					{
-						...common,
-						guard,
-						entity: null,
-						locations: [{ current: ribbons.Application, baseline: baseline.Application }],
-						ribbonCustomizationIds: solutionRibbonComponentIds ?? [],
-						plan: appPlan,
-					},
-					(msg) => setProgressMessage(msg),
-				);
-				published.push("Application");
-				importedLayers.application = result.parts;
-				if (result.verification) verified.push({ scope, result: result.verification });
-				setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
-			} catch (err) {
-				hadError = true;
-				errors.push({ scope, message: fmt(err) });
-				logs.logError("publish", `Application ribbon publish failed: ${fmt(err)}`);
-				setStatusMap((prev) => ({ ...prev, [scope]: "error" }));
+			if (includeApplicationRibbon && !switched()) {
+				const scope = "Application ribbon";
+				setStatusMap((prev) => ({ ...prev, [scope]: "publishing" }));
+				try {
+					const result = await publishRibbon(
+						{
+							...common,
+							guard,
+							entity: null,
+							locations: [
+								{ current: ribbons.Application, baseline: baseline.Application },
+							],
+							ribbonCustomizationIds: solutionRibbonComponentIds ?? [],
+							plan: appPlan,
+						},
+						(msg) => setProgressMessage(msg),
+					);
+					published.push("Application");
+					importedLayers.application = result.parts;
+					if (result.verification) verified.push({ scope, result: result.verification });
+					setStatusMap((prev) => ({ ...prev, [scope]: "success" }));
+				} catch (err) {
+					hadError = true;
+					errors.push({ scope, message: fmt(err) });
+					logs.logError("publish", `Application ribbon publish failed: ${fmt(err)}`);
+					setStatusMap((prev) => ({ ...prev, [scope]: "error" }));
+				}
+			} else if (!appPlan.hasChanges) {
+				published.push("Application"); // nothing changed there
 			}
-		} else if (!appPlan.hasChanges) {
-			published.push("Application"); // nothing changed there
-		}
 
-		if (!hadError && publishStrategy === "allAsync") {
-			try {
-				await publishAllAsync((msg) => setProgressMessage(msg), { guard });
-			} catch (err) {
-				hadError = true;
-				errors.push({ scope: "Publish all customizations", message: fmt(err) });
+			if (!hadError && publishStrategy === "allAsync") {
+				try {
+					await publishAllAsync((msg) => setProgressMessage(msg), { guard });
+				} catch (err) {
+					hadError = true;
+					errors.push({ scope: "Publish all customizations", message: fmt(err) });
+				}
 			}
-		}
 
-		if (switched()) {
-			// The store holds the new connection's (empty) workspace now: nothing of
-			// this run belongs in it.
-			if (includeApplicationRibbon && !errors.some((e) => e.scope === "Application ribbon"))
-				errors.push({ scope: "Application ribbon", message: "Not published: the tool's connection changed during the publish." });
+			if (switched()) {
+				// The store holds the new connection's (empty) workspace now: nothing of
+				// this run belongs in it.
+				if (
+					includeApplicationRibbon &&
+					!errors.some((e) => e.scope === "Application ribbon")
+				)
+					errors.push({
+						scope: "Application ribbon",
+						message: "Not published: the tool's connection changed during the publish.",
+					});
+				setVerifications(verified);
+				setErrorMessages(errors);
+				setDone(false);
+				setPublishing(false);
+				return;
+			}
+
+			// Only scopes that were actually imported (or had nothing to import) are
+			// marked as published; anything else keeps its pending changes.
+			markPublished(published, importedLayers);
+			// Re-read the layers that were published so ownership, labels and the
+			// "Hidden by customizations" list match the server (#47, #48).
+			// A failed read (null) keeps what markPublished recorded rather than
+			// forgetting the layer (which would block Rename and Delete, #33 review).
+			if (activeEntity && published.includes("HomepageGrid") && entityPlan?.hasChanges) {
+				const snapshot = await fetchLayerSnapshot(activeEntity.logicalName);
+				if (snapshot) setLayerSnapshot("entity", snapshot);
+			}
+			if (published.includes("Application") && includeApplicationRibbon) {
+				const snapshot = await fetchLayerSnapshot(null);
+				if (snapshot) setLayerSnapshot("application", snapshot);
+			}
+			if (!hadError) setProgressMessage("Done.");
 			setVerifications(verified);
 			setErrorMessages(errors);
-			setDone(false);
+			setDone(!hadError);
 			setPublishing(false);
-			return;
-		}
-
-		// Only scopes that were actually imported (or had nothing to import) are
-		// marked as published; anything else keeps its pending changes.
-		markPublished(published, importedLayers);
-		// Re-read the layers that were published so ownership, labels and the
-		// "Hidden by customizations" list match the server (#47, #48).
-		// A failed read (null) keeps what markPublished recorded rather than
-		// forgetting the layer (which would block Rename and Delete, #33 review).
-		if (activeEntity && published.includes("HomepageGrid") && entityPlan?.hasChanges) {
-			const snapshot = await fetchLayerSnapshot(activeEntity.logicalName);
-			if (snapshot) setLayerSnapshot("entity", snapshot);
-		}
-		if (published.includes("Application") && includeApplicationRibbon) {
-			const snapshot = await fetchLayerSnapshot(null);
-			if (snapshot) setLayerSnapshot("application", snapshot);
-		}
-		if (!hadError) setProgressMessage("Done.");
-		setVerifications(verified);
-		setErrorMessages(errors);
-		setDone(!hadError);
-		setPublishing(false);
 		});
 
 	const handleClose = () => {
@@ -518,7 +595,10 @@ export const BulkPublishModal: React.FC = () => {
 		setVerifications([]);
 		setCheckState("idle");
 		setCheckFindings([]);
+		setCheckXml([]);
 		setCheckError("");
+		setView("summary");
+		setOpenSections([]);
 		setTarget({ confirmed: false });
 		setPublishStrategy("targeted");
 		setPublishAllConfirmed(false);
@@ -531,203 +611,381 @@ export const BulkPublishModal: React.FC = () => {
 		closeBulkPublish();
 	};
 
+	const appRibbonPending = appPlan.hasChanges && !solutionSupportsAppRibbon;
+	const problems = unsupported.length + (canCheck ? checkErrors.length : 0);
+	const checkWarningCount = canCheck
+		? checkWarnings.length + (checkState === "failed" ? 1 : 0)
+		: 0;
+	// Problems open by themselves when there are any (#188).
+	React.useEffect(() => {
+		if (problems > 0)
+			setOpenSections((open) => (open.includes("problems") ? open : ["problems", ...open]));
+	}, [problems]);
+
+	// Why Publish can't run, said where the summary starts (#188). The Production
+	// confirmation (#121) says so in its own block below.
+	const blocked: {
+		intent: "error" | "warning" | "info";
+		title: string;
+		text: React.ReactNode;
+		action?: React.ReactNode;
+	} | null = !activeSolution
+		? {
+				intent: "warning",
+				title: "Choose a solution",
+				text: "Publishing imports into a solution: choose one in the top bar first.",
+			}
+		: baseLanguageUnknown
+			? {
+					intent: "error",
+					title: "Reload the table first",
+					text: "The organization's base language couldn't be read when the table loaded, so labels are shown in English. Publishing now could write English texts as the base language's titles.",
+				}
+			: unsupported.length > 0
+				? {
+						intent: "error",
+						title: `${plural(unsupported.length, "change")} can't be published yet`,
+						text: `Undo ${unsupported.length === 1 ? "it" : "them"} to publish the rest. Problems below says what each one is.`,
+					}
+				: canCheck && checkErrors.length > 0
+					? {
+							intent: "error",
+							title: `The check found ${plural(checkErrors.length, "problem")}`,
+							text: `In what this publish would import. Fix ${checkErrors.length === 1 ? "it" : "them"}, then open Publish again; Problems below lists ${checkErrors.length === 1 ? "it" : "them"}.`,
+						}
+					: scopes.length === 0
+						? appRibbonPending
+							? {
+									intent: "warning",
+									title: "The application ribbon can't be published from this solution",
+									text: (
+										<>
+											It doesn&apos;t include the Application Ribbons
+											component. In make.powerapps.com open the solution,
+											choose{" "}
+											<strong>Add existing → Application Ribbons</strong>,
+											then reload here.
+										</>
+									),
+								}
+							: {
+									intent: "info",
+									title: "Nothing to publish",
+									text: "Every change on this table is already published.",
+								}
+						: publishAllBlocked
+							? {
+									intent: "warning",
+									title: "Confirm publishing everything",
+									text: `Tick the confirmation under Options to publish every unpublished customization in ${connectionName}.`,
+									action: (
+										<Button
+											size="small"
+											onClick={() => {
+												setPublishStrategy("targeted");
+												setPublishAllConfirmed(false);
+											}}
+										>
+											Only these ribbons
+										</Button>
+									),
+								}
+							: null;
+
+	const tableName = activeEntity?.displayName || activeEntity?.logicalName;
+	const publishesTable = !!activeEntity && !!entityPlan?.hasChanges;
+	const title =
+		publishesTable && includeApplicationRibbon
+			? `Publish ${tableName} and the application ribbon`
+			: !publishesTable && includeApplicationRibbon
+				? "Publish the application ribbon"
+				: tableName
+					? `Publish ${tableName}`
+					: "Publish";
+	const publishLabel = publishing
+		? "Publishing…"
+		: changes.length > 0
+			? `Publish ${plural(changes.length, "change")}`
+			: "Publish";
+	const editing = !publishing && !done;
+
 	return (
-		<Dialog open={bulkPublishOpen} onOpenChange={() => !publishing && handleClose()}>
-			<DialogSurface
-				style={{ maxWidth: "640px", maxHeight: "92vh", display: "flex", flexDirection: "column" }}
-			>
-				<DialogTitle>Publish to Dataverse</DialogTitle>
-				<DialogBody style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-					<DialogContent style={{ overflowY: "auto", maxHeight: "100%" }}>
-						<div className={styles.content}>
-							{!activeSolution && (
-								<MessageBar intent="warning">
-									<MessageBarBody>No solution selected. Please select a solution first.</MessageBarBody>
-								</MessageBar>
-							)}
-
-							{baseLanguageUnknown && !done && (
-								<MessageBar intent="error" layout="multiline">
-									<MessageBarBody>
-										The organization&apos;s base language couldn&apos;t be read when the table loaded, so
-										labels are shown in English. Reload the table before publishing: publishing now could
-										write English texts as the base language&apos;s titles.
-									</MessageBarBody>
-								</MessageBar>
-							)}
-
-							{unsupported.length > 0 && !done && (
-								<MessageBar intent="error" layout="multiline">
-									<MessageBarBody>
-										<strong>These changes can&apos;t be published yet. Undo them to publish:</strong>
-										<ul style={{ margin: `${tokens.spacingVerticalXS} 0 0`, paddingLeft: 20 }}>
-											{unsupported.map((u) => (
-												<li key={u}>{u}</li>
-											))}
-										</ul>
-									</MessageBarBody>
-								</MessageBar>
-							)}
-
-							{warnings.length > 0 && !done && (
-								<MessageBar intent="info" layout="multiline">
-									<MessageBarBody>
-										<strong>Good to know:</strong>
-										<ul style={{ margin: `${tokens.spacingVerticalXS} 0 0`, paddingLeft: 20 }}>
-											{warnings.map((w) => (
-												<li key={w}>{w}</li>
-											))}
-										</ul>
-									</MessageBarBody>
-								</MessageBar>
-							)}
-
-							{canCheck && !done && !publishing && checkState === "running" && (
-								<div className={styles.progressRow}>
-									<Spinner size="tiny" />
-									<Text>Checking the ribbon customizations before publishing…</Text>
+		<AppDialog
+			open={bulkPublishOpen}
+			onOpenChange={(open) => !open && !publishing && handleClose()}
+			// XML reads better wide, as in the editor drawer (#229).
+			size={view === "xml" ? "large" : "medium"}
+			title={view === "xml" ? "What Publish imports" : title}
+			startActions={
+				editing ? (
+					view === "summary" ? (
+						<Button
+							appearance="subtle"
+							icon={<CodeRegular />}
+							onClick={() => setView("xml")}
+						>
+							View XML
+						</Button>
+					) : (
+						<Button
+							appearance="subtle"
+							icon={<ArrowLeftRegular />}
+							onClick={() => setView("summary")}
+						>
+							Back to summary
+						</Button>
+					)
+				) : undefined
+			}
+			actions={
+				<>
+					<Button appearance="secondary" onClick={handleClose} disabled={publishing}>
+						{done ? "Close" : "Cancel"}
+					</Button>
+					{!done && (
+						<Button
+							appearance="primary"
+							onClick={() => void handlePublish()}
+							disabled={
+								publishing ||
+								!activeSolution ||
+								scopes.length === 0 ||
+								unsupported.length > 0 ||
+								checkBlocks ||
+								!targetConfirmed ||
+								baseLanguageUnknown ||
+								publishAllBlocked
+							}
+						>
+							{publishLabel}
+						</Button>
+					)}
+				</>
+			}
+		>
+			{view === "xml" && editing ? (
+				<div className={styles.content}>
+					<Text>
+						The complete RibbonDiffXml each import writes: your solution&apos;s layer as
+						it is now, with your changes merged in.
+					</Text>
+					{canCheck && checkState === "running" ? (
+						<Spinner size="tiny" labelPosition="after" label="Building the XML…" />
+					) : checkXml.length === 0 ? (
+						<MessageBar intent="info" layout="multiline">
+							<MessageBarBody>
+								{canCheck && checkState === "failed"
+									? `The XML couldn't be built: ${checkError}`
+									: "The XML is built once there is something to publish and nothing blocks it."}
+							</MessageBarBody>
+						</MessageBar>
+					) : (
+						checkXml.map((x) => (
+							<div key={x.scope} className={styles.options}>
+								<div className={styles.xmlHeader}>
+									<Text weight="semibold">{x.scope}</Text>
+									<Button
+										size="small"
+										appearance="subtle"
+										icon={<CopyRegular />}
+										onClick={() => void copyText(x.xml)}
+									>
+										Copy
+									</Button>
 								</div>
+								<div className={styles.xml}>
+									<MonacoEditor language="xml" value={x.xml} readOnly />
+								</div>
+							</div>
+						))
+					)}
+				</div>
+			) : (
+				<div className={styles.content}>
+					{editing && blocked && (
+						<MessageBar intent={blocked.intent} layout="multiline">
+							<MessageBarBody>
+								<MessageBarTitle>{blocked.title}</MessageBarTitle>
+								{blocked.text}
+							</MessageBarBody>
+							{blocked.action && (
+								<MessageBarActions>{blocked.action}</MessageBarActions>
 							)}
+						</MessageBar>
+					)}
 
-							{canCheck && !done && checkState === "failed" && (
-								<MessageBar intent="warning" layout="multiline">
-									<MessageBarBody>
-										The pre-publish check couldn&apos;t complete ({checkError}). Publishing runs the
-										check again before anything is imported.
-									</MessageBarBody>
-								</MessageBar>
+					{editing && changes.length > 0 && (
+						<div className={styles.options}>
+							<Text weight="semibold">
+								{plural(changes.length, "change")} to publish
+							</Text>
+							<ul className={styles.changes} aria-label="Changes to publish">
+								{changes.map((c, i) => {
+									const badge = CHANGE_BADGE[c.kind];
+									return (
+										<li key={i} className={styles.change}>
+											<span className={styles.changeIcon} aria-hidden="true">
+												{badge.icon}
+											</span>
+											<Text className={styles.changeText}>
+												{c.action} <strong>{c.name}</strong>
+												{c.detail ? ` ${c.detail}` : ""}
+											</Text>
+											<Badge
+												appearance="tint"
+												color={badge.color}
+												size="medium"
+												className={styles.badge}
+											>
+												{badge.text}
+											</Badge>
+										</li>
+									);
+								})}
+							</ul>
+						</div>
+					)}
+
+					{editing && canCheck && checkState === "running" && (
+						<Spinner
+							size="tiny"
+							labelPosition="after"
+							label="Checking what this publish would import…"
+						/>
+					)}
+
+					{editing && (
+						<TargetScope
+							key={targetRead}
+							rows={[
+								{
+									label: "Solution",
+									value: activeSolution ? (
+										<Text weight="semibold">
+											{activeSolution.friendlyName ||
+												activeSolution.uniqueName}
+										</Text>
+									) : (
+										<Text>None selected</Text>
+									),
+								},
+							]}
+							confirmWord={confirmWord}
+							onConfirmationChange={onTargetChange}
+						/>
+					)}
+
+					{editing && (
+						<Accordion
+							multiple
+							collapsible
+							openItems={openSections}
+							onToggle={(_, d) => setOpenSections(d.openItems as string[])}
+						>
+							{problems > 0 && (
+								<AccordionItem value="problems">
+									<AccordionHeader>Problems · {problems}</AccordionHeader>
+									<AccordionPanel>
+										{unsupported.length > 0 && (
+											<>
+												<Text block>
+													These changes can&apos;t be published yet; undo
+													them:
+												</Text>
+												<ul className={styles.list}>
+													{unsupported.map((u) => (
+														<li key={u}>{u}</li>
+													))}
+												</ul>
+											</>
+										)}
+										{canCheck && checkErrors.length > 0 && (
+											<FindingList
+												findings={checkErrors}
+												showScope={showFindingScope}
+											/>
+										)}
+									</AccordionPanel>
+								</AccordionItem>
 							)}
-
-							{canCheck && !done && checkErrors.length > 0 && (
-								<MessageBar intent="error" layout="multiline">
-									<MessageBarBody>
-										<strong>
-											Publishing is blocked: the pre-publish check found {checkErrors.length} error
-											{checkErrors.length !== 1 ? "s" : ""}. Fix{" "}
-											{checkErrors.length !== 1 ? "them" : "it"}, then reopen this dialog:
-										</strong>
-										<FindingList findings={checkErrors} showScope={showFindingScope} />
-									</MessageBarBody>
-								</MessageBar>
+							{checkWarningCount > 0 && (
+								<AccordionItem value="warnings">
+									<AccordionHeader>
+										Warnings · {checkWarningCount}
+									</AccordionHeader>
+									<AccordionPanel>
+										<Text block>You can still publish.</Text>
+										{checkState === "failed" && (
+											<Text block>
+												The check before publishing couldn&apos;t complete (
+												{checkError}). Publishing runs it again before
+												anything is imported.
+											</Text>
+										)}
+										<FindingList
+											findings={checkWarnings}
+											showScope={showFindingScope}
+										/>
+									</AccordionPanel>
+								</AccordionItem>
 							)}
-
-							{canCheck && !done && checkWarnings.length > 0 && (
-								<MessageBar intent="warning" layout="multiline">
-									<MessageBarBody>
-										<strong>
-											{checkWarnings.length} warning{checkWarnings.length !== 1 ? "s" : ""} — you can
-											still publish:
-										</strong>
-										<FindingList findings={checkWarnings} showScope={showFindingScope} />
-									</MessageBarBody>
-								</MessageBar>
-							)}
-
-							{appPlan.hasChanges && !solutionSupportsAppRibbon && !done && (
-								<MessageBar intent="warning" layout="multiline">
-									<MessageBarBody>
-										You changed the Application ribbon, but this solution doesn&apos;t include the
-										Application Ribbons component, so those changes stay pending. In make.powerapps.com
-										open the solution, choose <strong>Add existing → Application Ribbons</strong>, then
-										reload here.
-									</MessageBarBody>
-								</MessageBar>
-							)}
-
-							<MessageBar intent="info" layout="multiline">
-								<MessageBarBody>
-									Publishing writes this table&apos;s complete ribbon customization: what is already
-									published, plus your changes. Ribbon changes on this table that were imported
-									elsewhere but <strong>not published</strong> are published first, so they are kept. Publishing takes about 1–4
-									minutes (the ribbon is imported twice so Unified Interface picks up the change). Users may need to refresh the page, or navigate away and back, to see the
-									update. You have <strong>{mutationsSincePublish}</strong> change(s) since the last
-									publish.
-								</MessageBarBody>
-							</MessageBar>
-
-							{errorMessages.length > 0 && (
-								<MessageBar intent="error" layout="multiline">
-									<MessageBarBody>
-										<strong>
-											Publish failed ({errorMessages.length} error
-											{errorMessages.length !== 1 ? "s" : ""})
-										</strong>
-										<ul style={{ margin: `${tokens.spacingVerticalXS} 0 0`, paddingLeft: 20 }}>
-											{errorMessages.map((e, i) => (
-												<li key={i} style={{ fontFamily: tokens.fontFamilyMonospace }}>
-													<strong>{e.scope}:</strong> {e.message}
-												</li>
-											))}
-										</ul>
-										<div style={{ marginTop: tokens.spacingVerticalS }}>
-											Full details are in the <strong>Console</strong> tab of the bottom panel.
-										</div>
-									</MessageBarBody>
-								</MessageBar>
-							)}
-
-							{!publishing && !done && (
-								<>
-									<TargetScope
-										key={targetRead}
-										rows={[
-											{
-												label: "Solution",
-												value: activeSolution ? (
-													<Text weight="semibold">
-														{activeSolution.friendlyName || activeSolution.uniqueName}
-													</Text>
-												) : (
-													<Text>None selected</Text>
-												),
-											},
-											{
-												label: "Will publish",
-												value: (
-													<Text weight="semibold">
-														{scopes.length > 0 ? scopes.join(", ") : "nothing (there are no changes to publish)"}
-													</Text>
-												),
-											},
-											{
-												label: "Writes",
-												value: (
-													<Text>
-														Publishes {scopes.length === 1 ? "it" : "them"} first (keeps changes imported
-														elsewhere but not published),{" "}
-														{scopes.length === 1 ? "imports its" : "imports each one's"} ribbon customization
-														twice, replacing what the solution&apos;s layer has, then publishes{" "}
-														{publishStrategy === "allAsync"
-															? "every unpublished customization in the environment"
-															: scopes.length === 1
-																? "it"
-																: "them"}
-														.
-													</Text>
-												),
-											},
-										]}
-										confirmWord={confirmWord}
-										onConfirmationChange={onTargetChange}
-									/>
-									<Field label="Afterwards">
+							<AccordionItem value="info">
+								<AccordionHeader>
+									Good to know ·{" "}
+									{warnings.length +
+										1 +
+										(appRibbonPending && scopes.length > 0 ? 1 : 0)}
+								</AccordionHeader>
+								<AccordionPanel>
+									<ul className={styles.list}>
+										<li>
+											Publishing writes this table&apos;s complete ribbon
+											customization: what is already published, plus your
+											changes. Ribbon changes imported elsewhere but not
+											published are published first, so they are kept. Each
+											ribbon is imported twice so Unified Interface picks up
+											the change.
+										</li>
+										{appRibbonPending && scopes.length > 0 && (
+											<li>
+												Your application ribbon changes stay pending: this
+												solution doesn&apos;t include the Application
+												Ribbons component. In make.powerapps.com open the
+												solution, choose{" "}
+												<strong>Add existing → Application Ribbons</strong>,
+												then reload here.
+											</li>
+										)}
+										{warnings.map((w) => (
+											<li key={w}>{w}</li>
+										))}
+									</ul>
+								</AccordionPanel>
+							</AccordionItem>
+							<AccordionItem value="options">
+								<AccordionHeader>Options</AccordionHeader>
+								<AccordionPanel className={styles.options}>
+									<Field label="Also publish">
 										<Dropdown
 											value={
 												publishStrategy === "targeted"
-													? "Publish only these ribbons"
-													: "Also publish all customizations (PublishAllXmlAsync)"
+													? "Only these ribbons"
+													: "Every unpublished customization"
 											}
 											selectedOptions={[publishStrategy]}
 											onOptionSelect={(_, data) => {
-												if (data.optionValue === "targeted" || data.optionValue === "allAsync") {
+												if (
+													data.optionValue === "targeted" ||
+													data.optionValue === "allAsync"
+												) {
 													setPublishStrategy(data.optionValue);
 													setPublishAllConfirmed(false);
 												}
 											}}
 										>
-											<Option value="targeted">Publish only these ribbons</Option>
+											<Option value="targeted">Only these ribbons</Option>
 											<Option value="allAsync">
-												Also publish all customizations (PublishAllXmlAsync)
+												Every unpublished customization
 											</Option>
 										</Dropdown>
 									</Field>
@@ -735,133 +993,144 @@ export const BulkPublishModal: React.FC = () => {
 										<MessageBar intent="warning" layout="multiline">
 											<MessageBarBody>
 												<Text block>
-													This publishes <strong>every</strong> unpublished customization in{" "}
-													<strong>{connectionName}</strong>, not only these ribbons: forms, views,
-													tables and other people&apos;s work in progress included.
+													This publishes <strong>every</strong>{" "}
+													unpublished customization in{" "}
+													<strong>{connectionName}</strong>, not only
+													these ribbons: forms, views, tables and other
+													people&apos;s work in progress included.
 												</Text>
 												<Checkbox
 													checked={publishAllConfirmed}
-													onChange={(_, d) => setPublishAllConfirmed(d.checked === true)}
+													onChange={(_, d) =>
+														setPublishAllConfirmed(d.checked === true)
+													}
 													label={`Publish all unpublished customizations in ${connectionName}`}
 												/>
 											</MessageBarBody>
 										</MessageBar>
 									)}
+									<Switch
+										label="Increment solution version"
+										checked={incrementSolutionVersion}
+										onChange={(_, d) =>
+											setIncrementSolutionVersion(d.checked === true)
+										}
+									/>
 									<Field label="Solution version">
 										<Input
-											size="small"
-											value={incrementSolutionVersion ? nextVersion : solutionVersion}
+											value={
+												incrementSolutionVersion
+													? nextVersion
+													: solutionVersion
+											}
 											onChange={(_, d) => setSolutionVersion(d.value)}
 											disabled={incrementSolutionVersion}
 										/>
 									</Field>
-									<Switch
-										label="Increment solution version"
-										checked={incrementSolutionVersion}
-										onChange={(_, d) => setIncrementSolutionVersion(d.checked === true)}
-									/>
-									<Field label="Publish comment" hint="Written to the Console log with this publish; it isn't stored in Dataverse.">
+									<Field
+										label="Publish comment"
+										hint="Written to the Console log with this publish; it isn't stored in Dataverse."
+									>
 										<Textarea
 											resize="vertical"
 											value={publishComment}
 											onChange={(_, d) => setPublishComment(d.value)}
 										/>
 									</Field>
-									<Button
-										appearance="subtle"
-										onClick={() => {
-											openXmlDrawer();
-											// The same close as Cancel: the next open starts afresh (#121).
-											handleClose();
-										}}
-									>
-										View RibbonDiffXml
-									</Button>
-								</>
-							)}
+								</AccordionPanel>
+							</AccordionItem>
+						</Accordion>
+					)}
 
-							{done && (
-								<MessageBar intent="info" layout="multiline">
-									<MessageBarBody>
-										Unified Interface caches command bars by metadata version, and publishing a ribbon
-										doesn&apos;t always change that version. If the app still shows the old command bar,
-										hard-refresh the page (Ctrl+F5) or sign out and back in; it can take several minutes
-										to appear for users who already had the table open.
-									</MessageBarBody>
-								</MessageBar>
-							)}
+					{editing && scopes.length > 0 && (
+						<Caption1 className={styles.timing}>
+							Publishing takes 1–4 minutes. Users may need to refresh to see the
+							change.
+						</Caption1>
+					)}
 
-							{verifications.map((v) => (
-								<MessageBar key={v.scope} intent={v.result.ok ? "success" : "warning"} layout="multiline">
-									<MessageBarBody>
-										<strong>{v.scope}:</strong> {v.result.message}
-									</MessageBarBody>
-								</MessageBar>
-							))}
-
-							{(publishing || done) && (
-								<div className={styles.progressList}>
-									{runScopes.map((target) => {
-										const status = statusMap[target] ?? "pending";
-										return (
-											<div key={target} className={styles.progressRow}>
-												<Badge
-													appearance="filled"
-													color={
-														status === "success"
-															? "success"
-															: status === "error"
-																? "danger"
-																: status === "publishing"
-																	? "informative"
-																	: "subtle"
-													}
-													size="small"
-												>
-													{status}
-												</Badge>
-												<Text>{target}</Text>
-												{status === "publishing" && (
-													<ProgressBar thickness="large" style={{ flex: 1 }} />
-												)}
-											</div>
-										);
-									})}
-									{progressMessage && (
-										<MessageBar intent="info">
-											<MessageBarBody>{progressMessage}</MessageBarBody>
-										</MessageBar>
-									)}
+					{errorMessages.length > 0 && (
+						<MessageBar intent="error" layout="multiline">
+							<MessageBarBody>
+								<MessageBarTitle>
+									Publish failed ({plural(errorMessages.length, "error")})
+								</MessageBarTitle>
+								<ul className={styles.list}>
+									{errorMessages.map((e, i) => (
+										<li
+											key={i}
+											style={{ fontFamily: tokens.fontFamilyMonospace }}
+										>
+											<strong>{e.scope}:</strong> {e.message}
+										</li>
+									))}
+								</ul>
+								<div style={{ marginTop: tokens.spacingVerticalS }}>
+									Full details are in the <strong>Console</strong> tab of the
+									bottom panel.
 								</div>
+							</MessageBarBody>
+						</MessageBar>
+					)}
+
+					{done && (
+						<MessageBar intent="success" layout="multiline">
+							<MessageBarBody>
+								<MessageBarTitle>
+									Published {plural(runCount, "change")}
+									{tableName &&
+									runScopes.includes(activeEntity?.logicalName ?? "")
+										? ` to ${tableName}`
+										: ""}
+								</MessageBarTitle>
+								Unified Interface can take up to about 25 minutes to show it. To see
+								it sooner, run <strong>Regenerate ribbon metadata</strong> in
+								Command Checker, or hard-refresh the page (Ctrl+F5).
+							</MessageBarBody>
+						</MessageBar>
+					)}
+
+					{verifications.map((v) => (
+						<MessageBar
+							key={v.scope}
+							intent={v.result.ok ? "success" : "warning"}
+							layout="multiline"
+						>
+							<MessageBarBody>
+								<strong>{v.scope}:</strong> {v.result.message}
+							</MessageBarBody>
+						</MessageBar>
+					))}
+
+					{(publishing || done) && (
+						<div className={styles.progressList}>
+							{runScopes.map((scope) => {
+								const status = statusMap[scope] ?? "pending";
+								return (
+									<div key={scope} className={styles.progressRow}>
+										<Badge
+											appearance="filled"
+											color={STATUS_COLOR[status]}
+											size="medium"
+											className={styles.badge}
+										>
+											{STATUS_TEXT[status]}
+										</Badge>
+										<Text>{scope}</Text>
+										{status === "publishing" && (
+											<ProgressBar thickness="large" style={{ flex: 1 }} />
+										)}
+									</div>
+								);
+							})}
+							{progressMessage && !done && (
+								<Text className={styles.timing}>{progressMessage}</Text>
 							)}
 						</div>
-					</DialogContent>
-					<DialogActions>
-						<Button appearance="secondary" onClick={handleClose} disabled={publishing}>
-							{done ? "Close" : "Cancel"}
-						</Button>
-						{!done && (
-							<Button
-								appearance="primary"
-								onClick={() => void handlePublish()}
-								disabled={
-									publishing ||
-									!activeSolution ||
-									scopes.length === 0 ||
-									unsupported.length > 0 ||
-									checkBlocks ||
-									!targetConfirmed ||
-									baseLanguageUnknown ||
-									publishAllBlocked
-								}
-							>
-								{publishing ? "Publishing..." : "Publish"}
-							</Button>
-						)}
-					</DialogActions>
-				</DialogBody>
-			</DialogSurface>
-		</Dialog>
+					)}
+				</div>
+			)}
+		</AppDialog>
 	);
 };
 

@@ -50,7 +50,9 @@ export function layerSnapshotFromParts(parts: RibbonDiffParts): LayerSnapshot {
 }
 
 /** Reads a scope's layer and snapshots it; null when the layer can't be read. */
-export async function fetchLayerSnapshot(entityLogicalName: string | null): Promise<LayerSnapshot | null> {
+export async function fetchLayerSnapshot(
+	entityLogicalName: string | null,
+): Promise<LayerSnapshot | null> {
 	try {
 		return layerSnapshotFromParts(await fetchUnmanagedRibbonParts(entityLogicalName));
 	} catch {
@@ -69,7 +71,11 @@ export function definitionsFromParts(parts: RibbonDiffParts): {
 		`<RuleDefinitions><DisplayRules>${[...parts.displayRules.values()].join("")}</DisplayRules>` +
 		`<EnableRules>${[...parts.enableRules.values()].join("")}</EnableRules></RuleDefinitions></RibbonDiffXml>`;
 	const parsed = parseRibbonXml(xml, "HomepageGrid", "");
-	return { commands: parsed.commands, enableRules: parsed.enableRules, displayRules: parsed.displayRules };
+	return {
+		commands: parsed.commands,
+		enableRules: parsed.enableRules,
+		displayRules: parsed.displayRules,
+	};
 }
 
 function getDataverseAPI() {
@@ -99,7 +105,9 @@ export async function queryAll(query: string): Promise<Array<Record<string, unkn
  * `ribbonrules`. Each row holds the element's XML exactly as Dataverse stored
  * it. These tables reflect PUBLISHED state only.
  */
-export async function fetchUnmanagedRibbonParts(entityLogicalName: string | null): Promise<RibbonDiffParts> {
+export async function fetchUnmanagedRibbonParts(
+	entityLogicalName: string | null,
+): Promise<RibbonDiffParts> {
 	const filter =
 		entityLogicalName === null
 			? "entity eq null and ismanaged eq false"
@@ -108,9 +116,15 @@ export async function fetchUnmanagedRibbonParts(entityLogicalName: string | null
 		// Ordered so element order (which decides between an original and an
 		// override CustomAction) is deterministic. Dataverse rejects $orderby on
 		// the difftype picklist (0x80040250); parts are bucketed by type anyway.
-		queryAll(`ribbondiffs?$select=diffid,difftype,rdx,sequence&$filter=${filter}&$orderby=sequence asc,diffid asc`),
-		queryAll(`ribboncommands?$select=command,commanddefinition&$filter=${filter}&$orderby=command asc`),
-		queryAll(`ribbonrules?$select=ruleid,ruletype,ruledefinition&$filter=${filter}&$orderby=ruleid asc`),
+		queryAll(
+			`ribbondiffs?$select=diffid,difftype,rdx,sequence&$filter=${filter}&$orderby=sequence asc,diffid asc`,
+		),
+		queryAll(
+			`ribboncommands?$select=command,commanddefinition&$filter=${filter}&$orderby=command asc`,
+		),
+		queryAll(
+			`ribbonrules?$select=ruleid,ruletype,ruledefinition&$filter=${filter}&$orderby=ruleid asc`,
+		),
 	]);
 	return partsFromRibbonTables({
 		diffs: diffs as RibbonTableRows["diffs"],

@@ -28,7 +28,11 @@ const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
 const firstButton = (def: RibbonDefinition) => def.tabs[0].groups[0].buttons[0];
 
 /** What IconPickerModal writes for a picked Fluent icon (`icon` carries no variant). */
-function pickFluentIcon(button: RibbonButton, pascalName: string, variant: "regular" | "filled" = "regular") {
+function pickFluentIcon(
+	button: RibbonButton,
+	pascalName: string,
+	variant: "regular" | "filled" = "regular",
+) {
 	const ref = `$webresource:${fluentIconWebResourceName("cbstest", pascalName, variant)}`;
 	Object.assign(button, { icon: pascalName.toLowerCase(), image16: ref, image32: ref });
 	return ref;

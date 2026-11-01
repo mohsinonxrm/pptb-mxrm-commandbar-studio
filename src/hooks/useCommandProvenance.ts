@@ -40,7 +40,15 @@ export function useCommandProvenance(commandId: string | undefined): CommandProv
 	);
 }
 
-/** True when the command editor must not change the command (#31). */
+/**
+ * True when the command editor must not change the command (#31): one being
+ * uncustomised or needing a reload, and one that isn't yours until you
+ * customise it (#186).
+ */
 export function isCommandReadOnly(info: CommandProvenanceInfo | null): boolean {
-	return info?.provenance === "uncustomising" || info?.provenance === "reloadRequired";
+	return (
+		info?.provenance === "oob" ||
+		info?.provenance === "uncustomising" ||
+		info?.provenance === "reloadRequired"
+	);
 }

@@ -21,7 +21,10 @@ export function toBase64Utf8(text: string): string {
  * `star_filled.svg`. Regular names are unchanged from the first release; only
  * the filled suffix moved from `_filled` to `.filled`.
  */
-export function fluentIconFileName(pascalName: string, variant: FluentIconVariant = "regular"): string {
+export function fluentIconFileName(
+	pascalName: string,
+	variant: FluentIconVariant = "regular",
+): string {
 	return `${toSnakeCase(pascalName)}${variant === "filled" ? ".filled" : ""}.svg`;
 }
 

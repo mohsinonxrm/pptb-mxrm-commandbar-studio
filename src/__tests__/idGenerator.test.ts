@@ -11,7 +11,9 @@ import {
 describe("generateRibbonId", () => {
 	it("generates IDs in {prefix}.{entity}.{name}.{suffix} format", () => {
 		const id = generateRibbonId("account", "CreditCheck", "Button", new Set());
-		expect(id).toMatch(/^[a-zA-Z][a-zA-Z0-9._]*\.[a-zA-Z0-9._]+\.[a-zA-Z0-9._]+\.[a-zA-Z0-9._]+$/);
+		expect(id).toMatch(
+			/^[a-zA-Z][a-zA-Z0-9._]*\.[a-zA-Z0-9._]+\.[a-zA-Z0-9._]+\.[a-zA-Z0-9._]+$/,
+		);
 	});
 
 	it("never generates IDs containing whitespace", () => {
@@ -82,7 +84,9 @@ describe("generateLocLabelId", () => {
 describe("ruleNameFromCommandId", () => {
 	it("uses the distinctive part of the command id", async () => {
 		const { ruleNameFromCommandId } = await import("@/utils/idGenerator");
-		expect(ruleNameFromCommandId("cbstest.contact.HomepageGrid.Approve.Command")).toBe("Approve");
+		expect(ruleNameFromCommandId("cbstest.contact.HomepageGrid.Approve.Command")).toBe(
+			"Approve",
+		);
 		expect(ruleNameFromCommandId("Mscrm.AssignSelectedRecord")).toBe("AssignSelectedRecord");
 		expect(ruleNameFromCommandId("")).toBe("Rule");
 	});

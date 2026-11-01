@@ -18,7 +18,8 @@ describe("fetchUnmanagedRibbonParts", () => {
 								rdx: '<LocLabel Id="a.LabelText"><Titles><Title languagecode="1033" description="A"/></Titles></LocLabel>',
 							},
 						],
-						"@odata.nextLink": "https://org.crm.dynamics.com/api/data/v9.2/ribbondiffs?$skiptoken=2",
+						"@odata.nextLink":
+							"https://org.crm.dynamics.com/api/data/v9.2/ribbondiffs?$skiptoken=2",
 					};
 				if (q.startsWith("ribbondiffs"))
 					return {

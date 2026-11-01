@@ -7,12 +7,21 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { findLayerOrphans, type LayerOrphan } from "@/services/layerOrphans";
 import { planScope } from "@/services/publishPlan";
-import { emptyRibbonDiffParts, parseRibbonDiffParts, type RibbonDiffParts } from "@/services/ribbonDiffMerge";
+import {
+	emptyRibbonDiffParts,
+	parseRibbonDiffParts,
+	type RibbonDiffParts,
+} from "@/services/ribbonDiffMerge";
 import { layerSnapshotFromParts } from "@/services/dataverse/ribbonLayerService";
 import { addLayerTabs } from "@/services/dataverse/ribbonService";
 import { validatePublishRibbonDiff } from "@/services/xmlValidator";
 import { useRibbonStore } from "@/store/ribbonStore";
-import type { CommandDefinition, RibbonButton, RibbonDefinition, RibbonGroup } from "@/types/ribbon";
+import type {
+	CommandDefinition,
+	RibbonButton,
+	RibbonDefinition,
+	RibbonGroup,
+} from "@/types/ribbon";
 
 vi.setConfig({ testTimeout: 30_000 });
 
@@ -30,7 +39,7 @@ const CHARTS_GROUP = `${CHARTS}.Save`;
 const OOB_FLYOUT = `${MAIN}.ExportData`;
 const OOB_SECTION_CONTROLS = `${OOB_FLYOUT}.Menu.Section1.Controls`;
 
-const clone = <V,>(v: V): V => JSON.parse(JSON.stringify(v));
+const clone = <V>(v: V): V => JSON.parse(JSON.stringify(v));
 const parse = (xml: string) => new DOMParser().parseFromString(xml, "application/xml");
 const ca = (id: string, location: string, inner: string, seq = 50) =>
 	`<CustomAction Id="${id}" Location="${location}" Sequence="${seq}"><CommandUIDefinition>${inner}</CommandUIDefinition></CustomAction>`;
@@ -40,7 +49,12 @@ const command = (id: string, enableRule?: string) =>
 	`<CommandDefinition Id="${id}"><EnableRules>${enableRule ? `<EnableRule Id="${enableRule}" />` : ""}</EnableRules><DisplayRules /><Actions><JavaScriptFunction Library="$webresource:cbs_/x.js" FunctionName="run" /></Actions></CommandDefinition>`;
 const label = (id: string, text: string) =>
 	`<LocLabel Id="${id}"><Titles><Title languagecode="1033" description="${text}" /></Titles></LocLabel>`;
-const layerOf = (opts: { actions: string[]; commands?: string[]; enable?: string[]; labels?: string[] }) =>
+const layerOf = (opts: {
+	actions: string[];
+	commands?: string[];
+	enable?: string[];
+	labels?: string[];
+}) =>
 	parseRibbonDiffParts(
 		`<RibbonDiffXml><CustomActions>${opts.actions.join("")}</CustomActions>` +
 			`<CommandDefinitions>${(opts.commands ?? []).join("")}</CommandDefinitions>` +
@@ -62,7 +76,8 @@ const btn = (id: string, extra: Partial<RibbonButton> = {}): RibbonButton => ({
 	origin: "unmanaged",
 	...extra,
 });
-const oob = (id: string, extra: Partial<RibbonButton> = {}) => btn(id, { oob: true, custom: false, origin: "oob", ...extra });
+const oob = (id: string, extra: Partial<RibbonButton> = {}) =>
+	btn(id, { oob: true, custom: false, origin: "oob", ...extra });
 const group = (id: string, buttons: RibbonButton[], sequence = 10): RibbonGroup => ({
 	id,
 	label: id,
@@ -113,7 +128,11 @@ function grid(mgmtButtons: RibbonButton[] = []): RibbonDefinition {
 		],
 	};
 }
-const empty = (location: RibbonDefinition["location"]): RibbonDefinition => ({ location, entityLogicalName: E, tabs: [] });
+const empty = (location: RibbonDefinition["location"]): RibbonDefinition => ({
+	location,
+	entityLogicalName: E,
+	tabs: [],
+});
 const ribbonsOf = (homepage: RibbonDefinition) => [homepage, empty("SubGrid"), empty("Form")];
 
 const byId = (orphans: LayerOrphan[]) => Object.fromEntries(orphans.map((o) => [o.id, o]));
@@ -127,11 +146,22 @@ beforeEach(() => {
 describe("detection", () => {
 	it("a button the layer adds to the Charts tab is reported: Unified Interface doesn't show that tab", () => {
 		layer = layerOf({
-			actions: [ca("cbs.Chart.CustomAction", `${CHARTS_GROUP}.Controls._children`, button("cbs.Chart.Button", "cbs.Chart.Command"))],
+			actions: [
+				ca(
+					"cbs.Chart.CustomAction",
+					`${CHARTS_GROUP}.Controls._children`,
+					button("cbs.Chart.Button", "cbs.Chart.Command"),
+				),
+			],
 			labels: [label("cbs.Chart.Button.LabelText", "Chart it")],
 		});
 		const orphans = findLayerOrphans(layer, ribbonsOf(grid()), E, {
-			locLabels: [{ id: "cbs.Chart.Button.LabelText", titles: [{ languageCode: 1033, description: "Chart it" }] }],
+			locLabels: [
+				{
+					id: "cbs.Chart.Button.LabelText",
+					titles: [{ languageCode: 1033, description: "Chart it" }],
+				},
+			],
 		});
 		expect(orphans).toHaveLength(1);
 		expect(orphans[0]).toMatchObject({
@@ -150,8 +180,16 @@ describe("detection", () => {
 	it("a button in a group that no longer exists (or a misspelled Location) is reported", () => {
 		layer = layerOf({
 			actions: [
-				ca("cbs.Old.CustomAction", `${MAIN}.Gone.Controls._children`, button("cbs.Old.Button", "cbs.Old.Command")),
-				ca("cbs.Typo.CustomAction", `${MAIN}.Managment.Controls._children`, button("cbs.Typo.Button", "cbs.Typo.Command")),
+				ca(
+					"cbs.Old.CustomAction",
+					`${MAIN}.Gone.Controls._children`,
+					button("cbs.Old.Button", "cbs.Old.Command"),
+				),
+				ca(
+					"cbs.Typo.CustomAction",
+					`${MAIN}.Managment.Controls._children`,
+					button("cbs.Typo.Button", "cbs.Typo.Command"),
+				),
 			],
 		});
 		const orphans = byId(findLayerOrphans(layer, ribbonsOf(grid()), E));
@@ -165,11 +203,23 @@ describe("detection", () => {
 		layer = layerOf({
 			actions: [
 				// In the out-of-the-box flyout's section, and returned.
-				ca("cbs.Csv.CustomAction", `${OOB_SECTION_CONTROLS}._children`, button("cbs.Csv.Button", "cbs.Csv.Command")),
+				ca(
+					"cbs.Csv.CustomAction",
+					`${OOB_SECTION_CONTROLS}._children`,
+					button("cbs.Csv.Button", "cbs.Csv.Command"),
+				),
 				// In the same section, but not returned.
-				ca("cbs.Pdf.CustomAction", `${OOB_SECTION_CONTROLS}._children`, button("cbs.Pdf.Button", "cbs.Pdf.Command")),
+				ca(
+					"cbs.Pdf.CustomAction",
+					`${OOB_SECTION_CONTROLS}._children`,
+					button("cbs.Pdf.Button", "cbs.Pdf.Command"),
+				),
 				// In a section of a flyout that isn't there any more.
-				ca("cbs.Item.CustomAction", "cbs.GoneFlyout.Menu.Section1.Controls._children", button("cbs.Item.Button", "cbs.Item.Command")),
+				ca(
+					"cbs.Item.CustomAction",
+					"cbs.GoneFlyout.Menu.Section1.Controls._children",
+					button("cbs.Item.Button", "cbs.Item.Command"),
+				),
 			],
 		});
 		const ribbon = grid();
@@ -184,7 +234,11 @@ describe("detection", () => {
 	it("what is on the canvas, hidden, or not a control the canvas shows isn't reported", () => {
 		layer = layerOf({
 			actions: [
-				ca("cbs.Shown.CustomAction", `${MGMT}.Controls._children`, button("cbs.Shown.Button", "cbs.Shown.Command")),
+				ca(
+					"cbs.Shown.CustomAction",
+					`${MGMT}.Controls._children`,
+					button("cbs.Shown.Button", "cbs.Shown.Command"),
+				),
 				// `{!EntityLogicalName}` in the Location and the id.
 				ca(
 					"cbs.Tpl.CustomAction",
@@ -192,15 +246,31 @@ describe("detection", () => {
 					button("cbs.{!EntityLogicalName}.Tpl.Button", "cbs.Tpl.Command"),
 				),
 				// Hidden by the layer: listed under "Hidden by customizations" instead.
-				ca("cbs.Hidden.CustomAction", `${MAIN}.Gone.Controls._children`, button("cbs.Hidden.Button", "cbs.Hidden.Command")),
+				ca(
+					"cbs.Hidden.CustomAction",
+					`${MAIN}.Gone.Controls._children`,
+					button("cbs.Hidden.Button", "cbs.Hidden.Command"),
+				),
 				`<HideCustomAction HideActionId="cbs.Hidden.Button.Hide" Location="cbs.Hidden.Button" />`,
 				// Inside an out-of-the-box group the layer hides.
-				ca("cbs.InHidden.CustomAction", `${CHARTS_GROUP}.Controls._children`, button("cbs.InHidden.Button", "cbs.InHidden.Command")),
+				ca(
+					"cbs.InHidden.CustomAction",
+					`${CHARTS_GROUP}.Controls._children`,
+					button("cbs.InHidden.Button", "cbs.InHidden.Command"),
+				),
 				`<HideCustomAction HideActionId="${CHARTS_GROUP}.Hide" Location="${CHARTS_GROUP}" />`,
 				// Not something the canvas models.
-				ca("cbs.Sep.CustomAction", `${MAIN}.Gone.Controls._children`, `<Separator Id="cbs.Sep" Sequence="5" />`),
+				ca(
+					"cbs.Sep.CustomAction",
+					`${MAIN}.Gone.Controls._children`,
+					`<Separator Id="cbs.Sep" Sequence="5" />`,
+				),
 				// Scaling.
-				ca("cbs.Max.CustomAction", `${MAIN}.Scaling._children`, `<MaxSize Id="cbs.Max" GroupId="cbs.Gone.Group" Size="LargeLarge" Sequence="62" />`),
+				ca(
+					"cbs.Max.CustomAction",
+					`${MAIN}.Scaling._children`,
+					`<MaxSize Id="cbs.Max" GroupId="cbs.Gone.Group" Size="LargeLarge" Sequence="62" />`,
+				),
 			],
 		});
 		const orphans = findLayerOrphans(
@@ -226,8 +296,16 @@ describe("detection", () => {
 		const grp = `<Group Id="cbs.Lost.Group" Sequence="70" Template="Mscrm.Templates.Flexible2" Title="Lost"><Controls Id="cbs.Lost.Group.Controls">${button("cbs.Lost.Inline.Button", "cbs.Lost.Command", "Inline")}</Controls></Group>`;
 		layer = layerOf({
 			actions: [
-				ca("cbs.Lost.Group.CustomAction", "Mscrm.HomepageGrid.othertable.MainTab.Groups._children", grp),
-				ca("cbs.Lost.Late.CustomAction", "cbs.Lost.Group.Controls._children", button("cbs.Lost.Late.Button", "cbs.Lost.Command", "Late")),
+				ca(
+					"cbs.Lost.Group.CustomAction",
+					"Mscrm.HomepageGrid.othertable.MainTab.Groups._children",
+					grp,
+				),
+				ca(
+					"cbs.Lost.Late.CustomAction",
+					"cbs.Lost.Group.Controls._children",
+					button("cbs.Lost.Late.Button", "cbs.Lost.Command", "Late"),
+				),
 			],
 		});
 		const orphans = findLayerOrphans(layer, ribbonsOf(grid()), E);
@@ -247,7 +325,11 @@ describe("detection", () => {
 		layer = layerOf({
 			actions: [
 				ca("cbs.Own.Group.CustomAction", `${MAIN}.Groups._children`, grp),
-				ca("cbs.Own.C.CustomAction", "cbs.Own.Group.Controls._children", button("cbs.Own.C.Button", "cbs.Own.Command", "C")),
+				ca(
+					"cbs.Own.C.CustomAction",
+					"cbs.Own.Group.Controls._children",
+					button("cbs.Own.C.Button", "cbs.Own.Command", "C"),
+				),
 			],
 		});
 		const ribbon = grid();
@@ -255,8 +337,14 @@ describe("detection", () => {
 		ribbon.tabs[1].groups.push(group("cbs.Own.Group", [btn("cbs.Own.A.Button")], 70));
 		const orphans = byId(findLayerOrphans(layer, ribbonsOf(ribbon), E));
 		expect(Object.keys(orphans).sort()).toEqual(["cbs.Own.B.Button", "cbs.Own.C.Button"]);
-		expect(orphans["cbs.Own.B.Button"]).toMatchObject({ reason: "not-returned", location: "cbs.Own.Group.Controls._children" });
-		expect(orphans["cbs.Own.C.Button"]).toMatchObject({ reason: "not-returned", deleteControlIds: ["cbs.Own.C.Button"] });
+		expect(orphans["cbs.Own.B.Button"]).toMatchObject({
+			reason: "not-returned",
+			location: "cbs.Own.Group.Controls._children",
+		});
+		expect(orphans["cbs.Own.C.Button"]).toMatchObject({
+			reason: "not-returned",
+			deleteControlIds: ["cbs.Own.C.Button"],
+		});
 	});
 });
 
@@ -274,12 +362,26 @@ const SHARED_LABEL = "cbs.Shared.LabelText";
 function seedLayer() {
 	layer = layerOf({
 		actions: [
-			ca("cbs.Visible.CustomAction", `${MGMT}.Controls._children`, button(VISIBLE, SHARED, `$LocLabels:${SHARED_LABEL}`)),
-			ca("cbs.Chart.CustomAction", `${CHARTS_GROUP}.Controls._children`, button("cbs.Chart.Button", "cbs.Chart.Command")),
-			ca("cbs.Old.CustomAction", `${MAIN}.Gone.Controls._children`, button("cbs.Old.Button", SHARED, `$LocLabels:${SHARED_LABEL}`)),
+			ca(
+				"cbs.Visible.CustomAction",
+				`${MGMT}.Controls._children`,
+				button(VISIBLE, SHARED, `$LocLabels:${SHARED_LABEL}`),
+			),
+			ca(
+				"cbs.Chart.CustomAction",
+				`${CHARTS_GROUP}.Controls._children`,
+				button("cbs.Chart.Button", "cbs.Chart.Command"),
+			),
+			ca(
+				"cbs.Old.CustomAction",
+				`${MAIN}.Gone.Controls._children`,
+				button("cbs.Old.Button", SHARED, `$LocLabels:${SHARED_LABEL}`),
+			),
 		],
 		commands: [command(SHARED), command("cbs.Chart.Command", "cbs.Chart.Enable")],
-		enable: [`<EnableRule Id="cbs.Chart.Enable"><SelectionCountRule Minimum="1" /></EnableRule>`],
+		enable: [
+			`<EnableRule Id="cbs.Chart.Enable"><SelectionCountRule Minimum="1" /></EnableRule>`,
+		],
 		labels: [label(SHARED_LABEL, "Shared"), label("cbs.Chart.Button.LabelText", "Chart it")],
 	});
 }
@@ -288,17 +390,33 @@ const visibleButton = () =>
 	btn(VISIBLE, {
 		label: "Shared",
 		commandId: SHARED,
-		source: { labelToken: `$LocLabels:${SHARED_LABEL}`, attributes: { Id: VISIBLE, Command: SHARED, Sequence: "50", LabelText: `$LocLabels:${SHARED_LABEL}`, TemplateAlias: "o1" } },
+		source: {
+			labelToken: `$LocLabels:${SHARED_LABEL}`,
+			attributes: {
+				Id: VISIBLE,
+				Command: SHARED,
+				Sequence: "50",
+				LabelText: `$LocLabels:${SHARED_LABEL}`,
+				TemplateAlias: "o1",
+			},
+		},
 	});
 const sharedCommand: CommandDefinition = {
 	id: SHARED,
 	enableRules: [],
 	displayRules: [],
-	actions: [{ kind: "javascript", library: "$webresource:cbs_/x.js", functionName: "run", params: [] }],
+	actions: [
+		{ kind: "javascript", library: "$webresource:cbs_/x.js", functionName: "run", params: [] },
+	],
 };
 
-async function publish(current: RibbonDefinition, baseline: RibbonDefinition, deletedOrphans: LayerOrphan[] = []) {
-	const { buildMergedRibbonDiffXml, publishValidationContext } = await import("@/services/dataverse/publishService");
+async function publish(
+	current: RibbonDefinition,
+	baseline: RibbonDefinition,
+	deletedOrphans: LayerOrphan[] = [],
+) {
+	const { buildMergedRibbonDiffXml, publishValidationContext } =
+		await import("@/services/dataverse/publishService");
 	const commands = [sharedCommand];
 	const input = {
 		locations: [{ current, baseline }],
@@ -319,7 +437,10 @@ async function publish(current: RibbonDefinition, baseline: RibbonDefinition, de
 	});
 	const findings = validatePublishRibbonDiff(
 		merged.parts,
-		publishValidationContext({ ...input, entity: { logicalName: E }, publisherPrefix: "cbs" }, merged),
+		publishValidationContext(
+			{ ...input, entity: { logicalName: E }, publisherPrefix: "cbs" },
+			merged,
+		),
 	);
 	return { plan, ...merged, findings, doc: parse(merged.xml) };
 }
@@ -350,9 +471,13 @@ describe("delete", () => {
 	it("deleting one orphan leaves the other untouched", async () => {
 		seedLayer();
 		const ribbon = grid([visibleButton()]);
-		const chart = findLayerOrphans(layer, ribbonsOf(ribbon), E).filter((o) => o.id === "cbs.Chart.Button");
+		const chart = findLayerOrphans(layer, ribbonsOf(ribbon), E).filter(
+			(o) => o.id === "cbs.Chart.Button",
+		);
 		const { parts } = await publish(ribbon, clone(ribbon), chart);
-		expect(parts.customActions.get("ca:cbs.Old.CustomAction")).toBe(layer.customActions.get("ca:cbs.Old.CustomAction"));
+		expect(parts.customActions.get("ca:cbs.Old.CustomAction")).toBe(
+			layer.customActions.get("ca:cbs.Old.CustomAction"),
+		);
 		expect(parts.customActions.has("ca:cbs.Chart.CustomAction")).toBe(false);
 	});
 
@@ -360,12 +485,28 @@ describe("delete", () => {
 		const grp = `<Group Id="cbs.Lost.Group" Sequence="70" Template="Mscrm.Templates.Flexible2" Title="$LocLabels:cbs.Lost.Group.Title"><Controls Id="cbs.Lost.Group.Controls">${button("cbs.Lost.Inline.Button", "cbs.Lost.Command")}</Controls></Group>`;
 		layer = layerOf({
 			actions: [
-				ca("cbs.Lost.Group.CustomAction", "Mscrm.HomepageGrid.othertable.MainTab.Groups._children", grp),
-				ca("cbs.Lost.Late.CustomAction", "cbs.Lost.Group.Controls._children", button("cbs.Lost.Late.Button", "cbs.Lost.Command")),
-				ca("cbs.Lost.Max.CustomAction", "Mscrm.HomepageGrid.othertable.MainTab.Scaling._children", `<MaxSize Id="cbs.Lost.Group.MaxSize" GroupId="cbs.Lost.Group" Size="LargeLarge" Sequence="62" />`),
+				ca(
+					"cbs.Lost.Group.CustomAction",
+					"Mscrm.HomepageGrid.othertable.MainTab.Groups._children",
+					grp,
+				),
+				ca(
+					"cbs.Lost.Late.CustomAction",
+					"cbs.Lost.Group.Controls._children",
+					button("cbs.Lost.Late.Button", "cbs.Lost.Command"),
+				),
+				ca(
+					"cbs.Lost.Max.CustomAction",
+					"Mscrm.HomepageGrid.othertable.MainTab.Scaling._children",
+					`<MaxSize Id="cbs.Lost.Group.MaxSize" GroupId="cbs.Lost.Group" Size="LargeLarge" Sequence="62" />`,
+				),
 			],
 			commands: [command("cbs.Lost.Command")],
-			labels: [label("cbs.Lost.Group.Title", "Lost"), label("cbs.Lost.Inline.Button.LabelText", "Inline"), label("cbs.Lost.Late.Button.LabelText", "Late")],
+			labels: [
+				label("cbs.Lost.Group.Title", "Lost"),
+				label("cbs.Lost.Inline.Button.LabelText", "Inline"),
+				label("cbs.Lost.Late.Button.LabelText", "Late"),
+			],
 		});
 		const ribbon = grid();
 		const orphans = findLayerOrphans(layer, ribbonsOf(ribbon), E);
@@ -390,9 +531,15 @@ describe("publishing anything else keeps the orphans", () => {
 		for (const key of ["ca:cbs.Chart.CustomAction", "ca:cbs.Old.CustomAction"]) {
 			expect(parts.customActions.get(key)).toBe(layer.customActions.get(key));
 		}
-		expect(parts.commandDefinitions.get("cbs.Chart.Command")).toBe(layer.commandDefinitions.get("cbs.Chart.Command"));
-		expect(parts.enableRules.get("cbs.Chart.Enable")).toBe(layer.enableRules.get("cbs.Chart.Enable"));
-		expect(parts.locLabels.get("cbs.Chart.Button.LabelText")).toBe(layer.locLabels.get("cbs.Chart.Button.LabelText"));
+		expect(parts.commandDefinitions.get("cbs.Chart.Command")).toBe(
+			layer.commandDefinitions.get("cbs.Chart.Command"),
+		);
+		expect(parts.enableRules.get("cbs.Chart.Enable")).toBe(
+			layer.enableRules.get("cbs.Chart.Enable"),
+		);
+		expect(parts.locLabels.get("cbs.Chart.Button.LabelText")).toBe(
+			layer.locLabels.get("cbs.Chart.Button.LabelText"),
+		);
 		// Verification after the publish checks these by content: none of them changed.
 		expect(changedKeys.filter((k) => /Chart|Old/.test(k))).toEqual([]);
 	});
@@ -419,17 +566,31 @@ describe("pre-publish check", () => {
 		seedLayer();
 		const baseline = grid([visibleButton()]);
 		const current = clone(baseline);
-		current.tabs[0].groups[0].buttons.push(btn("cbs.NewChart.Button", { origin: undefined, commandId: SHARED }));
+		current.tabs[0].groups[0].buttons.push(
+			btn("cbs.NewChart.Button", { origin: undefined, commandId: SHARED }),
+		);
 		const { findings } = await publish(current, baseline);
 		const orphanFindings = findings.filter((f) => f.code === "orphan-location");
-		expect(orphanFindings.map((f) => [f.severity, f.elementId])).toEqual([["warning", "cbs.NewChart.Button"]]);
+		expect(orphanFindings.map((f) => [f.severity, f.elementId])).toEqual([
+			["warning", "cbs.NewChart.Button"],
+		]);
 		expect(orphanFindings[0].message).toContain(CHARTS);
 
 		const typo = validatePublishRibbonDiff(
-			layerOf({ actions: [ca("cbs.Typo.CustomAction", `${MAIN}.Managment.Controls._children`, button("cbs.Typo.Button", SHARED))] }),
+			layerOf({
+				actions: [
+					ca(
+						"cbs.Typo.CustomAction",
+						`${MAIN}.Managment.Controls._children`,
+						button("cbs.Typo.Button", SHARED),
+					),
+				],
+			}),
 			{ places: { entityLogicalName: E, tabByCollection: { [`${MGMT}.Controls`]: MAIN } } },
 		);
-		expect(typo.filter((f) => f.code === "orphan-location").map((f) => f.elementId)).toEqual(["cbs.Typo.Button"]);
+		expect(typo.filter((f) => f.code === "orphan-location").map((f) => f.elementId)).toEqual([
+			"cbs.Typo.Button",
+		]);
 	});
 
 	it("doesn't warn about orphans already in the layer, nor without the table's places (application ribbon)", async () => {
@@ -439,7 +600,9 @@ describe("pre-publish check", () => {
 		current.tabs[1].groups[0].buttons[2].tooltipTitle = "Edited";
 		const { findings } = await publish(current, ribbon);
 		expect(findings.filter((f) => f.code === "orphan-location")).toEqual([]);
-		expect(validatePublishRibbonDiff(layer).filter((f) => f.code === "orphan-location")).toEqual([]);
+		expect(
+			validatePublishRibbonDiff(layer).filter((f) => f.code === "orphan-location"),
+		).toEqual([]);
 	});
 });
 
@@ -451,7 +614,12 @@ describe("store", () => {
 		const ribbon = grid([visibleButton()]);
 		const orphans = findLayerOrphans(layer, ribbonsOf(ribbon), E);
 		useRibbonStore.getState().loadWorkspace({
-			ribbons: { HomepageGrid: ribbon, SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+			ribbons: {
+				HomepageGrid: ribbon,
+				SubGrid: empty("SubGrid"),
+				Form: empty("Form"),
+				Application: empty("Application"),
+			},
 			commands: [sharedCommand],
 			displayRules: [],
 			enableRules: [],
@@ -464,7 +632,11 @@ describe("store", () => {
 	it("a delete is pending until published, and can be undone and redone", () => {
 		load();
 		const store = useRibbonStore.getState;
-		expect(store().orphans.entity.map((o) => o.id).sort()).toEqual(["cbs.Chart.Button", "cbs.Old.Button"]);
+		expect(
+			store()
+				.orphans.entity.map((o) => o.id)
+				.sort(),
+		).toEqual(["cbs.Chart.Button", "cbs.Old.Button"]);
 		store().setOrphanDeleted("entity", "cbs.Chart.Button", true);
 		expect(store().pendingOrphanDeletes.entity).toEqual(["cbs.Chart.Button"]);
 		expect(store().mutationsSincePublish).toBe(1);
@@ -482,7 +654,13 @@ describe("store", () => {
 		load();
 		const store = useRibbonStore.getState;
 		store().setOrphanDeleted("entity", "cbs.Chart.Button", true);
-		store().upsertLocLabel({ id: SHARED_LABEL, titles: [{ languageCode: 1033, description: "Shared" }, { languageCode: 1031, description: "Geteilt" }] });
+		store().upsertLocLabel({
+			id: SHARED_LABEL,
+			titles: [
+				{ languageCode: 1033, description: "Shared" },
+				{ languageCode: 1031, description: "Geteilt" },
+			],
+		});
 		store().markPublished();
 		expect(store().orphans.entity.map((o) => o.id)).toEqual(["cbs.Old.Button"]);
 		expect(store().pendingOrphanDeletes.entity).toEqual([]);
@@ -507,7 +685,11 @@ describe("review — no false orphans", () => {
 				`<RuleDefinitions><TabDisplayRules><TabDisplayRule TabCommand="${cmd}">${rule}</TabDisplayRule></TabDisplayRules></RuleDefinitions></RibbonDiffXml>`,
 		);
 	};
-	const ribbonSet = () => ({ HomepageGrid: grid(), SubGrid: empty("SubGrid"), Form: empty("Form") });
+	const ribbonSet = () => ({
+		HomepageGrid: grid(),
+		SubGrid: empty("SubGrid"),
+		Form: empty("Form"),
+	});
 
 	it("1 — a layer tab with a {!EntityLogicalName} id, rebuilt by addLayerTabs, isn't an orphan", () => {
 		layer = tabLayer(
@@ -534,19 +716,37 @@ describe("review — no false orphans", () => {
 
 	it("3 — a button in a group the application layer hides isn't an orphan", () => {
 		layer = layerOf({
-			actions: [ca("cbs.InAppHidden.CustomAction", `${MAIN}.Workflow.Controls._children`, button("cbs.InAppHidden.Button", "cbs.X.Command"))],
+			actions: [
+				ca(
+					"cbs.InAppHidden.CustomAction",
+					`${MAIN}.Workflow.Controls._children`,
+					button("cbs.InAppHidden.Button", "cbs.X.Command"),
+				),
+			],
 		});
-		expect(findLayerOrphans(layer, ribbonsOf(grid()), E).map((o) => o.id)).toEqual(["cbs.InAppHidden.Button"]);
+		expect(findLayerOrphans(layer, ribbonsOf(grid()), E).map((o) => o.id)).toEqual([
+			"cbs.InAppHidden.Button",
+		]);
 		expect(
-			findLayerOrphans(layer, ribbonsOf(grid()), E, { otherHides: ["Mscrm.HomepageGrid.{!EntityLogicalName}.MainTab.Workflow"] }),
+			findLayerOrphans(layer, ribbonsOf(grid()), E, {
+				otherHides: ["Mscrm.HomepageGrid.{!EntityLogicalName}.MainTab.Workflow"],
+			}),
 		).toEqual([]);
 	});
 
 	it("3 — a missing location says it may be hidden by another solution; a platform one isn't called misspelled", () => {
 		layer = layerOf({
 			actions: [
-				ca("cbs.A.CustomAction", `${MAIN}.Workflow.Controls._children`, button("cbs.A.Button", "cbs.X.Command")),
-				ca("cbs.B.CustomAction", "cbs.Gone.Group.Controls._children", button("cbs.B.Button", "cbs.X.Command")),
+				ca(
+					"cbs.A.CustomAction",
+					`${MAIN}.Workflow.Controls._children`,
+					button("cbs.A.Button", "cbs.X.Command"),
+				),
+				ca(
+					"cbs.B.CustomAction",
+					"cbs.Gone.Group.Controls._children",
+					button("cbs.B.Button", "cbs.X.Command"),
+				),
 			],
 		});
 		const orphans = byId(findLayerOrphans(layer, ribbonsOf(grid()), E));
@@ -560,7 +760,11 @@ describe("review — no false orphans", () => {
 		layer = layerOf({
 			actions: [
 				ca("cbs.Hid.Tab.CustomAction", "Mscrm.Tabs._children", tab),
-				ca("cbs.Late.CustomAction", "rw.Group1.Controls._children", button("cbs.Late.Button", "cbs.X.Command")),
+				ca(
+					"cbs.Late.CustomAction",
+					"rw.Group1.Controls._children",
+					button("cbs.Late.Button", "cbs.X.Command"),
+				),
 				`<HideCustomAction HideActionId="cbs.Hid.Tab.Hide" Location="cbs.Hid.Tab" />`,
 			],
 		});
@@ -585,7 +789,11 @@ describe("review 4 — just published", () => {
 		const { annotateRecentPublish } = await import("@/services/layerOrphans");
 		const now = Date.parse("2026-10-18T12:00:00Z");
 		const recent = { at: now - 5 * 60_000, publishedAt: { "cbs.Just": now - 5 * 60_000 } };
-		const [just, other] = annotateRecentPublish([orphanAt("cbs.Just"), orphanAt("cbs.Old")], recent, now);
+		const [just, other] = annotateRecentPublish(
+			[orphanAt("cbs.Just"), orphanAt("cbs.Old")],
+			recent,
+			now,
+		);
 		expect(just.recentPublish).toEqual({ minutesAgo: 5, published: true });
 		expect(just.why).toMatch(/may not have caught up/);
 		expect(other.recentPublish).toEqual({ minutesAgo: 5, published: false });
@@ -596,8 +804,16 @@ describe("review 4 — just published", () => {
 	it("the CustomActions a publish changed are remembered per table", async () => {
 		const { rememberPublish, recentPublishOf } = await import("@/utils/recentPublish");
 		sessionStorage.clear();
-		rememberPublish("https://org.example", E, ["customActions:ca:cbs.Just", "commandDefinitions:cbs.X", "customActions:hide:cbs.H"], 1000);
-		expect(recentPublishOf("https://org.example", E, 1000)).toEqual({ at: 1000, publishedAt: { "cbs.Just": 1000 } });
+		rememberPublish(
+			"https://org.example",
+			E,
+			["customActions:ca:cbs.Just", "commandDefinitions:cbs.X", "customActions:hide:cbs.H"],
+			1000,
+		);
+		expect(recentPublishOf("https://org.example", E, 1000)).toEqual({
+			at: 1000,
+			publishedAt: { "cbs.Just": 1000 },
+		});
 		expect(recentPublishOf("https://org.example", "other", 1000)).toBeNull();
 	});
 
@@ -609,8 +825,17 @@ describe("review 4 — just published", () => {
 		const min = 60_000;
 		rememberPublish("https://org.example", E, ["customActions:ca:cbs.A"], t0);
 		// An unrelated edit published 10 minutes later.
-		rememberPublish("https://org.example", E, ["customActions:ca:cbs.Visible.CustomAction"], t0 + 10 * min);
-		const [a] = annotateRecentPublish([orphanAt("cbs.A")], recentPublishOf("https://org.example", E, t0 + 12 * min), t0 + 12 * min);
+		rememberPublish(
+			"https://org.example",
+			E,
+			["customActions:ca:cbs.Visible.CustomAction"],
+			t0 + 10 * min,
+		);
+		const [a] = annotateRecentPublish(
+			[orphanAt("cbs.A")],
+			recentPublishOf("https://org.example", E, t0 + 12 * min),
+			t0 + 12 * min,
+		);
 		expect(a.recentPublish).toEqual({ minutesAgo: 12, published: true });
 		// 35 minutes after A, another publish: A's entry has expired, the second publish's hasn't.
 		rememberPublish("https://org.example", E, ["customActions:ca:cbs.B"], t0 + 35 * min);
@@ -653,10 +878,15 @@ describe("drafts (#64 x #16)", () => {
 	it("a pending orphan delete is saved in the draft and restored", async () => {
 		const { workspaceDelta, draftWorkspace } = await import("@/services/ribbonDraft");
 		const { useRibbonStore: store } = await import("@/store/ribbonStore");
-		store.setState({ pendingOrphanDeletes: { entity: ["cbs.Orphan.Button"], application: [] } });
+		store.setState({
+			pendingOrphanDeletes: { entity: ["cbs.Orphan.Button"], application: [] },
+		});
 		const delta = workspaceDelta(store.getState());
 		store.setState({ pendingOrphanDeletes: { entity: [], application: [] } });
-		const restored = draftWorkspace({ delta } as Parameters<typeof draftWorkspace>[0], store.getState());
+		const restored = draftWorkspace(
+			{ delta } as Parameters<typeof draftWorkspace>[0],
+			store.getState(),
+		);
 		expect(restored.pendingOrphanDeletes.entity).toEqual(["cbs.Orphan.Button"]);
 	});
 });

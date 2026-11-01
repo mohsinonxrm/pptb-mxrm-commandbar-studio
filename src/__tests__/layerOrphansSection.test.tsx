@@ -36,9 +36,19 @@ beforeEach(() => {
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
-	useSelectionStore.setState({ location: "HomepageGrid", tabId: "", selectedButtonId: null, selectedGroupId: null });
+	useSelectionStore.setState({
+		location: "HomepageGrid",
+		tabId: "",
+		selectedButtonId: null,
+		selectedGroupId: null,
+	});
 	useRibbonStore.getState().loadWorkspace({
-		ribbons: { HomepageGrid: empty("HomepageGrid"), SubGrid: empty("SubGrid"), Form: empty("Form"), Application: empty("Application") },
+		ribbons: {
+			HomepageGrid: empty("HomepageGrid"),
+			SubGrid: empty("SubGrid"),
+			Form: empty("Form"),
+			Application: empty("Application"),
+		},
 		commands: [],
 		displayRules: [],
 		enableRules: [],
@@ -78,7 +88,12 @@ describe("Orphaned customizations section", () => {
 
 	it("review 4: just published from here → Delete isn't offered; published recently → Delete asks first", () => {
 		const just: LayerOrphan = { ...ORPHAN, recentPublish: { minutesAgo: 2, published: true } };
-		const recent: LayerOrphan = { ...ORPHAN, id: "cbs.Other.Button", customActionId: "cbs.Other", recentPublish: { minutesAgo: 2, published: false } };
+		const recent: LayerOrphan = {
+			...ORPHAN,
+			id: "cbs.Other.Button",
+			customActionId: "cbs.Other",
+			recentPublish: { minutesAgo: 2, published: false },
+		};
 		useRibbonStore.setState({ orphans: { entity: [just, recent], application: [] } });
 		act(() =>
 			root.render(
@@ -100,8 +115,12 @@ describe("Orphaned customizations section", () => {
 		expect(recentDelete.textContent).toBe("Delete…");
 		act(() => recentDelete.click());
 		expect(useRibbonStore.getState().pendingOrphanDeletes.entity).toEqual([]);
-		const confirm = buttons()[1];
-		expect(confirm.textContent).toBe("Delete anyway");
+		// A confirmation dialog, with the red button (#184).
+		const dialog = document.querySelector<HTMLElement>('[role="alertdialog"]')!;
+		expect(dialog.textContent).toContain("about 2 minutes ago");
+		const confirm = [...dialog.querySelectorAll("button")].find(
+			(b) => b.textContent === "Delete anyway",
+		)!;
 		act(() => confirm.click());
 		expect(useRibbonStore.getState().pendingOrphanDeletes.entity).toEqual(["cbs.Other.Button"]);
 	});

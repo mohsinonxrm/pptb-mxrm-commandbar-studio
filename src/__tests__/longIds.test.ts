@@ -57,7 +57,12 @@ describe("generated label ids are at most 128 characters (#86)", () => {
 	it("leaves short ids alone and shortens long ones stably and distinctly", () => {
 		expect(buttonLabelId("cbs.Go")).toBe("cbs.Go.LabelText");
 		const long = `${OOB}.BarFlyout_copy_1792354294864.${OOB}.Bar.StackedBar100`;
-		const ids = [buttonLabelId(long), buttonTooltipTitleId(long), buttonTooltipBodyId(long), sectionTitleLabelId(long)];
+		const ids = [
+			buttonLabelId(long),
+			buttonTooltipTitleId(long),
+			buttonTooltipBodyId(long),
+			sectionTitleLabelId(long),
+		];
 		for (const id of ids) expect(id.length).toBeLessThanOrEqual(MAX_LOC_LABEL_ID_LENGTH);
 		expect(ids[2].endsWith(".ToolTipDescription")).toBe(true);
 		expect(buttonLabelId(long)).toBe(buttonLabelId(long));
@@ -77,13 +82,16 @@ describe("copies of an out-of-the-box flyout (#86)", () => {
 		]);
 		expect(copy.menu!.id).toBe(`${copy.id}.Menu`);
 		expect(copy.menu!.sections[0].controlsId).toBe(`${copy.id}.Controls0`);
-		for (const i of items) expect(buttonTooltipBodyId(i.id).length).toBeLessThanOrEqual(MAX_LOC_LABEL_ID_LENGTH);
+		for (const i of items)
+			expect(buttonTooltipBodyId(i.id).length).toBeLessThanOrEqual(MAX_LOC_LABEL_ID_LENGTH);
 	});
 
 	it("keep platform ($Resources:) texts and drop the original's own labels", () => {
 		for (const c of [copy, ...menuItemsOf(copy)]) {
 			expect(c.source?.labelToken).toBe("$Resources:Ribbon.VisualizationTab.Charts.Bar");
-			expect(c.source?.tooltipTitleToken).toBe("$Resources:Ribbon.VisualizationTab.Charts.Bar");
+			expect(c.source?.tooltipTitleToken).toBe(
+				"$Resources:Ribbon.VisualizationTab.Charts.Bar",
+			);
 			expect(c.source?.tooltipBodyToken).toBeUndefined();
 		}
 	});
@@ -118,7 +126,9 @@ describe("parameterised platform texts (#86 review)", () => {
 				attributes: {},
 			},
 		});
-		expect(copyControl(b, "cbs.New2").source?.tooltipBodyToken).toBe("$Resources(EntityDisplayName):Ribbon.Tooltip.New");
+		expect(copyControl(b, "cbs.New2").source?.tooltipBodyToken).toBe(
+			"$Resources(EntityDisplayName):Ribbon.Tooltip.New",
+		);
 	});
 });
 
@@ -144,12 +154,18 @@ describe("pre-publish check (#86)", () => {
 			`<RibbonDiffXml><CustomActions><CustomAction Id="cbs.Item.CustomAction" Location="Mscrm.HomepageGrid.t.Send.Controls._children">` +
 			`<CommandUIDefinition><Button Id="cbs.Item" Command="Mscrm.Enabled" LabelText="$LocLabels:${label(n)}"/></CommandUIDefinition></CustomAction></CustomActions></RibbonDiffXml>`;
 		const find = (menuControlsIds?: string[]) =>
-			validatePublishRibbonDiff(added(129), { menuControlsIds }).filter((f) => f.code === "label-id-length");
-		expect(find(["Mscrm.HomepageGrid.t.Send.Controls"])).toEqual([expect.objectContaining({ severity: "error" })]);
+			validatePublishRibbonDiff(added(129), { menuControlsIds }).filter(
+				(f) => f.code === "label-id-length",
+			);
+		expect(find(["Mscrm.HomepageGrid.t.Send.Controls"])).toEqual([
+			expect.objectContaining({ severity: "error" }),
+		]);
 		expect(find()).toEqual([expect.objectContaining({ severity: "warning" })]);
 	});
 
 	it("only warns for a top-level control", () => {
-		expect(lengthFindings(false, 160)).toEqual([expect.objectContaining({ severity: "warning" })]);
+		expect(lengthFindings(false, 160)).toEqual([
+			expect.objectContaining({ severity: "warning" }),
+		]);
 	});
 });

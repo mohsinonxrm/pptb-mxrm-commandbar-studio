@@ -46,7 +46,11 @@ function monacoDompurify(): Plugin {
 		name: "cbs-monaco-dompurify",
 		enforce: "pre",
 		async resolveId(source, importer, options) {
-			if (!importer || !/[\\/]monaco-editor[\\/]esm[\\/]vs[\\/]base[\\/]browser[\\/]/.test(importer)) return null;
+			if (
+				!importer ||
+				!/[\\/]monaco-editor[\\/]esm[\\/]vs[\\/]base[\\/]browser[\\/]/.test(importer)
+			)
+				return null;
 			if (!/(^|[\\/])dompurify[\\/]dompurify\.js$/.test(source)) return null;
 			// Resolved from Monaco's folder: its own (overridden) dompurify dependency.
 			return this.resolve("dompurify", importer, { ...options, skipSelf: true });

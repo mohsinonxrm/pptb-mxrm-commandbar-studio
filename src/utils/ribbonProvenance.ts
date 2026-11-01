@@ -61,7 +61,8 @@ export function applyLayerOwnership(def: RibbonDefinition, ownIds: Set<string>):
 		for (const group of tab.groups)
 			for (const button of groupControls(group)) {
 				if (ownIds.has(button.id)) applyButtonOrigin(button, { origin: "unmanaged" });
-				else if (button.origin === "unmanaged") applyButtonOrigin(button, { origin: "managed" });
+				else if (button.origin === "unmanaged")
+					applyButtonOrigin(button, { origin: "managed" });
 			}
 }
 
@@ -81,6 +82,17 @@ export function isOwnControl(button: Pick<RibbonButton, "origin">): boolean {
  * make the original yours), a new one by its own origin. A flyout / split
  * button is deleted with its menu, so every item must be deletable too.
  */
+/** Microsoft's buttons on the global command bar can't be changed, only yours (#182). */
+export function isGlobalOobReadOnly(
+	location: RibbonLocation,
+	tabId: string,
+	button: RibbonButton,
+): boolean {
+	return (
+		location === "Application" && tabId === "Mscrm.GlobalTab" && button.oob && !button.custom
+	);
+}
+
 export function canDeleteControl(button: RibbonButton, baseline: RibbonDefinition): boolean {
 	return deletableControls(loadedOwnership(baseline), [button]);
 }
@@ -98,7 +110,9 @@ function loadedOwnership(baseline: RibbonDefinition): Map<string, boolean> {
 }
 
 function deletableControls(loaded: Map<string, boolean>, buttons: RibbonButton[]): boolean {
-	return withMenuItems(buttons).every((control) => loaded.get(control.id) ?? isOwnControl(control));
+	return withMenuItems(buttons).every(
+		(control) => loaded.get(control.id) ?? isOwnControl(control),
+	);
 }
 
 /** Tab / group ids the scope's unmanaged layer adds (LayerSnapshot.containerIds). */
@@ -121,9 +135,16 @@ function isOwnContainer(id: string, loaded: boolean, own: OwnContainerIds): bool
  * removal, or deletes your group and leaves another solution's CustomAction
  * pointing at it.
  */
-export function canDeleteGroup(group: RibbonGroup, baseline: RibbonDefinition, own: OwnContainerIds): boolean {
+export function canDeleteGroup(
+	group: RibbonGroup,
+	baseline: RibbonDefinition,
+	own: OwnContainerIds,
+): boolean {
 	const loaded = baseline.tabs.some((t) => t.groups.some((g) => g.id === group.id));
-	return isOwnContainer(group.id, loaded, own) && deletableControls(loadedOwnership(baseline), group.buttons);
+	return (
+		isOwnContainer(group.id, loaded, own) &&
+		deletableControls(loadedOwnership(baseline), group.buttons)
+	);
 }
 
 /** The parts of the scope's unmanaged layer the rename rule reads (LayerSnapshot). */
@@ -154,7 +175,9 @@ export function canRenameContainer(
 	const loaded =
 		kind === "tab"
 			? baseline.tabs.find((t) => t.id === id)
-			: new Map(baseline.tabs.flatMap((t) => t.groups.map((g) => [g.id, g] as const))).get(id);
+			: new Map(baseline.tabs.flatMap((t) => t.groups.map((g) => [g.id, g] as const))).get(
+					id,
+				);
 	if (!loaded) return true;
 	if (!isOwnContainer(id, true, layer?.containerIds)) return false;
 	const labelId = /^\$LocLabels:(.+)$/.exec(loaded.label ?? "")?.[1];
@@ -162,16 +185,25 @@ export function canRenameContainer(
 }
 
 /** Whether a tab can be deleted (#17 review): yours, and so is every group and control in it. */
-export function canDeleteTab(tab: RibbonTab, baseline: RibbonDefinition, own: OwnContainerIds): boolean {
+export function canDeleteTab(
+	tab: RibbonTab,
+	baseline: RibbonDefinition,
+	own: OwnContainerIds,
+): boolean {
 	const loaded = baseline.tabs.some((t) => t.id === tab.id);
-	return isOwnContainer(tab.id, loaded, own) && tab.groups.every((g) => canDeleteGroup(g, baseline, own));
+	return (
+		isOwnContainer(tab.id, loaded, own) &&
+		tab.groups.every((g) => canDeleteGroup(g, baseline, own))
+	);
 }
 
 /** Why a control can't be deleted, in words (#17): where it comes from. */
 export function deleteBlockedReason(button: RibbonButton, baseline: RibbonDefinition): string {
 	// As loaded: "Create override…" makes the canvas copy yours, not the original.
 	// The application ribbon repeats ids: every occurrence counts.
-	const loaded = baseline.tabs.flatMap((t) => t.groups.flatMap((g) => groupControls(g))).filter((c) => c.id === button.id);
+	const loaded = baseline.tabs
+		.flatMap((t) => t.groups.flatMap((g) => groupControls(g)))
+		.filter((c) => c.id === button.id);
 	const foreign = loaded.find((c) => !isOwnControl(c));
 	const from = foreign ?? loaded[0] ?? button;
 	const source =
@@ -211,7 +243,8 @@ export function applyProvenanceToRibbons(
 			for (const group of tab.groups) {
 				for (const button of groupControls(group)) {
 					const p = provenance.get(button.id);
-					if (p && !own.has(button.id) && button.origin !== "oob") applyButtonOrigin(button, p);
+					if (p && !own.has(button.id) && button.origin !== "oob")
+						applyButtonOrigin(button, p);
 				}
 			}
 		}

@@ -27,17 +27,10 @@ import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 const WORKSPACE_PANELS = [
 	"commandEditorOpen",
 	"ruleEditorOpen",
-	"xmlDrawerOpen",
 	"iconPickerOpen",
-	"localizationEditorOpen",
 	"newGroupOpen",
 	"importXmlOpen",
-	"conflictDrawerOpen",
 	"webResourceBrowserOpen",
-	"urlComposerOpen",
-	"diffViewerOpen",
-	"tabDisplayRulesOpen",
-	"scalingEditorOpen",
 	"newTabOpen",
 ] as const satisfies readonly (keyof UIStore)[];
 
@@ -97,9 +90,13 @@ export function applyHostConnection(connection: HostConnection | null): Connecti
 	// Last, and best effort: the UI store is persisted, and a full browser
 	// storage makes its write throw. The switch above must not depend on it.
 	try {
-		useUIStore.setState(
-			Object.fromEntries(WORKSPACE_PANELS.map((key) => [key, false])) as Partial<UIStore>,
-		);
+		useUIStore.setState({
+			...(Object.fromEntries(
+				WORKSPACE_PANELS.map((key) => [key, false]),
+			) as Partial<UIStore>),
+			// The editor drawer's views (#186): the open flags are derived from them.
+			editorStack: [],
+		});
 	} catch (error) {
 		log.logWarn(
 			"startup",

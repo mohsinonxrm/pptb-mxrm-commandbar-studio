@@ -33,9 +33,15 @@ describe("summarizeRule — individual rule kinds", () => {
 	});
 
 	it("summarizes CommandClientTypeRule: Modern is Unified Interface, Refresh the legacy web client (#152)", () => {
-		expect(summarizeRule([{ kind: "CommandClientTypeRule", type: "Modern" }])).toContain("Unified Interface");
-		expect(summarizeRule([{ kind: "CommandClientTypeRule", type: "Refresh" }])).toContain("legacy updated web client");
-		expect(summarizeRule([{ kind: "CommandClientTypeRule", type: "Refresh" }])).not.toContain("Unified Interface");
+		expect(summarizeRule([{ kind: "CommandClientTypeRule", type: "Modern" }])).toContain(
+			"Unified Interface",
+		);
+		expect(summarizeRule([{ kind: "CommandClientTypeRule", type: "Refresh" }])).toContain(
+			"legacy updated web client",
+		);
+		expect(summarizeRule([{ kind: "CommandClientTypeRule", type: "Refresh" }])).not.toContain(
+			"Unified Interface",
+		);
 	});
 
 	it("summarizes CrmClientTypeRule", () => {
@@ -98,7 +104,10 @@ describe("summarizeRule — individual rule kinds", () => {
 	});
 
 	it("summarizes MiscellaneousPrivilegeRule", () => {
-		const step: RuleStep = { kind: "MiscellaneousPrivilegeRule", privilegeName: "ExportToExcel" };
+		const step: RuleStep = {
+			kind: "MiscellaneousPrivilegeRule",
+			privilegeName: "ExportToExcel",
+		};
 		expect(summarizeRule([step])).toContain("ExportToExcel");
 	});
 
@@ -143,7 +152,11 @@ describe("summarizeRule — individual rule kinds", () => {
 	});
 
 	it("summarizes a RawRule by its element name", () => {
-		const step: RuleStep = { kind: "RawRule", tagName: "HideIfDelveNotAvailableRule", xml: "<HideIfDelveNotAvailableRule/>" };
+		const step: RuleStep = {
+			kind: "RawRule",
+			tagName: "HideIfDelveNotAvailableRule",
+			xml: "<HideIfDelveNotAvailableRule/>",
+		};
 		expect(summarizeRule([step])).toContain("HideIfDelveNotAvailableRule");
 	});
 
@@ -196,7 +209,10 @@ describe("summarizeRule — OrRule nesting", () => {
 	it("handles OrRule with nested steps", () => {
 		const step: RuleStep = {
 			kind: "OrRule",
-			groups: [[{ kind: "FormStateRule", state: "Create" }], [{ kind: "FormStateRule", state: "Existing" }]],
+			groups: [
+				[{ kind: "FormStateRule", state: "Create" }],
+				[{ kind: "FormStateRule", state: "Existing" }],
+			],
 		};
 		const result = summarizeRule([step]);
 		expect(result).toContain("Create");
@@ -216,7 +232,9 @@ describe("summarizeRule — OrRule nesting", () => {
 			],
 		};
 		const result = summarizeRule([step]);
-		expect(result).toMatch(/\(Form state is "Create" AND Selection count is at least 1\) OR Form state is "Existing"/);
+		expect(result).toMatch(
+			/\(Form state is "Create" AND Selection count is at least 1\) OR Form state is "Existing"/,
+		);
 	});
 
 	it("joins multiple top-level steps with AND", () => {

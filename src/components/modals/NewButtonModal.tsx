@@ -1,17 +1,6 @@
 import React, { useState } from "react";
-import {
-	Dialog,
-	DialogSurface,
-	DialogTitle,
-	DialogBody,
-	DialogContent,
-	DialogActions,
-	Button,
-	Field,
-	Input,
-	Select,
-	Text,
-} from "@fluentui/react-components";
+import { Button, Field, Input, Select } from "@fluentui/react-components";
+import { AppDialog } from "@/components/shared/AppDialog";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -48,9 +37,7 @@ export const NewButtonModal: React.FC = () => {
 		// produced IDs like `new.account.MyButton.Button` that imported under
 		// the wrong publisher in Dataverse.
 		const prefix =
-			activeSolution?.publisherPrefix?.trim() ||
-			sessionPublisherPrefix?.trim() ||
-			"new";
+			activeSolution?.publisherPrefix?.trim() || sessionPublisherPrefix?.trim() || "new";
 		const entityName = activeEntity?.logicalName ?? "global";
 		// De-duplicate against everything already loaded (menu items included).
 		const ribbons = useRibbonStore.getState().ribbons;
@@ -59,19 +46,29 @@ export const NewButtonModal: React.FC = () => {
 		for (const r of Object.values(ribbons))
 			for (const t of r.tabs)
 				for (const g of t.groups) for (const b of groupControls(g)) existingIds.add(b.id);
-		const { id, commandId } = newButtonIds(prefix, entityName, activeLocation, label, existingIds);
+		const { id, commandId } = newButtonIds(
+			prefix,
+			entityName,
+			activeLocation,
+			label,
+			existingIds,
+		);
 
 		// Resolve the tab from the target group rather than trusting the
 		// selection: after switching location the selected tab id can still
 		// belong to the previous location, and createButton then silently
 		// dropped the new button.
 		const targetTabId =
-			ribbons[activeLocation].tabs.find((t) => t.groups.some((g) => g.id === newButtonGroupId))?.id ??
-			selectedTabId;
+			ribbons[activeLocation].tabs.find((t) =>
+				t.groups.some((g) => g.id === newButtonGroupId),
+			)?.id ?? selectedTabId;
 		if (!ribbons[activeLocation].tabs.some((t) => t.id === targetTabId)) {
 			useRuntimeLogStore
 				.getState()
-				.logError("canvas", `Could not add the button: group ${newButtonGroupId} was not found.`);
+				.logError(
+					"canvas",
+					`Could not add the button: group ${newButtonGroupId} was not found.`,
+				);
 			closeNewButton();
 			return;
 		}
@@ -121,37 +118,37 @@ export const NewButtonModal: React.FC = () => {
 	};
 
 	return (
-		<Dialog open={isOpen} onOpenChange={() => closeNewButton()}>
-			<DialogSurface>
-				<DialogTitle>New button</DialogTitle>
-				<DialogBody>
-					<DialogContent>
-						<Field label="Label" required>
-							<Input value={label} onChange={(_, d) => setLabel(d.value)} autoFocus />
-						</Field>
-						<Field label="Kind">
-							<Select value={kind} onChange={(_, d) => setKind(d.value as RibbonButton["kind"])}>
-								<option value="button">Button</option>
-								<option value="flyout">Flyout anchor</option>
-								<option value="splitButton">Split button</option>
-							</Select>
-						</Field>
-						<Text size={200} style={{ display: "block", marginTop: "8px" }}>
-							A command definition will be created automatically. You can edit it in the Command
-							Editor.
-						</Text>
-					</DialogContent>
-					<DialogActions>
-						<Button appearance="secondary" onClick={closeNewButton}>
-							Cancel
-						</Button>
-						<Button appearance="primary" onClick={handleCreate} disabled={!label.trim()}>
-							Create button
-						</Button>
-					</DialogActions>
-				</DialogBody>
-			</DialogSurface>
-		</Dialog>
+		<AppDialog
+			open={isOpen}
+			onOpenChange={(o) => !o && closeNewButton()}
+			size="small"
+			title="New button"
+			actions={
+				<>
+					<Button appearance="secondary" onClick={closeNewButton}>
+						Cancel
+					</Button>
+					<Button appearance="primary" onClick={handleCreate} disabled={!label.trim()}>
+						Create button
+					</Button>
+				</>
+			}
+		>
+			<Field
+				label="Label"
+				required
+				hint="A command is created with it; edit it in the command editor."
+			>
+				<Input value={label} onChange={(_, d) => setLabel(d.value)} data-autofocus />
+			</Field>
+			<Field label="Kind">
+				<Select value={kind} onChange={(_, d) => setKind(d.value as RibbonButton["kind"])}>
+					<option value="button">Button</option>
+					<option value="flyout">Flyout</option>
+					<option value="splitButton">Split button</option>
+				</Select>
+			</Field>
+		</AppDialog>
 	);
 };
 

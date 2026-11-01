@@ -264,6 +264,8 @@ describe("duplicating a group (#33)", () => {
 		const { copy, title } = duplicate(MGMT);
 		expect(title).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
 		// No label of the copy's own is written.
-		expect(useRibbonStore.getState().locLabels.some((l) => l.id === `${copy.id}.Title`)).toBe(false);
+		expect(useRibbonStore.getState().locLabels.some((l) => l.id === `${copy.id}.Title`)).toBe(
+			false,
+		);
 	});
 });

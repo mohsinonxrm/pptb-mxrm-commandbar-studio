@@ -641,7 +641,9 @@ describe("#68 review 1 — tab and group titles and attributes publish as import
 			g.getAttribute("Id")?.includes("cbs.Grp_copy_"),
 		);
 		// A platform title is kept as the token: it can't take " (copy)" (like a copied button, #86).
-		expect(copy?.getAttribute("Title")).toBe("$Resources:Ribbon.HomepageGrid.MainTab.Management");
+		expect(copy?.getAttribute("Title")).toBe(
+			"$Resources:Ribbon.HomepageGrid.MainTab.Management",
+		);
 		expect(copy?.getAttribute("Description")).toBeNull();
 	});
 });

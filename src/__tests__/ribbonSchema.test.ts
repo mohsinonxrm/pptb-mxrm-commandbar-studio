@@ -36,7 +36,11 @@ function generate(current: RibbonDefinition, baseline: RibbonDefinition): string
 	});
 }
 
-function ribbon(location: RibbonLocation, tabs: RibbonTab[], extra: Partial<RibbonDefinition> = {}): RibbonDefinition {
+function ribbon(
+	location: RibbonLocation,
+	tabs: RibbonTab[],
+	extra: Partial<RibbonDefinition> = {},
+): RibbonDefinition {
 	return { location, entityLogicalName: "account", tabs, ...extra };
 }
 
@@ -46,7 +50,15 @@ const existingTab: RibbonTab = {
 	sequence: 10,
 	commandId: "Mscrm.Form.account.MainTab",
 	tabDisplayRules: [],
-	groups: [{ id: "Mscrm.Form.account.MainTab.Save", label: "Save", sequence: 10, template: "Mscrm.Templates.Flexible2", buttons: [] }],
+	groups: [
+		{
+			id: "Mscrm.Form.account.MainTab.Save",
+			label: "Save",
+			sequence: 10,
+			template: "Mscrm.Templates.Flexible2",
+			buttons: [],
+		},
+	],
 };
 
 const newTab = (rules: RibbonTab["tabDisplayRules"] = []): RibbonTab => ({
@@ -56,12 +68,25 @@ const newTab = (rules: RibbonTab["tabDisplayRules"] = []): RibbonTab => ({
 	commandId: "new.account.Tab.Command",
 	tabDisplayRules: rules,
 	groups: [
-		{ id: "new.account.Tab.G1", label: "One", sequence: 10, template: "Flexible2", buttons: [button] },
-		{ id: "new.account.Tab.G2", label: "Two", sequence: 20, template: "Mscrm.Templates.Flexible3", buttons: [] },
+		{
+			id: "new.account.Tab.G1",
+			label: "One",
+			sequence: 10,
+			template: "Flexible2",
+			buttons: [button],
+		},
+		{
+			id: "new.account.Tab.G2",
+			label: "Two",
+			sequence: 20,
+			template: "Mscrm.Templates.Flexible3",
+			buttons: [],
+		},
 	],
 });
 
-const errorsOf = (xml: string) => validateRibbonDiffXml(xml).filter((e) => e.severity !== "warning");
+const errorsOf = (xml: string) =>
+	validateRibbonDiffXml(xml).filter((e) => e.severity !== "warning");
 
 describe("new tabs (#40)", () => {
 	const xml = generate(ribbon("Form", [existingTab, newTab()]), ribbon("Form", [existingTab]));
@@ -98,8 +123,22 @@ describe("new tabs (#40)", () => {
 				scalingByTab: {
 					[tab.id]: {
 						tabId: tab.id,
-						maxSizes: [{ id: "m1", groupId: "new.account.Tab.G1", size: "LargeMedium", sequence: 10 }],
-						scales: [{ id: "s1", groupId: "new.account.Tab.G1", size: "Popup", sequence: 20 }],
+						maxSizes: [
+							{
+								id: "m1",
+								groupId: "new.account.Tab.G1",
+								size: "LargeMedium",
+								sequence: 10,
+							},
+						],
+						scales: [
+							{
+								id: "s1",
+								groupId: "new.account.Tab.G1",
+								size: "Popup",
+								sequence: 20,
+							},
+						],
 					},
 				},
 			}),
@@ -123,7 +162,9 @@ describe("tab display rules (#40)", () => {
 	it("keeps rules as direct children of TabDisplayRule", () => {
 		const xml = generate(ribbon("Form", [newTab(rules)]), ribbon("Form", []));
 		expect(xml).toMatch(/<TabDisplayRule TabCommand="new.account.Tab.Command">\s*<EntityRule /);
-		expect(xml).not.toContain("<TabDisplayRule TabCommand=\"new.account.Tab.Command\">\n        <DisplayRules");
+		expect(xml).not.toContain(
+			'<TabDisplayRule TabCommand="new.account.Tab.Command">\n        <DisplayRules',
+		);
 	});
 
 	it("drops PageRule for an entity ribbon (only valid in the application ribbon)", () => {
@@ -150,7 +191,14 @@ describe("scaling changes on existing tabs (#40)", () => {
 		scalingByTab: {
 			[existingTab.id]: {
 				tabId: existingTab.id,
-				maxSizes: [{ id: "Save.MaxSize", groupId: "Mscrm.Form.account.MainTab.Save", size: "LargeLarge", sequence: 10 }],
+				maxSizes: [
+					{
+						id: "Save.MaxSize",
+						groupId: "Mscrm.Form.account.MainTab.Save",
+						size: "LargeLarge",
+						sequence: 10,
+					},
+				],
 				scales: [],
 			},
 		},
@@ -159,8 +207,22 @@ describe("scaling changes on existing tabs (#40)", () => {
 		scalingByTab: {
 			[existingTab.id]: {
 				tabId: existingTab.id,
-				maxSizes: [{ id: "Save.MaxSize", groupId: "Mscrm.Form.account.MainTab.Save", size: "LargeLarge", sequence: 10 }],
-				scales: [{ id: "Save.Scale.1", groupId: "Mscrm.Form.account.MainTab.Save", size: "Popup", sequence: 40 }],
+				maxSizes: [
+					{
+						id: "Save.MaxSize",
+						groupId: "Mscrm.Form.account.MainTab.Save",
+						size: "LargeLarge",
+						sequence: 10,
+					},
+				],
+				scales: [
+					{
+						id: "Save.Scale.1",
+						groupId: "Mscrm.Form.account.MainTab.Save",
+						size: "Popup",
+						sequence: 40,
+					},
+				],
 			},
 		},
 	});
@@ -185,7 +247,13 @@ describe("scaling changes on existing tabs (#40)", () => {
 				...existingTab,
 				groups: [
 					...existingTab.groups,
-					{ id: "new.account.Group", label: "G", sequence: 30, template: "Flexible2", buttons: [] },
+					{
+						id: "new.account.Group",
+						label: "G",
+						sequence: 30,
+						template: "Flexible2",
+						buttons: [],
+					},
 				],
 			},
 		]);
@@ -199,26 +267,38 @@ describe("scaling changes on existing tabs (#40)", () => {
 describe("validator — ribbon schema checks (#41)", () => {
 	const wrap = (inner: string) => `<RibbonDiffXml>${inner}</RibbonDiffXml>`;
 	const rules = (enable: string, display = "") =>
-		wrap(`<RuleDefinitions><TabDisplayRules/><DisplayRules>${display}</DisplayRules><EnableRules>${enable}</EnableRules></RuleDefinitions>`);
+		wrap(
+			`<RuleDefinitions><TabDisplayRules/><DisplayRules>${display}</DisplayRules><EnableRules>${enable}</EnableRules></RuleDefinitions>`,
+		);
 	const messages = (xml: string, severity?: "warning") =>
 		validateRibbonDiffXml(xml)
 			.filter((e) => (severity ? e.severity === severity : e.severity !== "warning"))
 			.map((e) => e.message);
 
 	it("rejects an empty enable / display rule", () => {
-		expect(messages(rules(`<EnableRule Id="a"/>`))).toEqual([expect.stringContaining("no steps")]);
-		expect(messages(rules("", `<DisplayRule Id="b"></DisplayRule>`))).toEqual([expect.stringContaining("no steps")]);
+		expect(messages(rules(`<EnableRule Id="a"/>`))).toEqual([
+			expect.stringContaining("no steps"),
+		]);
+		expect(messages(rules("", `<DisplayRule Id="b"></DisplayRule>`))).toEqual([
+			expect.stringContaining("no steps"),
+		]);
 	});
 
 	it("rejects an OrRule with fewer than two <Or>", () => {
-		expect(messages(rules(`<EnableRule Id="a"><OrRule><Or><FormStateRule State="Create"/></Or></OrRule></EnableRule>`))).toEqual([
-			expect.stringContaining("at least 2 <Or>"),
-		]);
+		expect(
+			messages(
+				rules(
+					`<EnableRule Id="a"><OrRule><Or><FormStateRule State="Create"/></Or></OrRule></EnableRule>`,
+				),
+			),
+		).toEqual([expect.stringContaining("at least 2 <Or>")]);
 	});
 
 	it("rejects a nested OrRule and an empty <Or>", () => {
 		const msgs = messages(
-			rules(`<EnableRule Id="a"><OrRule><Or><OrRule><Or><SkuRule Sku="Online"/></Or><Or><SkuRule Sku="Spla"/></Or></OrRule></Or><Or/></OrRule></EnableRule>`),
+			rules(
+				`<EnableRule Id="a"><OrRule><Or><OrRule><Or><SkuRule Sku="Online"/></Or><Or><SkuRule Sku="Spla"/></Or></OrRule></Or><Or/></OrRule></EnableRule>`,
+			),
 		);
 		expect(msgs.some((m) => m.includes("cannot contain another OrRule"))).toBe(true);
 		expect(msgs.some((m) => m.includes("Empty <Or>"))).toBe(true);
@@ -238,7 +318,13 @@ describe("validator — ribbon schema checks (#41)", () => {
 		);
 		expect(messages(xml)).toEqual([]);
 		const warnings = messages(xml, "warning");
-		for (const tag of ["EntityPrivilegeRule", "FeatureControlRule", "HideIfDelveNotAvailableRule", "CustomRule", "SelectionCountRule"]) {
+		for (const tag of [
+			"EntityPrivilegeRule",
+			"FeatureControlRule",
+			"HideIfDelveNotAvailableRule",
+			"CustomRule",
+			"SelectionCountRule",
+		]) {
 			expect(warnings.some((w) => w.includes(tag))).toBe(true);
 		}
 	});
@@ -332,7 +418,12 @@ describe("control attributes by control type (#41)", () => {
 
 describe("rule placement for the picker (#41)", () => {
 	it("follows RibbonTypes.xsd EnableRulesGroup / DisplayRulesGroup", () => {
-		for (const k of ["CustomRule", "SelectionCountRule", "RecordPrivilegeRule", "OutlookItemTrackingRule"] as const) {
+		for (const k of [
+			"CustomRule",
+			"SelectionCountRule",
+			"RecordPrivilegeRule",
+			"OutlookItemTrackingRule",
+		] as const) {
 			expect(isRuleKindAllowed(k, "enable")).toBe(true);
 			expect(isRuleKindAllowed(k, "display")).toBe(false);
 		}
@@ -355,7 +446,14 @@ describe("rule placement for the picker (#41)", () => {
 			expect(isRuleKindAllowed(k, "enable")).toBe(false);
 			expect(isRuleKindAllowed(k, "display")).toBe(true);
 		}
-		for (const k of ["EntityRule", "FormStateRule", "PageRule", "ValueRule", "SkuRule", "CommandClientTypeRule"] as const) {
+		for (const k of [
+			"EntityRule",
+			"FormStateRule",
+			"PageRule",
+			"ValueRule",
+			"SkuRule",
+			"CommandClientTypeRule",
+		] as const) {
 			expect(isRuleKindAllowed(k, "enable")).toBe(true);
 			expect(isRuleKindAllowed(k, "display")).toBe(true);
 		}

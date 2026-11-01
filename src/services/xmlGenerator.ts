@@ -26,7 +26,11 @@ import {
 import { isPlatformText, resolveDisplayLabel } from "@/utils/displayLabel";
 import { freeMaxSizeSequence, maxSizeBand } from "@/services/scalingSequence";
 import { menuItemsOf } from "@/utils/ribbonMenu";
-import { CONTROL_TAG_BY_KIND, controlCommandIds, isReadOnlyControlKind } from "@/utils/controlKinds";
+import {
+	CONTROL_TAG_BY_KIND,
+	controlCommandIds,
+	isReadOnlyControlKind,
+} from "@/utils/controlKinds";
 
 interface GeneratorInput {
 	current: RibbonDefinition;
@@ -117,12 +121,14 @@ export function indexButtons(def: RibbonDefinition): Map<string, IndexedButton> 
 					controlsId: section.controlsId,
 				});
 	};
-	for (const tab of def.tabs) for (const group of tab.groups) for (const button of group.buttons) visit(button, group.id, tab.id);
+	for (const tab of def.tabs)
+		for (const group of tab.groups)
+			for (const button of group.buttons) visit(button, group.id, tab.id);
 	return out;
 }
 
 /** What publishing a button needs, compared with its loaded (baseline) occurrence. */
-interface ButtonChange {
+export interface ButtonChange {
 	entry: IndexedButton;
 	change: "hide" | "new" | "override";
 }
@@ -135,11 +141,15 @@ interface ButtonChange {
  * hide of a control that doesn't exist would do nothing (#62 review m4), and
  * a new control is also how a moved one is re-placed (#57).
  */
-function classifyButtons(current: RibbonDefinition, baseline: RibbonDefinition): ButtonChange[] {
+export function classifyButtons(
+	current: RibbonDefinition,
+	baseline: RibbonDefinition,
+): ButtonChange[] {
 	const base = indexButtons(baseline);
 	const cur = indexButtons(current);
 	const insideNewMenu = (entry: IndexedButton) => {
-		for (let p = entry.menu?.parentKey; p; p = cur.get(p)?.menu?.parentKey) if (!base.has(p)) return true;
+		for (let p = entry.menu?.parentKey; p; p = cur.get(p)?.menu?.parentKey)
+			if (!base.has(p)) return true;
 		return false;
 	};
 	const out: ButtonChange[] = [];
@@ -152,7 +162,8 @@ function classifyButtons(current: RibbonDefinition, baseline: RibbonDefinition):
 		}
 		if (!baseButton) {
 			// An out-of-the-box / managed control isn't yours to write: only hide it.
-			if (!(button.hidden && (button.oob || button.managed))) out.push({ entry, change: "new" });
+			if (!(button.hidden && (button.oob || button.managed)))
+				out.push({ entry, change: "new" });
 			if (button.hidden) out.push({ entry, change: "hide" });
 		} else if (button.hidden && !baseButton.hidden) out.push({ entry, change: "hide" });
 		else if (hasOobOverrideChanges(baseButton, button)) out.push({ entry, change: "override" });
@@ -177,7 +188,9 @@ export function newTabCommandId(tab: RibbonTab): string {
  * specific entity" walkthrough).
  */
 export function newTabLocation(location: RibbonLocation, entityLogicalName: string): string {
-	return location === "SubGrid" ? `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs._children` : "Mscrm.Tabs._children";
+	return location === "SubGrid"
+		? `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs._children`
+		: "Mscrm.Tabs._children";
 }
 
 /**
@@ -197,14 +210,28 @@ export function defaultTabDisplayRules(
 			return [
 				{
 					tabCommand,
-					rules: [{ kind: "EntityRule", entityName: entityLogicalName, context: "HomePageGrid", appliesTo: "PrimaryEntity" }],
+					rules: [
+						{
+							kind: "EntityRule",
+							entityName: entityLogicalName,
+							context: "HomePageGrid",
+							appliesTo: "PrimaryEntity",
+						},
+					],
 				},
 			];
 		case "Form":
 			return [
 				{
 					tabCommand,
-					rules: [{ kind: "EntityRule", entityName: entityLogicalName, context: "Form", appliesTo: "PrimaryEntity" }],
+					rules: [
+						{
+							kind: "EntityRule",
+							entityName: entityLogicalName,
+							context: "Form",
+							appliesTo: "PrimaryEntity",
+						},
+					],
 				},
 			];
 		case "SubGrid":
@@ -212,8 +239,18 @@ export function defaultTabDisplayRules(
 				{
 					tabCommand,
 					rules: [
-						{ kind: "EntityRule", entityName: entityLogicalName, context: "SubGridStandard", appliesTo: "SelectedEntity" },
-						{ kind: "EntityRule", entityName: entityLogicalName, context: "SubGridAssociated", appliesTo: "SelectedEntity" },
+						{
+							kind: "EntityRule",
+							entityName: entityLogicalName,
+							context: "SubGridStandard",
+							appliesTo: "SelectedEntity",
+						},
+						{
+							kind: "EntityRule",
+							entityName: entityLogicalName,
+							context: "SubGridAssociated",
+							appliesTo: "SelectedEntity",
+						},
 					],
 				},
 			];
@@ -227,13 +264,23 @@ export function defaultTabDisplayRules(
  * default display rule when it has none. Rules with no TabCommand are bound to
  * the tab's Command.
  */
-export function effectiveNewTab(tab: RibbonTab, location: RibbonLocation, entityLogicalName: string): RibbonTab {
+export function effectiveNewTab(
+	tab: RibbonTab,
+	location: RibbonLocation,
+	entityLogicalName: string,
+): RibbonTab {
 	const commandId = newTabCommandId(tab);
-	const rules = (tab.tabDisplayRules ?? []).map((r) => ({ ...r, tabCommand: r.tabCommand || commandId }));
+	const rules = (tab.tabDisplayRules ?? []).map((r) => ({
+		...r,
+		tabCommand: r.tabCommand || commandId,
+	}));
 	return {
 		...tab,
 		commandId,
-		tabDisplayRules: rules.length > 0 ? rules : defaultTabDisplayRules(location, entityLogicalName, commandId),
+		tabDisplayRules:
+			rules.length > 0
+				? rules
+				: defaultTabDisplayRules(location, entityLogicalName, commandId),
 	};
 }
 
@@ -253,7 +300,8 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// occurrence in the baseline.
 	const baselineButtons = indexButtons(baseline);
 	const baselineOf = new Map<RibbonButton, RibbonButton | undefined>();
-	for (const [key, entry] of indexButtons(current)) baselineOf.set(entry.button, baselineButtons.get(key)?.button);
+	for (const [key, entry] of indexButtons(current))
+		baselineOf.set(entry.button, baselineButtons.get(key)?.button);
 
 	// Tabs created this session, as written (Command + display rules).
 	const newTabs = current.tabs
@@ -308,7 +356,8 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	//    and their controls in one CustomAction.
 	for (const tab of newTabs) {
 		const inline = new Map(tab.groups.map((g) => [g.id, inlineControls(g)] as const));
-		for (const g of tab.groups) for (const b of g.buttons) if (!b.hidden && !baselineOf.get(b)) inNewContainer.add(b);
+		for (const g of tab.groups)
+			for (const b of g.buttons) if (!b.hidden && !baselineOf.get(b)) inNewContainer.add(b);
 		tabCustomActions.push(
 			generateTabCustomAction(
 				tab,
@@ -334,10 +383,21 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 		if (!baselineTabIds.has(tab.id)) continue;
 		for (const group of tab.groups) {
 			if (!baselineGroupIds.has(group.id)) {
-				for (const b of group.buttons) if (!b.hidden && !baselineOf.get(b)) inNewContainer.add(b);
-				groupCustomActions.push(generateGroupCustomAction(group, tab.id, inlineControls(group), sink, lang, locLabels));
+				for (const b of group.buttons)
+					if (!b.hidden && !baselineOf.get(b)) inNewContainer.add(b);
+				groupCustomActions.push(
+					generateGroupCustomAction(
+						group,
+						tab.id,
+						inlineControls(group),
+						sink,
+						lang,
+						locLabels,
+					),
+				);
 				const maxSize = placed.get(group.id);
-				if (maxSize) newGroupMaxSizes.push(generateScalingCustomAction(tab.id, "MaxSize", maxSize));
+				if (maxSize)
+					newGroupMaxSizes.push(generateScalingCustomAction(tab.id, "MaxSize", maxSize));
 			}
 		}
 	}
@@ -355,7 +415,9 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 			// new control under its group, or — for a new item of an existing
 			// menu — under its menu section's Controls. A new flyout / split
 			// button carries its whole <Menu> inline.
-			const location = menu ? `${menu.controlsId}._children` : `${groupId}.Controls._children`;
+			const location = menu
+				? `${menu.controlsId}._children`
+				: `${groupId}.Controls._children`;
 			customActions.push(generateCustomAction(button, location, locLabels, sink, lang));
 			emittedButtons.push(button, ...menuItemsOf(button));
 		} else {
@@ -374,7 +436,8 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// Collect referenced commands / rules from the EMITTED buttons only.
 	const referencedCommandIds = new Set<string>();
 	// A control written verbatim (#42) brings its other commands too: QueryCommand, … (controlCommandIds).
-	for (const button of emittedButtons) for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
+	for (const button of emittedButtons)
+		for (const id of controlCommandIds(button)) referencedCommandIds.add(id);
 	// A new tab's Command is defined with it (an empty command, as in
 	// Microsoft's custom-tab walkthrough) unless the model already has one.
 	// A new (imported) group's own Command too (#169 review), when the model has it.
@@ -387,7 +450,8 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	for (const tab of newTabs) {
 		const id = tab.commandId!;
 		referencedCommandIds.add(id);
-		if (!commands.some((c) => c.id === id)) tabCommands.push({ id, enableRules: [], displayRules: [], actions: [] });
+		if (!commands.some((c) => c.id === id))
+			tabCommands.push({ id, enableRules: [], displayRules: [], actions: [] });
 	}
 
 	// Emit command/rule DEFINITIONS only for custom (non-system) elements.
@@ -400,7 +464,10 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 	// command has no actions (the parser only understands JS/URL); a deliberate
 	// override always has actions.
 	const referencedCommands = [
-		...commands.filter((c) => referencedCommandIds.has(c.id) && (!isSystemRibbonId(c.id) || c.actions.length > 0)),
+		...commands.filter(
+			(c) =>
+				referencedCommandIds.has(c.id) && (!isSystemRibbonId(c.id) || c.actions.length > 0),
+		),
 		...tabCommands,
 	];
 
@@ -578,10 +645,12 @@ function generateScalingCustomActions(
 		const unchanged = (step: ScaleStep, list: ScaleStep[] | undefined) =>
 			list?.some((b) => JSON.stringify(b) === JSON.stringify(step)) ?? false;
 		for (const step of scaling.maxSizes) {
-			if (!unchanged(step, base?.maxSizes)) maxSizes.push(generateScalingCustomAction(tabId, "MaxSize", step));
+			if (!unchanged(step, base?.maxSizes))
+				maxSizes.push(generateScalingCustomAction(tabId, "MaxSize", step));
 		}
 		for (const step of scaling.scales) {
-			if (!unchanged(step, base?.scales)) scales.push(generateScalingCustomAction(tabId, "Scale", step));
+			if (!unchanged(step, base?.scales))
+				scales.push(generateScalingCustomAction(tabId, "Scale", step));
 		}
 	}
 	return [...maxSizes, ...scales];
@@ -589,11 +658,16 @@ function generateScalingCustomActions(
 
 export function generateScaleStep(tag: "MaxSize" | "Scale", step: ScaleStep): string {
 	// PopupSize (ScaleType only) is written back as loaded (#169).
-	const popup = tag === "Scale" && step.popupSize ? ` PopupSize="${escapeXml(step.popupSize)}"` : "";
+	const popup =
+		tag === "Scale" && step.popupSize ? ` PopupSize="${escapeXml(step.popupSize)}"` : "";
 	return `<${tag} Id="${escapeXml(step.id)}" GroupId="${escapeXml(step.groupId)}" Sequence="${step.sequence}" Size="${escapeXml(step.size)}"${popup}/>`;
 }
 
-function generateScalingCustomAction(tabId: string, tag: "MaxSize" | "Scale", step: ScaleStep): string {
+function generateScalingCustomAction(
+	tabId: string,
+	tag: "MaxSize" | "Scale",
+	step: ScaleStep,
+): string {
 	return `<CustomAction Id="${escapeXml(step.id)}.CustomAction"
     Location="${escapeXml(tabId)}.Scaling._children"
     Sequence="${step.sequence}">
@@ -655,7 +729,10 @@ export interface NewGroupScaling {
  * returned everything (verified live, #66 review). A unique MaxSize
  * (65, between the last MaxSize 61 and the first Scale 80) fixed it.
  */
-export function planNewGroupScaling(current: RibbonDefinition, baseline: RibbonDefinition): NewGroupScaling {
+export function planNewGroupScaling(
+	current: RibbonDefinition,
+	baseline: RibbonDefinition,
+): NewGroupScaling {
 	const steps = new Map<string, ScaleStep>();
 	const problems: string[] = [];
 	const baseTabs = new Set(baseline.tabs.map((t) => t.id));
@@ -667,7 +744,9 @@ export function planNewGroupScaling(current: RibbonDefinition, baseline: RibbonD
 		const scaleSeqs = (scaling?.scales ?? []).map((s) => s.sequence);
 		const used = new Set([...maxSeqs, ...scaleSeqs]);
 		if (isNewTab && used.size < maxSeqs.length + scaleSeqs.length) {
-			problems.push(`The scaling of new tab ${tab.id} uses a Sequence more than once — give every MaxSize and Scale its own`);
+			problems.push(
+				`The scaling of new tab ${tab.id} uses a Sequence more than once — give every MaxSize and Scale its own`,
+			);
 		}
 		// A new tab with MaxSizes set by the user keeps exactly those.
 		if (isNewTab && maxSeqs.length > 0) continue;
@@ -688,7 +767,12 @@ export function planNewGroupScaling(current: RibbonDefinition, baseline: RibbonD
 				continue;
 			}
 			used.add(seq);
-			steps.set(group.id, { id: `${group.id}.MaxSize`, groupId: group.id, size, sequence: seq });
+			steps.set(group.id, {
+				id: `${group.id}.MaxSize`,
+				groupId: group.id,
+				size,
+				sequence: seq,
+			});
 		}
 	}
 	return { steps, problems };
@@ -783,7 +867,9 @@ function generateTabCustomAction(
 	const title = containerTitle(tab, sink, lang, storeLocLabels);
 	const commandAttr = tab.commandId ? ` Command="${escapeXml(tab.commandId)}"` : "";
 	const groupsXml = tab.groups
-		.map((g) => generateGroupElement(g, sink, controlsByGroup.get(g.id) ?? [], lang, storeLocLabels))
+		.map((g) =>
+			generateGroupElement(g, sink, controlsByGroup.get(g.id) ?? [], lang, storeLocLabels),
+		)
 		.join("\n        ");
 	// RibbonCore.xsd TabType: <Scaling Id> comes before <Groups>, with a MaxSize
 	// for each group (MaxSize elements before Scale elements) — #40.
@@ -877,7 +963,9 @@ function descriptionAttr(
 	sink: (label: LocLabel) => void,
 ): string {
 	const d = container.description;
-	const label = d?.startsWith("$LocLabels:") ? storeLocLabels.find((l) => l.id === d.slice("$LocLabels:".length)) : undefined;
+	const label = d?.startsWith("$LocLabels:")
+		? storeLocLabels.find((l) => l.id === d.slice("$LocLabels:".length))
+		: undefined;
 	if (label) sink(label);
 	return attr("Description", d);
 }
@@ -887,7 +975,14 @@ function descriptionAttr(
  * model, #42). A tab has no `Template` (RibbonWSS.xsd TabType), so an imported
  * one is never written back.
  */
-const CONTAINER_MODELLED_ATTRIBUTES = new Set(["Id", "Command", "Title", "Description", "Sequence", "Template"]);
+const CONTAINER_MODELLED_ATTRIBUTES = new Set([
+	"Id",
+	"Command",
+	"Title",
+	"Description",
+	"Sequence",
+	"Template",
+]);
 
 /**
  * The other attributes of an imported tab / group (Description, images, …), as
@@ -981,7 +1076,12 @@ const IMAGE_ATTRIBUTES = [
 	"ModernImage",
 ];
 const COMMON_ATTRIBUTES = ["Id", "Command", "Sequence", "TemplateAlias", ...TOOLTIP_ATTRIBUTES];
-const POPULATE_ATTRIBUTES = ["PopulateDynamically", "PopulateOnlyOnce", "PopulateQueryCommand", "CacheMenuVersions"];
+const POPULATE_ATTRIBUTES = [
+	"PopulateDynamically",
+	"PopulateOnlyOnce",
+	"PopulateQueryCommand",
+	"CacheMenuVersions",
+];
 
 /**
  * The attributes each editable control allows (RibbonWSS.xsd ButtonType,
@@ -1029,7 +1129,14 @@ const CONTROL_ATTRIBUTES: Record<string, ReadonlySet<string>> = {
 		"ToolTipSelectedItemTitle",
 	]),
 	CheckBox: new Set([...COMMON_ATTRIBUTES, "Alt", "LabelText", "MenuItemId", "QueryCommand"]),
-	TextBox: new Set([...COMMON_ATTRIBUTES, "ImeEnabled", "MaxLength", "QueryCommand", "ShowAsLabel", "Width"]),
+	TextBox: new Set([
+		...COMMON_ATTRIBUTES,
+		"ImeEnabled",
+		"MaxLength",
+		"QueryCommand",
+		"ShowAsLabel",
+		"Width",
+	]),
 	ComboBox: new Set([
 		...COMMON_ATTRIBUTES,
 		...POPULATE_ATTRIBUTES,
@@ -1078,7 +1185,10 @@ function resolveButtonText(
 	sink: (label: LocLabel) => void,
 	lang = 1033,
 ): string | undefined {
-	if (token !== undefined && (current ?? "") === resolveDisplayLabel(token, storeLocLabels, lang)) {
+	if (
+		token !== undefined &&
+		(current ?? "") === resolveDisplayLabel(token, storeLocLabels, lang)
+	) {
 		if (token.startsWith("$LocLabels:")) {
 			const existing = storeLocLabels.find((l) => l.id === token.slice("$LocLabels:".length));
 			if (existing) sink(existing);
@@ -1089,7 +1199,9 @@ function resolveButtonText(
 	if (!current) return undefined;
 	// Edited text of another solution's label (not loaded, #137) gets a label of
 	// the control's own: that one is shared — by the original of a copy, say.
-	const tokenId = token?.startsWith("$LocLabels:") ? token.slice("$LocLabels:".length) : undefined;
+	const tokenId = token?.startsWith("$LocLabels:")
+		? token.slice("$LocLabels:".length)
+		: undefined;
 	const locId = tokenId && storeLocLabels.some((l) => l.id === tokenId) ? tokenId : conventionId;
 	return resolveLocalizedAttr(current, locId, storeLocLabels, sink, lang);
 }
@@ -1138,38 +1250,67 @@ function generateButtonElement(
 ): string {
 	const tag = buttonKindToTag(button.kind);
 	const src = button.source;
-	if (src?.xml && isReadOnlyControlKind(button.kind)) return generateVerbatimControl(button, src.xml, storeLocLabels, sink);
+	if (src?.xml && isReadOnlyControlKind(button.kind))
+		return generateVerbatimControl(button, src.xml, storeLocLabels, sink);
 	// Start from the control exactly as loaded so attributes CBS doesn't model
 	// (Alt, Description, PopulateDynamically, …) survive an edit.
 	const attrs = new Map<string, string>();
 	for (const [k, v] of Object.entries(src?.attributes ?? {})) {
 		if (!NON_DIFF_ATTRIBUTES.has(k)) attrs.set(k, v);
 	}
-	const set = (k: string, v: string | undefined) => (v === undefined || v === "" ? attrs.delete(k) : attrs.set(k, v));
+	const set = (k: string, v: string | undefined) =>
+		v === undefined || v === "" ? attrs.delete(k) : attrs.set(k, v);
 
 	set("Id", button.id);
 	set("Command", button.commandId || undefined);
 	set(
 		"LabelText",
-		resolveButtonText(button.label, src?.labelToken, buttonLabelId(button.id), storeLocLabels, sink, lang) ?? "",
+		resolveButtonText(
+			button.label,
+			src?.labelToken,
+			buttonLabelId(button.id),
+			storeLocLabels,
+			sink,
+			lang,
+		) ?? "",
 	);
 	if (!attrs.has("LabelText")) attrs.set("LabelText", "");
 	set(
 		"ToolTipTitle",
-		resolveButtonText(button.tooltipTitle, src?.tooltipTitleToken, buttonTooltipTitleId(button.id), storeLocLabels, sink, lang),
+		resolveButtonText(
+			button.tooltipTitle,
+			src?.tooltipTitleToken,
+			buttonTooltipTitleId(button.id),
+			storeLocLabels,
+			sink,
+			lang,
+		),
 	);
 	set(
 		"ToolTipDescription",
-		resolveButtonText(button.tooltipBody, src?.tooltipBodyToken, buttonTooltipBodyId(button.id), storeLocLabels, sink, lang),
+		resolveButtonText(
+			button.tooltipBody,
+			src?.tooltipBodyToken,
+			buttonTooltipBodyId(button.id),
+			storeLocLabels,
+			sink,
+			lang,
+		),
 	);
 	set("TemplateAlias", button.templateAlias);
 	// A loaded control without Sequence (some menu items) keeps none — the parser reads it as 0.
-	set("Sequence", src && !("Sequence" in src.attributes) && button.sequence === 0 ? undefined : String(button.sequence));
+	set(
+		"Sequence",
+		src && !("Sequence" in src.attributes) && button.sequence === 0
+			? undefined
+			: String(button.sequence),
+	);
 
 	// Icons. Unchanged → keep the loaded value (out-of-the-box names like
 	// "New", /_imgs/ paths). A bare Fluent icon name chosen in CBS is a
 	// canvas-preview value only and must never be emitted (it doesn't resolve).
-	const isResourceRef = (v?: string) => !!v && (v.startsWith("$webresource:") || v.includes("/") || v.includes("."));
+	const isResourceRef = (v?: string) =>
+		!!v && (v.startsWith("$webresource:") || v.includes("/") || v.includes("."));
 	// With the directive (#158): a bare `new_/icons/x.svg` was written as is.
 	const imageRef = (v?: string) => (isResourceRef(v) ? webResourceRef(v!) : undefined);
 	set("ModernImage", effectiveModernImage(button));
@@ -1183,7 +1324,10 @@ function generateButtonElement(
 	const attrXml = Array.from(attrs.entries())
 		.map(([k, v]) => `${k}="${escapeXml(v)}"`)
 		.join(" ");
-	const menuXml = withMenu && button.menu && MENU_TAGS.has(tag) ? generateMenu(button.menu, storeLocLabels, sink, lang) : "";
+	const menuXml =
+		withMenu && button.menu && MENU_TAGS.has(tag)
+			? generateMenu(button.menu, storeLocLabels, sink, lang)
+			: "";
 	return menuXml ? `<${tag} ${attrXml}>${menuXml}</${tag}>` : `<${tag} ${attrXml}/>`;
 }
 
@@ -1205,23 +1349,35 @@ function generateMenu(
 ): string {
 	const sections = menu.sections.map((section) => {
 		const attrs = new Map<string, string>(Object.entries(section.attributes ?? {}));
-		const set = (k: string, v: string | undefined) => (v === undefined || v === "" ? attrs.delete(k) : attrs.set(k, v));
+		const set = (k: string, v: string | undefined) =>
+			v === undefined || v === "" ? attrs.delete(k) : attrs.set(k, v);
 		set("Id", section.id);
 		set(
 			"Title",
-			resolveButtonText(section.title, section.attributes?.["Title"], sectionTitleLabelId(section.id), storeLocLabels, sink, lang),
+			resolveButtonText(
+				section.title,
+				section.attributes?.["Title"],
+				sectionTitleLabelId(section.id),
+				storeLocLabels,
+				sink,
+				lang,
+			),
 		);
 		// A loaded section without Sequence keeps none (the parser reads it as 0).
-		const loadedWithout = !!section.attributes && !("Sequence" in section.attributes) && section.sequence === 0;
+		const loadedWithout =
+			!!section.attributes && !("Sequence" in section.attributes) && section.sequence === 0;
 		set("Sequence", loadedWithout ? undefined : String(section.sequence));
 		set("DisplayMode", section.displayMode);
 		const sectionAttrs = Array.from(attrs.entries())
 			.map(([k, v]) => ` ${k}="${escapeXml(v)}"`)
 			.join("");
-		if (section.rawContent !== undefined) return `<MenuSection${sectionAttrs}>${section.rawContent}</MenuSection>`;
+		if (section.rawContent !== undefined)
+			return `<MenuSection${sectionAttrs}>${section.rawContent}</MenuSection>`;
 		// Hidden items are written too: they get a HideCustomAction of their
 		// own (classifyButtons), so a moved flyout keeps them (#62 review M2).
-		const children = section.controls.map((c) => generateButtonElement(c, storeLocLabels, sink, lang, true));
+		const children = section.controls.map((c) =>
+			generateButtonElement(c, storeLocLabels, sink, lang, true),
+		);
 		for (const raw of [...(section.rawControls ?? [])].sort((a, b) => a.index - b.index)) {
 			children.splice(Math.min(raw.index, children.length), 0, raw.xml);
 		}
@@ -1276,7 +1432,8 @@ function generateVerbatimControl(
 	for (const node of [el, ...Array.from(el.getElementsByTagName("*"))])
 		for (const name of NON_DIFF_ATTRIBUTES) node.removeAttribute(name);
 	el.setAttribute("Id", button.id);
-	if (el.hasAttribute("Sequence") || button.sequence !== 0) el.setAttribute("Sequence", String(button.sequence));
+	if (el.hasAttribute("Sequence") || button.sequence !== 0)
+		el.setAttribute("Sequence", String(button.sequence));
 	const out = new XMLSerializer().serializeToString(el);
 	for (const m of out.matchAll(/\$LocLabels:([^"'\s<]+)/g)) {
 		const label = storeLocLabels.find((l) => l.id === m[1]);
@@ -1370,7 +1527,8 @@ export function generateCommandDefinition(cmd: CommandDefinition): string {
 	const withRaw = (container: "EnableRules" | "DisplayRules", refs: string[]) => {
 		const out = [...refs];
 		for (const raw of cmd.rawRuleRefs ?? []) {
-			if (raw.container === container) out.splice(Math.min(raw.index, out.length), 0, raw.xml);
+			if (raw.container === container)
+				out.splice(Math.min(raw.index, out.length), 0, raw.xml);
 		}
 		return out;
 	};
@@ -1570,7 +1728,8 @@ export function generateRuleStep(step: RuleStep, indent = ""): string {
 function generateLocLabel(label: LocLabel): string {
 	const titles = label.titles
 		.map(
-			(t) => `<Title languagecode="${t.languageCode}" description="${escapeXml(t.description)}"/>`,
+			(t) =>
+				`<Title languagecode="${t.languageCode}" description="${escapeXml(t.description)}"/>`,
 		)
 		.join("\n        ");
 	return `<LocLabel Id="${escapeXml(label.id)}">
@@ -1604,7 +1763,10 @@ export function generateTabDisplayRulesForTab(tab: RibbonTab, isApplication: boo
 				return "";
 			})
 			.filter(Boolean);
-		stepsByCommand.set(tdr.tabCommand, [...(stepsByCommand.get(tdr.tabCommand) ?? []), ...steps]);
+		stepsByCommand.set(tdr.tabCommand, [
+			...(stepsByCommand.get(tdr.tabCommand) ?? []),
+			...steps,
+		]);
 	}
 	return [...stepsByCommand]
 		.filter(([, steps]) => steps.length > 0)

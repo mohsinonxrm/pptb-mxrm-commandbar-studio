@@ -30,7 +30,11 @@ describe("copied buttons keep their icon (#60)", () => {
 	it("keeps the loaded ModernImage but none of the LocLabel tokens", () => {
 		const src = sourceForCopy(loaded.source);
 		expect(src).toEqual({ modernImage: "Info", attributes: { ModernImage: "Info" } });
-		const copy: RibbonButton = { ...loaded, id: "rw.contact.Existing.Button_copy_1", source: src };
+		const copy: RibbonButton = {
+			...loaded,
+			id: "rw.contact.Existing.Button_copy_1",
+			source: src,
+		};
 		expect(effectiveModernImage(copy)).toBe("Info");
 	});
 
@@ -62,7 +66,11 @@ describe("copied buttons keep their icon (#60)", () => {
 			},
 		};
 		expect(effectiveModernImage(withImages)).toBe("$webresource:new_/svg/Do.svg");
-		const copy: RibbonButton = { ...withImages, id: "copy", source: sourceForCopy(withImages.source) };
+		const copy: RibbonButton = {
+			...withImages,
+			id: "copy",
+			source: sourceForCopy(withImages.source),
+		};
 		expect(copy.source?.attributes.LabelText).toBeUndefined();
 		expect(effectiveModernImage(copy)).toBe("$webresource:new_/svg/Do.svg");
 	});
