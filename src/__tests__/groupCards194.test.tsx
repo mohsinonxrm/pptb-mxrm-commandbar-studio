@@ -275,17 +275,15 @@ describe("#194 moveGroup and its publish", () => {
 		expect(place).toEqual({ groupId: MGMT });
 		let moved: string | null = null;
 		act(() => {
-			moved = useRibbonStore
-				.getState()
-				.moveButton(
-					{
-						location: "HomepageGrid",
-						tabId: MAIN,
-						groupId: MGMT,
-						buttonId: `${MAIN}.Edit`,
-					},
-					{ location: "HomepageGrid", tabId: MAIN, groupId: MGMT },
-				);
+			moved = useRibbonStore.getState().moveButton(
+				{
+					location: "HomepageGrid",
+					tabId: MAIN,
+					groupId: MGMT,
+					buttonId: `${MAIN}.Edit`,
+				},
+				{ location: "HomepageGrid", tabId: MAIN, groupId: MGMT },
+			);
 		});
 		// Not yours: your copy, after Delete.
 		expect(moved).toMatch(/Edit/);
