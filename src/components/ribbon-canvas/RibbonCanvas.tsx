@@ -7,6 +7,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { ClassicRibbon } from "./ClassicRibbon";
 import { GroupCards } from "./GroupCards";
+import { UsersBar } from "./UsersBar";
 import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
 import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
@@ -207,7 +208,10 @@ export function RibbonCanvas({
 				) : (
 					<>
 						{ribbonViewStyle === "groups" ? (
-							<GroupCards tab={currentTab} location={location} />
+							<>
+								<UsersBar tab={currentTab} location={location} />
+								<GroupCards tab={currentTab} location={location} />
+							</>
 						) : ribbonViewStyle === "classic" ? (
 							<ClassicRibbon tab={currentTab} location={location} />
 						) : ribbonViewStyle === "modern" ? (

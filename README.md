@@ -177,7 +177,8 @@ Nothing else writes to Dataverse:
 │ [Structure|      │ Location: Home/Sub/Form/App  │ • Identity    │
 │  Solution]       │ View: Group cards / Classic /│ • Command     │
 │                  │   Modern / List              │               │
-│ • Structure:     │ Groups + Buttons (DnD)       │ • Rules       │
+│ • Structure:     │ How users see it (preview)   │ • Rules       │
+│                  │ Groups + Buttons (DnD)       │               │
 │   tab › group ›  │                              │ • Scaling     │
 │   control tree   │                              │ • Advanced    │
 │ • Solution:      │                              │               │
