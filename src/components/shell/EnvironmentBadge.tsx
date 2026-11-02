@@ -45,7 +45,12 @@ export function EnvironmentBadge({
 	const production = isProductionEnvironment(environment);
 	return (
 		<Tooltip content={url || name} relationship="description">
-			<span data-testid="environment-badge" className={styles.root} tabIndex={0}>
+			<span
+				data-testid="environment-badge"
+				className={styles.root}
+				// eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable so keyboard users get the URL tooltip
+				tabIndex={0}
+			>
 				{prefix && (
 					<Text size={200} wrap={false} className={styles.prefix}>
 						{prefix}

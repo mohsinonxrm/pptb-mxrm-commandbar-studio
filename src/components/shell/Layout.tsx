@@ -15,7 +15,14 @@ import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { ResizableHandle } from "@/components/shared/ResizableHandle";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import { dragPaneWidths, fitPaneWidths } from "@/utils/paneWidths";
+import {
+	MAX_LEFT,
+	MAX_RIGHT,
+	MIN_LEFT,
+	MIN_RIGHT,
+	dragPaneWidths,
+	fitPaneWidths,
+} from "@/utils/paneWidths";
 
 // Lazy-loaded panels and modals
 // The command and rule editors are views of one drawer (#186).
@@ -92,6 +99,9 @@ const LEFT_TABS: { value: LeftPaneTab; label: string; icon: React.ReactElement }
 
 /** Below this window width the side panes stop taking canvas width (#179). */
 const NARROW_WIDTH = 1200;
+/** The bottom panel's height limits, in px. */
+const BOTTOM_MIN = 120;
+const BOTTOM_MAX = 520;
 
 function useWindowWidth(): number {
 	const [width, setWidth] = useState(() => window.innerWidth);
@@ -231,7 +241,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const resizeBottom = useCallback(
 		(delta: number) => {
 			const next = bottomPanelHeight - delta;
-			setBottomPanelHeight(Math.max(120, Math.min(520, next)));
+			setBottomPanelHeight(Math.max(BOTTOM_MIN, Math.min(BOTTOM_MAX, next)));
 		},
 		[bottomPanelHeight, setBottomPanelHeight],
 	);
@@ -276,6 +286,9 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 						<ResizableHandle
 							direction="vertical"
 							onResize={resizeLeft}
+							value={fitted.left}
+							min={MIN_LEFT}
+							max={MAX_LEFT}
 							aria-label="Resize left pane"
 						/>
 					</>
@@ -325,6 +338,9 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 						<ResizableHandle
 							direction="vertical"
 							onResize={resizeRight}
+							value={fitted.right}
+							min={MIN_RIGHT}
+							max={MAX_RIGHT}
 							aria-label="Resize right pane"
 						/>
 						<div className={styles.rightPane} style={{ width: fitted.right }}>
@@ -357,6 +373,9 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 				<ResizableHandle
 					direction="horizontal"
 					onResize={resizeBottom}
+					value={bottomPanelHeight}
+					min={BOTTOM_MIN}
+					max={BOTTOM_MAX}
 					aria-label="Resize bottom panel"
 				/>
 			)}

@@ -299,7 +299,9 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 									]
 										.filter(Boolean)
 										.join(" ")}
-									aria-selected={selectedButtonId === button.id}
+									aria-current={
+										selectedButtonId === button.id ? "true" : undefined
+									}
 									aria-label={`${captionOf(button.label, locLabels, undefined, button.source?.labelToken)}${kindNote(button)}${button.hidden ? " — hidden" : ""}${modernNote(button)}`}
 									onClick={() =>
 										selectButtonInContext(location, tab.id, groupId, button.id)

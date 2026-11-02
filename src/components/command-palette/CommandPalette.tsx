@@ -375,6 +375,7 @@ export const CommandPalette: React.FC = () => {
 					<SearchBox
 						className={styles.searchBox}
 						size="large"
+						// eslint-disable-next-line jsx-a11y/no-autofocus -- the palette is a search dialog: typing starts at once
 						autoFocus
 						placeholder="Search buttons, commands, rules and tables"
 						value={query}
@@ -408,6 +409,9 @@ export const CommandPalette: React.FC = () => {
 							{g.shown.map((item) => {
 								const isActive = item === current;
 								return (
+									// The search box's aria-activedescendant drives the options from the
+									// keyboard, so they take mouse clicks only (#189)
+									// eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus
 									<div
 										key={item.id}
 										id={optionId(item.id)}

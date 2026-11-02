@@ -124,6 +124,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - `Delete/Backspace` — Delete button (with OOB confirm)
 - `F2` — Inline rename tab / group
 - Arrow keys — navigate buttons on canvas
+- Pane resize handles — Tab to one, then the arrow keys resize the pane (Shift for bigger steps)
 
 ### 💾 Persistence
 - Unpublished changes are saved as a draft in `localStorage` after every change, per org,

@@ -345,6 +345,13 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 		setOverGroupId(parsed ? parsed.groupId : null);
 	}
 
+	// Escape (or losing the pointer) cancels a drag without onDragEnd: without this the canvas
+	// stayed in drag mode, with its drop slots shown and the arrow keys ignored (#23)
+	function handleDragCancel() {
+		setActiveId(null);
+		setOverGroupId(null);
+	}
+
 	function handleDragEnd(event: DragEndEvent) {
 		const { active, over } = event;
 		setActiveId(null);
@@ -438,11 +445,12 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 				onDragStart={handleDragStart}
 				onDragOver={handleDragOver}
 				onDragEnd={handleDragEnd}
+				onDragCancel={handleDragCancel}
 			>
 				<div
 					style={useStyles.root}
-					role="treegrid"
-					aria-label="Ribbon canvas"
+					role="group"
+					aria-label="Groups"
 					data-ribbon-canvas-root="1"
 				>
 					{tab.groups.map((group) => (
@@ -450,7 +458,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 							key={group.id}
 							group={group}
 							isDropTarget={overGroupId === group.id}
-							role="rowgroup"
+							role="group"
 							aria-label={groupText(group)}
 							tabIndex={0}
 							data-ribbon-group-id={group.id}
@@ -459,7 +467,11 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 								e.preventDefault();
 								setGrpMenu({ group, anchor: { x: e.clientX, y: e.clientY } });
 							}}
-							onFocus={() => selectGroup(group.id)}
+							// Only the group's own focus: a button's focus bubbles here, and selecting
+							// the group cleared the button just selected (#23)
+							onFocus={(e) => {
+								if (e.target === e.currentTarget) selectGroup(group.id);
+							}}
 							onKeyDown={(e) => {
 								if (
 									(e.key === "Enter" || e.key === " ") &&
@@ -618,6 +630,9 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 	});
 
 	const isBeingDragged = isDragging || activeId === button.id;
+	// dnd-kit's key handler starts a keyboard drag (Space or Enter). Spread after onKeyDown, it
+	// replaced the tile's own, so the arrow keys didn't move between buttons (#23).
+	const { onKeyDown: startKeyboardDrag, ...pointerListeners } = listeners ?? {};
 
 	const tileStyle: React.CSSProperties = {
 		display: "flex",
@@ -686,14 +701,17 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 				data-ribbon-group-id={groupId}
 				data-ribbon-btn-id={button.id}
 				style={tileStyle}
-				aria-selected={isSelected}
+				aria-current={isSelected ? "true" : undefined}
 				aria-label={`${displayLabel}${kindNote}${button.hidden ? " — hidden" : ""}${button.custom ? " (custom)" : ""}${button.managed ? " (read-only)" : ""}`}
 				onClick={() => selectButtonInContext(location, tabId, groupId, button.id)}
 				onFocus={() => selectButtonInContext(location, tabId, groupId, button.id)}
 				onKeyDown={(event) => {
+					// During a keyboard drag, dnd-kit moves the button with the arrow keys
+					if (activeId) return;
 					if (event.key === "Enter" || event.key === " ") {
-						event.preventDefault();
 						selectButtonInContext(location, tabId, groupId, button.id);
+						if (startKeyboardDrag) startKeyboardDrag(event);
+						else event.preventDefault();
 						return;
 					}
 					handleArrowNavigation(event);
@@ -704,10 +722,10 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 					selectButtonInContext(location, tabId, groupId, button.id);
 					onContextMenu(e);
 				}}
-				// @dnd-kit spreads role="button", tabIndex, aria-roledescription, etc.
-				// We accept those since they're consistent with gridcell semantics.
+				// @dnd-kit spreads role="button", tabIndex, aria-roledescription and
+				// aria-pressed (while dragging), so the selection is aria-current (#23).
 				{...attributes}
-				{...listeners}
+				{...pointerListeners}
 			>
 				{/* Icon */}
 				<RibbonButtonIcon

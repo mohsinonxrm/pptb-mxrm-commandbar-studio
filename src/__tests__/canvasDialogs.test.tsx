@@ -117,7 +117,7 @@ const groups = () => useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].grou
 const group = (id: string) => groups().find((g) => g.id === id);
 
 function openGroupMenu(groupId: string) {
-	const el = container.querySelector(`[role="rowgroup"][data-ribbon-group-id="${groupId}"]`);
+	const el = container.querySelector(`[role="group"][data-ribbon-group-id="${groupId}"]`);
 	if (!el) throw new Error(`group ${groupId} not rendered`);
 	act(() => {
 		el.dispatchEvent(
@@ -264,7 +264,7 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			expect(mgmtAdd.getAttribute("aria-label")).toBe("Add button to Management");
 			expect(
 				container
-					.querySelector(`[role="rowgroup"][data-ribbon-group-id="${OWN}"]`)
+					.querySelector(`[role="group"][data-ribbon-group-id="${OWN}"]`)
 					?.getAttribute("aria-label"),
 			).toBe("Meine Gruppe");
 			for (const v of namesAndTitles(container))
@@ -623,6 +623,52 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			const dot = tile.querySelector(".fui-Badge")!;
 			expect(dot.textContent).toBe("");
 			expect(dot.getAttribute("aria-label")).toBe("Yours: added by your customizations");
+		});
+	});
+
+	describe("#23 keyboard and roles", () => {
+		const tile = (id: string) =>
+			container.querySelector<HTMLElement>(`[data-ribbon-btn-id="${id}"]`)!;
+		const press = (el: HTMLElement, key: string) =>
+			act(() => {
+				el.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+			});
+
+		it("names its groups as groups, not an empty tree grid", () => {
+			render(<Classic />);
+			const root = container.querySelector("[data-ribbon-canvas-root]")!;
+			expect(root.getAttribute("role")).toBe("group");
+			expect(root.querySelectorAll('[role="group"][data-ribbon-group-id]')).toHaveLength(2);
+			expect(container.querySelector('[role="treegrid"], [role="rowgroup"]')).toBeNull();
+		});
+
+		it("selects the button that gets focus, not its group", () => {
+			render(<Classic />);
+			act(() => tile("mxrm.Own.Button").focus());
+			expect(useSelectionStore.getState().selectedButtonId).toBe("mxrm.Own.Button");
+			const grp = container.querySelector<HTMLElement>(`[data-ribbon-group-id="${MGMT}"]`)!;
+			act(() => grp.focus());
+			expect(useSelectionStore.getState()).toMatchObject({
+				selectedGroupId: MGMT,
+				selectedButtonId: null,
+			});
+		});
+
+		it("moves between draggable buttons with the arrow keys and marks the current one", () => {
+			render(<Classic />);
+			const own = tile("mxrm.Own.Button");
+			const edit = tile("Mscrm.HomepageGrid.contact.Edit");
+			expect(own.getAttribute("aria-roledescription")).toBe("draggable");
+			act(() => own.focus());
+			press(own, "ArrowRight");
+			expect(useSelectionStore.getState().selectedButtonId).toBe(edit.dataset.ribbonBtnId);
+			expect(document.activeElement).toBe(edit);
+			expect(edit.getAttribute("aria-current")).toBe("true");
+			expect(own.getAttribute("aria-current")).toBeNull();
+			expect(edit.hasAttribute("aria-selected")).toBe(false);
+			press(edit, "ArrowLeft");
+			expect(useSelectionStore.getState().selectedButtonId).toBe("mxrm.Own.Button");
+			expect(document.activeElement).toBe(own);
 		});
 	});
 });
