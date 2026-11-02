@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same diagonal as the blue in two golds (`#CC8A00` and `#F2A100`), so it reads at the 20–24 px
   PPTB shows. FetchXML Studio and Dataverse Request Studio use the same stamp. Restart PPTB to see
   it: PPTB keeps tool icons until it restarts.
+- **The tool starts without loading the code editor (#118).** Monaco (about 4 MB) loaded with the
+  tool, before any editor opened. It now loads the first time you open the XML view, Compare, a
+  script or Import XML. It brings XML and JavaScript only: the other languages and the CSS, HTML
+  and JSON workers are gone, and the package is 2.7 MB smaller (16.3 → 13.6 MB unpacked).
 
 ### 🔧 Fixed
 
@@ -25,6 +29,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🏗️ Technical
 
+- **Repository hygiene (#118).**
+  - **Dead code removed:** the unused PublishXml publish helpers (with their PublishAllXml
+    fallback), a second copy of the LocLabel XML builder, `groupTemplates.ts` (it listed
+    templates that don't exist), and five unused exports (`fetchPublisherPrefix`,
+    `isInsidePPTB`, `classicIdForMigratedCommand`, `isOverrideCustomAction`, `evaluateRule`).
+  - **A misleading comment corrected:** the generator's system-command filter doesn't keep
+    unchanged out-of-the-box commands out of a publish (the parser keeps their actions since
+    #42); `keepOnly` in `publishService` does.
+  - **Coverage:** `npm run test:coverage` (`@vitest/coverage-v8`), and CI writes the totals to
+    the run summary. It reports; it doesn't gate.
+  - **README:** removed features the tool doesn't have (the form ribbon scope selector, Power Fx
+    and Custom API actions, editing web resources in Monaco, the URL Action Composer) and the
+    old test counts; the roadmap points at the milestones.
+  - **CHANGELOG:** entries for 0.5.1 and 0.5.2.
 - **Release workflow hardening (#250, as FetchXML Studio #188).**
   - **Separate jobs:** `release.yml` is split into `build`, `publish` and `github-release`.
     - The job that installs and runs the dependencies (`npm ci --ignore-scripts`, no cache, the
@@ -1205,6 +1223,18 @@ in the desktop app and the VS Code extension. 0.5.x stays available for PPTB ver
   - **Simpler tooling** — removed husky + commitlint (git hooks), release-it, the old Dependabot
     config (replaced, see above), coverage, the bundle analyzer and unused testing-library packages (12 dev dependencies
     in total).
+
+## [0.5.2] - 2026-07-17
+
+Republished 0.5.1 (same commit, `274eb2a`); no changes.
+
+## [0.5.1] - 2026-07-17
+
+Published to npm before the repository had tags or CI.
+
+- **Monaco works inside PPTB.** Its language workers are bundled with the tool, same-origin,
+  instead of being fetched, which PPTB's content security policy blocks (`e8aaf9c`).
+- **npm packaging metadata** for the ToolBox (`274eb2a`).
 
 ## [0.5.0] - 2026-07-16
 

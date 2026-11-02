@@ -327,14 +327,6 @@ export function classicIdCandidates(cmd: ModernCommand, entityLogicalName: strin
 	return out;
 }
 
-/** The most likely classic button id a migrated command was generated from (see classicIdCandidates). */
-export function classicIdForMigratedCommand(
-	cmd: ModernCommand,
-	entityLogicalName: string,
-): string | null {
-	return classicIdCandidates(cmd, entityLogicalName)[0] ?? null;
-}
-
 /** Lower-cased control id with `{!EntityLogicalName}` resolved, for exact matching. */
 function exactKey(id: string, entityLogicalName: string): string {
 	return id.replace(TEMPLATE_ENTITY, entityLogicalName).toLowerCase();

@@ -7,6 +7,7 @@ import {
 	generateCommandDefinition,
 	generateEnableRule,
 	generateDisplayRule,
+	generateLocLabel,
 	generateTabDisplayRulesForTab,
 	newTabCommandId,
 } from "@/services/xmlGenerator";
@@ -103,12 +104,6 @@ async function publishTables(entityLogicalNames: string[], guard: WriteGuard): P
 	});
 }
 
-/** PublishAllXml: every unpublished customization in the environment. */
-async function publishAll(guard: WriteGuard): Promise<unknown> {
-	await guard("Publishing");
-	return dataverseAPI.execute({ operationName: "PublishAllXml", operationType: "action" });
-}
-
 type ImportStatus = {
 	// PPTB's getImportJobStatus return shape is loosely documented — over
 	// time we've observed both `{ data: { progress: { completed } } }` and
@@ -142,12 +137,6 @@ function isImportComplete(status: ImportStatus): boolean {
 	// Dataverse importjob statuscode 30 == Succeeded
 	if (status.statuscode === 30) return true;
 	return false;
-}
-
-interface PublishXmlInput {
-	entityLogicalNames: string[];
-	includeApplicationRibbon: boolean;
-	publishDependencies: boolean;
 }
 
 interface PublishAllAsyncResult {
@@ -276,16 +265,6 @@ export interface PublishRibbonResult {
 	changedKeys: string[];
 }
 
-function locLabelXml(label: LocLabel): string {
-	const titles = label.titles
-		.map(
-			(t) =>
-				`<Title languagecode="${t.languageCode}" description="${escapeXml(t.description)}"/>`,
-		)
-		.join("");
-	return `<LocLabel Id="${escapeXml(label.id)}"><Titles>${titles}</Titles></LocLabel>`;
-}
-
 /**
  * Builds the COMPLETE RibbonDiffXml for one ribbon scope: the existing
  * unmanaged layer (read from the ribbon component tables) with CBS's changes
@@ -350,7 +329,7 @@ export async function buildMergedRibbonDiffXml(
 	}
 	let delta = labels.length
 		? parseRibbonDiffParts(
-				`<RibbonDiffXml><LocLabels>${labels.map(locLabelXml).join("")}</LocLabels></RibbonDiffXml>`,
+				`<RibbonDiffXml><LocLabels>${labels.map(generateLocLabel).join("")}</LocLabels></RibbonDiffXml>`,
 			)
 		: emptyRibbonDiffParts();
 
@@ -1320,87 +1299,6 @@ async function publishRibbonUnguarded(
 		parts: merged.parts,
 		changedKeys: merged.changedKeys,
 	};
-}
-
-function buildPublishXml(input: PublishXmlInput): string {
-	const entityNodes = input.entityLogicalNames
-		.map((name) => `<entity>${escapeXml(name)}</entity>`)
-		.join("");
-
-	const dependencyNodes = input.publishDependencies
-		? `<nodes/><securityroles/><settings/><workflows/><templates/><plugins/><sdkmessageprocessingsteps/><serviceendpoints/><webresources/>`
-		: `<nodes/>`;
-
-	// PublishXml supports selecting components using ImportExportXml payload.
-	// Application ribbon publication isn't directly targetable by a dedicated node
-	// in this payload, so we rely on global publish fallback when requested.
-	void input.includeApplicationRibbon;
-
-	return `<importexportxml><entities>${entityNodes}</entities>${dependencyNodes}</importexportxml>`;
-}
-
-export function publishUsingPublishXml(
-	input: PublishXmlInput,
-	onProgress?: (msg: string) => void,
-): Promise<void> {
-	return withCloseGuard(() => publishUsingPublishXmlUnguarded(input, onProgress));
-}
-
-async function publishUsingPublishXmlUnguarded(
-	input: PublishXmlInput,
-	onProgress?: (msg: string) => void,
-): Promise<void> {
-	// Every write of this operation goes to the connection it started on (#120).
-	const guard = writeGuard();
-	const logs = useRuntimeLogStore.getState();
-	const entities = input.entityLogicalNames.filter(Boolean);
-	if (entities.length === 0) {
-		if (input.includeApplicationRibbon) {
-			onProgress?.("Publishing all customizations...");
-			await publishAll(guard);
-		}
-		return;
-	}
-
-	const parameterXml = buildPublishXml({
-		entityLogicalNames: entities,
-		includeApplicationRibbon: input.includeApplicationRibbon,
-		publishDependencies: input.publishDependencies,
-	});
-
-	onProgress?.("Publishing selected components with PublishXml...");
-	logs.logInfo("publish", `PublishXml request for ${entities.length} table(s).`);
-
-	try {
-		await guard("Publishing");
-		await dataverseAPI.execute({
-			operationName: "PublishXml",
-			operationType: "action",
-			parameters: {
-				ParameterXml: parameterXml,
-			},
-		});
-
-		if (input.includeApplicationRibbon) {
-			onProgress?.("Publishing application ribbon...");
-			await publishAll(guard);
-		}
-
-		logs.logInfo("publish", "PublishXml completed successfully.");
-	} catch (error) {
-		logs.logWarn(
-			"publish",
-			`PublishXml failed, falling back to publishing table by table: ${error instanceof Error ? error.message : String(error)}`,
-		);
-		for (const entityName of entities) {
-			onProgress?.(`Fallback publish for ${entityName}...`);
-			await publishTables([entityName], guard);
-		}
-		if (input.includeApplicationRibbon) {
-			onProgress?.("Fallback publish for application ribbon...");
-			await publishAll(guard);
-		}
-	}
 }
 
 export function publishAllAsync(

@@ -34,7 +34,10 @@ jobs:
       - run: npm run lint
       - name: Formatting (Prettier)
         run: npm run format:check
-      - run: npm test
+      - name: Tests, with coverage
+        run: npm run test:coverage
+      - name: Coverage summary
+        run: node .github/scripts/coverage-summary.mjs
       - run: npm run validate
       - run: npm run build
       - name: Check the bundled icon (Insider for pre-releases)
