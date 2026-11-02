@@ -132,7 +132,11 @@ export function LocationRow() {
 					content={`Table: ${tableName || table} (${table})`}
 					relationship="description"
 				>
-					<span className={styles.tableName} tabIndex={0}>
+					<span
+						className={styles.tableName}
+						// eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable so keyboard users get the tooltip
+						tabIndex={0}
+					>
 						{tableName || table}
 					</span>
 				</Tooltip>

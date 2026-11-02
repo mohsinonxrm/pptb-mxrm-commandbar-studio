@@ -27,6 +27,8 @@ const fake = vi.hoisted(() => {
 	};
 	return { original: side(), modified: side(), disposeHandlers: [] as (() => void)[] };
 });
+// Monaco itself doesn't run in jsdom; CompareView loads its setup first (#118)
+vi.mock("@/utils/monacoSetup", () => ({}));
 vi.mock("@monaco-editor/react", async () => {
 	const { useEffect } = await import("react");
 	return {

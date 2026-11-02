@@ -454,15 +454,15 @@ export function generateRibbonDiffXml(input: GeneratorInput): string {
 			tabCommands.push({ id, enableRules: [], displayRules: [], actions: [] });
 	}
 
-	// Emit command/rule DEFINITIONS only for custom (non-system) elements.
-	// System `Mscrm.*` / `Microsoft.*` commands already exist in the platform —
-	// re-emitting the parser's (often action-less) copy would overwrite and
-	// corrupt them. The one deliberate exception is an intentional system-command
-	// OVERRIDE (e.g. `Mscrm.OpenRecordItem` with a custom JS action), which must
-	// be emitted for Dataverse to pick it up. We distinguish by checking whether
-	// the command has at least one action defined: a parsed-but-unmodified OOB
-	// command has no actions (the parser only understands JS/URL); a deliberate
-	// override always has actions.
+	// Command / rule definitions of the emitted buttons, leaving out system
+	// (`Mscrm.*` / `Microsoft.*`) commands without actions: an action-less copy
+	// would replace the platform's command. This filter is not what keeps an
+	// unchanged system command out of the layer. The parser keeps every action
+	// (RawAction, #42), so a parsed out-of-the-box command has its actions here
+	// too, and this output (the XML view, Compare) can include it. The publish
+	// writes only the commands and rules created or edited this session
+	// (`keepOnly` in publishService, #13), such as an `Mscrm.OpenRecordItem`
+	// override with your own JavaScript action (#118).
 	const referencedCommands = [
 		...commands.filter(
 			(c) =>
@@ -1725,7 +1725,7 @@ export function generateRuleStep(step: RuleStep, indent = ""): string {
 // LocLabel generators
 // ---------------------------------------------------------------------------
 
-function generateLocLabel(label: LocLabel): string {
+export function generateLocLabel(label: LocLabel): string {
 	const titles = label.titles
 		.map(
 			(t) =>

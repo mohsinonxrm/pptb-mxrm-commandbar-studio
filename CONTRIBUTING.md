@@ -25,7 +25,7 @@ Before opening a PR, run what CI runs:
 ```bash
 npm run typecheck      # app + node configs + dev harness
 npm run lint           # zero warnings
-npm test
+npm test               # or npm run test:coverage, as CI does
 npm run validate       # PPTB manifest rules
 npm run build
 ```

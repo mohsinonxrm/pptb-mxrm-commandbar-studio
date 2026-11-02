@@ -1,23 +1,5 @@
 import type { RuleStep } from "@/types/ribbon";
 
-export interface RuleContext {
-	selectionCount?: number;
-	entityName?: string;
-	formState?: "Create" | "Existing" | "ReadOnly" | "Disabled" | "BulkEdit";
-	clientType?: "Modern" | "Refresh" | "Legacy";
-	crmClientType?: "Web" | "Outlook";
-	formType?:
-		| "Main"
-		| "Preview"
-		| "AppointmentBook"
-		| "Dashboard"
-		| "Quick"
-		| "QuickCreate"
-		| "Card"
-		| "MainInteractionCentric";
-	fieldValues?: Record<string, string | number | boolean | undefined>;
-}
-
 /**
  * Produces a human-readable English summary of a rule (all steps joined with AND).
  */
@@ -25,69 +7,6 @@ export function summarizeRule(steps: RuleStep[]): string {
 	if (steps.length === 0)
 		return "No steps defined — a rule needs at least one before it can be published.";
 	return steps.map(summarizeStep).join(" AND ");
-}
-
-/**
- * Evaluates rule steps with AND semantics at the top level.
- * Unsupported step kinds are treated as true in preview mode.
- */
-export function evaluateRule(steps: RuleStep[], context: RuleContext): boolean {
-	if (steps.length === 0) return true;
-	return steps.every((step) => evaluateStep(step, context));
-}
-
-function evaluateStep(step: RuleStep, context: RuleContext): boolean {
-	let result = true;
-
-	switch (step.kind) {
-		case "SelectionCountRule": {
-			const count = context.selectionCount ?? 0;
-			const minOk = step.minimum === undefined || count >= step.minimum;
-			const maxOk = step.maximum === undefined || count <= step.maximum;
-			result = minOk && maxOk;
-			break;
-		}
-		case "EntityRule": {
-			result = !step.entityName || context.entityName === step.entityName;
-			break;
-		}
-		case "FormStateRule": {
-			result = context.formState === step.state;
-			break;
-		}
-		case "CommandClientTypeRule": {
-			result = context.clientType === step.type;
-			break;
-		}
-		case "CrmClientTypeRule": {
-			result = context.crmClientType === step.type;
-			break;
-		}
-		case "FormTypeRule": {
-			result = context.formType === step.type;
-			break;
-		}
-		case "ValueRule": {
-			const value = context.fieldValues?.[step.field];
-			result = String(value ?? "") === step.value;
-			break;
-		}
-		case "OrRule": {
-			// Each <Or> group is an AND of its steps; the OrRule is any group.
-			result = step.groups.some((group) =>
-				group.every((nested) => evaluateStep(nested, context)),
-			);
-			break;
-		}
-		default:
-			result = true;
-	}
-
-	if ("invertResult" in step && step.invertResult) {
-		return !result;
-	}
-
-	return result;
 }
 
 function summarizeStep(step: RuleStep): string {
