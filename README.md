@@ -38,14 +38,13 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Command binding with action summary chips
 - Display rules + Enable rules pill lists with inline add/remove
 - Scaling summary (read-only: the tab's groups and scaling steps)
-- Advanced: form ribbon scope selector, `Mscrm.OpenRecordItem` override toggle, client-type filter shortcuts (Unified Interface evaluates as `Modern`; one filter per command)
+- Advanced: `Mscrm.OpenRecordItem` override toggle, client-type filter shortcuts (Unified Interface evaluates as `Modern`; one filter per command)
 - Provenance notice — names the managed solution and publisher a button comes from
 
 ### ⚡ Command Editor
 - JavaScript function: library (with Browse… to Web Resource Browser), function name, positional CrmParameter editor
 - URL action: address, PassParams, WinMode, named CrmParameters with querystring key
-- **Power Fx expression** — inline Monaco editor (syntax-highlighted, word wrap) with variable hints (`ThisRecord`, `Selection`, `Self`) and async-rule note
-- Custom API / Web API action
+- Power Fx and Custom API actions belong to modern commands (`appaction`), not the classic ribbon: they aren't offered, and an existing one shows as not supported ([#28](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/28))
 - Enable rules + Display rules binding
 - References tab showing exact buttons + tab/group breadcrumb
 - Versions tab from history
@@ -85,12 +84,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 ### 🌐 Web Resource Browser
 - Virtualized list with type filter, custom-only toggle, search
 - Upload new resource directly from the browser
-- Edit JS/CSS/XML files in Monaco
-
-### 🔗 URL Action Composer
-- Base URL, PassParams (full 6-parameter table per MS docs), custom CrmParameters
-- Live URL preview; `&` → `&amp;` escaping handled automatically
-- WinMode: Navigate / Dialog / Popup
+- A command's JavaScript library opens in Monaco from the Command Editor (**View script** / **Edit script**)
 
 ### 📊 XML and Compare
 - Views of the editor drawer: the XML of your changes opens on the location you're on, one location per tab, in Monaco (read-only; **Import this XML** hands it to the import dialog)
@@ -292,7 +286,7 @@ CBS runs in two modes:
 | **Zustand** | 5 | Global state (ribbons, selection, UI, session) |
 | **fflate** | 0.8 | ZIP compression for solution package + ribbon XML decompression |
 | **@pptb/types** | 1.2.7 | Power Platform ToolBox host API types (`window.dataverseAPI`, `window.toolboxAPI`) |
-| **Vitest** | 3 | Test runner — 148 tests across 8 suites |
+| **Vitest** | 5 | Test runner (`npm test`) |
 
 ---
 
@@ -338,14 +332,15 @@ src/
     sessionStore.ts      — Solutions, entities, connection, publisher prefix
     runtimeLogStore.ts   — Console tab entries
   utils/
-    ruleEngine.ts        — summarizeRule() + evaluateRule() for all 30 kinds
+    ruleEngine.ts        — summarizeRule(): a rule in plain English, for all 30 kinds
+    monacoSetup.ts       — Monaco (XML and JavaScript only), loaded with the first editor
     idGenerator.ts       — Publisher-prefixed unique ribbon IDs
     webResourceBrowserCallback.ts — Module-level callback registry for WRB selection
     ribbonProvenance.ts  — applyProvenanceToRibbons + heuristicOrigin
     monacoCompletions.ts — $LocLabels: / $webresource: / Command= completions
   types/
     ribbon.ts            — Full domain model: RibbonButton, RuleStep (30 kinds), …
-  __tests__/             — 148 Vitest tests
+  __tests__/             — Vitest tests (`npm test`)
   __fixtures__/          — ribbon/account-full.xml, all-rule-kinds.xml, ribbondiff/…
 ```
 
@@ -370,9 +365,11 @@ style messages (`feat:`, `fix:`, `chore:` …).
 
 ## 📋 Roadmap
 
+What's planned is on the [milestones](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/milestones). Longer-term ideas:
+
 - [x] ~~ClassicRibbon drag migration to `@dnd-kit` with `DragOverlay` ghost~~ ✅ shipped in 0.5.0
 - [ ] `QueueUpdateRibbonClientMetadata` for targeted ribbon-only publish (vs. broad `publishCustomizations`)
-- [ ] Power Fx LSP / language server integration
+- [ ] Modern commands with JavaScript actions (v1.1.0; Power Fx stays out of scope)
 - [ ] Import error line highlighting in Monaco
 - [ ] Accessibility audit — verify full WCAG 2.1 AA compliance against spec §28
 - [ ] ClassicRibbon button drag: migrate from `useDraggable` to `useSortable` for live in-place reordering animation

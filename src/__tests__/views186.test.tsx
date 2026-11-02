@@ -14,6 +14,8 @@ import { useUIStore } from "@/store/uiStore";
 import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
 const diff = vi.hoisted(() => ({ original: "", modified: "" }));
+// Monaco itself doesn't run in jsdom; CompareView loads its setup first (#118)
+vi.mock("@/utils/monacoSetup", () => ({}));
 vi.mock("@monaco-editor/react", () => ({
 	DiffEditor: ({ original, modified }: { original: string; modified: string }) => {
 		diff.original = original;

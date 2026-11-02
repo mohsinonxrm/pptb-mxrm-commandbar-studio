@@ -21,12 +21,14 @@ import {
 import { generateRibbonDiffXml } from "@/services/xmlGenerator";
 import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
-// Lazy-load DiffEditor so Monaco stays out of the initial bundle
+// Lazy-load DiffEditor, with Monaco's setup, so Monaco stays out of the initial bundle
 const DiffEditorLazy = React.lazy(() =>
-	import("@monaco-editor/react").then((m) => ({ default: m.DiffEditor })),
+	import("@/utils/monacoSetup")
+		.then(() => import("@monaco-editor/react"))
+		.then((m) => ({ default: m.DiffEditor })),
 );
 
-type IStandaloneDiffEditor = import("monaco-editor").editor.IStandaloneDiffEditor;
+type IStandaloneDiffEditor = import("monaco-editor/editor/editor.api").editor.IStandaloneDiffEditor;
 type TokenEvents = { onDidChangeModelTokens?: (listener: () => void) => { dispose(): void } };
 
 const LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form", "Application"];

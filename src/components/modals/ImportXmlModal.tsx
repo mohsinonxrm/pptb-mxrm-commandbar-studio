@@ -174,7 +174,9 @@ export const ImportXmlModal: React.FC = () => {
 		imported: boolean;
 	} | null>(null);
 	const [failure, setFailure] = useState("");
-	const editorRef = useRef<import("monaco-editor").editor.IStandaloneCodeEditor | null>(null);
+	const editorRef = useRef<
+		import("monaco-editor/editor/editor.api").editor.IStandaloneCodeEditor | null
+	>(null);
 
 	useEffect(() => {
 		if (!importXmlOpen) return;

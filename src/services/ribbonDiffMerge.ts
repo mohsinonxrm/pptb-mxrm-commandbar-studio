@@ -1282,12 +1282,6 @@ export function mergeScopeChanges(
 	return merged;
 }
 
-/** True for a CustomAction that targets an existing control id (an override), not `…._children`. */
-export function isOverrideCustomAction(xml: string): boolean {
-	const el = elementOf(xml);
-	return el.tagName === "CustomAction" && !isChildrenLocation(el.getAttribute("Location"));
-}
-
 /** Sets the Title of a tab / group the layer adds (inline in its CustomAction or a tab's). */
 export function setContainerTitle(
 	parts: RibbonDiffParts,
