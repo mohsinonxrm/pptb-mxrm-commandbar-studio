@@ -36,6 +36,8 @@ interface ResizableHandleProps {
 	value: number;
 	min: number;
 	max: number;
+	/** What the value sizes, read out with it: "Properties pane" → "Properties pane, 386 pixels wide". */
+	target: string;
 	"aria-label"?: string;
 }
 
@@ -45,6 +47,7 @@ export function ResizableHandle({
 	value,
 	min,
 	max,
+	target,
 	"aria-label": ariaLabel = `Resize ${direction} pane`,
 }: ResizableHandleProps) {
 	const styles = useStyles();
@@ -94,7 +97,7 @@ export function ResizableHandle({
 			aria-valuenow={Math.round(value)}
 			aria-valuemin={min}
 			aria-valuemax={max}
-			aria-valuetext={`${Math.round(value)} pixels`}
+			aria-valuetext={`${target}, ${Math.round(value)} pixels ${direction === "vertical" ? "wide" : "high"}`}
 			// eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- see above
 			tabIndex={0}
 			onKeyDown={onKeyDown}

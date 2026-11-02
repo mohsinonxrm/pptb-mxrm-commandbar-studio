@@ -473,6 +473,8 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 								if (e.target === e.currentTarget) selectGroup(group.id);
 							}}
 							onKeyDown={(e) => {
+								// A button's Enter / Space bubbles here: it's the button's (#23 review)
+								if (e.target !== e.currentTarget) return;
 								if (
 									(e.key === "Enter" || e.key === " ") &&
 									group.buttons.length > 0

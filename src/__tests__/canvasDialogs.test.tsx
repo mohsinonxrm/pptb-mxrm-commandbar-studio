@@ -670,5 +670,43 @@ describe("canvas labels and dialogs (#75, #18)", () => {
 			expect(useSelectionStore.getState().selectedButtonId).toBe("mxrm.Own.Button");
 			expect(document.activeElement).toBe(own);
 		});
+
+		it("picks up the focused button with Enter, keeps it selected, and Escape cancels", async () => {
+			// A second button: Enter on it must not go to its group's first button (#23 review)
+			const share = button("Mscrm.HomepageGrid.contact.Share", "Share", 20);
+			useRibbonStore.setState((s) => {
+				const tab = s.ribbons.HomepageGrid.tabs[0];
+				const groups = tab.groups.map((g) =>
+					g.id === MGMT ? { ...g, buttons: [...g.buttons, share] } : g,
+				);
+				return {
+					ribbons: {
+						...s.ribbons,
+						HomepageGrid: { ...s.ribbons.HomepageGrid, tabs: [{ ...tab, groups }] },
+					},
+				};
+			});
+			render(<Classic />);
+			const edit = tile(share.id);
+			act(() => edit.focus());
+			const key = (k: string, code: string) =>
+				act(() => {
+					edit.dispatchEvent(
+						new KeyboardEvent("keydown", { key: k, code, bubbles: true }),
+					);
+				});
+			key("Enter", "Enter");
+			expect(edit.getAttribute("aria-pressed")).toBe("true");
+			expect(useSelectionStore.getState().selectedButtonId).toBe(edit.dataset.ribbonBtnId);
+			expect(document.activeElement).toBe(edit);
+			// dnd-kit listens for the drag's keys from the next task on
+			await act(() => new Promise((r) => setTimeout(r, 0)));
+			key("Escape", "Escape");
+			expect(edit.getAttribute("aria-pressed")).toBeNull();
+			expect(group(MGMT)!.buttons.map((b) => b.id)).toEqual([
+				"Mscrm.HomepageGrid.contact.Edit",
+				share.id,
+			]);
+		});
 	});
 });

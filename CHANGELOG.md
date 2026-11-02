@@ -22,7 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The pane resize handles work from the keyboard (#23).** Tab to the handle beside the left
   pane, the Properties pane or the bottom panel, then use the arrow keys (Shift for bigger
-  steps). Screen readers announce the pane's size and limits. Dragging a handle saved the pane
+  steps). Screen readers announce which pane it sizes, its width or height, and how far it can
+  go in this window. Dragging a handle saved the pane
   sizes on every mouse move; it now saves them at most every quarter second.
 - **Screen readers get accurate roles on the Classic and Modern canvases (#23).** The Classic
   canvas called itself a tree grid without rows or cells; its groups are now plain groups. The
@@ -31,7 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The Classic canvas works from the keyboard (#23).** Tabbing to a button didn't select it:
   its group took the focus event and selected itself instead. The arrow keys didn't move between
   buttons you can drag, because the drag handler replaced the button's own. Enter or Space
-  picks a button up to move it with the arrow keys, as before; Escape now cancels the move
+  picks a button up to move it with the arrow keys, as before, and now keeps that button
+  selected (its group moved the selection to the group's first button). Escape cancels the move
   without leaving the canvas stuck in drag mode.
 - **The Structure pane's hint wraps inside its padding.** With no table chosen, the second line
   of "Choose a table to see its tabs, groups and buttons." started at the pane's edge.

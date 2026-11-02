@@ -187,6 +187,11 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 		leftPaneWidth,
 		rightPaneMode === "docked" ? rightPaneWidth : 0,
 	);
+	// The widest each side pane can be shown in this window: the handles' aria-valuemax (#23 review)
+	const maxShown = {
+		left: Math.max(fitted.left, fitPaneWidths(windowWidth, MAX_LEFT, fitted.right).left),
+		right: Math.max(fitted.right, fitPaneWidths(windowWidth, fitted.left, MAX_RIGHT).right),
+	};
 	const anyOverlayOpen = useUIStore(
 		(s) =>
 			s.editorStack.length > 0 ||
@@ -287,8 +292,9 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 							direction="vertical"
 							onResize={resizeLeft}
 							value={fitted.left}
-							min={MIN_LEFT}
-							max={MAX_LEFT}
+							min={Math.min(MIN_LEFT, fitted.left)}
+							max={maxShown.left}
+							target="Left pane"
 							aria-label="Resize left pane"
 						/>
 					</>
@@ -339,8 +345,9 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 							direction="vertical"
 							onResize={resizeRight}
 							value={fitted.right}
-							min={MIN_RIGHT}
-							max={MAX_RIGHT}
+							min={Math.min(MIN_RIGHT, fitted.right)}
+							max={maxShown.right}
+							target="Properties pane"
 							aria-label="Resize right pane"
 						/>
 						<div className={styles.rightPane} style={{ width: fitted.right }}>
@@ -376,6 +383,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 					value={bottomPanelHeight}
 					min={BOTTOM_MIN}
 					max={BOTTOM_MAX}
+					target="Bottom panel"
 					aria-label="Resize bottom panel"
 				/>
 			)}

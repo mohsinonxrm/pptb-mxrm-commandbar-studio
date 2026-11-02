@@ -36,6 +36,7 @@ describe("ResizableHandle", () => {
 						value={260.4}
 						min={160}
 						max={500}
+						target="Left pane"
 						aria-label="Resize left pane"
 					/>
 				</FluentProvider>,
@@ -57,7 +58,7 @@ describe("ResizableHandle", () => {
 		expect(handle.getAttribute("aria-valuenow")).toBe("260");
 		expect(handle.getAttribute("aria-valuemin")).toBe("160");
 		expect(handle.getAttribute("aria-valuemax")).toBe("500");
-		expect(handle.getAttribute("aria-valuetext")).toBe("260 pixels");
+		expect(handle.getAttribute("aria-valuetext")).toBe("Left pane, 260 pixels wide");
 	});
 
 	it("moves a vertical handle with Left and Right, further with Shift", () => {
