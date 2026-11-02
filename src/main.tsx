@@ -1,8 +1,3 @@
-// Configure Monaco to use the locally-bundled instance instead of CDN.
-// Must be the very first import so the loader is configured before any
-// component that calls useMonaco() / <Editor> / <DiffEditor> is loaded.
-import "@/utils/monacoSetup";
-
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { useSessionStore } from "@/store/sessionStore";

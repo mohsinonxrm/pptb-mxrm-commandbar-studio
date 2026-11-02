@@ -1,6 +1,7 @@
 import { create, type StateCreator } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type { RibbonLocation } from "@/types/ribbon";
+import { throttledStorage } from "@/utils/throttledStorage";
 
 export type RibbonViewStyle = "groups" | "classic" | "modern" | "list";
 export type RightPaneMode = "docked" | "floating" | "hidden";
@@ -315,6 +316,8 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 export const useUIStore = create<UIStore>()(
 	persist(uiStoreCreator, {
 		name: "cbs:ui",
+		// Pane resizing sets a width on every pointer move (#23)
+		storage: createJSONStorage(() => throttledStorage(() => localStorage)),
 		partialize: (state) => ({
 			leftPaneWidth: state.leftPaneWidth,
 			leftPaneTab: state.leftPaneTab,

@@ -21,6 +21,8 @@ export default tseslint.config(
 		},
 		rules: {
 			...reactHooks.configs.recommended.rules,
+			// Keyboard and screen-reader checks (#23). Disable one per line, with the reason.
+			...jsxA11y.configs.recommended.rules,
 			"react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
 			"@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
 			"@typescript-eslint/no-explicit-any": "error",

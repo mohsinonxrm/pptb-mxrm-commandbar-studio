@@ -66,6 +66,7 @@ export function RenameId({ label, current, ids, what, hint, onRename, onDone }: 
 				<Input
 					className={styles.input}
 					value={draft}
+					// eslint-disable-next-line jsx-a11y/no-autofocus -- shown by the Rename button, to type into at once
 					autoFocus
 					onChange={(_, d) => setDraft(d.value)}
 					onKeyDown={(e) => {
