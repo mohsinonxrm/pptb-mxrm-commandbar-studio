@@ -23,6 +23,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The Structure pane's hint wraps inside its padding.** With no table chosen, the second line
   of "Choose a table to see its tabs, groups and buttons." started at the pane's edge.
 
+### 🏗️ Technical
+
+- **Release workflow hardening (#250, as FetchXML Studio #188).**
+  - **Separate jobs:** `release.yml` is split into `build`, `publish` and `github-release`.
+    - The job that installs and runs the dependencies (`npm ci --ignore-scripts`, no cache, the
+      checks, the build) can only read the repository.
+    - Only `publish` can get the npm OIDC token, only for a tag push, and it installs no
+      project dependencies: it publishes the tarball `build` packed.
+    - Only `github-release` can write to the repository.
+  - **More checks before publishing:** the release build now also runs the runtime audit,
+    typecheck, lint and the package-contents check, so a tag on a commit that skipped CI can't
+    publish.
+  - **Pinned versions:** npm is pinned to 11.21.1 instead of `npm@latest`, and Node to 24.22.0.
+    The actions are pinned by commit SHA (checkout v7.0.1, setup-node v7.1.0, upload-artifact
+    v7.0.2, download-artifact v8.0.2). Each is at least 14 days old, the project's dependency
+    rule.
+  - **Rehearsal:** the workflow can run by hand as a rehearsal: every check and
+    `npm publish --dry-run`, with no npm token and no GitHub Release. A manual run never
+    publishes, even on a tag.
+  - **`latest` can't move back:** a stable tag gets `latest` only for main's own version line,
+    and a `support/X.Y` commit is checked first. Support branches merge forward into `main`, so
+    re-running an older line's release after that merge could have published it to `latest`.
+  - **CI:** uses `npm ci --ignore-scripts` and the same action pins, and doesn't keep the
+    checkout's token.
+- **Releases check what they must update (#246, as FetchXML Studio #270).** A new
+  `check-release.mjs` runs in CI (every PR, and pushes to the long-lived branches) and in the
+  release build. It fails when any of these don't match `package.json`'s version:
+  - the version's shape (`X.Y.Z`, `X.Y.Z-beta.N` or `X.Y.Z-rc.N`);
+  - `package-lock.json`;
+  - the CHANGELOG (a dated `[X.Y.Z]` section with entries, under `[Unreleased]`);
+  - the version badge (`assets/badges/version.svg` must be what `npm run version-badge` writes);
+  - after the build, the bundled icon (the Insider icon for pre-releases).
+
+  The GitHub Release notes are now built from the CHANGELOG section, after a line on the channel
+  and the PPTB requirement, with GitHub's PR list after them. Before, they were the PR list
+  alone, replaced by hand. A rehearsal previews them in the run summary. RELEASING.md has a
+  table of what every release changes, and an *After every release* checklist (the npm tag, the
+  published icon, the tracking issue, the forward merge, deprecating the replaced version).
+  Forward merges keep the higher version.
+
 ## [0.9.0-beta.1] - 2026-11-01
 
 The first beta of 0.9.0 (npm `beta`): the UX overhaul in Fluent 2, and Edit mode.

@@ -44,10 +44,35 @@ locally. The same process is used by FetchXML Studio and Dataverse Request Studi
 When a forward merge conflicts badly because the code has moved on, re-apply the fix on
 the newer branch in a small companion PR instead.
 
-**Resolving forward-merge conflicts** in `CHANGELOG.md`, `package.json` and
-`assets/badges/version.svg`: keep the newest version (the one being released), keep the
-target branch's own `[Unreleased]` entries on top (drop any that the incoming dated
-section already lists), and add the incoming dated sections in version order.
+**Resolving forward-merge conflicts** in `CHANGELOG.md`, `package.json`, `package-lock.json`
+and `assets/badges/version.svg`: keep the **higher** of the two versions (semver), with its lock
+fields and badge, and the target branch's own `[Unreleased]` entries on top (drop any that the
+incoming dated section already lists); add the incoming dated sections in version order, highest
+first. So the newest dated section is always the branch's version, which `check-release.mjs`
+checks. For example, a `0.9.1` hotfix merged into `dev` at `0.9.0` makes `dev` `0.9.1`; merged
+into `dev` at `0.10.0-beta.2`, `dev` stays `0.10.0-beta.2` with `[0.9.1]` below its section.
+
+## Every release: what changes
+
+Each release-prep PR (beta, rc, stable, hotfix or support) changes exactly these, and nothing
+else needs a manual edit:
+
+| What | How | Checked by |
+|---|---|---|
+| **Version** (semver: `X.Y.Z`, `X.Y.Z-beta.N` or `X.Y.Z-rc.N`) in `package.json` and `package-lock.json` | `npm version X.Y.Z[-beta.N] --no-git-tag-version` updates both | `check-release.mjs` (CI and `release.yml`); the tag must match too |
+| **CHANGELOG** | Rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and add an empty `## [Unreleased]` above it | `check-release.mjs`: the newest section is the version, dated, with entries |
+| **Version badge** (`assets/badges/version.svg`) | `npm run version-badge` | `check-release.mjs`: the file is what the script writes for the version |
+| **Icon** | Nothing to do: the build bundles the gold Insider icon for `-beta.N` / `-rc.N` and the release icon for `X.Y.Z` | `check-release.mjs --dist` compares `dist/icons/icon.svg` with the right source |
+| **npm package** | Published by `release.yml` on the tag, with provenance, to `beta`, `latest` or `support-X.Y` | `release.yml` |
+| **GitHub Release** | Created by `release.yml` on the tag: pre-release for betas, latest for stable on `main`. Its notes are the channel, the PPTB requirement and the CHANGELOG section, then GitHub's PR list | `release.yml` |
+
+CI runs `check-release.mjs` on every PR and on pushes to `dev`, `main`, `release/**` and
+`support/**`, so a release-prep PR that misses one of them fails before it merges; on other PRs
+it confirms the branch is still consistent (#246).
+
+Branches cut before the check existed run the workflow of their own commit: they get neither
+the check nor the notes from the CHANGELOG. Check those by hand against this table, and paste
+the CHANGELOG section into the GitHub Release after it's created.
 
 ## Release lifecycle
 
@@ -69,11 +94,11 @@ git switch dev && git pull && git switch -c release/0.6 && git push -u origin re
      add a new empty `## [Unreleased]` above it
    - `npm run version-badge` (rewrites `assets/badges/version.svg` from `package.json`)
 
-   and PR it into `release/0.6`.
-2. Tag the merged commit on `release/0.6`:
+   and PR it into `release/0.6` (see *Every release: what changes*).
+2. Tag the PR's merge commit on `release/0.6`:
    `git switch release/0.6 && git pull && git tag v0.6.0-beta.2 && git push origin v0.6.0-beta.2`.
-3. Merge `release/0.6` into `dev` with a PR (`merge/release-0.6-into-dev`, merge commit) so
-   `dev` has the fixes.
+3. Run *After every release* (below), then merge `release/0.6` into `dev` with a PR
+   (`merge/release-0.6-into-dev`, merge commit) so `dev` has the fixes.
 
 `-beta.N` and `-rc.N` publish to the npm `beta` tag as a GitHub pre-release; `latest`
 doesn't change. The build bundles the gold Insider icon for pre-releases.
@@ -98,14 +123,16 @@ Before promoting a beta to `latest`:
    `npm run version-badge`.
 2. PR `release/0.6` → `main`, merged with a merge commit.
 3. Tag the merge commit on `main`: `git switch main && git pull && git tag v0.6.0 && git push origin v0.6.0`.
-4. Merge `main` into `dev` (merge commit), then delete `release/0.6`.
+4. Run *After every release*, then merge `main` into `dev` (merge commit) and delete
+   `release/0.6`.
 
 ## Hotfixes (to the current stable release)
 
 1. Branch `hotfix/0.6.1` from `main`; fix, set the version (`0.6.1`), date its CHANGELOG
    section, run `npm run version-badge`; PR into `main` (merge commit).
-2. Tag `v0.6.1` on `main` → npm `latest`.
-3. Merge `main` forward into `release/*` (if one is open) and `dev`.
+2. Tag `v0.6.1` on `main` → npm `latest`, then run *After every release*.
+3. Merge `main` forward into `release/*` (if one is open) and `dev`, keeping the higher version
+   (*Resolving forward-merge conflicts*) and each target's `[Unreleased]` entries.
 
 ## Supported versions
 
@@ -144,12 +171,56 @@ tagged commit:
 | Tag | Tagged commit must be on | npm tag | GitHub Release |
 |---|---|---|---|
 | `vX.Y.Z-beta.N`, `vX.Y.Z-rc.N` | any branch (normally `release/X.Y`) | `beta` | pre-release |
-| `vX.Y.Z` | `main` | `latest` | latest |
 | `vX.Y.Z` | `support/X.Y` | `support-X.Y` | not marked latest |
+| `vX.Y.Z` | `main`, with `X.Y` = main's own version line | `latest` | latest |
 
-Any other tag fails before publishing. It then runs the tests, validation and build,
-publishes to npm with provenance and creates the GitHub Release. Afterwards, replace the
-generated release notes with the CHANGELOG section.
+`support/X.Y` is checked first: it merges forward into `main`, so an older line's commit can
+be on `main` too, and it must never move `latest` back.
+
+Any other tag fails before publishing. The GitHub Release notes are built from the CHANGELOG
+section (`check-release.mjs --notes`); edit the release afterwards only to add context, such as
+how a fix was verified or a known issue.
+
+It runs in separate jobs, so the code that installs and runs dependencies never holds
+publishing rights (#250, as FetchXML Studio #188):
+
+| Job | Runs on | Permissions | What it does |
+|---|---|---|---|
+| `build` | always | read the repository | Checks the tag and chooses the channel; checks the release metadata (`check-release.mjs`); `npm ci --ignore-scripts` (no cache); the runtime audit, typecheck, lint, tests, validation, build, the bundled icon, the DOMPurify check; writes the release notes (previewed in the run summary); packs the tarball and checks its contents. |
+| `publish` | tag push only | npm OIDC token (`id-token: write`) | Installs no project dependencies: downloads the tarball and publishes it with provenance. |
+| `rehearse` | manual run only | none | `npm publish --dry-run` of the tarball, without provenance or an npm token. |
+| `github-release` | tag push only | write the repository | Creates the GitHub Release with the notes `build` wrote. |
+
+Node (24.22.0), npm (11.21.1) and the actions (by full commit SHA, the tag in a comment) are
+pinned to versions at least 14 days old. Dependabot proposes newer actions on `dev`; other
+branches get them when `dev` reaches them through a release. Move the Node and npm pins by
+hand. Only one release run per ref runs at a time. If a run fails after publishing, use
+*Re-run failed jobs*: a full re-run stops at `publish`, since npm never accepts a version twice.
+
+**Rehearse a release** after the version bump and before the tag, on a branch whose workflow
+changed: `gh workflow run release.yml --ref <branch>` (or Actions → *Release* → *Run workflow*
+once the default branch has the manual trigger). It runs every check and `npm publish
+--dry-run`, and creates no GitHub Release. A stable or hotfix version that isn't on `main` yet
+is rehearsed as the channel its tag will get (`latest`, or `support-X.Y` when that branch
+exists), with a warning; the tag push still decides the channel. npm's dry run refuses a version that's already
+published, so on an unbumped branch the rehearsal stops with a notice after the checks. It
+doesn't exercise the npm token exchange or provenance signing. A manual run never publishes,
+even on a tag.
+
+## After every release
+
+1. **npm:** `npm view @mohsinonxrm/pptb-commandbar-studio dist-tags` shows the new version on
+   its tag. The registry can take a few minutes to show it after the run.
+2. **Icon:** unpack the published tarball (`npm pack @mohsinonxrm/pptb-commandbar-studio@X.Y.Z`,
+   then `tar -xzf *.tgz`, in an empty folder) and compare `package/dist/icons/icon.svg` with
+   `icons/icon-insider.svg` (betas) or `icons/icon.svg`.
+3. **GitHub Release:** add any context the CHANGELOG doesn't carry.
+4. **Tracking issue:** comment on the release's tracking issue (the soak restarts with each beta).
+5. **Forward merge** into the newer branches (*Where a fix goes*).
+6. **Deprecate** the version it replaces (the previous beta, or the previous patch). The owner
+   runs it, since npm asks for 2FA, with the message used so far, e.g.
+   `npm deprecate @mohsinonxrm/pptb-commandbar-studio@0.8.0-beta.1 "Pre-release superseded by 0.8.0. Install the latest version instead."`
+7. **Milestone:** close it when its stable release ships.
 
 ## Tool icon and README images
 
