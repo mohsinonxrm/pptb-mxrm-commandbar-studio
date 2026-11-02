@@ -29,20 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🏗️ Technical
 
-- **Repository hygiene (#118).**
-  - **Dead code removed:** the unused PublishXml publish helpers (with their PublishAllXml
-    fallback), a second copy of the LocLabel XML builder, `groupTemplates.ts` (it listed
-    templates that don't exist), and five unused exports (`fetchPublisherPrefix`,
-    `isInsidePPTB`, `classicIdForMigratedCommand`, `isOverrideCustomAction`, `evaluateRule`).
-  - **A misleading comment corrected:** the generator's system-command filter doesn't keep
-    unchanged out-of-the-box commands out of a publish (the parser keeps their actions since
-    #42); `keepOnly` in `publishService` does.
-  - **Coverage:** `npm run test:coverage` (`@vitest/coverage-v8`), and CI writes the totals to
-    the run summary. It reports; it doesn't gate.
-  - **README:** removed features the tool doesn't have (the form ribbon scope selector, Power Fx
-    and Custom API actions, editing web resources in Monaco, the URL Action Composer) and the
-    old test counts; the roadmap points at the milestones.
-  - **CHANGELOG:** entries for 0.5.1 and 0.5.2.
 - **Release workflow hardening (#250, as FetchXML Studio #188).**
   - **Separate jobs:** `release.yml` is split into `build`, `publish` and `github-release`.
     - The job that installs and runs the dependencies (`npm ci --ignore-scripts`, no cache, the
@@ -80,6 +66,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   table of what every release changes, and an *After every release* checklist (the npm tag, the
   published icon, the tracking issue, the forward merge, deprecating the replaced version).
   Forward merges keep the higher version.
+- **Repository hygiene (#118).**
+  - **Dead code removed:** the unused PublishXml publish helpers (with their PublishAllXml
+    fallback), a second copy of the LocLabel XML builder, `groupTemplates.ts` (it listed
+    templates that don't exist), and five unused exports (`fetchPublisherPrefix`,
+    `isInsidePPTB`, `classicIdForMigratedCommand`, `isOverrideCustomAction`, `evaluateRule`).
+  - **A misleading comment corrected:** the generator's system-command filter doesn't keep
+    unchanged out-of-the-box commands out of a publish (the parser keeps their actions since
+    #42); `keepOnly` in `publishService` does.
+  - **Coverage:** `npm run test:coverage` (`@vitest/coverage-v8`), and CI writes the totals to
+    the run summary. It reports; it doesn't gate.
+  - **README:** removed features the tool doesn't have (the form ribbon scope selector, Power Fx
+    and Custom API actions, editing web resources in Monaco, the URL Action Composer) and the
+    old test counts; the roadmap points at the milestones.
+  - **CHANGELOG:** entries for 0.5.1 and 0.5.2.
 
 ## [0.9.0-beta.1] - 2026-11-01
 
