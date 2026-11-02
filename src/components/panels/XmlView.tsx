@@ -78,13 +78,15 @@ export const XmlView: React.FC<{ location: RibbonLocation }> = ({ location }) =>
 	const [webResourceNames, setWebResourceNames] = useState<string[]>([]);
 
 	// Editor instance ref for Format action
-	const editorInstanceRef = useRef<import("monaco-editor").editor.IStandaloneCodeEditor | null>(
-		null,
-	);
-	const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
+	const editorInstanceRef = useRef<
+		import("monaco-editor/editor/editor.api").editor.IStandaloneCodeEditor | null
+	>(null);
+	const monacoRef = useRef<typeof import("monaco-editor/editor/editor.api") | null>(null);
 
 	// Monaco completion providers — registered once when editor mounts, cleaned up on unmount
-	const completionDisposablesRef = useRef<import("monaco-editor").IDisposable[]>([]);
+	const completionDisposablesRef = useRef<
+		import("monaco-editor/editor/editor.api").IDisposable[]
+	>([]);
 	useEffect(() => {
 		void loadWebResources()
 			.then((rows) => setWebResourceNames(rows.map((r) => r.name)))
@@ -100,8 +102,8 @@ export const XmlView: React.FC<{ location: RibbonLocation }> = ({ location }) =>
 
 	const handleEditorMount = useCallback(
 		(
-			editor: import("monaco-editor").editor.IStandaloneCodeEditor,
-			monacoApi: typeof import("monaco-editor"),
+			editor: import("monaco-editor/editor/editor.api").editor.IStandaloneCodeEditor,
+			monacoApi: typeof import("monaco-editor/editor/editor.api"),
 		) => {
 			editorInstanceRef.current = editor;
 			monacoRef.current = monacoApi;

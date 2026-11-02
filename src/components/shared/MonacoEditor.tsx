@@ -16,8 +16,9 @@ export interface MonacoEditorProps {
 	height?: string | number;
 	options?: Record<string, unknown>;
 	onMount?: (
-		editor: import("monaco-editor").editor.IStandaloneCodeEditor,
-		monaco: typeof import("monaco-editor"),
+		editor: import("monaco-editor/editor/editor.api").editor.IStandaloneCodeEditor,
+		// The instance monacoSetup bundles: the editor API, without the JSON / CSS / HTML services
+		monaco: typeof import("monaco-editor/editor/editor.api"),
 	) => void;
 }
 

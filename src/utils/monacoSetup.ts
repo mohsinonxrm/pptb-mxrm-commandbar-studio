@@ -25,6 +25,11 @@ import { loader } from "@monaco-editor/react";
 // paths start below `esm/vs`.
 import * as monaco from "monaco-editor/editor/editor.api";
 import "monaco-editor/features/register.all";
+// Imported by the full editor entry but not by features/register.all (0.57)
+import "monaco-editor/editor/contrib/dropOrPasteInto/browser/copyPasteContribution";
+import "monaco-editor/editor/contrib/caretOperations/browser/caretOperations";
+import "monaco-editor/editor/contrib/gotoError/browser/markerSelectionStatus";
+import "monaco-editor/editor/contrib/semanticTokens/browser/documentSemanticTokens";
 import "monaco-editor/languages/definitions/xml/register";
 import "monaco-editor/languages/definitions/javascript/register";
 import "monaco-editor/languages/features/typescript/register";

@@ -28,7 +28,7 @@ const DiffEditorLazy = React.lazy(() =>
 		.then((m) => ({ default: m.DiffEditor })),
 );
 
-type IStandaloneDiffEditor = import("monaco-editor").editor.IStandaloneDiffEditor;
+type IStandaloneDiffEditor = import("monaco-editor/editor/editor.api").editor.IStandaloneDiffEditor;
 type TokenEvents = { onDidChangeModelTokens?: (listener: () => void) => { dispose(): void } };
 
 const LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form", "Application"];

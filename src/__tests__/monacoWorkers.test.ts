@@ -32,6 +32,10 @@ describe("Monaco worker imports (#117)", () => {
 		expect(modules).toEqual([
 			"editor/editor.api",
 			"features/register.all",
+			"editor/contrib/dropOrPasteInto/browser/copyPasteContribution",
+			"editor/contrib/caretOperations/browser/caretOperations",
+			"editor/contrib/gotoError/browser/markerSelectionStatus",
+			"editor/contrib/semanticTokens/browser/documentSemanticTokens",
 			"languages/definitions/xml/register",
 			"languages/definitions/javascript/register",
 			"languages/features/typescript/register",
