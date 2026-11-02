@@ -22,8 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The tool starts without loading the code editor (#118).** Monaco (about 4 MB) loaded with the
   tool, before any editor opened. It now loads the first time you open the XML view, Compare, a
   script, Import XML or the publish dialog's XML. It brings XML and JavaScript only: the other
-  languages and the CSS, HTML and JSON workers are gone, and the package is 3.3 MB smaller
-  (16.3 → 13.0 MB unpacked).
+  languages and the CSS, HTML and JSON workers are gone, and the package is 2.7 MB smaller
+  (16.3 → 13.6 MB unpacked).
 
 ### 🔧 Fixed
 
