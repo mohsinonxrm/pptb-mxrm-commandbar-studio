@@ -196,9 +196,19 @@ export const CompareView: React.FC<{ historyIndex?: number }> = ({ historyIndex 
 			const onTokens = (side as TokenEvents).onDidChangeModelTokens;
 			return onTokens ? [onTokens.call(side, repaint)] : [];
 		});
-		editor.onDidDispose(() => {
+		// @monaco-editor/react 4.7 disposes the models before the diff editor when it
+		// unmounts, and Monaco throws "TextModel got disposed before DiffEditorWidget model
+		// got reset" (#266). So it keeps them (keepCurrent…Model), and they're disposed here
+		// on the next tick, once the diff editor has let go of them. The diff editor's own
+		// onDidDispose never fires in Monaco 0.57, so this listens on its modified side.
+		const models = editor.getModel();
+		editor.getModifiedEditor().onDidDispose(() => {
 			cancelAnimationFrame(frame);
 			for (const s of subscriptions) s.dispose();
+			setTimeout(() => {
+				models?.original.dispose();
+				models?.modified.dispose();
+			});
 		});
 		// sideBySide intentionally omitted — we only want to sync on mount here
 		// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -272,6 +282,8 @@ export const CompareView: React.FC<{ historyIndex?: number }> = ({ historyIndex 
 						language="xml"
 						theme={themeMode === "dark" ? "vs-dark" : "vs"}
 						height="100%"
+						keepCurrentOriginalModel
+						keepCurrentModifiedModel
 						onMount={handleDiffEditorMount}
 						options={{
 							readOnly: true,
