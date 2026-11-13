@@ -315,6 +315,7 @@ export function planScope(input: PlanInput): ScopePlan {
 		// every custom control of the table (#66 review): never publish one.
 		const newScaling = planNewGroupScaling(current, baseline);
 		unsupported.push(...newScaling.problems);
+		warnings.push(...newScaling.warnings);
 		// Scaling the layer wrote with a Sequence another step of the tab uses
 		// (earlier CBS versions used the group's Sequence) is moved by the
 		// publish; say so. What can't be moved blocks the publish.

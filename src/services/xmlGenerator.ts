@@ -704,9 +704,20 @@ const TEMPLATE_MAX_SIZE: Record<string, string> = {
 /** The platform group templates whose layouts CBS knows — the choices for a group's template (#18). */
 export const PLATFORM_GROUP_TEMPLATES: readonly string[] = Object.keys(TEMPLATE_MAX_SIZE);
 
-/** The MaxSize Size a new group gets by default, or undefined when its template's layouts aren't known. */
-function defaultMaxSizeSize(group: RibbonGroup): string | undefined {
-	return TEMPLATE_MAX_SIZE[normalizeGroupTemplate(group.template)];
+/**
+ * The MaxSize Size a new group gets by default: the largest layout of its template, from the
+ * list above or, for another template, as loaded (#165). Undefined when neither knows it.
+ */
+function defaultMaxSizeSize(
+	group: RibbonGroup,
+	templateLayouts: Record<string, string[]> = {},
+): string | undefined {
+	const template = normalizeGroupTemplate(group.template);
+	return (
+		TEMPLATE_MAX_SIZE[template] ??
+		templateLayouts[template]?.[0] ??
+		templateLayouts[group.template]?.[0]
+	);
 }
 
 export interface NewGroupScaling {
@@ -714,6 +725,11 @@ export interface NewGroupScaling {
 	steps: Map<string, ScaleStep>;
 	/** Why a group can't be given a MaxSize safely — the publish plan blocks on these. */
 	problems: string[];
+	/**
+	 * New groups whose template's layouts CBS doesn't know, so they get no MaxSize (#165). Every
+	 * group needs one on the classic ribbon; Unified Interface ignores scaling.
+	 */
+	warnings: string[];
 }
 
 /**
@@ -735,6 +751,7 @@ export function planNewGroupScaling(
 ): NewGroupScaling {
 	const steps = new Map<string, ScaleStep>();
 	const problems: string[] = [];
+	const warnings: string[] = [];
 	const baseTabs = new Set(baseline.tabs.map((t) => t.id));
 	const baseGroups = new Set(baseline.tabs.flatMap((t) => t.groups.map((g) => g.id)));
 	for (const tab of current.tabs) {
@@ -756,8 +773,13 @@ export function planNewGroupScaling(
 		for (const group of tab.groups) {
 			if (!isNewTab && baseGroups.has(group.id)) continue;
 			if (scaling?.maxSizes.some((m) => m.groupId === group.id)) continue;
-			const size = defaultMaxSizeSize(group);
-			if (!size) continue;
+			const size = defaultMaxSizeSize(group, current.templateLayouts);
+			if (!size) {
+				warnings.push(
+					`New group "${group.label}" (${group.id}) uses template ${group.template}, whose layouts CBS doesn't know, so it gets no MaxSize: the classic ribbon may not show it. Pick one of Microsoft's templates to have one written.`,
+				);
+				continue;
+			}
 			const seq = freeMaxSizeSequence(band, used);
 			if (seq === undefined) {
 				problems.push(
@@ -775,7 +797,7 @@ export function planNewGroupScaling(
 			});
 		}
 	}
-	return { steps, problems };
+	return { steps, problems, warnings };
 }
 
 // ---------------------------------------------------------------------------

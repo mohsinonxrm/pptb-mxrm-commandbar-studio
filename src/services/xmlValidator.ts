@@ -371,6 +371,7 @@ export type PublishCheckCode =
 	| "webresource-lookup"
 	| "scaling-collision"
 	| "scaling-size"
+	| "template-alias"
 	| "duplicate-id"
 	| "orphan-location"
 	| "label-id-length"
@@ -440,6 +441,8 @@ export interface PublishValidationContext {
 	groupTemplates?: Record<string, string>;
 	/** Template id → layout titles. */
 	templateLayouts?: Record<string, string[]>;
+	/** Template id → the TemplateAlias values it places controls at (#165). */
+	templateAliases?: Record<string, string[]>;
 	/** Lookup results by lower-case web resource name. Names missing here aren't checked. */
 	webResources?: Record<string, WebResourceStatus>;
 	/**
@@ -965,6 +968,9 @@ export function validatePublishRibbonDiff(
 	const templateLayouts = new Map<string, string[]>(
 		Object.entries(context.templateLayouts ?? {}),
 	);
+	const templateAliases = new Map<string, string[]>(
+		Object.entries(context.templateAliases ?? {}).map(([t, a]) => [qualifiedTemplate(t), a]),
+	);
 	for (const { part, el } of elements) {
 		if (part !== "templates") continue;
 		for (const t of selfAndDescendants(el).filter((n) => n.tagName === "GroupTemplate")) {
@@ -972,6 +978,12 @@ export function validatePublishRibbonDiff(
 				.filter((l) => l.tagName === "Layout")
 				.map((l) => l.getAttribute("Title") ?? "");
 			templateLayouts.set(t.getAttribute("Id") ?? "", titles);
+			const aliases = selfAndDescendants(t)
+				.map((n) => n.getAttribute("TemplateAlias") ?? "")
+				.filter(Boolean);
+			templateAliases.set(qualifiedTemplate(t.getAttribute("Id") ?? ""), [
+				...new Set(aliases),
+			]);
 		}
 	}
 	const layerSteps: ScalingStepRef[] = [];
@@ -1045,6 +1057,34 @@ export function validatePublishRibbonDiff(
 			s.id,
 			true,
 		);
+	}
+
+	// A control's TemplateAlias must be one its group's template has (#165): elsewhere the
+	// classic ribbon doesn't lay it out. Unified Interface ignores templates, so a warning.
+	const aliasProblem = (control: Element, groupId: string, key: string) => {
+		const alias = control.getAttribute("TemplateAlias");
+		const template = groupTemplates.get(groupId);
+		const aliases = template ? templateAliases.get(template) : undefined;
+		if (!alias || !aliases?.length || aliases.includes(alias)) return;
+		const id = control.getAttribute("Id") ?? "";
+		add(
+			"template-alias",
+			key,
+			`${control.tagName} ${id} has TemplateAlias "${alias}", which template ${template} of group ${groupId} doesn't have (${aliases.join(", ")}): the classic ribbon won't lay it out`,
+			id,
+			true,
+		);
+	};
+	for (const { key, el } of customActions) {
+		const definition = childElements(el).find((c) => c.tagName === "CommandUIDefinition");
+		if (!definition) continue;
+		const into = /^(.+)\.Controls\._children$/.exec(el.getAttribute("Location") ?? "")?.[1];
+		if (into) for (const control of childElements(definition)) aliasProblem(control, into, key);
+		for (const group of Array.from(definition.getElementsByTagName("Group"))) {
+			const controls = childElements(group).find((c) => c.tagName === "Controls");
+			for (const control of controls ? childElements(controls) : [])
+				aliasProblem(control, group.getAttribute("Id") ?? "", key);
+		}
 	}
 
 	// Duplicate ids: a tab / group / control added (`._children`) by more than

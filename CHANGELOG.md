@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command palette, Properties and the editors. It now reads "Modern Client"; an id ending in a word
   like Group or Tab is still shown as the id. The List view's search still finds a group by its
   id. Display only: what publishes is unchanged.
+- **Scaling and layout checks (#165).** A new group whose template isn't one CBS lists now gets its
+  MaxSize from the template's largest layout as loaded; when nothing knows the template, the publish
+  dialog warns that the group gets none (every group needs one on the classic ribbon). The publish
+  check also warns when a control's **Template alias** isn't one its group's template has: the
+  classic ribbon doesn't lay it out (Unified Interface ignores templates). An unused helper that
+  had the MaxSize / Scale order backwards is gone. Scaling stays read-only until changes to it can
+  be published.
 
 ## [0.9.0-beta.3] - 2026-11-12
 
