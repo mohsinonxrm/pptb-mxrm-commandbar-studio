@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ENTITY_LOCATIONS, usePublishPlan } from "@/hooks/usePublishPlan";
-import { buildMergedRibbonDiffXml } from "@/services/dataverse/publishService";
+import { buildMergedRibbonDiffXml, withCheckTimeout } from "@/services/dataverse/publishService";
 import { serializeRibbonDiffParts } from "@/services/ribbonDiffMerge";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
@@ -19,6 +19,9 @@ export interface PublishCompare {
 }
 
 const FALLBACK: PublishCompare = { status: "fallback", before: "", after: "" };
+
+/** As long as the publish dialog waits for its check: a slow environment can't hold Compare. */
+const BUILD_TIMEOUT_MS = 30_000;
 
 /**
  * Compare with published, built the way Publish builds its import (#216): the table's (and,
@@ -97,7 +100,15 @@ export function usePublishCompare(enabled: boolean): PublishCompare {
 		}
 		let cancelled = false;
 		setResult((r) => ({ ...r, status: "loading" }));
-		Promise.all(scopes.map(async (s) => ({ name: s.name, merged: await s.run() })))
+		// Application ribbon changes Publish can't import yet aren't in what it writes: say so.
+		const appLeftOut =
+			appPlan.hasChanges && !includeApplicationRibbon
+				? "Your application ribbon changes aren't shown: Publish can't import them until the solution has the Application Ribbons component."
+				: undefined;
+		withCheckTimeout(
+			Promise.all(scopes.map(async (s) => ({ name: s.name, merged: await s.run() }))),
+			BUILD_TIMEOUT_MS,
+		)
 			.then((built) => {
 				if (cancelled) return;
 				const many = built.length > 1;
@@ -109,6 +120,7 @@ export function usePublishCompare(enabled: boolean): PublishCompare {
 					status: "ready",
 					before: join((m) => serializeRibbonDiffParts(m.layer)),
 					after: join((m) => m.xml),
+					note: appLeftOut,
 				});
 			})
 			.catch((err: unknown) => {

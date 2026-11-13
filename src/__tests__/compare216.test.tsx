@@ -21,7 +21,9 @@ const mocks = vi.hoisted(() => ({
 		unsupported: [] as string[],
 	},
 }));
-vi.mock("@/services/dataverse/publishService", () => ({
+vi.mock("@/services/dataverse/publishService", async (importOriginal) => ({
+	withCheckTimeout: (await importOriginal<typeof import("@/services/dataverse/publishService")>())
+		.withCheckTimeout,
 	buildMergedRibbonDiffXml: mocks.build,
 }));
 vi.mock("@/hooks/usePublishPlan", () => ({
@@ -117,5 +119,33 @@ describe("#216 Compare with published", () => {
 		} finally {
 			mocks.plan.unsupported = [];
 		}
+	});
+
+	it("says when the application ribbon's changes are left out", async () => {
+		mocks.plan.appPlan = { hasChanges: true };
+		try {
+			mocks.build.mockResolvedValue({ xml: MERGED, layer: parseRibbonDiffParts(LAYER) });
+			render();
+			await until(() => side("modified") !== "");
+			expect(document.body.textContent).toContain(
+				"Your application ribbon changes aren't shown",
+			);
+		} finally {
+			mocks.plan.appPlan = { hasChanges: false };
+		}
+	});
+
+	it("gives up after 30 s and compares the generated XML", async () => {
+		mocks.build.mockReturnValue(new Promise(() => {}));
+		vi.useFakeTimers();
+		try {
+			render();
+			await act(async () => {
+				await vi.advanceTimersByTimeAsync(30_000);
+			});
+		} finally {
+			vi.useRealTimers();
+		}
+		await until(() => document.body.textContent!.includes("didn't finish within 30 s"));
 	});
 });
