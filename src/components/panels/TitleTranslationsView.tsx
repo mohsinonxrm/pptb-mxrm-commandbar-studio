@@ -20,6 +20,7 @@ import { LANGUAGES, languageName } from "@/constants/languages";
 import { extractLocLabelId } from "@/utils/locLabelRef";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { canRenameContainer } from "@/utils/ribbonProvenance";
+import { titleTranslationTarget } from "@/utils/titleTranslation";
 import type { RibbonLocation } from "@/types/ribbon";
 
 const useStyles = makeStyles({
@@ -65,12 +66,28 @@ export const TitleTranslationsView: React.FC<{
 
 	const loadedTab = baseline[location].tabs.find((t) => t.id === tabId);
 	const loaded = container === "tab" ? loadedTab : loadedTab?.groups.find((g) => g.id === id);
-	// The label the title is published to, as a rename uses it (publishPlan).
-	const labelId = loaded ? extractLocLabelId(loaded.label ?? "") : `${id}.Title`;
-	const yours =
-		!!labelId &&
-		canRenameContainer(container, id, baseline[location], scopeLayer({ layers }, location));
+	const yours = canRenameContainer(
+		container,
+		id,
+		baseline[location],
+		scopeLayer({ layers }, location),
+	);
+	// The label the publish writes the title with, or why it can't be translated here.
+	const target = titleTranslationTarget({
+		container: found,
+		loaded,
+		yours,
+		ribbons,
+		locLabels,
+		baseLcid,
+	});
+	const labelId = "labelId" in target ? target.labelId : null;
+	// The title itself can be changed wherever a rename can be published.
+	const canRename = yours && (loaded ? !!extractLocLabelId(loaded.label ?? "") : true);
 	const label = locLabels.find((l) => l.id === labelId);
+	// The label's own base title: a rename sets it at publish time (another control may use it).
+	const labelBase = (text: string) =>
+		label?.titles.find((t) => t.languageCode === baseLcid)?.description ?? text;
 	const baseText = resolveDisplayLabel(found.label, locLabels, baseLcid);
 	const textIn = (lcid: number) =>
 		lcid === baseLcid
@@ -104,7 +121,7 @@ export const TitleTranslationsView: React.FC<{
 		upsertLocLabel({
 			id: labelId,
 			titles: [
-				{ languageCode: baseLcid, description: base },
+				{ languageCode: baseLcid, description: labelBase(base) },
 				...[...others].map(([languageCode, description]) => ({
 					languageCode,
 					description,
@@ -120,7 +137,6 @@ export const TitleTranslationsView: React.FC<{
 		if (!text.trim()) return;
 		if (container === "tab") renameTab(location, tabId, text);
 		else renameGroup(location, tabId, id, text);
-		if (label) writeLabel(null, "", text);
 	};
 
 	const removeLanguage = (lcid: number) => {
@@ -148,7 +164,7 @@ export const TitleTranslationsView: React.FC<{
 
 	return (
 		<div className={styles.body}>
-			{yours ? (
+			{labelId ? (
 				<Text>
 					{languageName(baseLcid)} is the organization&apos;s base language: its text is
 					the {kind}&apos;s title. Other languages are published with it.
@@ -156,8 +172,11 @@ export const TitleTranslationsView: React.FC<{
 			) : (
 				<MessageBar intent="info">
 					<MessageBarBody>
-						Only your own tabs and groups can be translated: this {kind}&apos;s title
-						comes from Microsoft or another solution.
+						{"reason" in target && target.reason === "shared"
+							? `This ${kind}'s title is a label other tabs, groups or buttons use too, so its translations aren't edited here: they'd change for all of them.`
+							: "reason" in target && target.reason === "kept"
+								? `This ${kind} keeps the title of the one it was copied or imported from (${target.token}). Change the title first: it then gets a label of its own to translate.`
+								: `Only your own tabs and groups can be translated: this ${kind}'s title comes from Microsoft or another solution.`}
 					</MessageBarBody>
 				</MessageBar>
 			)}
@@ -182,11 +201,11 @@ export const TitleTranslationsView: React.FC<{
 						<Input
 							aria-label={`Title (${languageName(lcid)})`}
 							value={lcid === baseLcid && emptyTitle ? "" : textIn(lcid)}
-							readOnly={!yours}
+							readOnly={lcid === baseLcid ? !canRename : !labelId}
 							onChange={(_, d) => change(lcid, d.value)}
 						/>
 					</Field>
-					{lcid !== baseLcid && yours && (
+					{lcid !== baseLcid && !!labelId && (
 						<Tooltip content={`Remove ${languageName(lcid)}`} relationship="label">
 							<Button
 								appearance="subtle"
@@ -197,7 +216,7 @@ export const TitleTranslationsView: React.FC<{
 					)}
 				</div>
 			))}
-			{yours && (
+			{!!labelId && (
 				<div className={styles.row}>
 					<Field label="Add a language" className={styles.addField}>
 						<Combobox

@@ -11,6 +11,7 @@ import { EditorDrawer } from "@/components/panels/EditorDrawer";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
 import { generateRibbonDiffXml } from "@/services/xmlGenerator";
+import { titleTranslationTarget } from "@/utils/titleTranslation";
 import type { RibbonDefinition, RibbonGroup, RibbonLocation } from "@/types/ribbon";
 
 if (typeof window.ResizeObserver === "undefined") {
@@ -156,10 +157,24 @@ describe("#136 a new group's title", () => {
 		typeInto(input("Title (English (United States))"), "Utilities");
 		const g = store().ribbons.HomepageGrid.tabs[0].groups.find((x) => x.id === NEW)!;
 		expect(g.label).toBe("Utilities");
-		expect(store().locLabels.find((l) => l.id === `${NEW}.Title`)?.titles[0]).toEqual({
-			languageCode: 1033,
-			description: "Utilities",
+		// Published with the new title and the French one
+		const s = store();
+		const xml = generateRibbonDiffXml({
+			location: "HomepageGrid",
+			current: s.ribbons.HomepageGrid,
+			baseline: s.baseline.HomepageGrid,
+			commands: [],
+			enableRules: [],
+			displayRules: [],
+			locLabels: s.locLabels,
+			entityLogicalName: T,
 		});
+		const doc = new DOMParser().parseFromString(xml, "application/xml");
+		expect(
+			[...doc.querySelectorAll(`LocLabel[Id="${NEW}.Title"] Title`)].map(
+				(x) => `${x.getAttribute("languagecode")}:${x.getAttribute("description")}`,
+			),
+		).toEqual(["1033:Utilities", "1036:Outils"]);
 	});
 
 	it("is read-only for a title that isn't yours", async () => {
@@ -193,5 +208,51 @@ describe("#136 a new group's title", () => {
 		await until(() => !!input("Title (French)"));
 		expect(input("Title (German)")).toBeNull();
 		expect(document.querySelectorAll('input[aria-label="Title (French)"]')).toHaveLength(1);
+	});
+});
+
+describe("#136 review: where a title's translations go", () => {
+	const g = (id: string, label: string, titleToken?: string): RibbonGroup =>
+		({
+			...group(id, label),
+			...(titleToken ? { source: { titleToken, attributes: {} } } : {}),
+		}) as RibbonGroup;
+	const ribbonsWith = (...groups: RibbonGroup[]) => ({
+		HomepageGrid: {
+			...ribbon("HomepageGrid"),
+			tabs: [{ ...ribbon("HomepageGrid").tabs[0], groups }],
+		},
+	});
+	const X = { id: "X", titles: [{ languageCode: 1033, description: "Tools" }] };
+	const target = (
+		container: RibbonGroup,
+		loaded: RibbonGroup | undefined,
+		ribbons: Record<string, RibbonDefinition>,
+		yours = true,
+	) =>
+		titleTranslationTarget({
+			container,
+			loaded,
+			yours,
+			ribbons,
+			locLabels: [X],
+			baseLcid: 1033,
+		});
+
+	it("a loaded own title: its label, unless another control shares it", () => {
+		const G = g("G", "$LocLabels:X");
+		expect(target(G, G, ribbonsWith(G))).toEqual({ labelId: "X" });
+		expect(target(G, G, ribbonsWith(G, g("H", "$LocLabels:X")))).toEqual({ reason: "shared" });
+		expect(target(G, G, ribbonsWith(G), false)).toEqual({ reason: "not-yours" });
+	});
+
+	it("a copy keeps its source's title until it's changed; an import's loaded label is used", () => {
+		const kept = g("C", "$Resources:Ribbon.Management", "$Resources:Ribbon.Management");
+		expect(target(kept, undefined, ribbonsWith(kept))).toMatchObject({ reason: "kept" });
+		const changed = g("C", "Copy", "$Resources:Ribbon.Management");
+		expect(target(changed, undefined, ribbonsWith(changed))).toEqual({ labelId: "C.Title" });
+		const imported = g("I", "Tools", "$LocLabels:X");
+		expect(target(imported, undefined, ribbonsWith(imported))).toEqual({ labelId: "X" });
+		expect(target(g("N", "New"), undefined, ribbonsWith())).toEqual({ labelId: "N.Title" });
 	});
 });
