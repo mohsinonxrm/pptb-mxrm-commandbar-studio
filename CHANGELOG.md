@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 Changed
+
+- **The solution picker is the scope chip FetchXML Studio and Dataverse Request Studio share
+  (#174, #264).** The top bar's solution button now reads **Solution: Sales Core v1.2.0** (three
+  version parts, so a patch reads apart from its parent), with an **Unmanaged** badge and the
+  publisher prefix, which is warning-coloured for the org's default publisher. Its tooltip has the
+  full name, unique name, version and publisher. With nothing chosen it reads **Choose scope**, in
+  outline like the chosen state, so Publish stays the top bar's one primary button. The popover is
+  titled **Solution**, searches name, unique name and version, and ends with "Changes apply right
+  away." and **Done**. On an environment where no solution is chosen yet, a first-run tip points at
+  the chip; **Choose scope** opens it, and **Got it** dismisses the tip for that environment.
+
 ### 🔧 Fixed
 
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
