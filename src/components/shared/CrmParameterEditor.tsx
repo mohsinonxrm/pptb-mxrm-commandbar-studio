@@ -16,7 +16,11 @@ import {
 	ArrowDownRegular,
 } from "@fluentui/react-icons";
 import type { ActionParameter, CrmParameterValue } from "@/types/ribbon";
-import { URL_INVALID_CRM_PARAMETER_VALUES } from "@/constants/crmParameters";
+import {
+	DEPRECATED_CRM_PARAMETER_VALUES,
+	URL_INVALID_CRM_PARAMETER_VALUES,
+	crmParameterDescription,
+} from "@/constants/crmParameters";
 
 const useStyles = makeStyles({
 	root: {
@@ -261,7 +265,30 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 						</Field>
 					)}
 
-					<Field label="Value" size="small" className={styles.valueField}>
+					<Field
+						label="Value"
+						size="small"
+						className={styles.valueField}
+						// What the value passes, in words (#161)
+						hint={
+							param.kind === "CrmParameter"
+								? (crmParameterDescription(String(param.value)) ??
+									"A value CBS doesn't list, kept as loaded.")
+								: undefined
+						}
+						validationState={
+							param.kind === "CrmParameter" &&
+							DEPRECATED_CRM_PARAMETER_VALUES[String(param.value)]
+								? "warning"
+								: "none"
+						}
+						validationMessage={
+							param.kind === "CrmParameter" &&
+							DEPRECATED_CRM_PARAMETER_VALUES[String(param.value)]
+								? `Deprecated: use ${DEPRECATED_CRM_PARAMETER_VALUES[String(param.value)]}.`
+								: undefined
+						}
+					>
 						{param.kind === "CrmParameter" ? (
 							<Select
 								value={param.value as string}
@@ -269,6 +296,18 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 									setParam(i, { ...param, value: d.value as CrmParameterValue })
 								}
 							>
+								{/* A loaded value CBS doesn't list shows as itself, not as the first option (#161). */}
+								{!CRM_PARAM_GROUPED.some((g) =>
+									g.values.includes(param.value as CrmParameterValue),
+								) ||
+								(urlMode &&
+									URL_INVALID_CRM_PARAMETER_VALUES.has(String(param.value))) ? (
+									<optgroup label="As loaded">
+										<option value={String(param.value)}>
+											{String(param.value)}
+										</option>
+									</optgroup>
+								) : null}
 								{/* Grouped as the platform documents them (#189). */}
 								{CRM_PARAM_GROUPED.map((group) => (
 									<optgroup key={group.label} label={group.label}>
@@ -281,7 +320,9 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 											)
 											.map((v) => (
 												<option key={v} value={v}>
-													{v}
+													{DEPRECATED_CRM_PARAMETER_VALUES[v]
+														? `${v} (deprecated)`
+														: v}
 												</option>
 											))}
 									</optgroup>

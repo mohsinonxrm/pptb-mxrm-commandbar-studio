@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Fixed
 
+- **The context value picker explains itself (#161).** Under a parameter's **Value**, the field
+  now says what the chosen value passes, in Microsoft's terms: FirstPrimaryItemId is the record
+  being viewed (empty on a main grid), PrimaryControl the form's context, SelectedControl the grid's.
+  Some old descriptions were wrong (FirstPrimaryItemId said "first selected record").
+  PrimaryEntityTypeCode and SelectedEntityTypeCode read "(deprecated)", and picking one warns to
+  use the …TypeName value instead. A loaded value the list doesn't have, or one a URL can't take,
+  now shows as itself; before, the picker showed PrimaryControl while keeping the real value.
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
   one-word resource key showed the key: the account grid's **OpenAllRecordsViewImageButtonText**
   now reads "Open All Records View". A tab or group without a title showed its whole id
