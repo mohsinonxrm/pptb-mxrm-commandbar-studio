@@ -490,8 +490,8 @@ function SolutionPicker() {
 						</Combobox>
 					</Field>
 					<Caption1 className={styles.muted}>
-						Command Bar Studio edits one unmanaged solution at a time. Its tables appear
-						in the table picker.
+						Command Bar Studio edits one unmanaged solution at a time. Its entities appear
+						in the entity picker.
 					</Caption1>
 					{activeSolution && (
 						<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -541,10 +541,10 @@ function SolutionPicker() {
 						<TeachingPopoverHeader>Tip</TeachingPopoverHeader>
 						<TeachingPopoverBody>
 							<TeachingPopoverTitle>
-								Choose where tables come from
+								Choose where entities come from
 							</TeachingPopoverTitle>
 							Pick the unmanaged solution whose command bars you want to edit. Its
-							tables appear in the table picker.
+							entities appear in the entity picker.
 						</TeachingPopoverBody>
 						<TeachingPopoverFooter
 							primary={{

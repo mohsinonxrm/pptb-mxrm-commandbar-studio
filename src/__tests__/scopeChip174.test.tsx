@@ -114,7 +114,7 @@ describe("#174 the first-run tip", () => {
 	it("shows once per environment until dismissed; Choose scope opens the picker", async () => {
 		render();
 		await flush();
-		expect(document.body.textContent).toContain("Choose where tables come from");
+		expect(document.body.textContent).toContain("Choose where entities come from");
 		act(() =>
 			[...document.querySelectorAll<HTMLButtonElement>("button")]
 				.filter((b) => b.textContent?.trim() === "Choose scope")
@@ -129,10 +129,10 @@ describe("#174 the first-run tip", () => {
 		act(() => useUIStore.getState().setSolutionPickerOpen(false));
 		act(() => useSessionStore.setState({ connectionUrl: "https://other/" } as never));
 		await flush();
-		expect(document.body.textContent).toContain("Choose where tables come from");
+		expect(document.body.textContent).toContain("Choose where entities come from");
 		act(() => byText("Got it")!.click());
 		await flush();
-		expect(document.body.textContent).not.toContain("Choose where tables come from");
+		expect(document.body.textContent).not.toContain("Choose where entities come from");
 		expect(useUIStore.getState().scopeTipDismissed).toEqual([ENV, "https://other/"]);
 	});
 
@@ -140,7 +140,7 @@ describe("#174 the first-run tip", () => {
 		useSessionStore.setState({ activeSolution: sol } as never);
 		render();
 		await flush();
-		expect(document.body.textContent).not.toContain("Choose where tables come from");
+		expect(document.body.textContent).not.toContain("Choose where entities come from");
 	});
 
 	it("gives focus back to the chip when dismissed, and after Done (#174 review)", async () => {
