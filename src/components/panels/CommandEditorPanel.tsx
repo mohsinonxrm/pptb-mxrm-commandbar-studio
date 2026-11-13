@@ -52,6 +52,7 @@ import { useStableKeys } from "@/hooks/useStableKeys";
 import { useDisplayText } from "@/hooks/useDisplayText";
 import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
 import { isCommandReadOnly, useCommandProvenance } from "@/hooks/useCommandProvenance";
+import { idCaption } from "@/utils/displayText";
 
 const useStyles = makeStyles({
 	// The editor drawer's body scrolls and pads it (#186).
@@ -709,8 +710,8 @@ export const CommandEditorPanel: React.FC = () => {
 						<Caption1 className={styles.muted}>
 							{[
 								LOCATION_INFO[location].label,
-								captionOf(t.label, locLabels) || t.id,
-								captionOf(group.label, locLabels) || group.id,
+								idCaption(t.id, captionOf(t.label, locLabels)),
+								idCaption(group.id, captionOf(group.label, locLabels)),
 							].join(" › ")}
 						</Caption1>
 					</li>

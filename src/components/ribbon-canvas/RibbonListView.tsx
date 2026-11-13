@@ -37,6 +37,7 @@ import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
 import type { RibbonButton, RibbonLocation, RibbonTab } from "@/types/ribbon";
 import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
 import { ModernCommandsTable } from "./modern/ModernCommandsTable";
+import { idCaption } from "@/utils/displayText";
 
 /**
  * Edit mode's List (#183): the tab's buttons as a sortable grid. It's as tall
@@ -139,7 +140,10 @@ export function RibbonListView({ tab, location }: { tab: RibbonTab; location: Ri
 				button: b,
 				label: captionOf(b.label, locLabels, undefined, b.source?.labelToken) || b.id,
 				groupId: g.id,
-				groupLabel: captionOf(g.label, locLabels, lang, g.source?.titleToken) || g.id,
+				groupLabel: idCaption(
+					g.id,
+					captionOf(g.label, locLabels, lang, g.source?.titleToken),
+				),
 				order: order++,
 			})),
 		);
@@ -148,13 +152,15 @@ export function RibbonListView({ tab, location }: { tab: RibbonTab; location: Ri
 	const q = filter.toLowerCase().trim();
 	const rows = q
 		? allRows.filter(
-				({ button, label, groupLabel }) =>
+				({ button, label, groupLabel, groupId }) =>
 					button.id.toLowerCase().includes(q) ||
 					label.toLowerCase().includes(q) ||
 					// The label as loaded too: a `$LocLabels:` token or untranslated text.
 					button.label.toLowerCase().includes(q) ||
 					(button.commandId ?? "").toLowerCase().includes(q) ||
-					groupLabel.toLowerCase().includes(q),
+					groupLabel.toLowerCase().includes(q) ||
+					// The group's id too: an untitled group shows a caption made from it (#201)
+					groupId.toLowerCase().includes(q),
 			)
 		: allRows;
 

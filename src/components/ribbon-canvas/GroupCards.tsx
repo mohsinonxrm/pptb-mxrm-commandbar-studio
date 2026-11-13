@@ -41,6 +41,7 @@ import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds
 import { isGlobalOobReadOnly } from "@/utils/ribbonProvenance";
 import { dropPlace, type DropSpot } from "@/utils/groupCards";
 import type { RibbonButton, RibbonGroup, RibbonLocation, RibbonTab } from "@/types/ribbon";
+import { idCaption } from "@/utils/displayText";
 
 /**
  * Edit mode's Groups view (#194): a card per group of the tab, in the tab's
@@ -179,7 +180,7 @@ export function GroupCards({ tab, location }: { tab: RibbonTab; location: Ribbon
 	const rootRef = useRef<HTMLDivElement>(null);
 
 	const groupText = (g: RibbonGroup) =>
-		captionOf(g.label, locLabels, lang, g.source?.titleToken) || g.id;
+		idCaption(g.id, captionOf(g.label, locLabels, lang, g.source?.titleToken));
 	const buttonText = (b: RibbonButton) =>
 		captionOf(b.label, locLabels, undefined, b.source?.labelToken) || b.id;
 

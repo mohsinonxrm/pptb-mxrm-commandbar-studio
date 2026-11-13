@@ -29,6 +29,7 @@ import {
 	RENAME_NOT_PUBLISHABLE,
 } from "@/utils/ribbonProvenance";
 import type { RibbonGroup, RibbonLocation, RibbonTab } from "@/types/ribbon";
+import { idCaption } from "@/utils/displayText";
 
 /**
  * The one menu for a ribbon group (#194), wherever it is shown: the Classic
@@ -106,7 +107,7 @@ export function GroupContextMenu({
 
 	// An imported group keeps its Title token in source (#30): it's the reference to caption.
 	const groupText = (group: RibbonGroup) =>
-		captionOf(group.label, locLabels, lang, group.source?.titleToken) || group.id;
+		idCaption(group.id, captionOf(group.label, locLabels, lang, group.source?.titleToken));
 
 	const menu =
 		target &&
