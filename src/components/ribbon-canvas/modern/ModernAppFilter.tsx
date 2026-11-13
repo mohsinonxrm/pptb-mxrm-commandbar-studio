@@ -62,7 +62,7 @@ export function ModernAppFilter() {
 		>
 			<MenuTrigger disableButtonEnhancement>
 				<Tooltip
-					content={`${count} modern command${count === 1 ? "" : "s"} for this table (read-only). Pick an app to see its command bar.`}
+					content={`${count} modern command${count === 1 ? "" : "s"} for this entity (read-only). Pick an app to see its command bar.`}
 					relationship="description"
 				>
 					<Button

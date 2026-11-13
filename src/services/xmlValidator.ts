@@ -1029,7 +1029,7 @@ export function validatePublishRibbonDiff(
 			add(
 				"scaling-collision",
 				keys,
-				`Scaling of tab ${tabId}: ${same.map((s) => `${s.tag} ${s.id}`).join(" and ")} have the same Sequence ${sequence} — Unified Interface then drops every custom control of the table; ${advice}`,
+				`Scaling of tab ${tabId}: ${same.map((s) => `${s.tag} ${s.id}`).join(" and ")} have the same Sequence ${sequence} — Unified Interface then drops every custom control of the entity; ${advice}`,
 				same.find((s) => s.key)?.id,
 			);
 		}
@@ -1116,7 +1116,7 @@ export function validatePublishRibbonDiff(
 					add(
 						"orphan-location",
 						key,
-						`${root.tagName} ${id} is added to ${parent}, on the tab ${tab}: Unified Interface doesn't show that tab and the ribbon doesn't return what is added there, so it won't show anywhere — add it to the table's main tab instead`,
+						`${root.tagName} ${id} is added to ${parent}, on the tab ${tab}: Unified Interface doesn't show that tab and the ribbon doesn't return what is added there, so it won't show anywhere — add it to the entity's main tab instead`,
 						id,
 						true,
 					);
@@ -1133,7 +1133,7 @@ export function validatePublishRibbonDiff(
 			add(
 				"orphan-location",
 				key,
-				`${root.tagName} ${id} is added at ${location}, but this table's ribbon has no ${parent} — it won't show anywhere (check the Location, or move it to an existing group)`,
+				`${root.tagName} ${id} is added at ${location}, but this entity's ribbon has no ${parent} — it won't show anywhere (check the Location, or move it to an existing group)`,
 				id,
 				true,
 			);

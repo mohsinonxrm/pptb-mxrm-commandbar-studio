@@ -70,7 +70,7 @@ export function CommandHeader({ commandId }: { commandId: string }) {
 					current={commandId}
 					ids={commandIds}
 					what="command"
-					hint="Usually publisher.Table.Button.Command. Its buttons follow the new ID."
+					hint="Usually publisher.entity.Button.Command. Its buttons follow the new ID."
 					onRename={(next) => renameCommandId(commandId, next) && openCommandEditor(next)}
 					onDone={() => setRenaming(false)}
 				/>

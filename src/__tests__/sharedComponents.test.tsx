@@ -183,7 +183,7 @@ describe("LocationInfo", () => {
 		expect(LOCATION_INFO.Form.label).toBe("Main form");
 		expect(LOCATION_INFO.SubGrid.label).toBe("Sub-grid");
 		expect(locationRibbonId("SubGrid", "contact")).toBe("Mscrm.SubGrid.contact");
-		expect(locationRibbonId("HomepageGrid")).toBe("Mscrm.HomepageGrid.<table>");
+		expect(locationRibbonId("HomepageGrid")).toBe("Mscrm.HomepageGrid.<entity>");
 	});
 });
 

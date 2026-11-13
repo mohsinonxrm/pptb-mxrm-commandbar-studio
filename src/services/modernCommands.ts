@@ -679,7 +679,7 @@ export function describeModernCommand(
 		{ label: "App", value: appLabel(cmd, appNames) },
 		{
 			label: "Location",
-			value: `${APP_ACTION_LOCATION_LABELS[cmd.location] ?? `Location ${cmd.location}`}${cmd.scope === "all" ? " (all tables)" : ""}`,
+			value: `${APP_ACTION_LOCATION_LABELS[cmd.location] ?? `Location ${cmd.location}`}${cmd.scope === "all" ? " (all entities)" : ""}`,
 		},
 		{ label: "Type", value: TYPE_LABELS[cmd.type] },
 		{ label: "Order", value: String(cmd.sequence) },

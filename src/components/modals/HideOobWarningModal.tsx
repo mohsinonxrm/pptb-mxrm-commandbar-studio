@@ -118,7 +118,7 @@ export const HideOobWarningModal: React.FC<HideOobWarningModalProps> = ({
 					<div>
 						<Radio value="button" label="Hide this button only" />
 						<Text size={200} className={styles.description}>
-							Removes it from this table&apos;s ribbon. Show it again under
+							Removes it from this entity&apos;s ribbon. Show it again under
 							&ldquo;Hidden by customizations&rdquo; in Properties. Once a managed
 							solution ships the hide, only a new version of that solution can bring
 							it back.

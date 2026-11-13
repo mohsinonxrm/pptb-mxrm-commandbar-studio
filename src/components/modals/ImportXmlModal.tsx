@@ -273,7 +273,7 @@ export const ImportXmlModal: React.FC = () => {
 				</Text>
 				<Caption1 className={styles.muted}>
 					From Ribbon Workbench or a solution&apos;s customizations.xml. Only{" "}
-					{tableName ?? "this table"}&apos;s part is used.
+					{tableName ?? "this entity"}&apos;s part is used.
 				</Caption1>
 				<div className={styles.editor} role="group" aria-labelledby="import-xml-label">
 					<MonacoEditor

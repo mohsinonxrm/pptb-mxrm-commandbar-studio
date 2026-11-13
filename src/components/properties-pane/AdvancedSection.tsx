@@ -81,7 +81,7 @@ export const AdvancedSection: React.FC = () => {
 							<InfoLabel
 								info={
 									<>
-										When on, double-clicking a row of this table&apos;s{" "}
+										When on, double-clicking a row of this entity&apos;s{" "}
 										{location === "SubGrid"
 											? "sub-grids (on any form)"
 											: "home grid"}
@@ -112,7 +112,7 @@ export const AdvancedSection: React.FC = () => {
 						<Text size={200} className={styles.note}>
 							CBS doesn&apos;t know yet which solution the &quot;Open record&quot;
 							button here comes from (its solution layers haven&apos;t loaded), so it
-							isn&apos;t removed — reload the table if this doesn&apos;t clear.
+							isn&apos;t removed — reload the entity if this doesn&apos;t clear.
 						</Text>
 					)}
 					{otherOpenRecordUsers.length > 0 && (
@@ -133,10 +133,10 @@ export const AdvancedSection: React.FC = () => {
 
 			{location === "Form" && (
 				<Text size={200} className={styles.note}>
-					Changes apply to every main form of this table.{" "}
+					Changes apply to every main form of this entity.{" "}
 					<InfoLabel
 						size="small"
-						info="Unified Interface doesn't support a ribbon for one form only, so Command Bar Studio changes the table's form ribbon, which all its main forms use."
+						info="Unified Interface doesn't support a ribbon for one form only, so Command Bar Studio changes the entity's form ribbon, which all its main forms use."
 						infoButton={{ "aria-label": "Why every form" }}
 					/>
 				</Text>

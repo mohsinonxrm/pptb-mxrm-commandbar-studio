@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 Changed
+
+- **"Entity", not "table".** Command Bar Studio now says entity wherever it said table: the top
+  bar's picker (**Choose entity**), the canvas, the Structure pane, dialogs, rule labels
+  (**Entity**, **Entity privilege**, **Entity property**, **Form's entity**), the command palette
+  (`@` for entities only), messages, the Console log and the README. It matches the ribbon's own
+  names (`EntityRule`, `Mscrm.HomepageGrid.<entity>`) and Ribbon Workbench. The maker portal's
+  **Add existing › Table** is still named as the portal names it. Wording only: what publishes is
+  unchanged.
+
 ### 🔧 Fixed
 
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a

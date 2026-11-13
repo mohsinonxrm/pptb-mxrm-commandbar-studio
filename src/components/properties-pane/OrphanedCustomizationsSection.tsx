@@ -183,7 +183,7 @@ export function OrphanedCustomizationsSection() {
 						? ` about ${confirming.minutesAgo} minute${confirming.minutesAgo === 1 ? "" : "s"} ago`
 						: " recently"}
 					. The ribbon may not show it yet, so it may not be orphaned at all. Reload the
-					table later to check before deleting it.
+					entity later to check before deleting it.
 				</ConfirmDialog>
 			)}
 		</section>

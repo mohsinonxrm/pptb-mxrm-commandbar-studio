@@ -30,7 +30,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Tab drag-to-reorder, inline rename (double-click), `+ Add tab`
 - Context menus on buttons and groups — hide/show, duplicate, move, rename, delete, override OOB
 - A copy (duplicate, customise button) keeps the labels another solution defines, so it shows the same text; edit its text to give it labels of its own. A duplicated group with a platform or another solution's title keeps it: rename the copy before publishing if it should read differently
-- If your unmanaged ribbon customizations can't be read when a table loads, a warning says so (labels may show as ids, ownership is unknown), with **Retry**
+- If your unmanaged ribbon customizations can't be read when an entity loads, a warning says so (labels may show as ids, ownership is unknown), with **Retry**
 
 ### 📋 Properties Pane
 - Identity: label, translations (multi-LCID), tooltip, icon picker, image16/32, kind (for new controls; a menu item is a button or a flyout), sequence, template alias
@@ -95,7 +95,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - CBS-specific completions: `$LocLabels:`, `$webresource:`, `Command=`, `ModernImage=`
 
 ### 🔄 Publish Pipeline
-- Read → merge → write: reads the table's existing unmanaged ribbon layer (CustomActions, commands, rules, labels) and merges your changes into it, so customizations made elsewhere (e.g. with Ribbon Workbench) are kept
+- Read → merge → write: reads the entity's existing unmanaged ribbon layer (CustomActions, commands, rules, labels) and merges your changes into it, so customizations made elsewhere (e.g. with Ribbon Workbench) are kept
 - Pre-publish validation — blocking errors stop the import; warnings are logged. It includes the schema rules the import enforces (empty rules, one-branch OrRules, function names, required values, numbers)
 - Solution ZIP packaging with `behavior=2` (shell-only) root component — does **not** pull in all entity subcomponents
 - Import → publish → re-import → publish, so Unified Interface picks up the change
@@ -107,10 +107,10 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 
 ### 🧩 Solution provenance
 - Which managed solution adds a control, read from the managed ribbon layers (`ribbondiffs`) in one query (falls back to the namespace heuristic when unavailable)
-- Notice in the properties pane for managed-solution buttons. Dataverse layers ribbon customizations per table, not per button, so there's no per-button layer list
+- Notice in the properties pane for managed-solution buttons. Dataverse layers ribbon customizations per entity, not per button, so there's no per-button layer list
 
 ### ⌨️ Keyboard Shortcuts + Command Palette
-- `Ctrl+K` — Command Palette: search buttons, commands, rules and tables, and run actions. Arrow keys and Enter; `/` for actions only, `@` for tables only. Choosing a button selects it on the canvas; only actions that can run now are listed
+- `Ctrl+K` — Command Palette: search buttons, commands, rules and entities, and run actions. Arrow keys and Enter; `/` for actions only, `@` for entities only. Choosing a button selects it on the canvas; only actions that can run now are listed
 - `Ctrl+Z/Y`, `Ctrl+Shift+Z` — Undo / Redo (80-entry stack)
 - `Ctrl+D` — Duplicate selected button
 - `Ctrl+S` — Open Bulk Publish
@@ -122,12 +122,12 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 
 ### 💾 Persistence
 - Unpublished changes are saved as a draft in `localStorage` after every change, per org,
-  solution and table: everything the publish needs (canvas, commands, rules, labels,
+  solution and entity: everything the publish needs (canvas, commands, rules, labels,
   un-hides, customised / uncustomised commands). Only what differs from the loaded ribbon
-  is stored, compressed: a few KB per table
-- When the table loads again, a dialog offers to **Restore** the draft on top of the ribbon
+  is stored, compressed: a few KB per entity
+- When the entity loads again, a dialog offers to **Restore** the draft on top of the ribbon
   as loaded (one undo step) or **Discard** it. Drafts older than 30 days are discarded
-- Switching table or solution with unpublished changes asks first: **Keep as draft**,
+- Switching entity or solution with unpublished changes asks first: **Keep as draft**,
   **Discard** or **Cancel**. When the browser storage is full, a banner says so and
   **Keep as draft** is disabled, so the changes are never dropped silently
 - Pane widths, collapsed state, view mode all persisted
@@ -139,22 +139,22 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 Command Bar Studio only reads from Dataverse until you use one of the operations below. Every
 write shows the **target environment** first: the connection's name and type (Production
 highlighted) are always in the top bar and next to every button that writes, and the publish
-dialog names the environment, solution and tables. On a **Production** connection you type the
-table's logical name (or `application ribbon`) before **Publish** is enabled; the other
+dialog names the environment, solution and entities. On a **Production** connection you type the
+entity's logical name (or `application ribbon`) before **Publish** is enabled; the other
 operations add or change a single web resource and don't ask for it. Writes run as the connected user, or the
 user PPTB is impersonating, and only go to the connection the tool was on when the operation
 started (if the tool's connection changes in Power Platform ToolBox, the operation stops).
 
 | Operation | When | What it does in Dataverse |
 |---|---|---|
-| **Publish** | **Publish n changes** in the top bar, or Ctrl+S | Builds a solution package for the selected unmanaged solution with the table's **complete** ribbon customization (what is in the solution's layer, plus your changes) and imports it **twice** (`ImportSolution` with `OverwriteUnmanagedCustomizations`), then publishes the table (`PublishXml`) and reads the layer back to verify it. It first publishes the table (`PublishXml`), so ribbon changes imported elsewhere but not yet published become part of the layer it reads, instead of being replaced; the publish at the end would publish them anyway. Just before each import it reads the layer again: if it changed since it was read (published from another session or tool), nothing is imported. The same for the application ribbon, when the solution contains the Application Ribbons component. **Also publish all customizations** adds `PublishAllXmlAsync`, which publishes everything unpublished in the environment (anyone's), so it asks for its own confirmation. The **Publish comment** is written to the Console log. |
+| **Publish** | **Publish n changes** in the top bar, or Ctrl+S | Builds a solution package for the selected unmanaged solution with the entity's **complete** ribbon customization (what is in the solution's layer, plus your changes) and imports it **twice** (`ImportSolution` with `OverwriteUnmanagedCustomizations`), then publishes the entity (`PublishXml`) and reads the layer back to verify it. It first publishes the entity (`PublishXml`), so ribbon changes imported elsewhere but not yet published become part of the layer it reads, instead of being replaced; the publish at the end would publish them anyway. Just before each import it reads the layer again: if it changed since it was read (published from another session or tool), nothing is imported. The same for the application ribbon, when the solution contains the Application Ribbons component. **Also publish all customizations** adds `PublishAllXmlAsync`, which publishes everything unpublished in the environment (anyone's), so it asks for its own confirmation. The **Publish comment** is written to the Console log. |
 | **Upload a web resource** | Web resource browser → **Upload**; icon picker → **Upload SVG** | Creates a web resource named `<prefix>_/<folder>/<file name>` and adds it to the selected unmanaged solution (`AddSolutionComponent`). If one with that name exists you choose **Replace** (its content changes everywhere it is used), **Keep existing** or **Cancel**; a managed one can only be kept. It is published (`PublishXml`), so a replaced file is live at once. |
 | **Pick a Fluent icon** | Icon picker → Fluent icons | Creates the SVG web resource `<prefix>_/icons/cbs/<icon>.svg` (an existing one is reused, never overwritten), adds it to the solution and publishes it (`PublishXml`). |
 | **Pick an existing web resource as an icon** | Icon picker → Web resource | Adds the web resource to the selected unmanaged solution (`AddSolutionComponent`). |
 | **Save a script** | Command editor → JavaScript action → **Save Web Resource** | Updates the content of the script you opened, adds it to the solution and publishes it (`PublishXml`), so users get the new version at once. The button shows the environment it saves to. |
 
 Nothing else writes to Dataverse:
-- **Unsaved changes** are kept as a draft in the browser storage of Power Platform ToolBox on your machine (`localStorage`), per environment, solution and table. A note of the last publish is kept for the session (`sessionStorage`).
+- **Unsaved changes** are kept as a draft in the browser storage of Power Platform ToolBox on your machine (`localStorage`), per environment, solution and entity. A note of the last publish is kept for the session (`sessionStorage`).
 - **Export** writes a RibbonDiffXml file where you choose; **Import RibbonDiffXml** only changes the workspace until you publish.
 - **Import RibbonDiffXml** (XML → Import XML…): paste the XML on the left; **Preview** lists each change (Add / Update / Hide) and every problem on the right. Click a problem with a line to go to it. **Import n changes** is one change, which Undo takes back.
 
@@ -162,7 +162,7 @@ Nothing else writes to Dataverse:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ TopBar: Environment │ Solution │ Table │ Search (Ctrl+K)        │
+│ TopBar: Environment │ Solution │ Entity │ Search (Ctrl+K)       │
 │   Undo/Redo │ XML ▾ │ Open in D365 │ View ▾ │ Help │ Publish n  │
 │   (tools move into a ⋯ menu when the window is narrow)          │
 ├─────────────────────────────────────────────────────────────────┤
@@ -204,7 +204,7 @@ Command Bar Studio runs **inside [Power Platform ToolBox](https://www.powerplatf
 2. Connect to a Dataverse environment
 3. Open Command Bar Studio from the tool list
 4. Pick an unmanaged solution from the TopBar
-5. Pick a table from the TopBar (only the solution's tables are listed)
+5. Pick an entity from the TopBar (only the solution's entities are listed)
 6. Edit ribbon buttons visually; click **Publish** when done
 
 Icons you pick or upload, and scripts you save, are created as web resources and

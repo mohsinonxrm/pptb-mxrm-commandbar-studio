@@ -102,7 +102,7 @@ const KIND_LABEL: Record<Kind, string> = {
 	command: "Command",
 	enable: "Enable rule",
 	display: "Display rule",
-	table: "Table",
+	table: "Entity",
 };
 
 const GROUPS: { kinds: Kind[]; title: string; limit: number }[] = [
@@ -110,7 +110,7 @@ const GROUPS: { kinds: Kind[]; title: string; limit: number }[] = [
 	{ kinds: ["button"], title: "Buttons", limit: 20 },
 	{ kinds: ["command"], title: "Commands", limit: 30 },
 	{ kinds: ["enable", "display"], title: "Rules", limit: 30 },
-	{ kinds: ["table"], title: "Tables", limit: 30 },
+	{ kinds: ["table"], title: "Entities", limit: 30 },
 ];
 
 interface PaletteItem {
@@ -382,7 +382,7 @@ export const CommandPalette: React.FC = () => {
 						size="large"
 						// eslint-disable-next-line jsx-a11y/no-autofocus -- the palette is a search dialog: typing starts at once
 						autoFocus
-						placeholder="Search buttons, commands, rules and tables"
+						placeholder="Search buttons, commands, rules and entities"
 						value={query}
 						onChange={(_, d) => {
 							setQuery(d.value);
@@ -466,7 +466,7 @@ export const CommandPalette: React.FC = () => {
 					<Caption1>Enter choose</Caption1>
 					<Caption1>Esc close</Caption1>
 					<Caption1>/ actions only</Caption1>
-					<Caption1>@ tables only</Caption1>
+					<Caption1>@ entities only</Caption1>
 				</div>
 			</DialogSurface>
 		</Dialog>

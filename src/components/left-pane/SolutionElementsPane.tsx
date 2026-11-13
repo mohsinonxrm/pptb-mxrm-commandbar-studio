@@ -535,8 +535,8 @@ export function SolutionElementsPane() {
 							{crossScope && (
 								<MenuGroupHeader>
 									{location === "Application"
-										? "A table's button can't go on the application ribbon."
-										: "An application ribbon button can't go on a table's ribbon."}
+										? "An entity's button can't go on the application ribbon."
+										: "An application ribbon button can't go on an entity's ribbon."}
 								</MenuGroupHeader>
 							)}
 							{targetGroups.length === 0 ? (

@@ -583,7 +583,7 @@ export async function fetchRibbonWorkspace(
 	};
 	const [entityLayer, appLayer, baseLanguageCode] = await Promise.all([
 		fetchUnmanagedRibbonParts(entityLogicalName).catch(
-			unreadable(`the ${entityLogicalName} table's customizations`),
+			unreadable(`the ${entityLogicalName} entity's customizations`),
 		),
 		fetchUnmanagedRibbonParts(null).catch(
 			unreadable("the application ribbon's customizations"),
@@ -599,7 +599,7 @@ export async function fetchRibbonWorkspace(
 	]);
 	const entityLabels = entityLayer ? locLabelsFromParts(entityLayer) : [];
 	const appLabels = appLayer ? locLabelsFromParts(appLayer) : [];
-	onStep?.("Reading the table's ribbon and the application ribbon…");
+	onStep?.("Reading the entity's ribbon and the application ribbon…");
 	const [entity, application] = await Promise.all([
 		fetchEntityRibbonAllLocations(entityLogicalName, [...entityLabels, ...appLabels]),
 		fetchApplicationRibbon(appLabels),
@@ -612,7 +612,7 @@ export async function fetchRibbonWorkspace(
 		if (tabs.length > 0)
 			logs.logInfo(
 				"ribbon",
-				`Loaded tab(s) ${tabs.join(", ")} from the table's unmanaged layer.`,
+				`Loaded tab(s) ${tabs.join(", ")} from the entity's unmanaged layer.`,
 			);
 		const own = ownControlIds(entityLayer);
 		for (const def of Object.values(entity.ribbons)) applyLayerOwnership(def, own);
@@ -666,7 +666,7 @@ export async function fetchRibbonWorkspace(
 	if (orphans.length > 0) {
 		logs.logWarn(
 			"ribbon",
-			`${orphans.length} element(s) of the table's unmanaged customizations aren't on the canvas — the ribbon ` +
+			`${orphans.length} element(s) of the entity's unmanaged customizations aren't on the canvas — the ribbon ` +
 				`doesn't return them (see "Orphaned customizations"): ${orphans.map((o) => `${o.id} at ${o.location}`).join(", ")}.`,
 		);
 	}

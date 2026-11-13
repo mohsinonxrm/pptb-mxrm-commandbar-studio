@@ -423,7 +423,7 @@ export async function buildMergedRibbonDiffXml(
 	const notOwn = input.plan.deletedButtonIds.filter((id) => !own.has(id));
 	if (notOwn.length > 0) {
 		throw new Error(
-			`Can't delete ${notOwn.join(", ")}: not defined in this table's unmanaged customizations ` +
+			`Can't delete ${notOwn.join(", ")}: not defined in this entity's unmanaged customizations ` +
 				`(it comes from a managed solution or the platform). Undo the delete and hide the button instead.`,
 		);
 	}
@@ -431,14 +431,14 @@ export async function buildMergedRibbonDiffXml(
 	const notOwnContainers = plan.deletedContainerIds.filter((id) => !ownContainers.has(id));
 	if (notOwnContainers.length > 0) {
 		throw new Error(
-			`Can't delete ${notOwnContainers.join(", ")}: not added by this table's unmanaged customizations ` +
+			`Can't delete ${notOwnContainers.join(", ")}: not added by this entity's unmanaged customizations ` +
 				`(it comes from a managed solution or the platform). Undo the delete.`,
 		);
 	}
 	const notOwnMoves = plan.movedButtons.filter((m) => !own.has(m.id)).map((m) => m.id);
 	if (notOwnMoves.length > 0) {
 		throw new Error(
-			`Can't move ${notOwnMoves.join(", ")}: not defined in this table's unmanaged customizations. Undo the move.`,
+			`Can't move ${notOwnMoves.join(", ")}: not defined in this entity's unmanaged customizations. Undo the move.`,
 		);
 	}
 
@@ -803,7 +803,7 @@ export async function verifyPublishedLayer(
 			(last.missing.length ? `; missing: ${sample(last.missing)}` : "") +
 			(last.unexpected.length ? `; unexpected: ${sample(last.unexpected)}` : "") +
 			(last.differing.length ? `; different content: ${sample(last.differing)}` : "") +
-			". Reload the table and check before publishing again.",
+			". Reload the entity and check before publishing again.",
 	};
 }
 
@@ -835,11 +835,11 @@ export class RibbonLayerChangedError extends Error {
 			importRan
 				? `${scopeLabel}'s ribbon customizations may have changed in Dataverse since you started publishing: ` +
 						`${summary}. Importing could overwrite that change, so nothing was imported. Publish again: ` +
-						`the table is published first, so the change is kept.`
+						`the entity is published first, so the change is kept.`
 				: `${scopeLabel}'s ribbon customizations changed in Dataverse since you started publishing ` +
 						`(${summary}): other ribbon changes for it were published meanwhile, from another session, tool or solution import. ` +
 						`Importing would overwrite that change, so nothing was imported. ` +
-						`Reload the table to get the change, then publish again.`,
+						`Reload the entity to get the change, then publish again.`,
 		);
 		this.name = "RibbonLayerChangedError";
 		this.summary = summary;
@@ -1070,7 +1070,7 @@ async function publishRibbonUnguarded(
 		if (dryRun && err instanceof Error && !err.message.startsWith("The pre-publish check")) {
 			err.message =
 				`${scopeLabel}'s customizations changed when it was published first (changes imported elsewhere ` +
-				`and not yet published): ${err.message} Reload the table to get them, then publish again.`;
+				`and not yet published): ${err.message} Reload the entity to get them, then publish again.`;
 		}
 		throw publishedFirstNote(err);
 	}
@@ -1254,7 +1254,7 @@ async function publishRibbonUnguarded(
 							`in Dataverse after that (${err.summary}): other changes were published meanwhile. They weren't ` +
 							`imported a second time to refresh Unified Interface's command-bar metadata, since that would ` +
 							`overwrite the other change, so new or changed buttons may not appear in the app until the ` +
-							`table's ribbon is published again. Reload the table to see the other change.`,
+							`entity's ribbon is published again. Reload the entity to see the other change.`,
 					};
 					logs.logWarn("publish", verification.message);
 				} else

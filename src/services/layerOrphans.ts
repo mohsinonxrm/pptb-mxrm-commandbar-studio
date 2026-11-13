@@ -218,8 +218,8 @@ export function findLayerOrphans(
 		return {
 			reason: "missing-location",
 			why: /^(Mscrm|Microsoft)\./.test(parent)
-				? `${parent} isn't in this table's ribbon as loaded: it is not shown — possibly hidden by another solution — or it was removed.`
-				: `${parent} isn't in this table's ribbon as loaded: the group, tab or menu was removed or renamed, the Location is misspelled, or it is hidden by another solution.`,
+				? `${parent} isn't in this entity's ribbon as loaded: it is not shown — possibly hidden by another solution — or it was removed.`
+				: `${parent} isn't in this entity's ribbon as loaded: the group, tab or menu was removed or renamed, the Location is misspelled, or it is hidden by another solution.`,
 		};
 	};
 
@@ -333,7 +333,7 @@ export function annotateRecentPublish(
 			return {
 				...o,
 				recentPublish: { minutesAgo, published: true },
-				why: `Published from here ${minutesAgo} min before this table was loaded: the ribbon may not have caught up yet (it can lag 10 minutes or more). Reload the table later before deleting it. ${o.why}`,
+				why: `Published from here ${minutesAgo} min before this entity was loaded: the ribbon may not have caught up yet (it can lag 10 minutes or more). Reload the entity later before deleting it. ${o.why}`,
 			};
 		}
 		if (now - recent.at >= window) return o;
@@ -341,7 +341,7 @@ export function annotateRecentPublish(
 		return {
 			...o,
 			recentPublish: { minutesAgo, published: false },
-			why: `The table was published from here ${minutesAgo} min before this table was loaded, and the ribbon may not have caught up yet. ${o.why}`,
+			why: `The entity was published from here ${minutesAgo} min before this entity was loaded, and the ribbon may not have caught up yet. ${o.why}`,
 		};
 	});
 }
