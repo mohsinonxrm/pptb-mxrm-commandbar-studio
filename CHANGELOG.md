@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   id. Display only: what publishes is unchanged.
 - **Microsoft's grid and quick action rules can be bound (#162).** Microsoft documents placing a
   grid command with the enable rules `Mscrm.ShowOnGrid`, `Mscrm.ShowOnQuickAction` and
-  `Mscrm.ShowOnGridAndQuickAction`, but they live in the application ribbon, so a table's rule
+  `Mscrm.ShowOnGridAndQuickAction`, but they live in the application ribbon, so an entity's rule
   list didn't offer them. For a main grid command, the command editor's **Add an existing enable
   rule** now lists them under Microsoft's grid rules, and so does the Properties pane's **Bind an
   existing enable rule**. The publish check knows them. A bound rule that isn't in the loaded
