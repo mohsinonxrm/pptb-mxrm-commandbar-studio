@@ -22,6 +22,7 @@ import {
 import {
 	AddRegular,
 	EyeRegular,
+	TranslateRegular,
 	GroupRegular,
 	MoreHorizontalRegular,
 	TabDesktopRegular,
@@ -138,6 +139,7 @@ export function StructurePane() {
 	const openNewTab = useUIStore((s) => s.openNewTab);
 	const openNewGroup = useUIStore((s) => s.openNewGroup);
 	const openTabDisplayRules = useUIStore((s) => s.openTabDisplayRules);
+	const openTitleTranslations = useUIStore((s) => s.openTitleTranslations);
 	const announce = useUIStore((s) => s.announce);
 	const noteStructureChoice = useUIStore((s) => s.noteStructureChoice);
 
@@ -584,6 +586,21 @@ export function StructurePane() {
 									Rename…
 								</MenuItem>
 							)}
+							{/* Translations of the title, where it's yours (#136) */}
+							<MenuItem
+								icon={<TranslateRegular />}
+								disabled={!canRenameTab(tabMenu.tab)}
+								onClick={() =>
+									openTitleTranslations(
+										location,
+										"tab",
+										tabMenu.tab.id,
+										tabMenu.tab.id,
+									)
+								}
+							>
+								Translate title…
+							</MenuItem>
 							<MenuItem
 								icon={<EyeRegular />}
 								secondaryContent={ruleCount > 0 ? String(ruleCount) : undefined}

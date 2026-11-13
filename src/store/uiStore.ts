@@ -34,7 +34,15 @@ export type EditorView =
 	 */
 	| { kind: "diff"; id: "compare" | "history"; historyIndex?: number }
 	/** A button's text in every language, `id` the button's. */
-	| { kind: "translations"; id: string };
+	| { kind: "translations"; id: string }
+	/** A tab's or group's title in every language (#136); `id` the tab or group. */
+	| {
+			kind: "titleTranslations";
+			id: string;
+			location: RibbonLocation;
+			tabId: string;
+			container: "tab" | "group";
+	  };
 
 /** The command editor's tabs, in the drawer's header (#186). */
 export type CommandEditorTab = "actions" | "enable" | "display" | "usedBy";
@@ -156,6 +164,13 @@ export interface UIStore {
 	openIconPicker(): void;
 	closeIconPicker(): void;
 	openLocalizationEditor(buttonId: string): void;
+	/** A tab's or group's title in every language (#136). */
+	openTitleTranslations(
+		location: RibbonLocation,
+		container: "tab" | "group",
+		tabId: string,
+		id: string,
+	): void;
 	closeLocalizationEditor(): void;
 	openNewGroup(): void;
 	closeNewGroup(): void;
@@ -279,6 +294,18 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	closeIconPicker: () => set({ iconPickerOpen: false }),
 	openLocalizationEditor: (buttonId) =>
 		set((s) => editorState(pushView(s.editorStack, { kind: "translations", id: buttonId }))),
+	openTitleTranslations: (location, container, tabId, id) =>
+		set((s) =>
+			editorState(
+				pushView(s.editorStack, {
+					kind: "titleTranslations",
+					id,
+					location,
+					tabId,
+					container,
+				}),
+			),
+		),
 	closeLocalizationEditor: () =>
 		set((s) => editorState(s.editorStack.filter((v) => v.kind !== "translations"))),
 	openNewGroup: () => set({ newGroupOpen: true }),
