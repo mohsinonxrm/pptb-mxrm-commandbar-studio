@@ -28,6 +28,7 @@ import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import { isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { usersBar, type UsersBarItem } from "@/utils/usersBar";
 import type { RibbonLocation, RibbonTab } from "@/types/ribbon";
+import { idCaption } from "@/utils/displayText";
 
 /**
  * "How users see it" (#194): the tab's commands laid out as the Unified
@@ -92,7 +93,8 @@ export function UsersBar({ tab, location }: { tab: RibbonTab; location: RibbonLo
 	const arrowKeys = useArrowNavigationGroup({ axis: "horizontal", memorizeCurrent: true });
 
 	const items = usersBar(tab, modern.nodes, modern.overrides);
-	const tabText = captionOf(tab.label, locLabels, lang, tab.source?.titleToken) || tab.id;
+	const tabText =
+		captionOf(tab.label, locLabels, lang, tab.source?.titleToken) || idCaption(tab.id);
 	const textOf = (item: UsersBarItem) =>
 		item.kind === "modern"
 			? item.command.label || item.command.uniqueName

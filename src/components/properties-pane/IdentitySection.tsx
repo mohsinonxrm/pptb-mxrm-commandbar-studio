@@ -28,6 +28,7 @@ import { IdField } from "@/components/shared/IdField";
 import { useDisplayText } from "@/hooks/useDisplayText";
 import { CONTROL_KIND_LABELS } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
+import { idCaption } from "@/utils/displayText";
 
 const BUTTON_KINDS: RibbonButton["kind"][] = [
 	"button",
@@ -174,7 +175,7 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 										locLabels,
 										baseLanguageCode,
 										group.source?.titleToken,
-									) || group.id
+									) || idCaption(group.id)
 								: groupId
 						}
 					/>

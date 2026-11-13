@@ -3,6 +3,7 @@ import { makeStyles, tokens, Text } from "@fluentui/react-components";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useDisplayText } from "@/hooks/useDisplayText";
+import { idCaption } from "@/utils/displayText";
 
 const useStyles = makeStyles({
 	section: {
@@ -36,7 +37,9 @@ export const ScalingSectionSummary: React.FC = () => {
 		<div className={styles.section}>
 			{tab ? (
 				<Text size={200} className={styles.note}>
-					&ldquo;{captionOf(tab.label, locLabels, lang, tab.source?.titleToken) || tab.id}
+					&ldquo;
+					{captionOf(tab.label, locLabels, lang, tab.source?.titleToken) ||
+						idCaption(tab.id)}
 					&rdquo; has {groups} group{groups === 1 ? "" : "s"} and {steps} scaling step
 					{steps === 1 ? "" : "s"}.
 				</Text>

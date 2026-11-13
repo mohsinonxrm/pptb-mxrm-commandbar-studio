@@ -37,6 +37,7 @@ import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
 import type { RibbonButton, RibbonLocation, RibbonTab } from "@/types/ribbon";
 import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
 import { ModernCommandsTable } from "./modern/ModernCommandsTable";
+import { idCaption } from "@/utils/displayText";
 
 /**
  * Edit mode's List (#183): the tab's buttons as a sortable grid. It's as tall
@@ -139,7 +140,8 @@ export function RibbonListView({ tab, location }: { tab: RibbonTab; location: Ri
 				button: b,
 				label: captionOf(b.label, locLabels, undefined, b.source?.labelToken) || b.id,
 				groupId: g.id,
-				groupLabel: captionOf(g.label, locLabels, lang, g.source?.titleToken) || g.id,
+				groupLabel:
+					captionOf(g.label, locLabels, lang, g.source?.titleToken) || idCaption(g.id),
 				order: order++,
 			})),
 		);

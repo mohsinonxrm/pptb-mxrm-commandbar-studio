@@ -37,6 +37,7 @@ import { GroupContextMenu, type GroupMenuTarget } from "@/components/shared/Grou
 import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonGroup, RibbonTab, RibbonLocation } from "@/types/ribbon";
+import { idCaption } from "@/utils/displayText";
 
 // ---------------------------------------------------------------------------
 // Drag ID encoding helpers
@@ -296,7 +297,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 	// a group without a title reads as its id.
 	// An imported group keeps its Title token in source (#30): it's the reference to caption.
 	const groupText = (group: RibbonGroup) =>
-		captionOf(group.label, locLabels, lang, group.source?.titleToken) || group.id;
+		captionOf(group.label, locLabels, lang, group.source?.titleToken) || idCaption(group.id);
 	const moveButton = useRibbonStore((s) => s.moveButton);
 	const createGroup = useRibbonStore((s) => s.createGroup);
 	const openNewButton = useUIStore((s) => s.openNewButton);

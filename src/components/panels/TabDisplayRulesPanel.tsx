@@ -23,6 +23,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useStableKeys } from "@/hooks/useStableKeys";
 import { useDisplayText } from "@/hooks/useDisplayText";
 import type { RibbonLocation, TabDisplayRule, TabDisplayRuleStep } from "@/types/ribbon";
+import { idCaption } from "@/utils/displayText";
 
 type EntityStep = Extract<TabDisplayRuleStep, { kind: "EntityRule" }>;
 
@@ -142,7 +143,8 @@ export const TabDisplayRulesPanel: React.FC<{ location: RibbonLocation; tabId: s
 		),
 	];
 
-	const tabName = captionOf(tab.label, locLabels, lang, tab.source?.titleToken) || tab.id;
+	const tabName =
+		captionOf(tab.label, locLabels, lang, tab.source?.titleToken) || idCaption(tab.id);
 
 	return (
 		<div className={styles.body}>

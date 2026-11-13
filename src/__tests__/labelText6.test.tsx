@@ -8,7 +8,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { captionFromKey, displayText } from "@/utils/displayText";
+import { captionFromKey, displayText, idCaption } from "@/utils/displayText";
+import { moveTargets } from "@/utils/moveTargets";
 import { fetchManagedLocLabels } from "@/services/dataverse/ribbonProvenanceService";
 import { hasFluentIcon } from "@/components/shared/FluentIcon";
 import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
@@ -21,6 +22,48 @@ vi.setConfig({ testTimeout: 30_000 });
 const label = (id: string, ...titles: [number, string][]): LocLabel => ({
 	id,
 	titles: titles.map(([languageCode, description]) => ({ languageCode, description })),
+});
+
+describe("#201 single-segment keys and untitled groups", () => {
+	it("a single-segment $Resources: key reads as its words, without what it's for", () => {
+		const shown = (key: string) => displayText(key, [], 1033, {}, `$Resources:${key}`);
+		expect(shown("OpenAllRecordsViewImageButtonText")).toBe("Open All Records View");
+		expect(shown("ExportToExcelButtonText")).toBe("Export To Excel");
+		expect(shown("RunReportToolTip")).toBe("Run Report");
+		// Already a caption since #229
+		expect(shown("Search_LaunchButton_Tooltip")).toBe("Launch Button");
+	});
+
+	it("leaves a label someone typed, and short words, as they are", () => {
+		expect(displayText("SaveAndClose", [], 1033, {})).toBe("SaveAndClose");
+		expect(captionFromKey("SaveAndClose")).toBeUndefined();
+		// Two words run together aren't taken for a key
+		expect(captionFromKey("NewRecord", true)).toBeUndefined();
+	});
+
+	it("an untitled tab or group shows a caption made from its id", () => {
+		expect(idCaption("Mscrm.HomepageGrid.account.MainTab.ModernClient")).toBe("Modern Client");
+		expect(idCaption("cbs.Group")).toBe("cbs.Group");
+		const tab = {
+			id: "Mscrm.HomepageGrid.account.MainTab",
+			label: "Main",
+			sequence: 10,
+			tabDisplayRules: [],
+			groups: [
+				{ id: "G1", label: "Management", sequence: 10, template: "Flexible2", buttons: [] },
+				{
+					id: "Mscrm.HomepageGrid.account.MainTab.ModernClient",
+					label: "",
+					sequence: 20,
+					template: "Flexible2",
+					buttons: [],
+				},
+			],
+		};
+		expect(moveTargets(tab as never, "G1", undefined, []).map((t) => t.text)).toEqual([
+			"Modern Client",
+		]);
+	});
 });
 
 describe("#6 captions", () => {

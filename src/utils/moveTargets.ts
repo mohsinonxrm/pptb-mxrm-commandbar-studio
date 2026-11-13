@@ -1,5 +1,6 @@
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import type { LocLabel, RibbonTab } from "@/types/ribbon";
+import { idCaption } from "@/utils/displayText";
 
 export interface MoveTarget {
 	groupId: string;
@@ -12,8 +13,8 @@ export interface MoveTarget {
  * group of the tab except the one holding the button — by the group id the
  * menu was opened for and by where the button actually is, so a stale id
  * never offers the current group. Titles resolve like the canvas renders
- * them, fall back to the group id when there's no text, and get the id
- * appended when two targets would otherwise read the same.
+ * them, fall back to a caption made from the group id when there's no text
+ * (#201), and get the id appended when two targets would otherwise read the same.
  */
 export function moveTargets(
 	tab: RibbonTab,
@@ -36,7 +37,9 @@ export function moveTargets(
 		)
 		.map((g) => ({
 			groupId: g.id,
-			text: caption(g.label, locLabels, languageCode, g.source?.titleToken).trim() || g.id,
+			text:
+				caption(g.label, locLabels, languageCode, g.source?.titleToken).trim() ||
+				idCaption(g.id),
 		}));
 	const count = new Map<string, number>();
 	for (const t of targets) count.set(t.text, (count.get(t.text) ?? 0) + 1);

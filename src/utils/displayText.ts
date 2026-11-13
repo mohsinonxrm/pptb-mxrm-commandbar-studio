@@ -44,6 +44,26 @@ const UNDERSCORE_KEY = /^(Mscrm|Ribbon)(_[A-Za-z0-9]+){2,}$/;
 const LOOSE_UNDERSCORE_KEY = /^[A-Za-z][A-Za-z0-9]*(_[A-Za-z0-9]+)+$/;
 
 /**
+ * A single-segment key such as `OpenAllRecordsViewImageButtonText` (#201): three
+ * words or more run together. Like the loose underscore key, only for a value that
+ * came from a token: "SaveAndClose" typed as a label is left alone.
+ */
+const CAMEL_KEY = /^[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*){2,}$/;
+
+/** What a single-segment key ends with to say what it's for, not what it says (#201). */
+const KEY_SUFFIX =
+	/(?:ImageButtonText|ButtonText|ButtonLabel|ToolTipTitle|ToolTip|Tooltip|LabelText|Label|Text|Title|Caption)$/;
+
+/** Words run together, split: `ExportToExcel` → "Export To Excel", `AIBuilder` → "AI Builder". */
+function splitWords(value: string): string {
+	return value
+		.replace(/_/g, " ")
+		.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+		.replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+		.trim();
+}
+
+/**
  * A readable caption from a key Dataverse resolves at runtime and CBS can't
  * (#6): its last meaningful segment, words split. `Ribbon.HomepageGrid.MainTab.New`
  * → "New", `Ribbon.HomepageGrid.Data.Export.ExportToExcel` → "Export To Excel",
@@ -51,6 +71,10 @@ const LOOSE_UNDERSCORE_KEY = /^[A-Za-z][A-Za-z0-9]*(_[A-Za-z0-9]+)+$/;
  * isn't a key.
  */
 export function captionFromKey(value: string, fromToken = false): string | undefined {
+	if (fromToken && CAMEL_KEY.test(value)) {
+		const words = value.replace(KEY_SUFFIX, "");
+		return splitWords(words || value);
+	}
 	const separator = KEY.test(value)
 		? "."
 		: UNDERSCORE_KEY.test(value) || (fromToken && LOOSE_UNDERSCORE_KEY.test(value))
@@ -62,11 +86,15 @@ export function captionFromKey(value: string, fromToken = false): string | undef
 		.filter((s) => s && !GENERIC_SEGMENTS.has(s.toLowerCase()));
 	const last = segments.at(-1);
 	if (!last || /^(Mscrm|Ribbon|\{!EntityLogicalName\})$/i.test(last)) return undefined;
-	return last
-		.replace(/_/g, " ")
-		.replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-		.replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
-		.trim();
+	return splitWords(last);
+}
+
+/**
+ * What to show for a tab or group without a title (#201): a caption made from its id
+ * (`Mscrm.HomepageGrid.account.MainTab.ModernClient` → "Modern Client"), else the id.
+ */
+export function idCaption(id: string): string {
+	return captionFromKey(id) ?? id;
 }
 
 function titleIn(label: LocLabel, languageCode: number): string | undefined {
