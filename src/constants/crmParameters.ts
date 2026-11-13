@@ -40,14 +40,14 @@ export const CRM_PARAMETER_VALUES: CrmParameterInfo[] = [
 		value: "PrimaryEntityTypeCode",
 		group: "Record",
 		label: "Primary Entity Type Code",
-		description: "The type code of the record's table.",
+		description: "The type code of the record's entity.",
 	},
 	{
 		value: "PrimaryEntityTypeName",
 		group: "Record",
 		label: "Primary Entity Type Name",
 		description:
-			"The logical name of the table of the record being viewed (on a form) or of the main grid.",
+			"The logical name of the entity of the record being viewed (on a form) or of the main grid.",
 	},
 	{
 		value: "FirstPrimaryItemId",
@@ -67,13 +67,13 @@ export const CRM_PARAMETER_VALUES: CrmParameterInfo[] = [
 		value: "SelectedEntityTypeCode",
 		group: "Selection context",
 		label: "Selected Entity Type Code",
-		description: "The type code of the grid's table.",
+		description: "The type code of the grid's entity.",
 	},
 	{
 		value: "SelectedEntityTypeName",
 		group: "Selection context",
 		label: "Selected Entity Type Name",
-		description: "The logical name of the grid's table (main grid or sub-grid).",
+		description: "The logical name of the grid's entity (main grid or sub-grid).",
 	},
 	{
 		value: "FirstSelectedItemId",
@@ -98,7 +98,7 @@ export const CRM_PARAMETER_VALUES: CrmParameterInfo[] = [
 		value: "SelectedControlSelectedItemReferences",
 		group: "Grid selection",
 		label: "Selected Item References",
-		description: "References (id, table, name) of the selected rows.",
+		description: "References (id, entity, name) of the selected rows.",
 	},
 	{
 		value: "SelectedControlAllItemCount",
@@ -116,7 +116,7 @@ export const CRM_PARAMETER_VALUES: CrmParameterInfo[] = [
 		value: "SelectedControlAllItemReferences",
 		group: "Grid selection",
 		label: "All Item References",
-		description: "References (id, table, name) of every row the grid shows.",
+		description: "References (id, entity, name) of every row the grid shows.",
 	},
 	{
 		value: "SelectedControlUnselectedItemCount",
@@ -134,7 +134,7 @@ export const CRM_PARAMETER_VALUES: CrmParameterInfo[] = [
 		value: "SelectedControlUnselectedItemReferences",
 		group: "Grid selection",
 		label: "Unselected Item References",
-		description: "References (id, table, name) of the rows that aren't selected.",
+		description: "References (id, entity, name) of the rows that aren't selected.",
 	},
 	// Org / User
 	{
