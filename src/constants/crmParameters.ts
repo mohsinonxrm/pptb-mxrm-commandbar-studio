@@ -40,7 +40,7 @@ export const CRM_PARAMETER_VALUES: CrmParameterInfo[] = [
 		value: "PrimaryEntityTypeCode",
 		group: "Record",
 		label: "Primary Entity Type Code",
-		description: "Deprecated: use PrimaryEntityTypeName. The type code of the record's table.",
+		description: "The type code of the record's table.",
 	},
 	{
 		value: "PrimaryEntityTypeName",
@@ -67,7 +67,7 @@ export const CRM_PARAMETER_VALUES: CrmParameterInfo[] = [
 		value: "SelectedEntityTypeCode",
 		group: "Selection context",
 		label: "Selected Entity Type Code",
-		description: "Deprecated: use SelectedEntityTypeName. The type code of the grid's table.",
+		description: "The type code of the grid's table.",
 	},
 	{
 		value: "SelectedEntityTypeName",
@@ -157,11 +157,6 @@ export const CRM_PARAMETER_VALUES: CrmParameterInfo[] = [
 	},
 ];
 
-/**
- * `CrmParameter` values allowed in a `<Url>` action. RibbonTypes.xsd's
- * `CrmNamedParameterValue` is `CrmParameterValue` without the three
- * `…ItemReferences` values, which only a JavaScriptFunction / CustomRule can take (#41).
- */
 /** Values Microsoft marks deprecated, with what to use instead (#161). */
 export const DEPRECATED_CRM_PARAMETER_VALUES: Record<string, string> = {
 	PrimaryEntityTypeCode: "PrimaryEntityTypeName",
@@ -173,6 +168,11 @@ export function crmParameterDescription(value: string): string | undefined {
 	return CRM_PARAMETER_VALUES.find((p) => p.value === value)?.description;
 }
 
+/**
+ * `CrmParameter` values allowed in a `<Url>` action. RibbonTypes.xsd's
+ * `CrmNamedParameterValue` is `CrmParameterValue` without the three
+ * `…ItemReferences` values, which only a JavaScriptFunction / CustomRule can take (#41).
+ */
 export const URL_INVALID_CRM_PARAMETER_VALUES = new Set<string>([
 	"SelectedControlSelectedItemReferences",
 	"SelectedControlAllItemReferences",

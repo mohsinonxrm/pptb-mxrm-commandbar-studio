@@ -35,7 +35,8 @@ const useStyles = makeStyles({
 		flexWrap: "wrap",
 		minWidth: 0,
 		gap: tokens.spacingHorizontalS,
-		alignItems: "flex-end",
+		// Top: a field's hint or message below it mustn't lift its control (#161 review)
+		alignItems: "flex-start",
 		padding: tokens.spacingVerticalXS,
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
 		borderRadius: tokens.borderRadiusMedium,
@@ -58,6 +59,8 @@ const useStyles = makeStyles({
 		display: "flex",
 		gap: tokens.spacingHorizontalXS,
 		flexShrink: 0,
+		// Level with the fields' controls: below a small Field's label
+		marginTop: "20px",
 	},
 	addButton: {
 		alignSelf: "flex-start",
