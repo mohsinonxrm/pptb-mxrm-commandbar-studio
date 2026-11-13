@@ -9,6 +9,8 @@ import {
 	Spinner,
 	Tab,
 	TabList,
+	MessageBar,
+	MessageBarBody,
 } from "@fluentui/react-components";
 import { CheckmarkCircleRegular } from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
@@ -19,6 +21,7 @@ import {
 	type WorkspaceSnapshot,
 } from "@/store/ribbonStore";
 import { generateRibbonDiffXml } from "@/services/xmlGenerator";
+import { usePublishCompare } from "@/hooks/usePublishCompare";
 import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
 // Lazy-load DiffEditor, with Monaco's setup, so Monaco stays out of the initial bundle
@@ -168,7 +171,12 @@ export const CompareView: React.FC<{ historyIndex?: number }> = ({ historyIndex 
 			state.baseline,
 		],
 	);
-	const { added, removed } = diffStats(before, after);
+	// Compare shows what Publish imports (#216); the generated XML is the fallback.
+	const published = usePublishCompare(!isHistory);
+	const merged = !isHistory && published.status === "ready";
+	const original = merged ? published.before : before;
+	const modified = merged ? published.after : after;
+	const { added, removed } = diffStats(original, modified);
 
 	// Capture the diff editor instance on mount so we can call updateOptions
 	// imperatively. @monaco-editor/react's DiffEditor does not reliably
@@ -242,12 +250,26 @@ export const CompareView: React.FC<{ historyIndex?: number }> = ({ historyIndex 
 			</div>
 		);
 
+	if (!isHistory && published.status === "loading")
+		return (
+			<div className={styles.unchanged}>
+				<Spinner size="small" label="Reading what's published…" />
+			</div>
+		);
+
 	return (
 		<div className={styles.root}>
+			{!isHistory && published.note && (
+				<MessageBar intent="info">
+					<MessageBarBody>{published.note}</MessageBarBody>
+				</MessageBar>
+			)}
 			<Caption1 className={styles.muted}>
 				{isHistory
 					? `${[entry!.op, entry!.target].filter(Boolean).join(" ")}${entry!.detail ? ` (${entry!.detail})` : ""}: the XML before it (left) and after it (right).`
-					: "The published XML (left) and the XML with your changes (right)."}
+					: merged
+						? "Your published customizations (left) and what Publish imports (right)."
+						: "The published XML (left) and the XML with your changes (right)."}
 			</Caption1>
 			<div className={styles.bar}>
 				{/* A count of none isn't news: neutral, not green or red (#229). */}
@@ -277,8 +299,8 @@ export const CompareView: React.FC<{ historyIndex?: number }> = ({ historyIndex 
 					}
 				>
 					<DiffEditorLazy
-						original={before}
-						modified={after}
+						original={original}
+						modified={modified}
 						language="xml"
 						theme={themeMode === "dark" ? "vs-dark" : "vs"}
 						height="100%"

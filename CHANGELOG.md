@@ -19,6 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command palette, Properties and the editors. It now reads "Modern Client"; an id ending in a word
   like Group or Tab is still shown as the id. The List view's search still finds a group by its
   id. Display only: what publishes is unchanged.
+- **Compare with published shows what Publish writes (#216).** Compare built both sides from the
+  generator alone, so changes only Publish's merge writes, such as a moved tab, showed +0 / −0.
+  Compare now reads your published customizations for the table (and the application ribbon, when
+  it's published too) and compares them with the RibbonDiffXml Publish would import. When that
+  can't be built (no connection, or a change Publish can't write yet), it compares the generated
+  XML as before and says why.
 
 ## [0.9.0-beta.3] - 2026-11-12
 
