@@ -8,6 +8,7 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
 import { generateRuleId, ruleNameFromCommandId } from "@/utils/idGenerator";
 import { findGroupControl } from "@/utils/ribbonMenu";
+import { PLATFORM_ENABLE_RULE_IDS } from "@/constants/ruleKinds";
 import { isCommandReadOnly, useCommandProvenance } from "@/hooks/useCommandProvenance";
 
 const useStyles = makeStyles({
@@ -151,7 +152,11 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 							key={ruleId}
 							ruleId={ruleId}
 							kind={kind}
-							onOpen={() => openRuleEditor(ruleId, kind)}
+							onOpen={
+								allRules.some((r) => r.id === ruleId)
+									? () => openRuleEditor(ruleId, kind)
+									: undefined
+							}
 							onRemove={readOnly ? undefined : () => handleUnbind(ruleId)}
 						/>
 					))}
@@ -164,7 +169,17 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 				<>
 					<IdPicker
 						label={`Bind an existing ${kind} rule`}
-						options={availableRules.map((r) => r.id)}
+						options={[
+							...availableRules.map((r) => r.id),
+							// Microsoft's grid and quick action rules aren't in a table's ribbon (#162)
+							...(kind === "enable"
+								? PLATFORM_ENABLE_RULE_IDS.filter(
+										(id) =>
+											!ruleIds.includes(id) &&
+											!availableRules.some((r) => r.id === id),
+									)
+								: []),
+						]}
 						selected={selectedExistingRuleId}
 						onSelect={setSelectedExistingRuleId}
 						noOptionsMessage="No rule matches."

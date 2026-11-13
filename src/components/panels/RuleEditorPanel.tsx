@@ -6,6 +6,8 @@ import {
 	Caption1,
 	Text,
 	InfoLabel,
+	MessageBar,
+	MessageBarBody,
 	Menu,
 	MenuItem,
 	MenuList,
@@ -28,6 +30,8 @@ import type { RuleStep, EnableRule, DisplayRule } from "@/types/ribbon";
 import RuleStepEditor from "@/components/shared/RuleStepEditor";
 import RuleStepPicker from "@/components/shared/RuleStepPicker";
 import { summarizeRule } from "@/utils/ruleEngine";
+import { buttonsUsing } from "@/utils/ribbonMenu";
+import { hasRuleStepKind } from "@/constants/ruleKinds";
 import { useStableKeys } from "@/hooks/useStableKeys";
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
 import {
@@ -99,6 +103,18 @@ export const RuleEditorPanel: React.FC = () => {
 	const displayRules = useRibbonStore((s) => s.displayRules);
 	const upsertEnableRule = useRibbonStore((s) => s.upsertEnableRule);
 	const upsertDisplayRule = useRibbonStore((s) => s.upsertDisplayRule);
+	// A display rule that a sub-grid button uses (#162): Unified Interface doesn't evaluate a
+	// column value step there.
+	const onSubGrid = useRibbonStore(
+		(s) =>
+			ruleEditorKind === "display" &&
+			!!ruleEditorId &&
+			s.commands.some(
+				(c) =>
+					c.displayRules.includes(ruleEditorId) &&
+					buttonsUsing(s.ribbons, c.id).some((u) => u.location === "SubGrid"),
+			),
+	);
 
 	const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -173,6 +189,16 @@ export const RuleEditorPanel: React.FC = () => {
 				</InfoLabel>
 			) : (
 				<Text>Passes when every step below is true.</Text>
+			)}
+
+			{onSubGrid && hasRuleStepKind(activeRule.steps, "ValueRule") && (
+				<MessageBar intent="warning">
+					<MessageBarBody>
+						A sub-grid button uses this rule, and on a form's sub-grid Unified Interface
+						doesn't check a column value in a display rule. Put the Column value step in
+						an enable rule instead.
+					</MessageBarBody>
+				</MessageBar>
 			)}
 
 			{count > 0 ? (

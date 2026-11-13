@@ -164,6 +164,25 @@ export const DISPLAY_ONLY_RULE_TAGS = new Set<string>([
 	"HideIfProductRecommendationsNotEnabledRule",
 ]);
 
+/**
+ * Microsoft's enable rules that place a grid command (#162): bound by id. They're defined in the
+ * application ribbon, so a table's ribbon doesn't list them.
+ * https://learn.microsoft.com/power-apps/developer/model-driven-apps/define-ribbon-enable-rules
+ */
+export const PLATFORM_ENABLE_RULES: { id: string; label: string }[] = [
+	{ id: "Mscrm.ShowOnGridAndQuickAction", label: "Show on the grid and as a quick action" },
+	{ id: "Mscrm.ShowOnGrid", label: "Show only on the grid" },
+	{ id: "Mscrm.ShowOnQuickAction", label: "Show only as a quick action" },
+];
+export const PLATFORM_ENABLE_RULE_IDS = PLATFORM_ENABLE_RULES.map((r) => r.id);
+
+/** Whether a rule (or an `<Or>` group in it) has a step of this kind. */
+export function hasRuleStepKind(steps: RuleStep[], kind: RuleKind): boolean {
+	return steps.some((s) =>
+		s.kind === "OrRule" ? s.groups.some((g) => hasRuleStepKind(g, kind)) : s.kind === kind,
+	);
+}
+
 export type RuleContainer = "enable" | "display";
 
 /** Whether a rule kind may be added to an enable / display rule (and inside an `<Or>`). */
