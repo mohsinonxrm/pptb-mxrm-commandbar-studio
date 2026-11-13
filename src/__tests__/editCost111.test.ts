@@ -3,7 +3,7 @@
  * copies the sub-grid, form and application ribbons on every keystroke; they stay shared with
  * the state before, and the state before is left as it was.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -17,11 +17,6 @@ const store = () => useRibbonStore.getState();
 
 function loadContact() {
 	const home = parseRibbonXml(fixture("contact-homepage-menus.xml"), "HomepageGrid", "contact");
-	const app = parseRibbonXml(
-		fixture("app-oob-subset.xml"),
-		"Application",
-		"{!EntityLogicalName}",
-	);
 	const asLocation = (location: RibbonLocation): RibbonDefinition => ({
 		...JSON.parse(JSON.stringify(home.ribbon)),
 		location,
@@ -31,11 +26,12 @@ function loadContact() {
 			HomepageGrid: asLocation("HomepageGrid"),
 			SubGrid: asLocation("SubGrid"),
 			Form: asLocation("Form"),
-			Application: app.ribbon,
+			// The home grid again, so all four locations are the same size
+			Application: { ...asLocation("HomepageGrid"), location: "Application" },
 		},
-		commands: [...home.commands, ...app.commands],
-		enableRules: [...home.enableRules, ...app.enableRules],
-		displayRules: [...home.displayRules, ...app.displayRules],
+		commands: home.commands,
+		enableRules: home.enableRules,
+		displayRules: home.displayRules,
 		locLabels: [],
 	});
 	const tab = store().ribbons.HomepageGrid.tabs[0];
@@ -67,22 +63,32 @@ describe("#111 an edit's cost", () => {
 		expect(label(store().ribbons)).not.toBe("Renamed");
 	});
 
-	it("types 200 characters into a label well within the old cost", () => {
+	it("typing 200 characters copies one ribbon per keystroke, not four", () => {
 		const { tabId, groupId, buttonId } = loadContact();
-		const all = store().ribbons;
-		// What every keystroke cost before: a JSON copy of all four ribbons
-		const t0 = performance.now();
-		for (let i = 0; i < 200; i++) JSON.parse(JSON.stringify(all));
-		const oldCost = performance.now() - t0;
-
-		const t1 = performance.now();
-		let text = "";
-		for (let i = 0; i < 200; i++) {
-			text += "x";
-			store().setButtonProp("HomepageGrid", tabId, groupId, buttonId, { label: text });
+		const loaded = store().ribbons;
+		const oneLocation = JSON.stringify(loaded.HomepageGrid).length;
+		const allLocations = JSON.stringify(loaded).length;
+		// Copies go through JSON: count what's serialised while typing
+		let copied = 0;
+		const stringify = JSON.stringify;
+		const spy = vi.spyOn(JSON, "stringify").mockImplementation((...args) => {
+			const out = stringify(...(args as Parameters<typeof JSON.stringify>));
+			copied += out?.length ?? 0;
+			return out;
+		});
+		try {
+			let text = "";
+			for (let i = 0; i < 200; i++) {
+				text += "x";
+				store().setButtonProp("HomepageGrid", tabId, groupId, buttonId, { label: text });
+			}
+		} finally {
+			spy.mockRestore();
 		}
-		const newCost = performance.now() - t1;
-		// One location of four is copied: well under the old copy alone, with room for noise
-		expect(newCost).toBeLessThan(oldCost);
+		// Each keystroke copies the home grid (whose label grows by one character), and a little else
+		expect(copied).toBeLessThan(200 * (oneLocation + 200) * 1.1);
+		expect(copied).toBeLessThan(200 * allLocations * 0.5);
+		for (const location of ["SubGrid", "Form", "Application"] as const)
+			expect(store().ribbons[location]).toBe(loaded[location]);
 	});
 });
