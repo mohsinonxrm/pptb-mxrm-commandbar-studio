@@ -152,13 +152,15 @@ export function RibbonListView({ tab, location }: { tab: RibbonTab; location: Ri
 	const q = filter.toLowerCase().trim();
 	const rows = q
 		? allRows.filter(
-				({ button, label, groupLabel }) =>
+				({ button, label, groupLabel, groupId }) =>
 					button.id.toLowerCase().includes(q) ||
 					label.toLowerCase().includes(q) ||
 					// The label as loaded too: a `$LocLabels:` token or untranslated text.
 					button.label.toLowerCase().includes(q) ||
 					(button.commandId ?? "").toLowerCase().includes(q) ||
-					groupLabel.toLowerCase().includes(q),
+					groupLabel.toLowerCase().includes(q) ||
+					// The group's id too: an untitled group shows a caption made from it (#201)
+					groupId.toLowerCase().includes(q),
 			)
 		: allRows;
 

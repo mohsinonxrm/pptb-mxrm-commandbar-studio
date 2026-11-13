@@ -39,6 +39,7 @@ import { ribbonUsage } from "@/utils/usage";
 import { reusedButton } from "@/utils/reuseButton";
 import { distinguishingSegment } from "@/utils/idSegment";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
+import { idCaption } from "@/utils/displayText";
 
 /**
  * The left pane's Solution tab (#194): your buttons, the commands, the rules
@@ -542,9 +543,10 @@ export function SolutionElementsPane() {
 								<MenuItem disabled>No groups on this tab</MenuItem>
 							) : (
 								targetGroups.map((g) => {
-									const label =
-										captionOf(g.label, locLabels, lang, g.source?.titleToken) ||
-										g.id;
+									const label = idCaption(
+										g.id,
+										captionOf(g.label, locLabels, lang, g.source?.titleToken),
+									);
 									return (
 										<MenuItem
 											key={g.id}

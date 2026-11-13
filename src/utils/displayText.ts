@@ -52,7 +52,7 @@ const CAMEL_KEY = /^[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*){2,}$/;
 
 /** What a single-segment key ends with to say what it's for, not what it says (#201). */
 const KEY_SUFFIX =
-	/(?:ImageButtonText|ButtonText|ButtonLabel|ToolTipTitle|ToolTip|Tooltip|LabelText|Label|Text|Title|Caption)$/;
+	/(?:ImageButtonText|ButtonText|ButtonLabel|ToolTipDescription|ToolTipTitle|ToolTip|Tooltip|LabelText|Label|Text|Title|Caption)$/;
 
 /** Words run together, split: `ExportToExcel` → "Export To Excel", `AIBuilder` → "AI Builder". */
 function splitWords(value: string): string {
@@ -98,7 +98,10 @@ export function captionFromKey(value: string, fromToken = false): string | undef
  */
 export function idCaption(id: string, text?: string): string {
 	const shown = text?.trim();
-	return shown && shown !== id ? shown : (captionFromKey(id) ?? id);
+	if (shown && shown !== id) return shown;
+	// An id ending in a word like Group or Tab would read as its parent's name: keep the id
+	const last = id.split(".").at(-1) ?? "";
+	return GENERIC_SEGMENTS.has(last.toLowerCase()) ? id : (captionFromKey(id) ?? id);
 }
 
 function titleIn(label: LocLabel, languageCode: number): string | undefined {

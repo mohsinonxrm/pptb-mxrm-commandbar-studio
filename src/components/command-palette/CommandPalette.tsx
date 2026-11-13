@@ -20,6 +20,7 @@ import { findGroupControl, groupControls } from "@/utils/ribbonMenu";
 import { isReadOnlyControlKind } from "@/utils/controlKinds";
 import { LOCATION_INFO } from "@/constants/locationInfo";
 import type { RibbonLocation } from "@/types/ribbon";
+import { idCaption } from "@/utils/displayText";
 
 const useStyles = makeStyles({
 	// A real dialog (#189): focus stays in it, Escape and the backdrop close it.
@@ -241,10 +242,14 @@ export const CommandPalette: React.FC = () => {
 								b.id,
 							subtitle: [
 								LOCATION_INFO[loc].label,
-								captionOf(t.label, locLabels, undefined, t.source?.titleToken) ||
+								idCaption(
 									t.id,
-								captionOf(g.label, locLabels, undefined, g.source?.titleToken) ||
+									captionOf(t.label, locLabels, undefined, t.source?.titleToken),
+								),
+								idCaption(
 									g.id,
+									captionOf(g.label, locLabels, undefined, g.source?.titleToken),
+								),
 							].join(" › "),
 							keywords: `${b.label} ${b.id}`,
 							kind: "button",

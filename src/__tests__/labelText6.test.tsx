@@ -30,6 +30,7 @@ describe("#201 single-segment keys and untitled groups", () => {
 		expect(shown("OpenAllRecordsViewImageButtonText")).toBe("Open All Records View");
 		expect(shown("ExportToExcelButtonText")).toBe("Export To Excel");
 		expect(shown("RunReportToolTip")).toBe("Run Report");
+		expect(shown("AddNewItemToolTipDescription")).toBe("Add New Item");
 		// Already a caption since #229
 		expect(shown("Search_LaunchButton_Tooltip")).toBe("Launch Button");
 	});
@@ -49,6 +50,11 @@ describe("#201 single-segment keys and untitled groups", () => {
 		expect(idCaption(id, id)).toBe("Modern Client");
 		expect(idCaption(id, "  ")).toBe("Modern Client");
 		expect(idCaption(id, "Modern")).toBe("Modern");
+		// An id ending in a generic word keeps the id rather than its parent's name
+		expect(idCaption("cbs.account.MainTab.Group", "cbs.account.MainTab.Group")).toBe(
+			"cbs.account.MainTab.Group",
+		);
+		expect(idCaption("cbs.account.Tab")).toBe("cbs.account.Tab");
 		const tab = {
 			id: "Mscrm.HomepageGrid.account.MainTab",
 			label: "Main",

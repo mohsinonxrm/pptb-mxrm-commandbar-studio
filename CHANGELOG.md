@@ -14,9 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
   one-word resource key showed the key: the account grid's **OpenAllRecordsViewImageButtonText**
   now reads "Open All Records View". A tab or group without a title showed its whole id
-  (`Mscrm.HomepageGrid.account.MainTab.ModernClient`) in the Structure tree, the group cards, the
-  Classic canvas, the List view, Move to and Properties; it now reads "Modern Client". Display
-  only: what publishes is unchanged.
+  (`Mscrm.HomepageGrid.account.MainTab.ModernClient`) wherever it's named: the Structure tree, the
+  group cards, the Classic canvas, the List view, Move to, the Solution tab's Add a copy, the
+  command palette, Properties and the editors. It now reads "Modern Client"; an id ending in a word
+  like Group or Tab is still shown as the id. The List view's search still finds a group by its
+  id. Display only: what publishes is unchanged.
 
 ## [0.9.0-beta.3] - 2026-11-12
 
