@@ -37,7 +37,7 @@ export const LOCATION_INFO: Record<RibbonLocation, LocationInfo> = {
 	Application: {
 		label: "Application",
 		title: "Application ribbon",
-		body: "Changes here apply to every table. Your buttons in GlobalTab's New group appear in the global command bar at the top of every page, in Unified Interface only, so new buttons can go only there, and GlobalTab takes no new groups. Built-in GlobalTab buttons are read-only.",
+		body: "Changes here apply to every entity. Your buttons in GlobalTab's New group appear in the global command bar at the top of every page, in Unified Interface only, so new buttons can go only there, and GlobalTab takes no new groups. Built-in GlobalTab buttons are read-only.",
 		ribbonId: "Application ribbon",
 	},
 };
