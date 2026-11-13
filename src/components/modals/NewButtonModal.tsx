@@ -125,10 +125,19 @@ export const NewButtonModal: React.FC = () => {
 		closeNewButton();
 	};
 
-	// The command palette and the Modern bar open this for any group (#166)
+	// The command palette and the Modern bar open this for any group (#166). The tab the
+	// button goes in, as handleCreate resolves it.
+	const groupTabId = useRibbonStore((s) =>
+		newButtonGroupId && activeLocation
+			? s.ribbons[activeLocation].tabs.find((t) =>
+					t.groups.some((g) => g.id === newButtonGroupId),
+				)?.id
+			: undefined,
+	);
+	const blockedTabId = groupTabId ?? selectedTabId;
 	const blocked =
-		newButtonGroupId && activeLocation && selectedTabId
-			? newButtonBlockedReason(activeLocation, selectedTabId, newButtonGroupId)
+		newButtonGroupId && activeLocation && blockedTabId
+			? newButtonBlockedReason(activeLocation, blockedTabId, newButtonGroupId)
 			: undefined;
 
 	return (

@@ -196,7 +196,14 @@ export function ButtonContextMenu({ location, tab, target, onClose }: ButtonCont
 							<MenuDivider />
 							<MenuItem
 								icon={<CopyRegular />}
-								disabled={locked}
+								disabled={
+									locked || !!newButtonBlockedReason(location, tab.id, groupId)
+								}
+								subText={
+									locked
+										? undefined
+										: newButtonBlockedReason(location, tab.id, groupId)
+								}
 								onClick={run(() =>
 									duplicateButton(location, tab.id, groupId, button.id),
 								)}

@@ -1468,6 +1468,13 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		addMenuSection(location, tabId, groupId, parentId, title) {
+			if (
+				refusedOnGlobalTab(
+					`add a menu section to ${parentId}`,
+					newButtonBlockedReason(location, tabId, groupId),
+				)
+			)
+				return;
 			set((state) =>
 				commitMutation(
 					state,
@@ -2224,6 +2231,14 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		customiseButton(location, tabId, groupId, buttonId, idPrefix) {
+			// The copy goes in the same group (#166)
+			if (
+				refusedOnGlobalTab(
+					`customise ${buttonId} in ${groupId}`,
+					newButtonBlockedReason(location, tabId, groupId),
+				)
+			)
+				return null;
 			const state = get();
 			const btn = state.ribbons[location].tabs
 				.find((t) => t.id === tabId)

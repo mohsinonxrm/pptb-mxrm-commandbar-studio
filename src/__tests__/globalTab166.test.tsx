@@ -180,6 +180,22 @@ describe("#166 the store refuses, and says why", () => {
 	});
 });
 
+describe("#166 duplicates and copies", () => {
+	it("doesn't duplicate or customise a button in another GlobalTab group", () => {
+		const s = useRibbonStore.getState();
+		s.duplicateButton("Application", GLOBAL_TAB_ID, OTHER, "cbs.InOther");
+		expect(ids(OTHER)).toEqual(["cbs.InOther"]);
+		expect(lastWarning()).toContain(`Can't duplicate cbs.InOther in ${OTHER}`);
+		expect(
+			s.customiseButton("Application", GLOBAL_TAB_ID, OTHER, "cbs.InOther", "cbs"),
+		).toBeNull();
+		expect(lastWarning()).toContain(`Can't customise cbs.InOther in ${OTHER}`);
+		// In the New group, a duplicate is made
+		s.duplicateButton("Application", GLOBAL_TAB_ID, GLOBAL_NEW_GROUP_ID, "cbs.InNew");
+		expect(ids(GLOBAL_NEW_GROUP_ID)).toHaveLength(2);
+	});
+});
+
 describe("#166 the publish dialog", () => {
 	const plan = (current: RibbonDefinition, baseline: RibbonDefinition) =>
 		planScope({
@@ -201,6 +217,41 @@ describe("#166 the publish dialog", () => {
 		expect(added.warnings.filter((w) => w.includes("Mscrm.GlobalTab.New"))).toEqual([
 			`"cbs.Imported" (cbs.Imported) in ${OTHER}: the global command bar shows your buttons only in its New group (Mscrm.GlobalTab.New), in Unified Interface`,
 		]);
+	});
+
+	it("warns about a button moved into another group, not one edited or reordered where it was", () => {
+		const baseline = application(
+			[button("cbs.Moved")],
+			[button("cbs.InOther"), button("cbs.Kept")],
+		);
+		const current = application(
+			[],
+			[
+				button("cbs.Kept"),
+				{ ...button("cbs.InOther"), label: "Edited", sequence: 30 },
+				button("cbs.Moved"),
+			],
+		);
+		const warned = plan(current, baseline).warnings.filter((w) => w.includes("New group ("));
+		expect(warned).toHaveLength(1);
+		expect(warned[0]).toContain("(cbs.Moved) in");
+	});
+
+	it("warns about a new menu item inside another group's flyout", () => {
+		const flyout = (items: RibbonButton[]): RibbonButton =>
+			({
+				...button("cbs.Fly"),
+				kind: "flyout",
+				menu: {
+					id: "cbs.Fly.Menu",
+					sections: [{ id: "cbs.Fly.Section", title: "", sequence: 10, controls: items }],
+				},
+			}) as RibbonButton;
+		const warned = plan(
+			application([], [flyout([button("cbs.Item")])]),
+			application([], [flyout([])]),
+		).warnings.filter((w) => w.includes("New group ("));
+		expect(warned).toEqual([expect.stringContaining("(cbs.Item) in")]);
 	});
 
 	it("warns about a new group on GlobalTab", () => {

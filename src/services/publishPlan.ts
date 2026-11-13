@@ -783,7 +783,7 @@ export function planScope(input: PlanInput): ScopePlan {
 			if (g.id === GLOBAL_NEW_GROUP_ID) continue;
 			if (!loadedGroups.has(g.id))
 				warnings.push(`New group "${g.label}" (${g.id}) on GlobalTab: ${GLOBAL_TAB_NOTE}`);
-			for (const b of g.buttons)
+			for (const b of groupControls(g))
 				if (loadedIn.get(b.id) !== g.id)
 					warnings.push(`"${b.label}" (${b.id}) in ${g.id}: ${GLOBAL_TAB_NOTE}`);
 		}

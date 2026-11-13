@@ -17,8 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   GlobalTab and buttons to its other groups, and published them without a word. Now:
   - **No new groups on GlobalTab:** Add group, Duplicate group and New group are disabled there and
     say why.
-  - **Buttons only in the New group:** Add button on GlobalTab's other groups is disabled with the
-    reason, and Move to doesn't offer them. A move or duplicate into one is refused and logged.
+  - **New buttons only in the New group:** on GlobalTab's other groups, Add button, Duplicate (and
+    Ctrl+D), a flyout's Add item and Customise button are disabled or refused with the reason. Move
+    to and the Solution tab's Add to don't offer those groups, and dropping a button there is
+    refused. Your buttons already there stay editable.
   - **The publish dialog warns** about anything already added outside the New group (an import,
     say).
   - **The Application ribbon's note** says this, instead of "Buttons on GlobalTab appear in the
