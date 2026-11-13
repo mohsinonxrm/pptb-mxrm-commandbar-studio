@@ -14,7 +14,6 @@ import {
 	tokens,
 	Button,
 	SearchBox,
-	type SearchBoxProps,
 	Spinner,
 	Text,
 	Checkbox,
@@ -401,7 +400,7 @@ export const WebResourceBrowser: React.FC<WebResourceBrowserProps> = ({ onSelect
 				<div className={styles.toolbar}>
 					<SearchBox
 						// The dialog opens on the search, not its Close button (#268)
-						input={{ "data-autofocus": "" } as SearchBoxProps["input"]}
+						data-autofocus
 						aria-label="Search the web resources by name"
 						placeholder="Search by name…"
 						value={search}

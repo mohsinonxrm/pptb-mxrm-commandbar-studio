@@ -164,7 +164,7 @@ describe("#195 Compare with published", () => {
 		});
 		await act(() => new Promise((r) => requestAnimationFrame(() => r(null))));
 		expect(renders).toEqual({ original: 1, modified: 1 });
-		fake.modified.disposeHandlers.forEach((fn) => fn());
+		fake.modified.disposeHandlers.splice(0).forEach((fn) => fn());
 		expect(fake.original.listeners).toHaveLength(0);
 		expect(fake.modified.listeners).toHaveLength(0);
 	});

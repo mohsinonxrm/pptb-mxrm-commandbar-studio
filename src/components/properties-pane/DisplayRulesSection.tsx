@@ -69,7 +69,15 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 	const command = commands.find((c) => c.id === button?.commandId);
 	// Out-of-the-box commands are read-only until customised, as in the command editor
 	// (#186): binding or creating a rule here changed Microsoft's command (#267).
-	const readOnly = isCommandReadOnly(useCommandProvenance(command?.id));
+	const provenance = useCommandProvenance(command?.id);
+	const readOnly = isCommandReadOnly(provenance);
+	// What makes the rules editable again, by why the command is read-only
+	const readOnlyNote =
+		provenance?.provenance === "uncustomising"
+			? "Undo the uncustomise to change its rules."
+			: provenance?.provenance === "reloadRequired"
+				? "Reload the table to change its rules."
+				: "Customise the command to change its rules.";
 	const ruleIds =
 		kind === "display" ? (command?.displayRules ?? []) : (command?.enableRules ?? []);
 	const allRules = kind === "display" ? displayRules : enableRules;
@@ -150,9 +158,7 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 				</TagGroup>
 			)}
 
-			{command && readOnly && (
-				<Text className={styles.note}>Customise the command to change its rules.</Text>
-			)}
+			{command && readOnly && <Text className={styles.note}>{readOnlyNote}</Text>}
 
 			{command && !readOnly && (
 				<>

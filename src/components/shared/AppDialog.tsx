@@ -23,8 +23,8 @@ import { DismissRegular } from "@fluentui/react-icons";
  * Focus: Fluent focuses the first focusable element on open, which is the
  * close button, after React's `autoFocus` has run. A field marked
  * `data-autofocus` takes it back (#229), with its text selected, so typing
- * replaces a default such as "New Button" (#268). On a SearchBox, put the
- * attribute on its input slot: the root is a wrapper.
+ * replaces a default such as "New Button" (#268). Fluent puts `data-*` props
+ * on the input itself for Input and SearchBox.
  */
 
 export type AppDialogSize = "small" | "medium" | "large";
