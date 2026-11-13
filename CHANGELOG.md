@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 Fixed
+
+- **Closing Compare no longer throws an error (#266).** Closing **Compare with published** or a
+  History diff could log "TextModel got disposed before DiffEditorWidget model got reset" in the
+  tool's console. The editor library disposed the two texts before the diff editor that showed
+  them; now they're disposed after it. Compare's repaint listeners are released when it closes,
+  too: they were never removed, because Monaco doesn't announce when a diff editor is disposed.
+
 ### 🏗️ Technical
 
 - **Every tag is checked in PPTB first (#263, as FetchXML Studio #306).** Each PR was checked in
