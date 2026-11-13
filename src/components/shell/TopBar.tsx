@@ -29,6 +29,8 @@ import {
 	ToolbarDivider,
 	Tooltip,
 	Caption1,
+	mergeClasses,
+	useMergedRefs,
 	TeachingPopover,
 	TeachingPopoverSurface,
 	TeachingPopoverHeader,
@@ -49,6 +51,7 @@ import {
 	CloudArrowUpRegular,
 	SearchRegular,
 	Filter20Regular,
+	Warning16Regular,
 	ChevronDownRegular,
 	ChevronDown16Regular,
 	CodeRegular,
@@ -121,9 +124,13 @@ const useStyles = makeStyles({
 		maxWidth: "420px",
 		flexShrink: 1,
 		justifyContent: "flex-start",
-		"@media (max-width: 1200px)": { maxWidth: "260px" },
+		columnGap: tokens.spacingHorizontalSNudge,
+		// Narrow: room for the name before the badges (#174 review)
+		"@media (max-width: 1200px)": { maxWidth: "300px" },
 	},
 	chipBadge: { flexShrink: 0 },
+	/** Shown only where there's room for it next to the name. */
+	wideOnly: { "@media (max-width: 1200px)": { display: "none" } },
 	pickerFooter: {
 		display: "flex",
 		alignItems: "center",
@@ -325,6 +332,23 @@ function SolutionPicker() {
 	const dismissScopeTip = useUIStore((s) => s.dismissScopeTip);
 	const [query, setQuery] = useState("");
 	const triggerRef = useRef<HTMLButtonElement>(null);
+	// The chip as state too: the first-run tip anchors to it, and only once it exists (a ref
+	// read while rendering is null the first time, and the tip opened at the page's corner).
+	const [chip, setChip] = useState<HTMLButtonElement | null>(null);
+	const chipRef = useMergedRefs<HTMLButtonElement>(
+		triggerRef,
+		setChip as React.RefCallback<HTMLButtonElement>,
+	);
+	/** Focus back on the chip unless something else took it (#174 review). */
+	const refocusChip = () =>
+		requestAnimationFrame(() => {
+			const active = document.activeElement;
+			if (!active || active === document.body) triggerRef.current?.focus();
+		});
+	const dismissTip = () => {
+		dismissScopeTip(connectionUrl);
+		refocusChip();
+	};
 
 	// Managed solutions can never be modified by a tool: ribbon customizations
 	// only flow through the user's unmanaged solution layer, so the list is
@@ -396,7 +420,7 @@ function SolutionPicker() {
 		: "Choose the solution your changes are saved to";
 	// First run on this environment: point at the chip until a solution is chosen or the tip
 	// is dismissed. Not while the picker itself is open.
-	const showTip = !activeSolution && !!connectionUrl && !tipDismissed && !pickerOpen;
+	const showTip = !activeSolution && !!connectionUrl && !tipDismissed && !pickerOpen && !!chip;
 
 	return (
 		<>
@@ -410,7 +434,7 @@ function SolutionPicker() {
 				<PopoverTrigger disableButtonEnhancement>
 					<Tooltip content={fullScope} relationship="description">
 						<Button
-							ref={triggerRef}
+							ref={chipRef}
 							// Outline either way (#264): Publish is the top bar's one primary button
 							appearance="outline"
 							icon={<Filter20Regular />}
@@ -423,7 +447,7 @@ function SolutionPicker() {
 									<Badge
 										appearance="outline"
 										size="small"
-										className={styles.chipBadge}
+										className={mergeClasses(styles.chipBadge, styles.wideOnly)}
 									>
 										Unmanaged
 									</Badge>
@@ -432,6 +456,8 @@ function SolutionPicker() {
 										size="small"
 										color={defaultPublisher ? "warning" : "informative"}
 										className={styles.chipBadge}
+										// Not by colour alone (WCAG 1.4.1)
+										icon={defaultPublisher ? <Warning16Regular /> : undefined}
 									>
 										{prefix}_
 									</Badge>
@@ -493,7 +519,10 @@ function SolutionPicker() {
 						<Button
 							appearance="primary"
 							size="small"
-							onClick={() => setPickerOpen(false)}
+							onClick={() => {
+								setPickerOpen(false);
+								refocusChip();
+							}}
 						>
 							Done
 						</Button>
@@ -504,9 +533,9 @@ function SolutionPicker() {
 				<TeachingPopover
 					open
 					onOpenChange={(_, d) => {
-						if (!d.open) dismissScopeTip(connectionUrl);
+						if (!d.open) dismissTip();
 					}}
-					positioning={{ target: triggerRef.current, position: "below", align: "start" }}
+					positioning={{ target: chip, position: "below", align: "start" }}
 				>
 					<TeachingPopoverSurface style={{ maxWidth: 320 }}>
 						<TeachingPopoverHeader>Tip</TeachingPopoverHeader>
@@ -527,7 +556,7 @@ function SolutionPicker() {
 							}}
 							secondary={{
 								children: "Got it",
-								onClick: () => dismissScopeTip(connectionUrl),
+								onClick: dismissTip,
 							}}
 						/>
 					</TeachingPopoverSurface>

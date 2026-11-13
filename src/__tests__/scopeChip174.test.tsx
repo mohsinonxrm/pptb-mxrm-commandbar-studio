@@ -142,4 +142,36 @@ describe("#174 the first-run tip", () => {
 		await flush();
 		expect(document.body.textContent).not.toContain("Choose where tables come from");
 	});
+
+	it("gives focus back to the chip when dismissed, and after Done (#174 review)", async () => {
+		render();
+		await flush();
+		act(() => byText("Got it")!.click());
+		(document.activeElement as HTMLElement | null)?.blur();
+		await act(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+		expect(document.activeElement).toBe(chip());
+
+		act(() => useUIStore.getState().setSolutionPickerOpen(true));
+		await flush();
+		act(() => byText("Done")!.click());
+		(document.activeElement as HTMLElement | null)?.blur();
+		await act(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+		expect(document.activeElement).toBe(chip());
+	});
+
+	it("marks the default publisher with an icon, not colour alone", async () => {
+		useSessionStore.setState({
+			activeSolution: {
+				...sol,
+				publisherPrefix: "new",
+				publisherUniqueName: "DefaultPublisherorg",
+			},
+		} as never);
+		render();
+		await flush();
+		const badge = [...chip().querySelectorAll(".fui-Badge")].find((b) =>
+			b.textContent?.includes("new_"),
+		)!;
+		expect(badge.querySelector("svg")).not.toBeNull();
+	});
 });
