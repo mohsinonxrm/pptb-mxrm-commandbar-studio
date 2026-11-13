@@ -183,7 +183,9 @@ describe("#179 the solution picker", () => {
 		expect(useUIStore.getState().solutionPickerOpen).toBe(false);
 		(document.activeElement as HTMLElement | null)?.blur();
 		await act(() => new Promise((r) => requestAnimationFrame(() => r(null))));
-		expect(document.activeElement?.getAttribute("aria-label")).toBe("Solution: CBS Live Test v1.0.0");
+		expect(document.activeElement?.getAttribute("aria-label")).toBe(
+			"Solution: CBS Live Test v1.0.0",
+		);
 	});
 });
 
