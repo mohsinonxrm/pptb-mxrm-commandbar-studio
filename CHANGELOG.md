@@ -22,10 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Microsoft's grid and quick action rules can be bound (#162).** Microsoft documents placing a
   grid command with the enable rules `Mscrm.ShowOnGrid`, `Mscrm.ShowOnQuickAction` and
   `Mscrm.ShowOnGridAndQuickAction`, but they live in the application ribbon, so a table's rule
-  list didn't offer them. The command editor's **Add an existing enable rule** now lists them under
-  Microsoft's grid rules, and so does the Properties pane's **Bind an existing enable rule**. The
-  publish check knows them. A bound rule that isn't in the loaded ribbon no longer opens an empty
-  editor that closes at once: its tag says why there's nothing to open. A display rule that a
+  list didn't offer them. For a main grid command, the command editor's **Add an existing enable
+  rule** now lists them under Microsoft's grid rules, and so does the Properties pane's **Bind an
+  existing enable rule**. The publish check knows them. A bound rule that isn't in the loaded
+  ribbon no longer opens an editor that closes at once, there or in the bottom panel's Commands
+  list: its tag says why there's nothing to open. A display rule that a
   sub-grid button uses now warns about a **Column value** step: Microsoft says Unified Interface
   doesn't check one there, so put it in an enable rule.
 

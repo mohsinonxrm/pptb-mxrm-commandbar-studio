@@ -592,9 +592,11 @@ export const CommandEditorPanel: React.FC = () => {
 		const availableRules = (kind === "enable" ? enableRules : displayRules)
 			.map((r) => r.id)
 			.filter((id) => !ruleIds.includes(id));
-		// Microsoft's grid and quick action rules aren't in a table's ribbon (#162)
+		// Microsoft's grid and quick action rules aren't in a table's ribbon (#162). They place a
+		// main grid command, so they're offered for one (or a command no button uses yet).
 		const platformRules =
-			kind === "enable"
+			kind === "enable" &&
+			(uses.length === 0 || uses.some((u) => u.location === "HomepageGrid"))
 				? PLATFORM_ENABLE_RULES.filter(
 						(r) => !ruleIds.includes(r.id) && !availableRules.includes(r.id),
 					)

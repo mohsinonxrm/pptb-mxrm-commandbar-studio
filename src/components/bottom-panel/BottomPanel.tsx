@@ -331,6 +331,11 @@ export function BottomPanel() {
 								height={gridHeight}
 								onOpen={openCommandEditor}
 								onOpenRule={openRuleEditor}
+								isRuleLoaded={(id, kind) =>
+									(kind === "enable" ? enableRules : displayRules).some(
+										(r) => r.id === id,
+									)
+								}
 								emptyText={
 									!loaded
 										? NOT_LOADED

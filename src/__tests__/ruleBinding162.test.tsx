@@ -10,6 +10,8 @@ import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { EditorDrawer } from "@/components/panels/EditorDrawer";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
+import { hasRuleStepKind } from "@/constants/ruleKinds";
+import { CommandsGrid } from "@/components/bottom-panel/ElementGrids";
 import type {
 	CommandDefinition,
 	DisplayRule,
@@ -193,5 +195,90 @@ describe("#162 a column value in a sub-grid display rule", () => {
 		act(() => ui().openRuleEditor(RULE, "display"));
 		await until(() => !!drawer()?.textContent?.includes("Passes when"));
 		expect(drawer()!.textContent).not.toContain(warning);
+	});
+});
+
+describe("#162 review", () => {
+	it("doesn't offer the grid rules for a command only a sub-grid button uses", async () => {
+		load("SubGrid");
+		act(() => {
+			ui().openCommandEditor(CMD);
+			ui().setCommandEditorTab("enable");
+		});
+		await until(() => !!buttonNamed("New enable rule"));
+		expect(drawer()!.querySelector("optgroup")).toBeNull();
+	});
+
+	it("finds a column value kept as raw XML", () => {
+		expect(
+			hasRuleStepKind(
+				[
+					{
+						kind: "RawRule",
+						tagName: "ValueRule",
+						xml: '<ValueRule Field="a" Value="b" />',
+					},
+				],
+				"ValueRule",
+			),
+		).toBe(true);
+		expect(
+			hasRuleStepKind(
+				[
+					{
+						kind: "RawRule",
+						tagName: "OrRule",
+						xml: '<OrRule><Or><ValueRule Field="a" Value="b" /></Or></OrRule>',
+					},
+				],
+				"ValueRule",
+			),
+		).toBe(true);
+		expect(
+			hasRuleStepKind(
+				[
+					{
+						kind: "RawRule",
+						tagName: "OrRule",
+						xml: "<OrRule><Or><ValueRuleX /></Or></OrRule>",
+					},
+				],
+				"ValueRule",
+			),
+		).toBe(false);
+	});
+
+	it("the bottom panel's tag for a rule that isn't loaded opens nothing", () => {
+		const onOpenRule = vi.fn();
+		act(() =>
+			root.render(
+				<FluentProvider theme={webLightTheme}>
+					<CommandsGrid
+						commands={[
+							{
+								id: CMD,
+								enableRules: ["Mscrm.ShowOnGrid", "cbstest.Loaded"],
+								displayRules: [],
+								actions: [],
+							} as CommandDefinition,
+						]}
+						usage={new Map()}
+						height={400}
+						onOpen={() => {}}
+						onOpenRule={onOpenRule}
+						isRuleLoaded={(id) => id === "cbstest.Loaded"}
+						emptyText=""
+					/>
+				</FluentProvider>,
+			),
+		);
+		const tag = (text: string) =>
+			[...document.querySelectorAll<HTMLButtonElement>("button")].find(
+				(b) => b.textContent?.trim() === text,
+			);
+		act(() => tag("ShowOnGrid")?.click());
+		expect(onOpenRule).not.toHaveBeenCalled();
+		act(() => tag("Loaded")?.click());
+		expect(onOpenRule).toHaveBeenCalledWith("cbstest.Loaded", "enable");
 	});
 });

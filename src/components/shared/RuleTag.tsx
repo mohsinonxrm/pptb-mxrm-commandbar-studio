@@ -5,8 +5,7 @@ import {
 	InteractionTagSecondary,
 	Tooltip,
 } from "@fluentui/react-components";
-import { ruleShortName } from "@/utils/ruleLabel";
-import { PLATFORM_ENABLE_RULES } from "@/constants/ruleKinds";
+import { ruleShortName, ruleTagTip } from "@/utils/ruleLabel";
 
 /**
  * A bound rule (#190, #184): the primary part opens the rule, the secondary
@@ -26,13 +25,7 @@ export interface RuleTagProps {
 export const RuleTag: React.FC<RuleTagProps> = ({ ruleId, kind, onOpen, onRemove }) => {
 	const name = ruleShortName(ruleId);
 	const kindText = kind === "enable" ? "enable rule" : "display rule";
-	const platform =
-		kind === "enable" ? PLATFORM_ENABLE_RULES.find((r) => r.id === ruleId) : undefined;
-	const tip = onOpen
-		? ruleId
-		: platform
-			? `${ruleId}: Microsoft's rule, "${platform.label}". It's in the application ribbon, so there's nothing to open here.`
-			: `${ruleId} isn't in the loaded ribbon, so there's nothing to open here.`;
+	const tip = ruleTagTip(ruleId, kind, !!onOpen);
 	return (
 		<InteractionTag value={ruleId} size="small" appearance="outline">
 			<Tooltip content={tip} relationship="description">

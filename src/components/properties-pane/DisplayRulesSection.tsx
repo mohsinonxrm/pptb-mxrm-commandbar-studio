@@ -172,7 +172,7 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 						options={[
 							...availableRules.map((r) => r.id),
 							// Microsoft's grid and quick action rules aren't in a table's ribbon (#162)
-							...(kind === "enable"
+							...(kind === "enable" && location === "HomepageGrid"
 								? PLATFORM_ENABLE_RULE_IDS.filter(
 										(id) =>
 											!ruleIds.includes(id) &&

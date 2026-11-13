@@ -176,10 +176,17 @@ export const PLATFORM_ENABLE_RULES: { id: string; label: string }[] = [
 ];
 export const PLATFORM_ENABLE_RULE_IDS = PLATFORM_ENABLE_RULES.map((r) => r.id);
 
-/** Whether a rule (or an `<Or>` group in it) has a step of this kind. */
+/**
+ * Whether a rule (or an `<Or>` group in it) has a step of this kind, including one kept as
+ * raw XML because it didn't round-trip.
+ */
 export function hasRuleStepKind(steps: RuleStep[], kind: RuleKind): boolean {
 	return steps.some((s) =>
-		s.kind === "OrRule" ? s.groups.some((g) => hasRuleStepKind(g, kind)) : s.kind === kind,
+		s.kind === "OrRule"
+			? s.groups.some((g) => hasRuleStepKind(g, kind))
+			: s.kind === "RawRule"
+				? s.tagName === kind || new RegExp(`<${kind}\\b`).test(s.xml)
+				: s.kind === kind,
 	);
 }
 
