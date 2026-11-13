@@ -22,7 +22,9 @@ import { DismissRegular } from "@fluentui/react-icons";
  *
  * Focus: Fluent focuses the first focusable element on open, which is the
  * close button, after React's `autoFocus` has run. A field marked
- * `data-autofocus` takes it back (#229).
+ * `data-autofocus` takes it back (#229), with its text selected, so typing
+ * replaces a default such as "New Button" (#268). Fluent puts `data-*` props
+ * on the input itself for Input and SearchBox.
  */
 
 export type AppDialogSize = "small" | "medium" | "large";
@@ -102,7 +104,10 @@ export const AppDialog: React.FC<AppDialogProps> = ({
 	// Runs after Fluent's own first-focus effect, in the same commit.
 	useEffect(() => {
 		if (!open) return;
-		surfaceRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+		const field = surfaceRef.current?.querySelector<HTMLElement>("[data-autofocus]");
+		field?.focus();
+		if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)
+			field.select();
 	}, [open]);
 	return (
 		<Dialog modalType={modalType} open={open} onOpenChange={(_, d) => onOpenChange(d.open)}>
