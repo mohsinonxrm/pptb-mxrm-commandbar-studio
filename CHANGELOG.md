@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0-beta.3] - 2026-11-12
+
 ### 🔧 Fixed
 
 - **Closing Compare no longer throws an error (#266).** Closing **Compare with published** or a
