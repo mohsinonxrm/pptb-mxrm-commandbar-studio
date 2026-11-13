@@ -297,7 +297,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 	// a group without a title reads as its id.
 	// An imported group keeps its Title token in source (#30): it's the reference to caption.
 	const groupText = (group: RibbonGroup) =>
-		captionOf(group.label, locLabels, lang, group.source?.titleToken) || idCaption(group.id);
+		idCaption(group.id, captionOf(group.label, locLabels, lang, group.source?.titleToken));
 	const moveButton = useRibbonStore((s) => s.moveButton);
 	const createGroup = useRibbonStore((s) => s.createGroup);
 	const openNewButton = useUIStore((s) => s.openNewButton);

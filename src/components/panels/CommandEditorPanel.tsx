@@ -710,8 +710,8 @@ export const CommandEditorPanel: React.FC = () => {
 						<Caption1 className={styles.muted}>
 							{[
 								LOCATION_INFO[location].label,
-								captionOf(t.label, locLabels) || idCaption(t.id),
-								captionOf(group.label, locLabels) || idCaption(group.id),
+								idCaption(t.id, captionOf(t.label, locLabels)),
+								idCaption(group.id, captionOf(group.label, locLabels)),
 							].join(" › ")}
 						</Caption1>
 					</li>

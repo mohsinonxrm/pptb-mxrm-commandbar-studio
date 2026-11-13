@@ -38,8 +38,10 @@ export const ScalingSectionSummary: React.FC = () => {
 			{tab ? (
 				<Text size={200} className={styles.note}>
 					&ldquo;
-					{captionOf(tab.label, locLabels, lang, tab.source?.titleToken) ||
-						idCaption(tab.id)}
+					{idCaption(
+						tab.id,
+						captionOf(tab.label, locLabels, lang, tab.source?.titleToken),
+					)}
 					&rdquo; has {groups} group{groups === 1 ? "" : "s"} and {steps} scaling step
 					{steps === 1 ? "" : "s"}.
 				</Text>

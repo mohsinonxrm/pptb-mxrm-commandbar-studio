@@ -143,8 +143,10 @@ export const TabDisplayRulesPanel: React.FC<{ location: RibbonLocation; tabId: s
 		),
 	];
 
-	const tabName =
-		captionOf(tab.label, locLabels, lang, tab.source?.titleToken) || idCaption(tab.id);
+	const tabName = idCaption(
+		tab.id,
+		captionOf(tab.label, locLabels, lang, tab.source?.titleToken),
+	);
 
 	return (
 		<div className={styles.body}>

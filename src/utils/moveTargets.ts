@@ -37,9 +37,10 @@ export function moveTargets(
 		)
 		.map((g) => ({
 			groupId: g.id,
-			text:
-				caption(g.label, locLabels, languageCode, g.source?.titleToken).trim() ||
-				idCaption(g.id),
+			text: idCaption(
+				g.id,
+				caption(g.label, locLabels, languageCode, g.source?.titleToken).trim(),
+			),
 		}));
 	const count = new Map<string, number>();
 	for (const t of targets) count.set(t.text, (count.get(t.text) ?? 0) + 1);

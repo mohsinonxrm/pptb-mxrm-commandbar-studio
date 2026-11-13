@@ -180,7 +180,7 @@ export function GroupCards({ tab, location }: { tab: RibbonTab; location: Ribbon
 	const rootRef = useRef<HTMLDivElement>(null);
 
 	const groupText = (g: RibbonGroup) =>
-		captionOf(g.label, locLabels, lang, g.source?.titleToken) || idCaption(g.id);
+		idCaption(g.id, captionOf(g.label, locLabels, lang, g.source?.titleToken));
 	const buttonText = (b: RibbonButton) =>
 		captionOf(b.label, locLabels, undefined, b.source?.labelToken) || b.id;
 

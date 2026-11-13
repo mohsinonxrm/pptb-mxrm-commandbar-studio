@@ -156,9 +156,9 @@ export function StructurePane() {
 	const treeRef = useRef<HTMLDivElement>(null);
 
 	const tabText = (tab: RibbonTab) =>
-		captionOf(tab.label, locLabels, lang, tab.source?.titleToken) || idCaption(tab.id);
+		idCaption(tab.id, captionOf(tab.label, locLabels, lang, tab.source?.titleToken));
 	const groupText = (group: RibbonGroup) =>
-		captionOf(group.label, locLabels, lang, group.source?.titleToken) || idCaption(group.id);
+		idCaption(group.id, captionOf(group.label, locLabels, lang, group.source?.titleToken));
 	const buttonText = (button: RibbonButton) =>
 		captionOf(button.label, locLabels, undefined, button.source?.labelToken) || button.id;
 

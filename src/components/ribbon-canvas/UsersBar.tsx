@@ -93,8 +93,10 @@ export function UsersBar({ tab, location }: { tab: RibbonTab; location: RibbonLo
 	const arrowKeys = useArrowNavigationGroup({ axis: "horizontal", memorizeCurrent: true });
 
 	const items = usersBar(tab, modern.nodes, modern.overrides);
-	const tabText =
-		captionOf(tab.label, locLabels, lang, tab.source?.titleToken) || idCaption(tab.id);
+	const tabText = idCaption(
+		tab.id,
+		captionOf(tab.label, locLabels, lang, tab.source?.titleToken),
+	);
 	const textOf = (item: UsersBarItem) =>
 		item.kind === "modern"
 			? item.command.label || item.command.uniqueName

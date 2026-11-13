@@ -170,12 +170,15 @@ export function IdentitySection({ button, location, tabId, groupId, part }: Iden
 						appearance="filled-darker"
 						value={
 							group
-								? captionOf(
-										group.label,
-										locLabels,
-										baseLanguageCode,
-										group.source?.titleToken,
-									) || idCaption(group.id)
+								? idCaption(
+										group.id,
+										captionOf(
+											group.label,
+											locLabels,
+											baseLanguageCode,
+											group.source?.titleToken,
+										),
+									)
 								: groupId
 						}
 					/>

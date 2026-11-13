@@ -140,8 +140,10 @@ export function RibbonListView({ tab, location }: { tab: RibbonTab; location: Ri
 				button: b,
 				label: captionOf(b.label, locLabels, undefined, b.source?.labelToken) || b.id,
 				groupId: g.id,
-				groupLabel:
-					captionOf(g.label, locLabels, lang, g.source?.titleToken) || idCaption(g.id),
+				groupLabel: idCaption(
+					g.id,
+					captionOf(g.label, locLabels, lang, g.source?.titleToken),
+				),
 				order: order++,
 			})),
 		);

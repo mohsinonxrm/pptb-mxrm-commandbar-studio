@@ -90,11 +90,15 @@ export function captionFromKey(value: string, fromToken = false): string | undef
 }
 
 /**
- * What to show for a tab or group without a title (#201): a caption made from its id
+ * What to show for a tab or group (#201): its `text` (its title as the canvas shows it),
+ * or, without a title, a caption made from its id
  * (`Mscrm.HomepageGrid.account.MainTab.ModernClient` → "Modern Client"), else the id.
+ * The parser uses the id as the label of a tab or group without a Title, so a text equal
+ * to the id counts as none.
  */
-export function idCaption(id: string): string {
-	return captionFromKey(id) ?? id;
+export function idCaption(id: string, text?: string): string {
+	const shown = text?.trim();
+	return shown && shown !== id ? shown : (captionFromKey(id) ?? id);
 }
 
 function titleIn(label: LocLabel, languageCode: number): string | undefined {

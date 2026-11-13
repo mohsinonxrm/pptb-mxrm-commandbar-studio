@@ -44,6 +44,11 @@ describe("#201 single-segment keys and untitled groups", () => {
 	it("an untitled tab or group shows a caption made from its id", () => {
 		expect(idCaption("Mscrm.HomepageGrid.account.MainTab.ModernClient")).toBe("Modern Client");
 		expect(idCaption("cbs.Group")).toBe("cbs.Group");
+		// The parser labels a group without a Title with its id
+		const id = "Mscrm.HomepageGrid.account.MainTab.ModernClient";
+		expect(idCaption(id, id)).toBe("Modern Client");
+		expect(idCaption(id, "  ")).toBe("Modern Client");
+		expect(idCaption(id, "Modern")).toBe("Modern");
 		const tab = {
 			id: "Mscrm.HomepageGrid.account.MainTab",
 			label: "Main",
@@ -53,7 +58,7 @@ describe("#201 single-segment keys and untitled groups", () => {
 				{ id: "G1", label: "Management", sequence: 10, template: "Flexible2", buttons: [] },
 				{
 					id: "Mscrm.HomepageGrid.account.MainTab.ModernClient",
-					label: "",
+					label: "Mscrm.HomepageGrid.account.MainTab.ModernClient",
 					sequence: 20,
 					template: "Flexible2",
 					buttons: [],
