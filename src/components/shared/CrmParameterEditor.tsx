@@ -199,7 +199,7 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 		if (!urlMode) return undefined;
 		const name = param.name?.trim();
 		if (!name) return "Needs a name: it's the query string key.";
-		if (allowedNames && !allowedNames.includes(name))
+		if (allowedNames && !allowedNames.includes(param.name ?? ""))
 			return `A web resource accepts only ${allowedNames.join(", ")}: put your own values in data.`;
 		return undefined;
 	};

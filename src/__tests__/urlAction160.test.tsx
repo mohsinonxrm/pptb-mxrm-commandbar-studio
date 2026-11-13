@@ -210,6 +210,8 @@ describe("#160 query string parameters", () => {
 		const params: ActionParameter[] = [
 			{ kind: "StringParameter", name: "data", value: "x" },
 			{ kind: "StringParameter", name: "recordId", value: "y" },
+			// Written as typed, so a space makes it another key
+			{ kind: "StringParameter", name: "id ", value: "z" },
 		];
 		render(
 			<CrmParameterEditor
@@ -220,7 +222,7 @@ describe("#160 query string parameters", () => {
 			/>,
 		);
 		const messages = container2!.textContent!.match(/A web resource accepts only data, id/g);
-		expect(messages).toHaveLength(1);
+		expect(messages).toHaveLength(2);
 	});
 });
 
@@ -235,8 +237,10 @@ describe("#160 publish check", () => {
 			)
 				.filter((f) => f.code === "schema")
 				.map((f) => f.message);
-		for (const address of ["", "$webresource:", "https://"])
-			expect(problems(address)).toContain("Command cbs.U: Url has no address");
+		// One problem each: an empty one is the required attribute's
+		expect(problems("")).toEqual(["Command cbs.U: Url has no Address"]);
+		for (const address of ["$webresource:", "https://"])
+			expect(problems(address)).toEqual(["Command cbs.U: Url has no address"]);
 		for (const address of ["$webresource:cbs_/page.html", "/main.aspx", "https://contoso.com"])
 			expect(problems(address)).toEqual([]);
 	});

@@ -28,8 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   needs a name, not only a context value; changing a parameter's type keeps its name; and a new
   one is text instead of PrimaryControl, which means nothing in an address. **Open in** reads New
   window (default), Modal dialog and Modeless dialog, as Microsoft names them, and a new **Window
-  settings** field sets WinParams, such as a dialog's size. The publish check also stops an empty
-  address or a bare `$webresource:`.
+  settings** field sets WinParams, such as a dialog's size. The publish check also stops a bare
+  `$webresource:` with no name.
 
 ## [0.9.0-beta.3] - 2026-11-12
 
