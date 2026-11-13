@@ -715,8 +715,8 @@ function defaultMaxSizeSize(
 	const template = normalizeGroupTemplate(group.template);
 	return (
 		TEMPLATE_MAX_SIZE[template] ??
-		templateLayouts[template]?.[0] ??
-		templateLayouts[group.template]?.[0]
+		// The first layout is the largest; a Popup one only ever collapses the group
+		(templateLayouts[template] ?? templateLayouts[group.template])?.find((l) => l !== "Popup")
 	);
 }
 

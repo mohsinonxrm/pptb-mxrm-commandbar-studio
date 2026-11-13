@@ -30,6 +30,13 @@ describe("#165 a new group's MaxSize", () => {
 		expect(plan.warnings).toEqual([]);
 	});
 
+	it("never defaults to a Popup layout", () => {
+		const current = ribbon([group("cbs.Tools", "mxrm.Templates.Custom")], {
+			templateLayouts: { "mxrm.Templates.Custom": ["Popup", "Big"] },
+		});
+		expect(planNewGroupScaling(current, ribbon([])).steps.get("cbs.Tools")?.size).toBe("Big");
+	});
+
 	it("is left out with a warning when nothing knows the template", () => {
 		const plan = planNewGroupScaling(
 			ribbon([group("cbs.Tools", "mxrm.Templates.Custom")]),
