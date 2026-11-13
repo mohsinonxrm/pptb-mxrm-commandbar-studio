@@ -11,7 +11,7 @@ const failedJob =
 	'<result result="failure" errorcode="0x80048033" errortext="Publisher &quot;new&quot; can&apos;t be used &#38;amp; is reserved" />' +
 	"</solutionManifest></solutionManifests></importexportxml>";
 
-let retrieve: ReturnType<typeof vi.fn>;
+let retrieve: ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>;
 async function load() {
 	vi.resetModules();
 	(window as unknown as { dataverseAPI: unknown }).dataverseAPI = {
@@ -21,7 +21,7 @@ async function load() {
 }
 
 beforeEach(() => {
-	retrieve = vi.fn();
+	retrieve = vi.fn<(...args: unknown[]) => unknown>();
 });
 
 describe("#107 a failed import's reason", () => {
