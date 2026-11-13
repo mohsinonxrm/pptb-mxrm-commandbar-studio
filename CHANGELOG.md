@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   id. Display only: what publishes is unchanged.
 - **Compare with published shows what Publish writes (#216).** Compare built both sides from the
   generator alone, so changes only Publish's merge writes, such as a moved tab, showed +0 / −0.
-  Compare now reads your published customizations for the table (and the application ribbon, when
+  Compare now reads your published customizations for the entity (and the application ribbon, when
   it's published too) and compares them with the RibbonDiffXml Publish would import. When that
   can't be built (no connection, a change Publish can't write yet, or no answer within 30 s), it
   compares the generated XML as before and says why. Application ribbon changes Publish can't
