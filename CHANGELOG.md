@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🏗️ Technical
+
+- **Every tag is checked in PPTB first (#263, as FetchXML Studio #306).** Each PR was checked in
+  PPTB on its own build, but the build a tag publishes (every merged change plus the version
+  bump, built by `release.yml`) wasn't run in PPTB until it was on npm. RELEASING.md's new
+  *Before every tag* step runs the rehearsal's `package` tarball in PPTB, with a short smoke
+  list that includes a publish on a test table, before any beta, stable or hotfix tag. The smoke
+  test of the published beta before `latest` stays.
+
 ## [0.9.0-beta.2] - 2026-11-01
 
 ### 🔧 Changed
