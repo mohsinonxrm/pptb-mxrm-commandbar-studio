@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The sub-grid note matches Unified Interface (#167).** "About this location" and a banner on
   the Classic canvas said a sub-grid supports only Add, Show List and Delete, with icons that can't
   change. That's the pre-Unified-Interface page. A live check showed Unified Interface shows the
-  table's whole sub-grid command bar, and that overriding a built-in sub-grid button's label, icon
+  entity's whole sub-grid command bar, and that overriding a built-in sub-grid button's label, icon
   and command takes effect. The note now says so, and the banner is gone, as the other location
   banners went in 0.9.0 (#181).
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
