@@ -346,8 +346,47 @@ describe("#184 controls", () => {
 			input.dispatchEvent(new Event("input", { bubbles: true }));
 		});
 		expect(picker().value).toBe("Selection");
+		// Microsoft's command has no picker until it's customised (#267); back on yours, it's empty.
 		select(MGMT, "Mscrm.HomepageGrid.contact.Edit");
+		expect(picker()).toBeUndefined();
+		select(OWN, "mxrm.Own.Button");
 		expect(picker().value).toBe("");
+	});
+
+	it("keeps the rules of Microsoft's command read-only until it's customised (#267)", () => {
+		// Loaded with the rule (an edit would make it "customising", which is editable)
+		const withRule = <T extends { id: string; enableRules: string[] }>(c: T): T =>
+			c.id === "Mscrm.EditSelectedRecord"
+				? { ...c, enableRules: ["mxrm.contact.One.EnableRule"] }
+				: c;
+		act(() =>
+			useRibbonStore.setState((s) => ({
+				commands: s.commands.map(withRule),
+				baselineCommands: s.baselineCommands.map(withRule),
+			})),
+		);
+		select(MGMT, "Mscrm.HomepageGrid.contact.Edit");
+		render(<PropertiesPane />);
+		const buttons = () =>
+			[...container.querySelectorAll<HTMLButtonElement>("button")].map((b) =>
+				b.textContent?.trim(),
+			);
+		expect(container.querySelector('[aria-label="Bound enable rules"]')!.textContent).toContain(
+			"One",
+		);
+		expect(container.querySelector('[aria-label="Unbind enable rule One"]')).toBeNull();
+		expect(buttons()).not.toContain("Bind");
+		expect(buttons()).not.toContain("Create new enable rule");
+		expect(container.textContent).toContain("Customise the command to change its rules.");
+		expect(rulesOf("Mscrm.EditSelectedRecord").enableRules).toEqual([
+			"mxrm.contact.One.EnableRule",
+		]);
+
+		act(() => useRibbonStore.getState().customiseCommand("Mscrm.EditSelectedRecord"));
+		expect(buttons()).toContain("Bind");
+		expect(buttons()).toContain("Create new enable rule");
+		expect(container.querySelector('[aria-label="Unbind enable rule One"]')).not.toBeNull();
+		expect(container.textContent).not.toContain("Customise the command to change its rules.");
 	});
 });
 

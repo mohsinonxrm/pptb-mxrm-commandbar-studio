@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0-beta.3] - 2026-11-12
+
+### 🔧 Fixed
+
+- **Closing Compare no longer throws an error (#266).** Closing **Compare with published** or a
+  History diff could log "TextModel got disposed before DiffEditorWidget model got reset" in the
+  tool's console. The editor library disposed the two texts before the diff editor that showed
+  them; now they're disposed after it. Compare's repaint listeners are released when it closes,
+  too: they were never removed, because Monaco doesn't announce when a diff editor is disposed.
+- **Properties no longer changes Microsoft's commands without Customise command (#267).** On an
+  out-of-the-box button, **Display rules** and **Enable rules** in Properties still offered Bind,
+  Create new rule and unbinding, which changed Microsoft's command straight away. The command
+  editor has kept such commands read-only since 0.9.0-beta.1. Properties now does the same: the
+  bound rules still open, and a line says to customise the command to change them. After
+  **Customise command**, binding works as before.
+- **Dialogs start where you type (#268).** The web resource browser and the icon picker open on
+  their search box instead of the Close button. New button, New group and New tab open with their
+  default name ("New Button", …) selected, so typing replaces it instead of adding to it; Renaming
+  a tab or group selects the current name.
+
+### 🏗️ Technical
+
+- **Every tag is checked in PPTB first (#263, as FetchXML Studio #306).** Each PR was checked in
+  PPTB on its own build, but the build a tag publishes (every merged change plus the version
+  bump, built by `release.yml`) wasn't run in PPTB until it was on npm. RELEASING.md's new
+  *Before every tag* step runs the rehearsal's `package` tarball in PPTB, with a short smoke
+  list that includes a publish on a test table, before any beta, stable or hotfix tag. The smoke
+  test of the published beta before `latest` stays.
+
 ## [0.9.0-beta.2] - 2026-11-01
 
 ### 🔧 Changed

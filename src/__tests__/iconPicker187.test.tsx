@@ -176,6 +176,22 @@ describe("#187 the icon picker", () => {
 		expect(useUIStore.getState().iconPickerOpen).toBe(false);
 	});
 
+	it("opens on the search, not the Close button (#268)", () => {
+		expect(document.activeElement?.getAttribute("aria-label")).toBe("Search icons");
+	});
+
+	it("reopened on Web resources, opens on that tab's search (#268)", async () => {
+		const tab = [...dialog().querySelectorAll<HTMLElement>('[role="tab"]')].find((x) =>
+			x.textContent?.includes("Web resources"),
+		)!;
+		await act(async () => tab.click());
+		await flush();
+		act(() => useUIStore.getState().closeIconPicker());
+		act(() => useUIStore.getState().openIconPicker());
+		await flush();
+		expect(document.activeElement?.getAttribute("aria-label")).toBe("Search SVG web resources");
+	});
+
 	it("search narrows the icons, and says so when none match", () => {
 		const search = dialog().querySelector<HTMLInputElement>(
 			'input[aria-label="Search icons"]',

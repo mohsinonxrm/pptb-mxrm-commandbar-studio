@@ -74,6 +74,37 @@ Branches cut before the check existed run the workflow of their own commit: they
 the check nor the notes from the CHANGELOG. Check those by hand against this table, and paste
 the CHANGELOG section into the GitHub Release after it's created.
 
+## Before every tag: the release build in PPTB
+
+Every PR is checked in PPTB on its own branch build. A tag publishes a different build: the
+branch with every merged change and the version bump, built by `release.yml` from a clean
+install, with the Insider icon for betas. Run that exact build in PPTB before pushing any tag
+(beta, rc, stable or hotfix) (#263, as FetchXML Studio #306):
+
+1. **Rehearse on the commit you'll tag:** the release-prep merge on `release/X.Y` for a beta,
+   or `main` for a stable release or hotfix: `gh workflow run release.yml --ref <branch>`. Its
+   `build` job uploads the tarball the tag would publish, as the `package` artifact.
+2. **Download and unpack it** in an empty folder: `gh run download <run-id> -n package`, then
+   `tar -xzf *.tgz`.
+3. **Load `package/` in PPTB** as a local tool (Debug → Load Local Tool), in the PPTB version
+   the tool targets (`minAPI`), on a non-production connection with a test table. Check:
+   - it loads with no console errors and follows the light and dark theme;
+   - the right icon: `package/dist/icons/icon.svg` is the Insider icon for a beta and the release
+     icon otherwise (PPTB's sidebar keeps a tool's icon until PPTB restarts, so check the file
+     or restart PPTB);
+   - a table opens in the test solution, and its views (Group cards, Classic, Modern, List)
+     and the editor drawer (a command, XML, Compare) work;
+   - a publish on the test table: hide a button, publish, check the published layer, then
+     unhide it and publish again, so the table is back as it was. The publish dialog names
+     the environment and the solution;
+   - the changes in this release's CHANGELOG section.
+4. **Record the result** on the release's tracking issue: the PPTB version and what was
+   checked. Then tag **the same commit**. If something fails, fix it by PR first; a new commit
+   needs a new rehearsal and a new check.
+
+The smoke test of the published beta (*Stabilizing*, step 2) stays: it checks the package as
+users install it from npm, before it goes to `latest`.
+
 ## Release lifecycle
 
 ### 1. Feature freeze: cut the release branch
@@ -95,8 +126,8 @@ git switch dev && git pull && git switch -c release/0.6 && git push -u origin re
    - `npm run version-badge` (rewrites `assets/badges/version.svg` from `package.json`)
 
    and PR it into `release/0.6` (see *Every release: what changes*).
-2. Tag the PR's merge commit on `release/0.6`:
-   `git switch release/0.6 && git pull && git tag v0.6.0-beta.2 && git push origin v0.6.0-beta.2`.
+2. Check the release build in PPTB (*Before every tag*), then tag the PR's merge commit on
+   `release/0.6`: `git switch release/0.6 && git pull && git tag v0.6.0-beta.2 && git push origin v0.6.0-beta.2`.
 3. Run *After every release* (below), then merge `release/0.6` into `dev` with a PR
    (`merge/release-0.6-into-dev`, merge commit) so `dev` has the fixes.
 
@@ -122,7 +153,8 @@ Before promoting a beta to `latest`:
    `[0.6.0]` CHANGELOG section that summarises the betas above their history, and
    `npm run version-badge`.
 2. PR `release/0.6` → `main`, merged with a merge commit.
-3. Tag the merge commit on `main`: `git switch main && git pull && git tag v0.6.0 && git push origin v0.6.0`.
+3. Check the release build in PPTB (*Before every tag*), then tag the merge commit on `main`:
+   `git switch main && git pull && git tag v0.6.0 && git push origin v0.6.0`.
 4. Run *After every release*, then merge `main` into `dev` (merge commit) and delete
    `release/0.6`.
 
@@ -130,7 +162,8 @@ Before promoting a beta to `latest`:
 
 1. Branch `hotfix/0.6.1` from `main`; fix, set the version (`0.6.1`), date its CHANGELOG
    section, run `npm run version-badge`; PR into `main` (merge commit).
-2. Tag `v0.6.1` on `main` → npm `latest`, then run *After every release*.
+2. Check the release build in PPTB (*Before every tag*), then tag `v0.6.1` on `main` → npm
+   `latest`, and run *After every release*.
 3. Merge `main` forward into `release/*` (if one is open) and `dev`, keeping the higher version
    (*Resolving forward-merge conflicts*) and each target's `[Unreleased]` entries.
 

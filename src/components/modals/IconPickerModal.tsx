@@ -599,6 +599,8 @@ export const IconPickerModal: React.FC = () => {
 					<>
 						<div className={styles.toolbar}>
 							<SearchBox
+								// The dialog opens on the search, not its Close button (#268)
+								data-autofocus
 								className={styles.search}
 								placeholder="Search icons"
 								aria-label="Search icons"
@@ -708,6 +710,8 @@ export const IconPickerModal: React.FC = () => {
 				{activeTab === "webresource" && (
 					<>
 						<SearchBox
+							// Reopening on this tab (after an upload) opens on its search (#268)
+							data-autofocus
 							placeholder="Search SVG web resources"
 							aria-label="Search SVG web resources"
 							value={iconSearch}
