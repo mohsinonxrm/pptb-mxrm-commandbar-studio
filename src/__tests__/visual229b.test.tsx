@@ -78,6 +78,13 @@ describe("#229 web resource browser", () => {
 		expect(dialog().querySelector('[data-web-resource="new_/scripts/a.js"]')).not.toBeNull();
 	});
 
+	it("opens on the search, not the Close button (#268)", async () => {
+		await openBrowser();
+		expect(document.activeElement?.getAttribute("aria-label")).toBe(
+			"Search the web resources by name",
+		);
+	});
+
 	it("Enter on a row chooses it", async () => {
 		const chosen: string[] = [];
 		webResourceBrowserCallbackRegistry.set((wr) => chosen.push(wr.name));
@@ -117,6 +124,20 @@ describe("#229 dialogs", () => {
 			await new Promise((r) => setTimeout(r, 0));
 		});
 		expect(document.activeElement?.getAttribute("aria-label")).toBe("Label");
+	});
+
+	it("selects the autofocused field's text, so typing replaces a default (#268)", async () => {
+		render(
+			<AppDialog open onOpenChange={() => {}} title="New button">
+				<Input aria-label="Label" defaultValue="New Button" data-autofocus />
+			</AppDialog>,
+		);
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
+		const input = document.activeElement as HTMLInputElement;
+		expect(input.getAttribute("aria-label")).toBe("Label");
+		expect([input.selectionStart, input.selectionEnd]).toEqual([0, "New Button".length]);
 	});
 
 	it("the draft offer starts on Restore, not on Discard", async () => {

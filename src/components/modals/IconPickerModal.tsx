@@ -15,6 +15,7 @@ import {
 	MessageBarBody,
 	Option,
 	SearchBox,
+	type SearchBoxProps,
 	Spinner,
 	Tab,
 	TabList,
@@ -599,6 +600,12 @@ export const IconPickerModal: React.FC = () => {
 					<>
 						<div className={styles.toolbar}>
 							<SearchBox
+								// The dialog opens on the search, not its Close button (#268)
+								input={
+									{
+										"data-autofocus": "",
+									} as SearchBoxProps["input"]
+								}
 								className={styles.search}
 								placeholder="Search icons"
 								aria-label="Search icons"

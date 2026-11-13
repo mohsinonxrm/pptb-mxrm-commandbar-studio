@@ -176,6 +176,10 @@ describe("#187 the icon picker", () => {
 		expect(useUIStore.getState().iconPickerOpen).toBe(false);
 	});
 
+	it("opens on the search, not the Close button (#268)", () => {
+		expect(document.activeElement?.getAttribute("aria-label")).toBe("Search icons");
+	});
+
 	it("search narrows the icons, and says so when none match", () => {
 		const search = dialog().querySelector<HTMLInputElement>(
 			'input[aria-label="Search icons"]',
