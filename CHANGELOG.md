@@ -11,11 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Fixed
 
-- **A failed import says why (#107).** When Dataverse rejected the whole solution (a publisher
-  prefix, a missing dependency, a schema error), Publish said only "Import completed, but Dataverse
-  did not apply a ribbon … (no entityRibbon result)". It now shows the import job's own failure,
-  for example "Dataverse couldn't import the solution (0x80048033): …", with its quotes and
-  ampersands decoded.
+- **A failed import says why (#107).** When the import itself fails with a fault that doesn't
+  give the reason (a generic server error, a timeout), Publish now reads the import job and adds
+  its own failure, for example "Dataverse couldn't import the solution (0x80048033): …". When an
+  import succeeds but no ribbon was applied, the job's failure is shown, if it has one, instead of
+  "no entityRibbon result". Quotes, apostrophes and ampersands in Dataverse's text are decoded.
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
   one-word resource key showed the key: the account grid's **OpenAllRecordsViewImageButtonText**
   now reads "Open All Records View". A tab or group without a title showed its whole id

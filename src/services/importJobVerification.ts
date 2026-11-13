@@ -17,15 +17,21 @@ export interface RibbonImportVerification {
 }
 
 /** The XML entities an attribute value can carry, decoded (an errortext quotes ids). */
+const NAMED: Record<string, string> = { quot: '"', apos: "'", lt: "<", gt: ">", amp: "&" };
 function decode(value: string): string {
-	return value
-		.replace(/&quot;/g, '"')
-		.replace(/&apos;/g, "'")
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&#x([0-9a-f]+);/gi, (_, h: string) => String.fromCodePoint(parseInt(h, 16)))
-		.replace(/&#(\d+);/g, (_, d: string) => String.fromCodePoint(Number(d)))
-		.replace(/&amp;/g, "&");
+	// One pass, so "&#38;amp;" stays "&amp;"; a reference that isn't a character stays as it is.
+	return value.replace(
+		/&(?:#x([0-9a-f]+)|#(\d+)|(quot|apos|lt|gt|amp));/gi,
+		(whole, hex?: string, dec?: string, name?: string) => {
+			if (name) return NAMED[name.toLowerCase()];
+			const code = hex ? parseInt(hex, 16) : Number(dec);
+			try {
+				return String.fromCodePoint(code);
+			} catch {
+				return whole;
+			}
+		},
+	);
 }
 
 function attr(tag: string, name: string): string | null {
@@ -38,7 +44,8 @@ function attr(tag: string, name: string): string | null {
  * job — the solution, a component or a ribbon — so a solution-level failure (publisher, missing
  * dependency, schema) is shown instead of "no ribbon result".
  */
-function solutionFailure(data: string): string | null {
+export function importJobFailure(data: string | null | undefined): string | null {
+	if (!data) return null;
 	const failure = (data.match(/<result\s[^>]*>/g) ?? []).find(
 		(r) => attr(r, "result") === "failure",
 	);
@@ -83,7 +90,7 @@ export function verifyRibbonImport(
 			return {
 				ok: false,
 				message:
-					solutionFailure(data) ??
+					importJobFailure(data) ??
 					"Import completed, but Dataverse did not process the application ribbon.",
 			};
 		}
@@ -114,7 +121,7 @@ export function verifyRibbonImport(
 	return {
 		ok: false,
 		message:
-			solutionFailure(data) ??
+			importJobFailure(data) ??
 			`Import completed, but Dataverse did not apply a ribbon for ${target.names.join(" / ")} ` +
 				`(no entityRibbon result in the import job). Nothing was changed.`,
 	};
