@@ -490,8 +490,8 @@ function SolutionPicker() {
 						</Combobox>
 					</Field>
 					<Caption1 className={styles.muted}>
-						Command Bar Studio edits one unmanaged solution at a time. Its entities appear
-						in the entity picker.
+						Command Bar Studio edits one unmanaged solution at a time. Its entities
+						appear in the entity picker.
 					</Caption1>
 					{activeSolution && (
 						<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
