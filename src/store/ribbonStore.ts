@@ -572,14 +572,42 @@ function record(
 	return { ...change, ...historyAfter(state, meta, () => workspaceOf(state), coalesceKey) };
 }
 
+/**
+ * The ribbons for a mutator to change in place (#111): a location is copied the first time the
+ * mutator reads it. A one-field edit of one location used to copy all four ribbons, keystrokes
+ * included; now it copies one, and the others stay shared with the state before.
+ */
+function copyOnRead(ribbons: Record<RibbonLocation, RibbonDefinition>): {
+	draft: Record<RibbonLocation, RibbonDefinition>;
+	next: Record<RibbonLocation, RibbonDefinition>;
+} {
+	const next = { ...ribbons };
+	const copied = new Set<PropertyKey>();
+	const draft = new Proxy(next, {
+		get(target, key, receiver) {
+			if (!copied.has(key) && Object.prototype.hasOwnProperty.call(target, key)) {
+				copied.add(key);
+				const location = key as RibbonLocation;
+				target[location] = JSON.parse(JSON.stringify(target[location]));
+			}
+			return Reflect.get(target, key, receiver);
+		},
+		set(target, key, value, receiver) {
+			copied.add(key);
+			return Reflect.set(target, key, value, receiver);
+		},
+	});
+	return { draft, next };
+}
+
 function commitMutation(
 	state: RibbonStoreState,
 	mutator: (ribbons: Record<RibbonLocation, RibbonDefinition>) => void,
 	meta: HistoryMeta,
 	coalesceKey?: string,
 ): Partial<RibbonStoreState> {
-	const next = cloneRibbons(state.ribbons);
-	mutator(next);
+	const { draft, next } = copyOnRead(state.ribbons);
+	mutator(draft);
 	return record(state, { ribbons: next }, meta, coalesceKey);
 }
 
