@@ -31,6 +31,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entity's whole sub-grid command bar, and that overriding a built-in sub-grid button's label, icon
   and command takes effect. The note now says so, and the banner is gone, as the other location
   banners went in 0.9.0 (#181).
+- **The context value picker explains itself (#161).** Under a parameter's **Value**, the field
+  now says what the chosen value passes, in Microsoft's terms: FirstPrimaryItemId is the record
+  being viewed (empty on a main grid), PrimaryControl the form's context, SelectedControl the grid's.
+  Some old descriptions were wrong (FirstPrimaryItemId said "first selected record").
+  PrimaryEntityTypeCode and SelectedEntityTypeCode read "(deprecated)", and picking one warns to
+  use the …TypeName value instead. A loaded value the list doesn't have, or one a URL can't take,
+  now shows as itself; before, the picker showed PrimaryControl while keeping the real value.
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
   one-word resource key showed the key: the account grid's **OpenAllRecordsViewImageButtonText**
   now reads "Open All Records View". A tab or group without a title showed its whole id
@@ -92,6 +99,16 @@ are the full list. Requires Power Platform ToolBox 1.2.7 or later, as 0.8 does.
 - **0.8.x is end of life:** 0.8.0 is deprecated on npm and gets no support window, because
   0.9.0 needs the same PPTB (see `SECURITY.md`).
 - **0.9.0-beta.3 wasn't published to npm.** Its fixes ship in 0.9.0.
+- **Microsoft's grid and quick action rules can be bound (#162).** Microsoft documents placing a
+  grid command with the enable rules `Mscrm.ShowOnGrid`, `Mscrm.ShowOnQuickAction` and
+  `Mscrm.ShowOnGridAndQuickAction`, but they live in the application ribbon, so an entity's rule
+  list didn't offer them. For a main grid command, the command editor's **Add an existing enable
+  rule** now lists them under Microsoft's grid rules, and so does the Properties pane's **Bind an
+  existing enable rule**. The publish check knows them. A bound rule that isn't in the loaded
+  ribbon no longer opens an editor that closes at once, there or in the bottom panel's Commands
+  list: its tag says why there's nothing to open. A display rule that a
+  sub-grid button uses now warns about a **Column value** step: Microsoft says Unified Interface
+  doesn't check one there, so put it in an enable rule.
 - **Scaling and layout checks (#165).** A new group whose template isn't one CBS lists now gets its
   MaxSize from the template's largest layout as loaded; when nothing knows the template, the publish
   dialog warns that the group gets none (every group needs one on the classic ribbon). The publish
