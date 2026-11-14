@@ -119,6 +119,9 @@ export interface UIStore {
 	commandPaletteOpen: boolean;
 	/** The top bar's solution picker is open (also opened from the canvas's empty state, #195). */
 	solutionPickerOpen: boolean;
+	/** Environments (by URL) where the first-run tip on the solution chip was dismissed (#174). */
+	scopeTipDismissed: string[];
+	dismissScopeTip(environmentUrl: string): void;
 	/** The top bar's table picker is open (also opened from the canvas's empty state, #195). */
 	tablePickerOpen: boolean;
 	/** Something asked for the Properties pane (e.g. Show orphans): it opens when it's a drawer (#179). */
@@ -226,6 +229,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	tabDisplayRulesOpen: false,
 	commandPaletteOpen: false,
 	solutionPickerOpen: false,
+	scopeTipDismissed: [],
 	tablePickerOpen: false,
 	propertiesRequested: false,
 	newTabOpen: false,
@@ -301,6 +305,12 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 		set((s) => editorState(pushView(s.editorStack, { kind: "tabRules", id: tabId, location }))),
 	setCommandPaletteOpen: (open: boolean) => set({ commandPaletteOpen: open }),
 	setSolutionPickerOpen: (open) => set({ solutionPickerOpen: open }),
+	dismissScopeTip: (environmentUrl) =>
+		set((s) =>
+			s.scopeTipDismissed.includes(environmentUrl)
+				? {}
+				: { scopeTipDismissed: [...s.scopeTipDismissed, environmentUrl] },
+		),
 	setTablePickerOpen: (open) => set({ tablePickerOpen: open }),
 	setLeftPaneTab: (tab) => set({ leftPaneTab: tab }),
 	structureChoice: 0,
@@ -327,6 +337,7 @@ export const useUIStore = create<UIStore>()(
 			rightPaneMode: state.rightPaneMode,
 			themeMode: state.themeMode,
 			ribbonViewStyle: state.ribbonViewStyle,
+			scopeTipDismissed: state.scopeTipDismissed,
 		}),
 	}),
 );
