@@ -854,10 +854,10 @@ describe("review 4 — just published", () => {
 			now,
 		);
 		for (const o of [just, other]) {
-			expect(o.why).toMatch(/3 min before this table was loaded/);
+			expect(o.why).toMatch(/3 min before this entity was loaded/);
 			expect(o.why).not.toMatch(/ago/);
 		}
-		expect(just.why).toMatch(/Reload the table later/);
+		expect(just.why).toMatch(/Reload the entity later/);
 	});
 });
 

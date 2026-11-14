@@ -118,7 +118,7 @@ const words = (name: string) =>
 		.replace(/^./, (c) => c.toUpperCase());
 
 const APPLIES_TO: Choice[] = [
-	["PrimaryEntity", "Primary table (the form or grid)"],
+	["PrimaryEntity", "Primary entity (the form or grid)"],
 	["SelectedEntity", "Selected records"],
 ];
 const CONTEXTS: Choice[] = [
@@ -315,7 +315,7 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 	};
 
 	const tableField = (value: string | undefined, onSet: (v: string | undefined) => void) => (
-		<Field label="Table" hint="Its logical name; empty for any.">
+		<Field label="Entity" hint="Its logical name; empty for any.">
 			<Input value={value ?? ""} onChange={(_, d) => onSet(d.value || undefined)} />
 		</Field>
 	);
@@ -424,7 +424,7 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 
 			case "FormEntityContextRule":
 				return (
-					<Field label="The form's table" hint="Its logical name.">
+					<Field label="The form's entity" hint="Its logical name.">
 						<Input
 							value={step.entityName}
 							onChange={(_, d) => setField({ entityName: d.value })}
@@ -795,7 +795,7 @@ export const RuleStepEditor: React.FC<RuleStepEditorProps> = ({
 								onChange={(_, d) => setField({ stateCode: d.value })}
 							/>
 						</Field>
-						<Field label="Table type code">
+						<Field label="Entity type code">
 							<Input
 								value={step.objectTypeCode}
 								onChange={(_, d) => setField({ objectTypeCode: d.value })}

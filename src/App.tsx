@@ -87,7 +87,7 @@ export function App() {
 				setSolutions(sols);
 				logInfo(
 					"runtime",
-					`Loaded ${sols.length} solution(s). Pick one to load its tables.`,
+					`Loaded ${sols.length} solution(s). Pick one to load its entities.`,
 				);
 			})
 			.catch((error) => {
@@ -157,7 +157,7 @@ export function App() {
 				if (cancelled) return;
 				logError(
 					"runtime",
-					`Failed to load solution tables: ${
+					`Failed to load solution entities: ${
 						error instanceof Error ? error.message : String(error)
 					}`,
 				);

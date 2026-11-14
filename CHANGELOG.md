@@ -38,6 +38,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   away." and **Done**. On an environment where no solution is chosen yet, a first-run tip points at
   the chip; **Choose scope** opens it, and **Got it** dismisses the tip for that environment.
 
+### 🔧 Changed
+
+- **"Entity", not "table".** Command Bar Studio now says entity wherever it said table: the top
+  bar's picker (**Choose entity**), the canvas, the Structure pane, dialogs, rule labels
+  (**Entity**, **Entity privilege**, **Entity property**, **Form's entity**), the command palette
+  (`@` for entities only), messages, the Console log and the README. It matches the ribbon's own
+  names (`EntityRule`, `Mscrm.HomepageGrid.<entity>`) and Ribbon Workbench. The maker portal's
+  **Add existing › Table** is still named as the portal names it. Wording only: what publishes is
+  unchanged.
+
 ### 🔧 Fixed
 
 - **Buttons for the global command bar go only where it shows them (#166).** Microsoft's docs

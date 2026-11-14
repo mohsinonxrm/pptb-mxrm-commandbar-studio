@@ -23,9 +23,9 @@ vi.setConfig({ testTimeout: 30_000 });
 describe("#229 texts", () => {
 	it("Dataverse's table placeholders read as words", () => {
 		expect(displayText("{!EntityPluralDisplayName}", [], 1033, {})).toBe(
-			"‹table name, plural›",
+			"‹entity name, plural›",
 		);
-		expect(displayText("New {!EntityDisplayName}", [], 1033, {})).toBe("New ‹table name›");
+		expect(displayText("New {!EntityDisplayName}", [], 1033, {})).toBe("New ‹entity name›");
 	});
 
 	it("an underscore resource key reads as its caption", () => {
@@ -190,7 +190,7 @@ describe("#229 review", () => {
 		const tab = container.querySelector<HTMLElement>(
 			'[role="treeitem"][data-structure-key="tab:mxrm.account.Tab"]',
 		)!;
-		expect(tab.textContent).toContain("New ‹table name›");
+		expect(tab.textContent).toContain("New ‹entity name›");
 		act(() => {
 			tab.dispatchEvent(new KeyboardEvent("keydown", { key: "F2", bubbles: true }));
 		});

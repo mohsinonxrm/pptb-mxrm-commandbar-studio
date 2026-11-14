@@ -104,7 +104,7 @@ export async function fetchSolutionEntityIds(solutionId: string): Promise<string
 	const ids = rows.map((r) => r.objectid).filter(Boolean);
 	useRuntimeLogStore
 		.getState()
-		.logInfo("dataverse", `Solution contains ${ids.length} table component(s).`);
+		.logInfo("dataverse", `Solution contains ${ids.length} entity component(s).`);
 	return ids;
 }
 

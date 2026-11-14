@@ -173,7 +173,7 @@ describe("#229 bottom panel while loading", () => {
 		useUIStore.setState({ bottomCollapsed: false, bottomPanelHeight: 400 });
 		useDraftStore.setState({ target: null });
 		render(<BottomPanel />);
-		expect(container.textContent).toContain("Shown once the table's ribbon is loaded.");
+		expect(container.textContent).toContain("Shown once the entity's ribbon is loaded.");
 		expect(container.textContent).not.toContain("No commands.");
 
 		act(() => useDraftStore.setState({ target: draftKeyFor("account") }));

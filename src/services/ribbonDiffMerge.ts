@@ -1058,7 +1058,7 @@ export function mergeScopeChanges(
 			if (readded.has(move.id)) continue;
 			// Never a silent no-op: the plan only moves controls the layer adds.
 			throw new Error(
-				`Can't move ${move.id}: it isn't in this table's unmanaged customizations.`,
+				`Can't move ${move.id}: it isn't in this entity's unmanaged customizations.`,
 			);
 		}
 		const { ca, el: ctrl } = found;

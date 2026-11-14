@@ -118,7 +118,7 @@ export const NewTabModal: React.FC = () => {
 					hint={
 						location === "Application"
 							? "A tab shows only where a tab rule allows it: add one in Tab rules before publishing."
-							: `It gets a tab rule for this table's ${LOCATION_NAMES[location]}; change it in Tab rules.`
+							: `It gets a tab rule for this entity's ${LOCATION_NAMES[location]}; change it in Tab rules.`
 					}
 				>
 					<Input

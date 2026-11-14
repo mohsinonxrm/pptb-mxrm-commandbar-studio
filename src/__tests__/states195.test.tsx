@@ -86,9 +86,9 @@ describe("#195 before anything is open", () => {
 
 	it("asks for a table, and Choose table opens the top bar's table picker (#194)", async () => {
 		render(<RibbonCanvas emptyState="noTable" />);
-		expect(container.textContent).toContain("Pick a table");
+		expect(container.textContent).toContain("Pick an entity");
 		expect(container.textContent).not.toContain("Add first group");
-		await click(byName("Choose table"));
+		await click(byName("Choose entity"));
 		expect(useUIStore.getState().tablePickerOpen).toBe(true);
 	});
 });

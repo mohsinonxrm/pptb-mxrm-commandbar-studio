@@ -106,7 +106,7 @@ export function applyHostConnection(connection: HostConnection | null): Connecti
 
 	log.logWarn(
 		"startup",
-		`The tool's connection changed from ${from} to ${to}. The loaded solution and table were closed.`,
+		`The tool's connection changed from ${from} to ${to}. The loaded solution and entity were closed.`,
 	);
 	if (hadChanges && kept)
 		log.logInfo("startup", `The unpublished changes were kept as a draft for ${from}.`);

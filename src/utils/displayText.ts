@@ -121,8 +121,8 @@ const REFERENCE = /^\$(Resources(\([^)]*\))?|LocLabels):/;
  * read as code.
  */
 const PLACEHOLDERS: [RegExp, string][] = [
-	[/\{!EntityPluralDisplayName\}/g, "‹table name, plural›"],
-	[/\{!EntityDisplayName\}/g, "‹table name›"],
+	[/\{!EntityPluralDisplayName\}/g, "‹entity name, plural›"],
+	[/\{!EntityDisplayName\}/g, "‹entity name›"],
 ];
 export function readablePlaceholders(text: string): string {
 	return PLACEHOLDERS.reduce((t, [re, words]) => t.replace(re, words), text);

@@ -128,15 +128,15 @@ describe("#189 the step picker", () => {
 				);
 				search.dispatchEvent(new Event("input", { bubbles: true }));
 			});
-		set("table");
+		set("table"); // Dataverse's word finds the entity steps.
 		const kinds = [...document.querySelectorAll('[aria-label="Kinds of step"] button')].map(
 			(b) => b.textContent,
 		);
-		expect(kinds).toEqual(expect.arrayContaining(["Table", "Table privilege"]));
+		expect(kinds).toEqual(expect.arrayContaining(["Entity", "Entity privilege"]));
 		act(() =>
 			(
 				[...document.querySelectorAll("button")].find(
-					(b) => b.textContent === "Table",
+					(b) => b.textContent === "Entity",
 				) as HTMLButtonElement
 			).click(),
 		);

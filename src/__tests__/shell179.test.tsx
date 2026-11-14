@@ -156,7 +156,7 @@ describe("#179 the sub-header's actions moved to the top bar", () => {
 	it("keeps Open in Dynamics 365 disabled until a table is open", () => {
 		render(<TopBar />);
 		// Still focusable, so its tooltip names it.
-		expect(byName("Open this table in Dynamics 365")?.getAttribute("aria-disabled")).toBe(
+		expect(byName("Open this entity in Dynamics 365")?.getAttribute("aria-disabled")).toBe(
 			"true",
 		);
 	});
@@ -175,7 +175,7 @@ describe("#179 the solution picker", () => {
 		render(<TopBar />);
 		act(() => useUIStore.getState().setSolutionPickerOpen(true));
 		const input = document.body.querySelector<HTMLInputElement>(
-			'[role="combobox"]:not([aria-label="Table"])',
+			'[role="combobox"]:not([aria-label="Entity"])',
 		)!;
 		click(input);
 		const option = document.body.querySelector<HTMLElement>('[role="option"]')!;

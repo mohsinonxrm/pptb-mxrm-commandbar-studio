@@ -129,7 +129,7 @@ export function LocationRow() {
 		<div className={`${styles.row} ${styles.locationRow}`}>
 			{table && (
 				<Tooltip
-					content={`Table: ${tableName || table} (${table})`}
+					content={`Entity: ${tableName || table} (${table})`}
 					relationship="description"
 				>
 					<span

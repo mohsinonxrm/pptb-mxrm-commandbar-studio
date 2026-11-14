@@ -100,7 +100,7 @@ const useStyles = makeStyles({
 });
 
 /** While the ribbon loads, the grids don't claim there's nothing (#229). */
-const NOT_LOADED = "Shown once the table's ribbon is loaded.";
+const NOT_LOADED = "Shown once the entity's ribbon is loaded.";
 
 export function BottomPanel() {
 	const styles = useStyles();

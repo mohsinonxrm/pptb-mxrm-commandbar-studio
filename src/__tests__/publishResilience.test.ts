@@ -722,7 +722,7 @@ describe("a change made elsewhere while publishing (#102)", () => {
 				verifyDelayMs: 0,
 			}),
 		).rejects.toThrow(
-			/cbstest_ribbontest's customizations changed when it was published first .*Can't delete cbs\.Go.*Reload the table.*was published first, so customizations imported elsewhere/,
+			/cbstest_ribbontest's customizations changed when it was published first .*Can't delete cbs\.Go.*Reload the entity.*was published first, so customizations imported elsewhere/,
 		);
 		expect(env.calls).not.toContain("import");
 	});

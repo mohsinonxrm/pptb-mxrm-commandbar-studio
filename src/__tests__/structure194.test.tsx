@@ -432,7 +432,7 @@ describe("#194 the Structure tree", () => {
 	it("says the tree comes once the table's ribbon is loaded", () => {
 		useDraftStore.setState({ target: null });
 		render();
-		expect(container.textContent).toContain("Shown once the table's ribbon is loaded.");
+		expect(container.textContent).toContain("Shown once the entity's ribbon is loaded.");
 		expect(container.querySelector('[role="tree"]')).toBeNull();
 	});
 
@@ -451,7 +451,7 @@ describe("#194 the Structure tree", () => {
 		useSessionStore.setState({ activeEntity: null } as never);
 		render();
 		expect(container.textContent).toContain(
-			"Choose a table to see its tabs, groups and buttons.",
+			"Choose an entity to see its tabs, groups and buttons.",
 		);
 		expect(
 			container.querySelector<HTMLInputElement>('input[aria-label="Filter the structure"]')

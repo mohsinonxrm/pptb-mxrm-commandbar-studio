@@ -161,7 +161,7 @@ describe("#16 — restore dialog", () => {
 
 		act(() => load());
 		expect(document.body.textContent).toContain(
-			"unpublished changes to this table from a previous session",
+			"unpublished changes to this entity from a previous session",
 		);
 		expect(buttonsNow()).toEqual(["cbs.Mine"]);
 		click("Restore changes");
@@ -192,7 +192,7 @@ describe("#16 — switching with unpublished changes", () => {
 
 		act(() => useDraftStore.getState().requestEntitySwitch(entity("contact")));
 		expect(document.body.textContent).toContain(
-			"Account has changes that aren't published. Switch to table Contact?",
+			"Account has changes that aren't published. Switch to entity Contact?",
 		);
 		click("Cancel");
 		expect(useSessionStore.getState().activeEntity?.logicalName).toBe(T);

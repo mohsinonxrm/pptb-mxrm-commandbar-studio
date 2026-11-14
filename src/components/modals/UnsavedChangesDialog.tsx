@@ -20,10 +20,10 @@ export function UnsavedChangesDialog() {
 	const activeSolution = useSessionStore((s) => s.activeSolution);
 	if (!pendingSwitch) return null;
 
-	const table = activeEntity?.displayName || activeEntity?.logicalName || "this table";
+	const table = activeEntity?.displayName || activeEntity?.logicalName || "this entity";
 	const to =
 		pendingSwitch.kind === "entity"
-			? `table ${pendingSwitch.entity.displayName || pendingSwitch.entity.logicalName}`
+			? `entity ${pendingSwitch.entity.displayName || pendingSwitch.entity.logicalName}`
 			: `solution ${pendingSwitch.solution.friendlyName || pendingSwitch.solution.uniqueName}`;
 	const solution = activeSolution?.friendlyName || activeSolution?.uniqueName || "this solution";
 

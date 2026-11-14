@@ -70,9 +70,9 @@ To try a build inside PPTB, load the repository folder as a local tool after
 - **Ground behaviour in Microsoft Learn, then verify it live.** Cite the Learn page in the
   code or PR. When the docs and Dataverse disagree, Dataverse's actual behaviour wins, and
   the PR says what was verified and how.
-- **Publishing keeps what's already there.** A publish writes the table's complete ribbon
+- **Publishing keeps what's already there.** A publish writes the entity's complete ribbon
   customization (what is published plus the session's changes) and verifies the result.
-  Changes to publishing are verified live on a test table, and the table is restored.
+  Changes to publishing are verified live on a test entity, and the entity is restored.
 - **Both hosts.** The tool runs in the PPTB desktop app and the VS Code extension. Use
   Dataverse requests that behave the same in both (see `publishService.ts` and
   `ribbonService.ts`).

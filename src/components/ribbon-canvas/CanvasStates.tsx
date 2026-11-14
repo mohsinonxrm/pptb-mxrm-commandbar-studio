@@ -94,13 +94,13 @@ export function CanvasEmptyState({ kind }: { kind: CanvasEmptyKind }) {
 		<div className={styles.empty}>
 			<TableRegular className={styles.icon} aria-hidden="true" />
 			<Text size={500} weight="semibold">
-				Pick a table
+				Pick an entity
 			</Text>
 			<Text className={styles.body}>
-				Choose a table from this solution to see and change its command bars.
+				Choose an entity from this solution to see and change its command bars.
 			</Text>
 			<Button appearance="primary" onClick={() => openTablePicker(true)}>
-				Choose table
+				Choose entity
 			</Button>
 		</div>
 	);
@@ -136,7 +136,7 @@ export function CanvasLoading({ table, step }: { table?: string; step?: string |
 function causeOf(error: string): string {
 	if (/\b401\b|unauthori[sz]ed/i.test(error)) return "Your connection may have expired.";
 	if (/\b403\b|forbidden|privilege/i.test(error))
-		return "Your account may not have permission to read this table's ribbon.";
+		return "Your account may not have permission to read this entity's ribbon.";
 	if (/\b(429|503|504)\b|timeout|timed out/i.test(error))
 		return "Dataverse was busy or didn't answer in time. Try again in a moment.";
 	if (/\b5\d\d\b/.test(error)) return "Dataverse returned an error.";

@@ -41,14 +41,14 @@ export function DraftRestoreDialog() {
 			}
 		>
 			<Text block>
-				You have unpublished changes to this table from a previous session (saved{" "}
+				You have unpublished changes to this entity from a previous session (saved{" "}
 				{new Date(pending.savedAt).toLocaleString()}). Restore them on top of the ribbon as
 				it is now, or discard them?
 			</Text>
 			{baselineChanged && (
 				<MessageBar intent="warning" layout="multiline" style={{ marginTop: "12px" }}>
 					<MessageBarBody>
-						The table&apos;s ribbon has changed since then (published from another
+						The entity&apos;s ribbon has changed since then (published from another
 						session, or by someone else): review the publish plan before publishing.
 					</MessageBarBody>
 				</MessageBar>

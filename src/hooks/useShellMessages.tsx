@@ -56,12 +56,12 @@ export function useConnectionChangedMessage(): SlotMessage | null {
 		title: `Connection changed to ${to}`,
 		body: (
 			<>
-				The solution and table loaded from {from} were closed; pick a solution to continue
+				The solution and entity loaded from {from} were closed; pick a solution to continue
 				in {to}.{" "}
 				{notice.draftKept && (
 					<>
 						Your unpublished changes were kept as a draft: switch the tool back to{" "}
-						{from} and open the table to restore them.
+						{from} and open the entity to restore them.
 					</>
 				)}
 				{notice.draftLost && (

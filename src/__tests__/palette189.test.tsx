@@ -129,7 +129,7 @@ describe("#189 the command palette", () => {
 		const groups = [...dialog().querySelectorAll('[role="group"]')].map((g) =>
 			g.getAttribute("aria-label"),
 		);
-		expect(groups).toEqual(["Actions", "Buttons", "Commands", "Rules", "Tables"]);
+		expect(groups).toEqual(["Actions", "Buttons", "Commands", "Rules", "Entities"]);
 		expect(dialog().textContent).not.toMatch(/theme/i);
 		// Nothing to undo, nothing selected: those actions aren't offered.
 		expect(dialog().textContent).not.toMatch(/\bUndo\b|Translations…/);
@@ -162,7 +162,7 @@ describe("#189 the command palette", () => {
 		type("/");
 		expect(optionText().every((t) => t?.startsWith("Action"))).toBe(true);
 		type("@cont");
-		expect(optionText()).toEqual(["TableContactcontact"]);
+		expect(optionText()).toEqual(["EntityContactcontact"]);
 		type("zzz");
 		expect(dialog().textContent).toContain("Nothing matches “zzz”.");
 	});

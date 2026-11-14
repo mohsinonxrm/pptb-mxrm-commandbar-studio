@@ -40,10 +40,10 @@ const BADGE_COLOR: Record<
 };
 
 function whereText(info: CommandProvenanceInfo): string {
-	if (info.scope === "application") return "the application ribbon's layer (every table)";
+	if (info.scope === "application") return "the application ribbon's layer (every entity)";
 	return info.sharedWithApplication
-		? "this table's layer only (the application ribbon keeps the original)"
-		: "this table's layer";
+		? "this entity's layer only (the application ribbon keeps the original)"
+		: "this entity's layer";
 }
 
 /**
@@ -171,11 +171,11 @@ export function CommandProvenanceBar({
 			"original. Uncustomise to remove the copy so the original applies again.",
 		uncustomising:
 			`On publish, the copy of this command in ${whereText(info)} is removed (with rules only it used) and ` +
-			"the original applies again. Reload the table after publishing to see the original definition.",
+			"the original applies again. Reload the entity after publishing to see the original definition.",
 		custom: "Your own command.",
 		reloadRequired:
 			"Your layer's copy of this command was removed, so the original applies. What is shown here is the " +
-			"removed copy: reload the table to load the original before changing or customising it again.",
+			"removed copy: reload the entity to load the original before changing or customising it again.",
 	};
 	// Your own command needs no notice: its badge says it (#181).
 	if (provenance === "custom")

@@ -144,7 +144,7 @@ export function RibbonCanvas({
 			id: `hidden-tab:${currentTab.id}`,
 			intent: "warning",
 			title: "Unified Interface doesn't show this tab's buttons",
-			body: "They don't come back when the table is reloaded either. Add buttons to the table's main tab instead.",
+			body: "They don't come back when the entity is reloaded either. Add buttons to the entity's main tab instead.",
 		});
 	}
 	// The table's customizations the ribbon doesn't return anywhere (#64).

@@ -47,7 +47,9 @@ describe("#22 the top bar", () => {
 		expect(labels).not.toContain("Save");
 
 		act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Help"]')!.click());
-		expect(document.body.textContent).toContain("kept as a draft for each table automatically");
+		expect(document.body.textContent).toContain(
+			"kept as a draft for each entity automatically",
+		);
 		const copy = [...document.querySelectorAll("button")].find(
 			(b) => b.textContent === "Copy documentation link",
 		)!;

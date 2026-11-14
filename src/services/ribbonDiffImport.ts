@@ -122,23 +122,23 @@ function pickRibbonDiff(doc: Document, entity: string, application: boolean): El
 		throw new Error(
 			all.length === 0
 				? "No <RibbonDiffXml> element found."
-				: `The XML has ${all.length} <RibbonDiffXml> elements and none belongs to a table or the application ribbon — paste just one.`,
+				: `The XML has ${all.length} <RibbonDiffXml> elements and none belongs to an entity or the application ribbon — paste just one.`,
 		);
 	}
 	const found = [
-		...tables.map((t) => t.name || "(unnamed table)"),
+		...tables.map((t) => t.name || "(unnamed entity)"),
 		...(appRdx ? ["the application ribbon"] : []),
 	].join(", ");
 	if (application) {
 		if (appRdx) return appRdx;
 		throw new Error(
-			`The XML has no application ribbon RibbonDiffXml (it has: ${found}). Open that table's ribbon to import its customizations.`,
+			`The XML has no application ribbon RibbonDiffXml (it has: ${found}). Open that entity's ribbon to import its customizations.`,
 		);
 	}
 	const match = tables.find((t) => t.name.toLowerCase() === entity.toLowerCase());
 	if (match) return match.rdx;
 	throw new Error(
-		`The XML has no RibbonDiffXml for ${entity || "the loaded table"} (it has: ${found}). Load that table, or open the application ribbon for the application ribbon's customizations.`,
+		`The XML has no RibbonDiffXml for ${entity || "the loaded entity"} (it has: ${found}). Load that entity, or open the application ribbon for the application ribbon's customizations.`,
 	);
 }
 
@@ -184,7 +184,7 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		);
 	} else if (onApplication && !application) {
 		notes.push(
-			`The XML's Locations name the ${entity} table, so it was imported as that table's customizations, not the application ribbon's.`,
+			`The XML's Locations name the ${entity} entity, so it was imported as that entity's customizations, not the application ribbon's.`,
 		);
 	}
 	/** Where a table import's unprefixed ids and new tabs go first. */
@@ -263,11 +263,11 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 	const noteScope = (location: RibbonLocation, id: string) => {
 		if (application && location !== "Application") {
 			notes.push(
-				`${id} is on the table's ribbon (${location}), not the application ribbon: the change is published with the table.`,
+				`${id} is on the entity's ribbon (${location}), not the application ribbon: the change is published with the entity.`,
 			);
 		} else if (!application && location === "Application") {
 			notes.push(
-				`${id} was found only on the application ribbon: the change is published to the application ribbon and affects every table.`,
+				`${id} was found only on the application ribbon: the change is published to the application ribbon and affects every entity.`,
 			);
 		}
 	};
@@ -307,7 +307,7 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 		const m = ENTITY_PREFIX.exec(location);
 		let hint = "it isn't in the loaded ribbon";
 		if (m && m[2] !== "{!EntityLogicalName}" && entity && m[2] !== entity) {
-			hint = `it belongs to the ${m[2]} table, but ${entity} is loaded`;
+			hint = `it belongs to the ${m[2]} entity, but ${entity} is loaded`;
 		} else if (m?.[2] === "{!EntityLogicalName}" || location.startsWith("Mscrm.Global")) {
 			hint = "it belongs to the application ribbon, which isn't loaded with it";
 		}
@@ -642,7 +642,7 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 			);
 		}
 		notApplied.push(
-			`Hiding ${location}: not found in the loaded ribbon (it may belong to another table, or already be hidden by your customizations).`,
+			`Hiding ${location}: not found in the loaded ribbon (it may belong to another entity, or already be hidden by your customizations).`,
 		);
 	};
 

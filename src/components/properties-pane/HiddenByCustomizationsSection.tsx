@@ -66,7 +66,7 @@ export function HiddenByCustomizationsSection() {
 					<div key={`${r.scope}:${r.location}`} className={styles.row}>
 						<EyeOffRegular />
 						<Tooltip
-							content={`${r.location} (${r.scope === "entity" ? "this table" : "application ribbon"})`}
+							content={`${r.location} (${r.scope === "entity" ? "this entity" : "application ribbon"})`}
 							relationship="description"
 						>
 							<Text className={`${styles.id} ${pending ? styles.pending : ""}`}>

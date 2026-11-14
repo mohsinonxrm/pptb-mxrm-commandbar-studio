@@ -72,7 +72,7 @@ body:
 
   - type: input
     attributes:
-      label: Table (logical name)
+      label: Entity (logical name)
       placeholder: "e.g., account"
     validations:
       required: false

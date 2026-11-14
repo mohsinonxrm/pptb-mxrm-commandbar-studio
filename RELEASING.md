@@ -87,15 +87,15 @@ install, with the Insider icon for betas. Run that exact build in PPTB before pu
 2. **Download and unpack it** in an empty folder: `gh run download <run-id> -n package`, then
    `tar -xzf *.tgz`.
 3. **Load `package/` in PPTB** as a local tool (Debug → Load Local Tool), in the PPTB version
-   the tool targets (`minAPI`), on a non-production connection with a test table. Check:
+   the tool targets (`minAPI`), on a non-production connection with a test entity. Check:
    - it loads with no console errors and follows the light and dark theme;
    - the right icon: `package/dist/icons/icon.svg` is the Insider icon for a beta and the release
      icon otherwise (PPTB's sidebar keeps a tool's icon until PPTB restarts, so check the file
      or restart PPTB);
-   - a table opens in the test solution, and its views (Group cards, Classic, Modern, List)
+   - an entity opens in the test solution, and its views (Group cards, Classic, Modern, List)
      and the editor drawer (a command, XML, Compare) work;
-   - a publish on the test table: hide a button, publish, check the published layer, then
-     unhide it and publish again, so the table is back as it was. The publish dialog names
+   - a publish on the test entity: hide a button, publish, check the published layer, then
+     unhide it and publish again, so the entity is back as it was. The publish dialog names
      the environment and the solution;
    - the changes in this release's CHANGELOG section.
 4. **Record the result** on the release's tracking issue: the PPTB version and what was
@@ -141,7 +141,7 @@ Before promoting a beta to `latest`:
 1. **Milestone clear:** every issue in the milestone is closed or moved.
 2. **Smoke test** the latest beta, installed from npm, in the PPTB version the tool
    targets (`minAPI`), in the **desktop app and the VS Code extension**. Run the manual
-   checks the tracking issue lists, including a publish on a test table.
+   checks the tracking issue lists, including a publish on a test entity.
 3. **Soak:** 7 days with no new P0/P1 bug against the latest beta. Each fix ships as a
    new `beta.N`, and the clock restarts.
 4. **Health:** CI green on `release/X.Y`; `npm audit --omit=dev --audit-level=high`

@@ -638,8 +638,8 @@ export const BulkPublishModal: React.FC = () => {
 		: baseLanguageUnknown
 			? {
 					intent: "error",
-					title: "Reload the table first",
-					text: "The organization's base language couldn't be read when the table loaded, so labels are shown in English. Publishing now could write English texts as the base language's titles.",
+					title: "Reload the entity first",
+					text: "The organization's base language couldn't be read when the entity loaded, so labels are shown in English. Publishing now could write English texts as the base language's titles.",
 				}
 			: unsupported.length > 0
 				? {
@@ -671,7 +671,7 @@ export const BulkPublishModal: React.FC = () => {
 							: {
 									intent: "info",
 									title: "Nothing to publish",
-									text: "Every change on this table is already published.",
+									text: "Every change on this entity is already published.",
 								}
 						: publishAllBlocked
 							? {
@@ -939,7 +939,7 @@ export const BulkPublishModal: React.FC = () => {
 								<AccordionPanel>
 									<ul className={styles.list}>
 										<li>
-											Publishing writes this table&apos;s complete ribbon
+											Publishing writes this entity&apos;s complete ribbon
 											customization: what is already published, plus your
 											changes. Ribbon changes imported elsewhere but not
 											published are published first, so they are kept. Each
@@ -996,7 +996,7 @@ export const BulkPublishModal: React.FC = () => {
 													This publishes <strong>every</strong>{" "}
 													unpublished customization in{" "}
 													<strong>{connectionName}</strong>, not only
-													these ribbons: forms, views, tables and other
+													these ribbons: forms, views, entities and other
 													people&apos;s work in progress included.
 												</Text>
 												<Checkbox

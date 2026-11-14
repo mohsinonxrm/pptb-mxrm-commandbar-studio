@@ -48,7 +48,7 @@ const initialUI = useUIStore.getState();
 const initialDraft = useDraftStore.getState();
 const requestEntitySwitch = vi.fn();
 
-const input = () => container.querySelector<HTMLInputElement>('input[aria-label="Table"]')!;
+const input = () => container.querySelector<HTMLInputElement>('input[aria-label="Entity"]')!;
 const options = () => [...document.querySelectorAll<HTMLElement>('[role="option"]')];
 const groups = () =>
 	[...document.querySelectorAll<HTMLElement>('[role="group"]')].map(
@@ -120,7 +120,7 @@ describe("#194 the table picker in the top bar", () => {
 		).not.toContain("Draft");
 		const account = options().find((o) => o.textContent?.includes("Account"))!;
 		expect(account.getAttribute("aria-selected")).toBe("true");
-		expect(account.querySelector('[aria-label="Managed table"]')).toBeTruthy();
+		expect(account.querySelector('[aria-label="Managed entity"]')).toBeTruthy();
 	});
 
 	it("filters by display or logical name, and says when nothing matches", () => {
@@ -131,7 +131,7 @@ describe("#194 the table picker in the top bar", () => {
 			expect.stringContaining("Ribbon Test"),
 		]);
 		type("zzz");
-		expect(options().map((o) => o.textContent)).toEqual(["No tables match."]);
+		expect(options().map((o) => o.textContent)).toEqual(["No entities match."]);
 	});
 
 	it("choosing a table asks the draft store to switch (the unsaved-changes check)", () => {
@@ -168,7 +168,7 @@ describe("#194 the table picker in the top bar", () => {
 		render();
 		act(() =>
 			[...container.querySelectorAll("button")]
-				.find((b) => b.textContent === "Choose table")!
+				.find((b) => b.textContent === "Choose entity")!
 				.click(),
 		);
 		expect(options().length).toBe(0);
@@ -180,10 +180,10 @@ describe("#194 the table picker in the top bar", () => {
 	it("Choose table on the empty canvas opens the list", () => {
 		useSessionStore.setState({ activeEntity: null });
 		render();
-		expect(input().placeholder).toBe("Choose table");
+		expect(input().placeholder).toBe("Choose entity");
 		act(() =>
 			[...container.querySelectorAll("button")]
-				.find((b) => b.textContent === "Choose table")!
+				.find((b) => b.textContent === "Choose entity")!
 				.click(),
 		);
 		expect(useUIStore.getState().tablePickerOpen).toBe(true);
@@ -197,7 +197,7 @@ describe("#194 the table picker in the top bar", () => {
 		expect(input().disabled).toBe(true);
 		expect(input().placeholder).toBe("Choose a solution first");
 		act(() => useSessionStore.setState({ activeSolution: SOLUTION, solutionEntityIds: null }));
-		expect(input().placeholder).toBe("Loading tables…");
+		expect(input().placeholder).toBe("Loading entities…");
 	});
 
 	it("a solution without tables says how to add one", () => {
@@ -205,7 +205,7 @@ describe("#194 the table picker in the top bar", () => {
 		render();
 		openList();
 		expect(options()[0].textContent).toContain(
-			"No tables in CBS Live Test. Add one in the maker portal",
+			"No entities in CBS Live Test. Add one in the maker portal",
 		);
 	});
 });

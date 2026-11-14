@@ -135,17 +135,17 @@ export const RuleStepPicker: React.FC<RuleStepPickerProps> = ({
 	// Arrow keys move through the kinds (#189): Tab enters and leaves the list once.
 	const navigation = useArrowNavigationGroup({ axis: "vertical" });
 
+	// Dataverse now says "table" for an entity: searching for it finds the entity steps too.
+	const queries = [
+		...new Set([search.toLowerCase(), search.toLowerCase().replace("table", "entity")]),
+	];
 	const filtered = RULE_KIND_GROUPS.map((group) => ({
 		...group,
 		kinds: group.kinds.filter((k) => {
 			if (container && !isRuleKindAllowed(k, container, insideOr)) return false;
 			if (insideOr && k === "OrRule") return false;
-			const label = RULE_KIND_LABELS[k] ?? k;
-			return (
-				!search ||
-				label.toLowerCase().includes(search.toLowerCase()) ||
-				k.toLowerCase().includes(search.toLowerCase())
-			);
+			const label = (RULE_KIND_LABELS[k] ?? k).toLowerCase();
+			return !search || queries.some((q) => label.includes(q) || k.toLowerCase().includes(q));
 		}),
 	})).filter((g) => g.kinds.length > 0);
 

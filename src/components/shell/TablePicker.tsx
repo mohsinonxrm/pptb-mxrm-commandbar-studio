@@ -133,7 +133,7 @@ export function TablePicker() {
 						<LockClosedRegular
 							fontSize={12}
 							className={styles.muted}
-							aria-label="Managed table"
+							aria-label="Managed entity"
 						/>
 					)}
 				</div>
@@ -143,8 +143,8 @@ export function TablePicker() {
 
 	const emptyMessage =
 		entities.length === 0 && activeSolution
-			? `No tables in ${activeSolution.friendlyName}. Add one in the maker portal (Solutions › ${activeSolution.friendlyName} › Add existing › Table) and reload.`
-			: "No tables match.";
+			? `No entities in ${activeSolution.friendlyName}. Add one in the maker portal (Solutions › ${activeSolution.friendlyName} › Add existing › Table) and reload.`
+			: "No entities match.";
 
 	const handleSelect: ComboboxProps["onOptionSelect"] = (ev, data) => {
 		// Typing clears a freeform combobox's selection: that's not a choice.
@@ -160,13 +160,13 @@ export function TablePicker() {
 	const placeholder = !activeSolution
 		? "Choose a solution first"
 		: loading
-			? "Loading tables…"
-			: "Choose table";
+			? "Loading entities…"
+			: "Choose entity";
 
 	return (
 		<Combobox
 			ref={inputRef}
-			aria-label="Table"
+			aria-label="Entity"
 			className={styles.combobox}
 			input={{ className: styles.input }}
 			listbox={{ className: styles.listbox }}
