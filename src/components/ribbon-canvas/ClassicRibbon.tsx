@@ -38,6 +38,7 @@ import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonGroup, RibbonTab, RibbonLocation } from "@/types/ribbon";
 import { idCaption } from "@/utils/displayText";
+import { newButtonBlockedReason, newGroupBlockedReason } from "@/utils/globalTab";
 
 // ---------------------------------------------------------------------------
 // Drag ID encoding helpers
@@ -525,8 +526,13 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 									type="button"
 									style={useStyles.addButtonGhost}
 									data-add-btn-group-id={group.id}
+									// Not where the button wouldn't show (#166)
+									disabled={!!newButtonBlockedReason(location, tab.id, group.id)}
 									onClick={() => openNewButton(group.id)}
-									title={`Add button to ${groupText(group)}`}
+									title={
+										newButtonBlockedReason(location, tab.id, group.id) ??
+										`Add button to ${groupText(group)}`
+									}
 									aria-label={`Add button to ${groupText(group)}`}
 								>
 									<AddRegular fontSize={16} />
@@ -546,6 +552,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 					<button
 						type="button"
 						style={useStyles.addGroupBtn}
+						disabled={!!newGroupBlockedReason(location, tab.id)}
 						onClick={() =>
 							createGroup({
 								tabId: tab.id,
@@ -558,7 +565,7 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 								},
 							})
 						}
-						title="Add group"
+						title={newGroupBlockedReason(location, tab.id) ?? "Add group"}
 						aria-label="Add group"
 					>
 						<AddRegular fontSize={16} />

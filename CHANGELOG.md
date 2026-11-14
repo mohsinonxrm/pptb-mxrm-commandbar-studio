@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Fixed
 
+- **Buttons for the global command bar go only where it shows them (#166).** Microsoft's docs
+  support one place for your buttons on `Mscrm.GlobalTab`: its New group
+  (`Mscrm.GlobalTab.New.Controls._children`), in Unified Interface. CBS let you add groups to
+  GlobalTab and buttons to its other groups, and published them without a word. Now:
+  - **No new groups on GlobalTab:** Add group, Duplicate group and New group are disabled there and
+    say why.
+  - **New buttons only in the New group:** on GlobalTab's other groups, Add button, Duplicate (and
+    Ctrl+D), a flyout's Add item and Customise button are disabled or refused with the reason. Move
+    to and the Solution tab's Add to don't offer those groups, and dropping a button there is
+    refused. Your buttons already there stay editable.
+  - **The publish dialog warns** about anything already added outside the New group (an import,
+    say).
+  - **The Application ribbon's note** says this, instead of "Buttons on GlobalTab appear in the
+    global command bar".
 - **A failed import says why (#107).** When the import itself fails with a fault that doesn't
   give the reason (a generic server error, a timeout), Publish now reads the import job and adds
   its own failure, for example "Dataverse couldn't import the solution (0x80048033): …". When an
@@ -25,7 +39,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   like Group or Tab is still shown as the id. The List view's search still finds a group by its
   id. Display only: what publishes is unchanged.
 
+## [0.9.0] - 2026-11-14
+
+The UX overhaul in Fluent 2, and Edit mode. Command Bar Studio now shows a Structure tree and
+group cards you can reorder, edits commands, rules, scripts and XML in one drawer, and says what
+a publish will do before it runs. This release is 0.9.0-beta.1 to 0.9.0-beta.3, whose notes below
+are the full list. Requires Power Platform ToolBox 1.2.7 or later, as 0.8 does.
+
+### Highlights
+
+- **Edit mode (#193):**
+  - a Structure tree of tabs, groups and buttons, and group cards you can reorder;
+  - "How users see it", a preview of the command bar;
+  - a Solution tab, an entity picker in the top bar, and a List view that fits and sorts.
+- **One editor drawer** for commands, rules, scripts, XML, Compare and Translations, with Done
+  and one Undo step per drawer.
+- **Properties:** sections by kind, with texts shown as the canvas shows them. A button that
+  isn't yours is read-only until you customise it, and since beta.3 its rules can't be bound or
+  unbound from Properties either (#267).
+- **The publish dialog** says what will publish and why Publish is blocked.
+- **Dialogs** use one shell and open on the right control: search boxes get focus, and default
+  names are selected so typing replaces them (#268).
+- **Keyboard and screen readers (#23):** the pane resize handles work from the keyboard, and the
+  Classic and Modern canvases have accurate roles and keyboard selection.
+- **Lighter start (#118):** the code editor loads the first time you open one, with XML and
+  JavaScript only; the package is 2.7 MB smaller (16.3 → 13.6 MB unpacked).
+- **Fixes:** closing Compare no longer logs a disposed-model error (#266).
+
+### ⚠️ Upgrading from 0.8.x
+
+- **Changes you'll notice:**
+  - **Layout:** the entity picker moved from the left pane to the top bar. The left pane has
+    Structure and Solution tabs, and the canvas view (Group cards, Classic, Modern or List) is
+    picked from **View** above the canvas.
+  - **Editors:** commands, rules, scripts, XML, Compare and Translations open in one drawer
+    instead of separate panels and dialogs; **Done** closes it.
+  - **Microsoft's buttons:** Properties and the command editor are read-only for a button or
+    command that isn't yours until you choose **Customise command**.
+- **Nothing else changes:** the PPTB requirement and the published format are the same.
+- **0.8.x is end of life:** 0.8.0 is deprecated on npm and gets no support window, because
+  0.9.0 needs the same PPTB (see `SECURITY.md`).
+- **0.9.0-beta.3 wasn't published to npm.** Its fixes ship in 0.9.0.
+
 ## [0.9.0-beta.3] - 2026-11-12
+
+Not published to npm: these fixes ship in 0.9.0.
 
 ### 🔧 Fixed
 
