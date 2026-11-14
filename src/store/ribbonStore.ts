@@ -1108,11 +1108,9 @@ export const useRibbonStore = create<RibbonStore>()(
 						application: stillHidden("application"),
 					},
 				};
-				// Nothing to restore (the server has it all): not a change.
-				if (
-					JSON.stringify(workspaceOf({ ...state, ...change })) ===
-					JSON.stringify(workspaceOf(state))
-				)
+				// Nothing to restore (the server has it all): not a change. Key order doesn't
+				// count, as in hasPendingChanges (#111).
+				if (jsonEqual(workspaceOf({ ...state, ...change }), workspaceOf(state)))
 					return state;
 				return record(
 					state,

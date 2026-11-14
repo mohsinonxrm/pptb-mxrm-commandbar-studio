@@ -8,7 +8,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { hasPendingChanges, useRibbonStore, type RibbonStoreState } from "@/store/ribbonStore";
+import {
+	hasPendingChanges,
+	useRibbonStore,
+	workspaceOf,
+	type RibbonStoreState,
+} from "@/store/ribbonStore";
 import { parseRibbonXml } from "@/services/xmlParser";
 import { draftWorkspace, readDraft, writeDraft, type DraftKey } from "@/services/ribbonDraft";
 import { groupControls } from "@/utils/ribbonMenu";
@@ -176,6 +181,25 @@ describe("#111 jsonEqual answers as JSON.stringify would", () => {
 		expect(JSON.stringify(a) === JSON.stringify(b)).toBe(false);
 		expect(jsonEqual(a, b)).toBe(true);
 	});
+
+	it("calls toJSON once per value, as JSON does", () => {
+		let calls = 0;
+		const date = {
+			toJSON(key: string) {
+				calls++;
+				// A toJSON result's own toJSON isn't called again
+				return { key, toJSON: () => "never" };
+			},
+		};
+		expect(jsonEqual({ a: date }, { a: { key: "a" } })).toBe(true);
+		expect(calls).toBe(1);
+		calls = 0;
+		expect(jsonEqual([date], [{ key: "0" }])).toBe(true);
+		expect(jsonEqual({ b: date }, {})).toBe(false);
+		expect(jsonEqual({}, { b: date })).toBe(false);
+		expect(calls).toBe(3);
+		expect(JSON.stringify({ a: date })).toBe('{"a":{"key":"a"}}');
+	});
 });
 
 describe("#111 pending changes", () => {
@@ -330,6 +354,28 @@ describe("#111 pending changes", () => {
 		expect(pending()).toBe(true);
 	});
 
+	it("a restore that differs from the workspace only in key order restores nothing", () => {
+		const s = store();
+		const reversed = <T extends object>(o: T): T =>
+			Object.fromEntries(Object.entries(o).reverse()) as T;
+		const workspace = {
+			...workspaceOf(s),
+			ribbons: { ...s.ribbons, Form: reversed(s.ribbons.Form) },
+			commands: s.commands.map(reversed),
+		};
+		expect(JSON.stringify(workspace) === JSON.stringify(workspaceOf(s))).toBe(false);
+		store().restoreWorkspace(workspace, "test");
+		expect(store().past).toHaveLength(0);
+		expect(pending()).toBe(false);
+		// A real difference is still restored
+		store().restoreWorkspace(
+			{ ...workspace, commands: [...s.commands, { ...COMMAND, id: "cbs.Other" }] },
+			"test",
+		);
+		expect(store().past).toHaveLength(1);
+		expect(pending()).toBe(true);
+	});
+
 	it("a draft with nothing left in it restores nothing", () => {
 		const key: DraftKey = {
 			orgUrl: "https://org",
@@ -346,54 +392,48 @@ describe("#111 pending changes", () => {
 		expect(pending()).toBe(false);
 	});
 
-	it("nothing shared with the baseline is changed in place", () => {
+	it("the store's shared state is frozen in tests (setup/freezeStore.ts)", () => {
 		// The baseline shares objects with the workspace and its undo history: an edit that
-		// changed one in place would change the baseline too, and hide itself. Freeze them all,
-		// after every change, and edit away: an in-place change would throw.
-		const freeze = (o: unknown) => {
-			if (!o || typeof o !== "object" || Object.isFrozen(o)) return;
-			Object.freeze(o);
-			for (const v of Object.values(o)) freeze(v);
-		};
-		const freezeAll = (s: RibbonStoreState) => {
-			for (const k of [
-				"ribbons",
-				"baseline",
-				"commands",
-				"enableRules",
-				"displayRules",
-				"locLabels",
-				"baselineCommands",
-				"baselineEnableRules",
-				"baselineDisplayRules",
-				"baselineLocLabels",
-				"past",
-				"future",
-			] as const)
-				freeze(s[k]);
-		};
-		freezeAll(store());
-		const unsubscribe = useRibbonStore.subscribe(freezeAll);
-		try {
-			const tab = store().ribbons.Form.tabs[0];
-			const group = tab.groups.find((g) => groupControls(g).length > 0)!;
-			const button = groupControls(group)[0];
-			store().setButtonProp("Form", tab.id, group.id, button.id, { label: "x" });
-			store().setButtonProp("Form", tab.id, group.id, button.id, { hidden: true });
-			store().upsertCommand({ ...COMMAND, enableRules: [] });
-			store().customiseButton("Form", tab.id, group.id, button.id, "cbs");
-			store().markPublished(["Form"]);
-			store().undo();
-			store().undo();
-			store().redo();
-			store().discardCommandChanges(COMMAND.id);
-			store().markPublished();
-			store().deleteButton("Form", tab.id, group.id, button.id);
-			store().undo();
-			expect(typeof pending()).toBe("boolean");
-		} finally {
-			unsubscribe();
-		}
+		// changed one in place would change the baseline too, and hide itself. The test setup
+		// freezes them after every change, so such a write throws.
+		const s = store();
+		const button = groupControls(
+			s.ribbons.Form.tabs.flatMap((t) => t.groups).find((g) => groupControls(g).length > 0)!,
+		)[0];
+		expect(s.ribbons.Form).toBe(s.baseline.Form);
+		expect(() => {
+			(button as { label: string }).label = "changed in place";
+		}).toThrow(TypeError);
+		expect(() => {
+			s.commands.push(COMMAND);
+		}).toThrow(TypeError);
+		expect(() => {
+			(s.baselineLocLabels[0].titles[0] as { description: string }).description = "x";
+		}).toThrow(TypeError);
+		// …after a change too: the edit's own copy, and the history entry
+		firstButton("Form").setLabel("Renamed");
+		const after = store();
+		expect(Object.isFrozen(after.ribbons.Form.tabs[0])).toBe(true);
+		expect(Object.isFrozen(after.past[0].snapshot.ribbons.Form)).toBe(true);
+	});
+
+	it("edits, publishes, undo and redo change nothing shared in place", () => {
+		const tab = store().ribbons.Form.tabs[0];
+		const group = tab.groups.find((g) => groupControls(g).length > 0)!;
+		const button = groupControls(group)[0];
+		store().setButtonProp("Form", tab.id, group.id, button.id, { label: "x" });
+		store().setButtonProp("Form", tab.id, group.id, button.id, { hidden: true });
+		store().upsertCommand({ ...COMMAND, enableRules: [] });
+		store().customiseButton("Form", tab.id, group.id, button.id, "cbs");
+		store().markPublished(["Form"]);
+		store().undo();
+		store().undo();
+		store().redo();
+		store().discardCommandChanges(COMMAND.id);
+		store().markPublished();
+		store().deleteButton("Form", tab.id, group.id, button.id);
+		store().undo();
+		expect(typeof pending()).toBe("boolean");
 	});
 
 	it("typing 200 characters with a check after each walks only the edited location", () => {
