@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ✨ Added
+
+- **Translate tab and group titles (#136).** A tab's or group's menu (in Structure, and a group's
+  ⋮ on the canvas) has **Translate title…**, which opens the title's translations in the editor
+  drawer, like a button's. The base language is the title itself (editing it renames the tab or
+  group); other languages are added, typed and removed as for buttons. Only your own tabs and
+  groups can be translated, as only they can be renamed. A title whose label other tabs, groups or
+  buttons share stays read-only (its translations would change for all of them), and so does a
+  copied or imported title until you change it. A new tab's or group's title is now published with
+  every language it has; before, only the base language was written.
+
 ### 🔧 Fixed
 
 - **Buttons for the global command bar go only where it shows them (#166).** Microsoft's docs
@@ -43,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its own failure, for example "Dataverse couldn't import the solution (0x80048033): …". When an
   import succeeds but no ribbon was applied, the job's failure is shown, if it has one, instead of
   "no entityRibbon result". Quotes, apostrophes and ampersands in Dataverse's text are decoded.
+- **Adding a language by typing it no longer adds two (#136).** Typing an LCID such as 1036 in
+  **Add a language** and pressing Enter added French and the first language in the list (German);
+  the list now narrows to what's typed.
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
   one-word resource key showed the key: the account grid's **OpenAllRecordsViewImageButtonText**
   now reads "Open All Records View". A tab or group without a title showed its whole id

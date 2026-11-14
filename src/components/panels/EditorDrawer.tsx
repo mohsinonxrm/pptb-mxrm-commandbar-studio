@@ -29,6 +29,7 @@ const TabDisplayRulesPanel = lazy(() => import("@/components/panels/TabDisplayRu
 const XmlView = lazy(() => import("@/components/panels/XmlView"));
 const CompareView = lazy(() => import("@/components/panels/CompareView"));
 const TranslationsView = lazy(() => import("@/components/panels/TranslationsView"));
+const TitleTranslationsView = lazy(() => import("@/components/panels/TitleTranslationsView"));
 
 /**
  * The editor drawer (#186): one drawer that navigates instead of drawers on
@@ -77,6 +78,8 @@ function viewTitle(view: EditorView): string {
 	if (view.kind === "tabRules") return "Tab display rules";
 	if (view.kind === "xml") return "XML of your changes";
 	if (view.kind === "translations") return "Translations";
+	if (view.kind === "titleTranslations")
+		return view.container === "tab" ? "Tab title translations" : "Group title translations";
 	if (view.kind === "diff")
 		return view.id === "compare" ? "Compare with published" : "What this change did";
 	return view.editable ? "Edit script" : "View script";
@@ -155,7 +158,8 @@ export function EditorDrawer() {
 				)}
 				{(view?.kind === "script" ||
 					view?.kind === "tabRules" ||
-					view?.kind === "translations") && (
+					view?.kind === "translations" ||
+					view?.kind === "titleTranslations") && (
 					<div className={styles.idRow}>
 						<div className={styles.id}>
 							<IdField
@@ -164,7 +168,11 @@ export function EditorDrawer() {
 										? "Tab ID"
 										: view.kind === "translations"
 											? "Button ID"
-											: "Web resource"
+											: view.kind === "titleTranslations"
+												? view.container === "tab"
+													? "Tab ID"
+													: "Group ID"
+												: "Web resource"
 								}
 								value={view.id}
 								hideLabel
@@ -191,6 +199,15 @@ export function EditorDrawer() {
 					{view?.kind === "xml" && <XmlView key={view.id} location={view.id} />}
 					{view?.kind === "translations" && (
 						<TranslationsView key={view.id} buttonId={view.id} />
+					)}
+					{view?.kind === "titleTranslations" && (
+						<TitleTranslationsView
+							key={view.id}
+							location={view.location}
+							container={view.container}
+							tabId={view.tabId}
+							id={view.id}
+						/>
 					)}
 					{view?.kind === "diff" && (
 						<CompareView
