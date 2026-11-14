@@ -116,6 +116,13 @@ are the full list. Requires Power Platform ToolBox 1.2.7 or later, as 0.8 does.
   classic ribbon doesn't lay it out (Unified Interface ignores templates). An unused helper that
   had the MaxSize / Scale order backwards is gone. Scaling stays read-only until changes to it can
   be published.
+- **Compare with published shows what Publish writes (#216).** Compare built both sides from the
+  generator alone, so changes only Publish's merge writes, such as a moved tab, showed +0 / −0.
+  Compare now reads your published customizations for the entity (and the application ribbon, when
+  it's published too) and compares them with the RibbonDiffXml Publish would import. When that
+  can't be built (no connection, a change Publish can't write yet, or no answer within 30 s), it
+  compares the generated XML as before and says why. Application ribbon changes Publish can't
+  import yet (the solution has no Application Ribbons) are left out, and Compare says so.
 
 ## [0.9.0-beta.3] - 2026-11-12
 
