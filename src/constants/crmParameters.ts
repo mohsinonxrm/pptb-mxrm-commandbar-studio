@@ -164,6 +164,23 @@ export const URL_INVALID_CRM_PARAMETER_VALUES = new Set<string>([
 	"SelectedControlUnselectedItemReferences",
 ]);
 
+/**
+ * The query string parameters an HTML web resource accepts (#160): "Pass parameters to HTML web
+ * resources" (pagemode, security and tabSet are for internal use). Your own values go in `data`.
+ * https://learn.microsoft.com/power-apps/developer/model-driven-apps/webpage-html-web-resources
+ */
+export const WEB_RESOURCE_URL_PARAMETERS = [
+	"data",
+	"typename",
+	"type",
+	"id",
+	"orgname",
+	"userlcid",
+	"orglcid",
+	"formid",
+	"entrypoint",
+];
+
 /** The values RibbonTypes.xsd allows for an unnamed (JavaScriptFunction / CustomRule) CrmParameter. */
 export const CRM_PARAMETER_VALUE_SET = new Set<string>(CRM_PARAMETER_VALUES.map((p) => p.value));
 

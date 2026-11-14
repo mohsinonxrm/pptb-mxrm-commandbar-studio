@@ -31,13 +31,13 @@ export const LOCATION_INFO: Record<RibbonLocation, LocationInfo> = {
 	SubGrid: {
 		label: "Sub-grid",
 		title: "Sub-grid",
-		body: "The command bar on this table's sub-grids on other tables' forms, and on the Related tab's associated view. A sub-grid has room for only a few commands before More commands. Of the built-in controls, only Add, Show List and Delete are supported, and their icons can't be changed.",
+		body: "The command bar on this entity's sub-grids on other entities' forms, and on the Related tab's associated view. Unified Interface shows the entity's whole sub-grid command bar there (Add New, Add Existing, Refresh, and with rows selected Edit, Delete, Assign, …), and in a narrow form column everything sits under More commands (⋮). Its built-in buttons can be overridden: in a live check, an override changed a sub-grid button's label, icon and command.",
 		ribbonId: "Mscrm.SubGrid.{table}",
 	},
 	Application: {
 		label: "Application",
 		title: "Application ribbon",
-		body: "Changes here apply to every table. Buttons on GlobalTab appear in the global command bar at the top of every page. Built-in GlobalTab buttons are read-only.",
+		body: "Changes here apply to every entity. Your buttons in GlobalTab's New group appear in the global command bar at the top of every page, in Unified Interface only, so new buttons can go only there, and GlobalTab takes no new groups. Built-in GlobalTab buttons are read-only.",
 		ribbonId: "Application ribbon",
 	},
 };
