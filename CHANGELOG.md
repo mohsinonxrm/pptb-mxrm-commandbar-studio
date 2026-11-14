@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Fixed
 
+- **Buttons for the global command bar go only where it shows them (#166).** Microsoft's docs
+  support one place for your buttons on `Mscrm.GlobalTab`: its New group
+  (`Mscrm.GlobalTab.New.Controls._children`), in Unified Interface. CBS let you add groups to
+  GlobalTab and buttons to its other groups, and published them without a word. Now:
+  - **No new groups on GlobalTab:** Add group, Duplicate group and New group are disabled there and
+    say why.
+  - **New buttons only in the New group:** on GlobalTab's other groups, Add button, Duplicate (and
+    Ctrl+D), a flyout's Add item and Customise button are disabled or refused with the reason. Move
+    to and the Solution tab's Add to don't offer those groups, and dropping a button there is
+    refused. Your buttons already there stay editable.
+  - **The publish dialog warns** about anything already added outside the New group (an import,
+    say).
+  - **The Application ribbon's note** says this, instead of "Buttons on GlobalTab appear in the
+    global command bar".
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
   one-word resource key showed the key: the account grid's **OpenAllRecordsViewImageButtonText**
   now reads "Open All Records View". A tab or group without a title showed its whole id
