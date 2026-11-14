@@ -184,6 +184,8 @@ Before promoting a beta to `latest`:
   no `support/0.6` line, since 0.7.0 needs the same PPTB (1.2.7).
 - **0.7.x is end of life at 0.8.0** (decided 2026-10-27): 0.7.0 is deprecated on npm and gets
   no `support/0.7` line, since 0.8.0 needs the same PPTB (1.2.7).
+- **0.8.x is end of life at 0.9.0** (decided 2026-11-14): 0.8.0 is deprecated on npm and gets
+  no `support/0.8` line, since 0.9.0 needs the same PPTB (1.2.7).
 - Older versions aren't supported. `SECURITY.md` lists the supported versions.
 
 ## Milestones and tracking
