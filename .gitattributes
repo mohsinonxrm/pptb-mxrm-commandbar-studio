@@ -12,3 +12,7 @@
 # Explicitly keep Windows-specific scripts with CRLF if needed
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# Microsoft's ribbon schemas (#126), kept byte for byte as downloaded (CRLF, BOM):
+# their checksums are in src/schemas/ribbon/README.md.
+src/schemas/ribbon/Ribbon*.xsd -text

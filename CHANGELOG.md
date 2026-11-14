@@ -15,8 +15,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   copied all four ribbons (main grid, sub-grid, form and application) before changing one of them.
   Now it copies only the ribbon it changes; the others are shared with the step before. On a large
   entity that's about a quarter of the copying per keystroke.
+
 ### ✨ Added
 
+- **The publish dialog checks against Microsoft's ribbon schema (#126).** Once the dialog has built
+  the RibbonDiffXml each import would write, it checks it against Microsoft's ribbon schemas
+  (RibbonCore, RibbonTypes and RibbonWSS 9.0.0.2090) and lists what they don't allow under
+  **Warnings**, under its own heading, each with the element and the rule, for example "Element
+  'Button', attribute 'Bogus': The attribute 'Bogus' is not allowed.". **These are only ever
+  warnings, and Publish stays enabled:** the schemas are from 2017, and Dataverse accepts ribbon
+  XML they don't describe. If Dataverse rejects the import, Publish shows its error. A finding in
+  something this publish doesn't write is marked as already published, and publishing anyway logs
+  the findings to the Console log. The check runs after the dialog's own check and never holds
+  Publish back. The validator (xmllint compiled to WebAssembly, about 0.8 MB) loads the first time
+  the dialog runs it, in a Web Worker; where the host doesn't allow workers, **Good to know** says
+  the check couldn't run. The checks that block a publish are unchanged.
 - **Translate tab and group titles (#136).** A tab's or group's menu (in Structure, and a group's
   ⋮ on the canvas) has **Translate title…**, which opens the title's translations in the editor
   drawer, like a button's. The base language is the title itself (editing it renames the tab or

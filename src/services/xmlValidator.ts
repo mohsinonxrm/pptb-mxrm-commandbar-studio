@@ -377,7 +377,9 @@ export type PublishCheckCode =
 	| "orphan-location"
 	| "label-id-length"
 	| "open-record-hidden"
-	| "schema";
+	| "schema"
+	/** Microsoft's 2017 ribbon schema (#126): always a warning. */
+	| "xsd";
 
 /** One pre-publish finding. Errors block the publish; warnings don't. */
 export interface PublishFinding {
