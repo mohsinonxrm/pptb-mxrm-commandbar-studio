@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     say).
   - **The Application ribbon's note** says this, instead of "Buttons on GlobalTab appear in the
     global command bar".
+- **The sub-grid note matches Unified Interface (#167).** "About this location" and a banner on
+  the Classic canvas said a sub-grid supports only Add, Show List and Delete, with icons that can't
+  change. That's the pre-Unified-Interface page. A live check showed Unified Interface shows the
+  entity's whole sub-grid command bar, and that overriding a built-in sub-grid button's label, icon
+  and command takes effect. The note now says so, and the banner is gone, as the other location
+  banners went in 0.9.0 (#181).
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
   one-word resource key showed the key: the account grid's **OpenAllRecordsViewImageButtonText**
   now reads "Open All Records View". A tab or group without a title showed its whole id
