@@ -24,6 +24,7 @@ import {
 	DataGridRow,
 } from "@fluentui-contrib/react-data-grid-react-window";
 import { distinguishingSegment } from "@/utils/idSegment";
+import { ruleTagTip } from "@/utils/ruleLabel";
 import type { CommandDefinition, DisplayRule, EnableRule, RibbonAction } from "@/types/ribbon";
 
 /**
@@ -273,9 +274,18 @@ function ElementGrid<T>({
 }
 
 /** A rule a command lists, as a tag naming the part of its id that tells it apart. */
-function RuleTag({ id, onOpen }: { id: string; onOpen: () => void }) {
+function RuleTag({
+	id,
+	kind,
+	onOpen,
+}: {
+	id: string;
+	kind: "enable" | "display";
+	/** Left out for a rule that isn't loaded (#162): there's nothing to open. */
+	onOpen?: () => void;
+}) {
 	return (
-		<Tooltip content={id} relationship="description">
+		<Tooltip content={ruleTagTip(id, kind, !!onOpen)} relationship="description">
 			<InteractionTag size="extra-small" appearance="outline" shape="rounded">
 				<InteractionTagPrimary onClick={onOpen}>
 					{distinguishingSegment(id)}
@@ -291,6 +301,7 @@ export function CommandsGrid({
 	height,
 	onOpen,
 	onOpenRule,
+	isRuleLoaded = () => true,
 	emptyText,
 }: {
 	commands: CommandDefinition[];
@@ -298,6 +309,8 @@ export function CommandsGrid({
 	height: number;
 	onOpen: (id: string) => void;
 	onOpenRule: (id: string, kind: "enable" | "display") => void;
+	/** Whether a rule is loaded, so it can be opened (#162). Default: every rule. */
+	isRuleLoaded?: (id: string, kind: "enable" | "display") => boolean;
 	emptyText: string;
 }) {
 	const styles = useStyles();
@@ -330,7 +343,16 @@ export function CommandsGrid({
 			renderCell: (c) => (
 				<span className={styles.tags}>
 					{c.enableRules.map((r) => (
-						<RuleTag key={r} id={r} onOpen={() => onOpenRule(r, "enable")} />
+						<RuleTag
+							key={r}
+							id={r}
+							kind="enable"
+							onOpen={
+								isRuleLoaded(r, "enable")
+									? () => onOpenRule(r, "enable")
+									: undefined
+							}
+						/>
 					))}
 				</span>
 			),
@@ -341,7 +363,16 @@ export function CommandsGrid({
 			renderCell: (c) => (
 				<span className={styles.tags}>
 					{c.displayRules.map((r) => (
-						<RuleTag key={r} id={r} onOpen={() => onOpenRule(r, "display")} />
+						<RuleTag
+							key={r}
+							id={r}
+							kind="display"
+							onOpen={
+								isRuleLoaded(r, "display")
+									? () => onOpenRule(r, "display")
+									: undefined
+							}
+						/>
 					))}
 				</span>
 			),
