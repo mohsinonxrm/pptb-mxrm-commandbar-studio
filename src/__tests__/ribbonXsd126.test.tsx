@@ -106,7 +106,7 @@ describe("#126 Microsoft's ribbon schema", () => {
 			expect(f.severity).toBe("warning");
 			expect(f.code).toBe("xsd");
 			expect(f.elementId).toBe(COMMAND);
-			expect(f.message).toMatch(new RegExp(`^${COMMAND.replace(/\./g, "\\.")}: Element '`));
+			expect(f.message.startsWith(`${COMMAND}: Element '`)).toBe(true);
 		}
 	});
 
