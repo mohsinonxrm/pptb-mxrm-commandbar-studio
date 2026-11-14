@@ -6,6 +6,8 @@ import {
 	Caption1,
 	Text,
 	InfoLabel,
+	MessageBar,
+	MessageBarBody,
 	Menu,
 	MenuItem,
 	MenuList,
@@ -28,6 +30,8 @@ import type { RuleStep, EnableRule, DisplayRule } from "@/types/ribbon";
 import RuleStepEditor from "@/components/shared/RuleStepEditor";
 import RuleStepPicker from "@/components/shared/RuleStepPicker";
 import { summarizeRule } from "@/utils/ruleEngine";
+import { groupControls } from "@/utils/ribbonMenu";
+import { hasRuleStepKind } from "@/constants/ruleKinds";
 import { useStableKeys } from "@/hooks/useStableKeys";
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
 import {
@@ -99,6 +103,22 @@ export const RuleEditorPanel: React.FC = () => {
 	const displayRules = useRibbonStore((s) => s.displayRules);
 	const upsertEnableRule = useRibbonStore((s) => s.upsertEnableRule);
 	const upsertDisplayRule = useRibbonStore((s) => s.upsertDisplayRule);
+	// A display rule that a sub-grid button uses (#162): Unified Interface doesn't evaluate a
+	// column value step there.
+	const valueOnSubGrid = useRibbonStore((s) => {
+		if (ruleEditorKind !== "display" || !ruleEditorId) return false;
+		const rule = s.displayRules.find((r) => r.id === ruleEditorId);
+		if (!rule || !hasRuleStepKind(rule.steps, "ValueRule")) return false;
+		const users = new Set(
+			s.commands.filter((c) => c.displayRules.includes(ruleEditorId)).map((c) => c.id),
+		);
+		return (
+			users.size > 0 &&
+			s.ribbons.SubGrid.tabs.some((t) =>
+				t.groups.some((g) => groupControls(g).some((b) => users.has(b.commandId ?? ""))),
+			)
+		);
+	});
 
 	const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -173,6 +193,16 @@ export const RuleEditorPanel: React.FC = () => {
 				</InfoLabel>
 			) : (
 				<Text>Passes when every step below is true.</Text>
+			)}
+
+			{valueOnSubGrid && (
+				<MessageBar intent="warning">
+					<MessageBarBody>
+						A sub-grid button uses this rule, and on a form's sub-grid Unified Interface
+						doesn't check a column value in a display rule. Put the Column value step in
+						an enable rule instead.
+					</MessageBarBody>
+				</MessageBar>
 			)}
 
 			{count > 0 ? (

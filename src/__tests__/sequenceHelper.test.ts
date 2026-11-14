@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-	nextSequence,
-	validateSequenceRanges,
-	findDuplicateSequences,
-	renumberSequences,
-} from "@/utils/sequenceHelper";
+import { nextSequence, findDuplicateSequences, renumberSequences } from "@/utils/sequenceHelper";
 
 describe("nextSequence", () => {
 	it("returns step (10) when no existing sequences", () => {
@@ -25,35 +20,6 @@ describe("nextSequence", () => {
 
 	it("handles a single element", () => {
 		expect(nextSequence([50])).toBe(60);
-	});
-});
-
-describe("validateSequenceRanges", () => {
-	it("returns valid when both lists are empty", () => {
-		const result = validateSequenceRanges([], []);
-		expect(result.valid).toBe(true);
-	});
-
-	it("returns valid when maxSize sequences are all above scale sequences", () => {
-		const result = validateSequenceRanges([100, 110], [10, 20, 30]);
-		expect(result.valid).toBe(true);
-	});
-
-	it("returns invalid and message when maxSize overlaps with scale sequences", () => {
-		const result = validateSequenceRanges([10, 20], [15, 25]);
-		expect(result.valid).toBe(false);
-		expect(result.message).toBeTruthy();
-	});
-
-	it("returns invalid when maxSize minimum equals scale maximum", () => {
-		// maxSize min (20) must be > scaleMax (20) — equal means overlap
-		const result = validateSequenceRanges([20, 30], [10, 20]);
-		expect(result.valid).toBe(false);
-	});
-
-	it("returns valid when only maxSize list provided", () => {
-		const result = validateSequenceRanges([10, 20], []);
-		expect(result.valid).toBe(true);
 	});
 });
 

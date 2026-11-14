@@ -334,6 +334,20 @@ describe("commands and rules referenced but not defined", () => {
 		);
 	});
 
+	it("knows Microsoft's grid and quick action rules when the ribbon doesn't list them (#162)", () => {
+		const findings = check(
+			{
+				commands: [
+					`<CommandDefinition Id="mxrm.B.Command"><EnableRules><EnableRule Id="Mscrm.ShowOnGrid"/><EnableRule Id="Mscrm.ShowOnQuickAction"/><EnableRule Id="Mscrm.ShowOnGridAndQuickAction"/><EnableRule Id="Mscrm.ShowOnElsewhere"/></EnableRules><DisplayRules/><Actions/></CommandDefinition>`,
+				],
+			},
+			{ known: { ...known, enableRuleIds: [] } },
+		);
+		expect(codes(findings, "undefined-rule").map((f) => f.message)).toEqual([
+			"Command mxrm.B.Command uses enable rule Mscrm.ShowOnElsewhere, which is defined neither in the customizations nor in the loaded ribbon",
+		]);
+	});
+
 	it("accepts rules defined in the merged layer", () => {
 		const findings = check(
 			{

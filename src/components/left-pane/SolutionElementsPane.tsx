@@ -40,6 +40,7 @@ import { reusedButton } from "@/utils/reuseButton";
 import { distinguishingSegment } from "@/utils/idSegment";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
 import { idCaption } from "@/utils/displayText";
+import { newButtonBlockedReason } from "@/utils/globalTab";
 
 /**
  * The left pane's Solution tab (#194): your buttons, the commands, the rules
@@ -217,7 +218,10 @@ export function SolutionElementsPane() {
 
 	// The groups a button can be added to: the open tab's, in the order shown.
 	const tab = ribbons[location].tabs.find((t) => t.id === tabId);
-	const targetGroups = tab ? bySequence(tab.groups) : [];
+	// Not the global command bar's groups that wouldn't show it (#166)
+	const targetGroups = tab
+		? bySequence(tab.groups).filter((g) => !newButtonBlockedReason(location, tab.id, g.id))
+		: [];
 	const crossScope =
 		!!buttonMenu &&
 		(buttonMenu.row.location === "Application") !== (location === "Application");

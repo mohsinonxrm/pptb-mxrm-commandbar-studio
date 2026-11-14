@@ -120,7 +120,11 @@ function attributeProblems(el: Element, where: string, isStep: boolean): string[
 		if (context !== null && !CONTEXT_NAME.test(context))
 			out.push(`${where}: EntityRule Context "${context}" isn't valid`);
 	}
-	if (tag === "Url" && /^https?:\/\/$/i.test(el.getAttribute("Address")?.trim() ?? "")) {
+	// Only a prefix (#160); REQUIRED reports an empty one
+	if (
+		tag === "Url" &&
+		/^(https?:\/\/|\$webresource:)$/i.test(el.getAttribute("Address")?.trim() ?? "")
+	) {
 		out.push(`${where}: Url has no address`);
 	}
 	// Parameters: named in a Url (the query-string key), unnamed elsewhere.
