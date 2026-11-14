@@ -34,7 +34,15 @@ export type EditorView =
 	 */
 	| { kind: "diff"; id: "compare" | "history"; historyIndex?: number }
 	/** A button's text in every language, `id` the button's. */
-	| { kind: "translations"; id: string };
+	| { kind: "translations"; id: string }
+	/** A tab's or group's title in every language (#136); `id` the tab or group. */
+	| {
+			kind: "titleTranslations";
+			id: string;
+			location: RibbonLocation;
+			tabId: string;
+			container: "tab" | "group";
+	  };
 
 /** The command editor's tabs, in the drawer's header (#186). */
 export type CommandEditorTab = "actions" | "enable" | "display" | "usedBy";
@@ -119,6 +127,9 @@ export interface UIStore {
 	commandPaletteOpen: boolean;
 	/** The top bar's solution picker is open (also opened from the canvas's empty state, #195). */
 	solutionPickerOpen: boolean;
+	/** Environments (by URL) where the first-run tip on the solution chip was dismissed (#174). */
+	scopeTipDismissed: string[];
+	dismissScopeTip(environmentUrl: string): void;
 	/** The top bar's table picker is open (also opened from the canvas's empty state, #195). */
 	tablePickerOpen: boolean;
 	/** Something asked for the Properties pane (e.g. Show orphans): it opens when it's a drawer (#179). */
@@ -156,6 +167,13 @@ export interface UIStore {
 	openIconPicker(): void;
 	closeIconPicker(): void;
 	openLocalizationEditor(buttonId: string): void;
+	/** A tab's or group's title in every language (#136). */
+	openTitleTranslations(
+		location: RibbonLocation,
+		container: "tab" | "group",
+		tabId: string,
+		id: string,
+	): void;
 	closeLocalizationEditor(): void;
 	openNewGroup(): void;
 	closeNewGroup(): void;
@@ -226,6 +244,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	tabDisplayRulesOpen: false,
 	commandPaletteOpen: false,
 	solutionPickerOpen: false,
+	scopeTipDismissed: [],
 	tablePickerOpen: false,
 	propertiesRequested: false,
 	newTabOpen: false,
@@ -279,6 +298,18 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	closeIconPicker: () => set({ iconPickerOpen: false }),
 	openLocalizationEditor: (buttonId) =>
 		set((s) => editorState(pushView(s.editorStack, { kind: "translations", id: buttonId }))),
+	openTitleTranslations: (location, container, tabId, id) =>
+		set((s) =>
+			editorState(
+				pushView(s.editorStack, {
+					kind: "titleTranslations",
+					id,
+					location,
+					tabId,
+					container,
+				}),
+			),
+		),
 	closeLocalizationEditor: () =>
 		set((s) => editorState(s.editorStack.filter((v) => v.kind !== "translations"))),
 	openNewGroup: () => set({ newGroupOpen: true }),
@@ -301,6 +332,12 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 		set((s) => editorState(pushView(s.editorStack, { kind: "tabRules", id: tabId, location }))),
 	setCommandPaletteOpen: (open: boolean) => set({ commandPaletteOpen: open }),
 	setSolutionPickerOpen: (open) => set({ solutionPickerOpen: open }),
+	dismissScopeTip: (environmentUrl) =>
+		set((s) =>
+			s.scopeTipDismissed.includes(environmentUrl)
+				? {}
+				: { scopeTipDismissed: [...s.scopeTipDismissed, environmentUrl] },
+		),
 	setTablePickerOpen: (open) => set({ tablePickerOpen: open }),
 	setLeftPaneTab: (tab) => set({ leftPaneTab: tab }),
 	structureChoice: 0,
@@ -327,6 +364,7 @@ export const useUIStore = create<UIStore>()(
 			rightPaneMode: state.rightPaneMode,
 			themeMode: state.themeMode,
 			ribbonViewStyle: state.ribbonViewStyle,
+			scopeTipDismissed: state.scopeTipDismissed,
 		}),
 	}),
 );

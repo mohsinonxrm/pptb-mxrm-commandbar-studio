@@ -25,34 +25,10 @@ import {
 	buttonTooltipTitleId,
 	textLabelId,
 } from "@/utils/locLabelRef";
-
-/** Language names for the LCIDs Dataverse ships, shown instead of flags (#187). */
-const LANGUAGES: Record<number, string> = {
-	1033: "English (United States)",
-	1031: "German",
-	1034: "Spanish (traditional)",
-	1036: "French",
-	1040: "Italian",
-	1041: "Japanese",
-	1042: "Korean",
-	1043: "Dutch",
-	1044: "Norwegian",
-	1045: "Polish",
-	1046: "Portuguese (Brazil)",
-	1049: "Russian",
-	1053: "Swedish",
-	1054: "Thai",
-	1055: "Turkish",
-	1057: "Indonesian",
-	1058: "Ukrainian",
-	1066: "Vietnamese",
-	2052: "Chinese (Simplified)",
-	3082: "Spanish (Spain)",
-};
-const languageName = (lcid: number) => LANGUAGES[lcid] ?? `Language ${lcid}`;
+import { LANGUAGES, languageName } from "@/constants/languages";
 
 /** Dataverse's line break in a ribbon label: two zero-width spaces. */
-const LINE_BREAK = "​​";
+export const LINE_BREAK = "​​";
 
 type TextField = "label" | "tooltipTitle" | "tooltipBody";
 const FIELDS: { field: TextField; name: string; multiline?: boolean }[] = [
@@ -263,7 +239,8 @@ export const TranslationsView: React.FC<{ buttonId: string }> = ({ buttonId }) =
 			Number(/\d+/.exec(value)?.[0]) ||
 			Number(Object.entries(LANGUAGES).find(([, n]) => n === value)?.[0]);
 		if (!lcid || languages.includes(lcid)) return;
-		setAdded((a) => [...a, lcid]);
+		// Enter both picks the highlighted option and adds what's typed: add once
+		setAdded((a) => (a.includes(lcid) ? a : [...a, lcid]));
 		setAdding("");
 	};
 
@@ -275,9 +252,12 @@ export const TranslationsView: React.FC<{ buttonId: string }> = ({ buttonId }) =
 		change(field, lcid, current.slice(0, start) + LINE_BREAK + current.slice(end));
 	};
 
+	// Only the languages matching what's typed, so Enter adds the one meant
+	const typed = adding.trim().toLowerCase();
 	const addable = Object.keys(LANGUAGES)
 		.map(Number)
-		.filter((l) => !languages.includes(l));
+		.filter((l) => !languages.includes(l))
+		.filter((l) => !typed || `${languageName(l)} (${l})`.toLowerCase().includes(typed));
 
 	return (
 		<div className={styles.body}>

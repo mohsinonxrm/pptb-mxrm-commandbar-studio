@@ -15,6 +15,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   copied all four ribbons (main grid, sub-grid, form and application) before changing one of them.
   Now it copies only the ribbon it changes; the others are shared with the step before. On a large
   entity that's about a quarter of the copying per keystroke.
+### ✨ Added
+
+- **Translate tab and group titles (#136).** A tab's or group's menu (in Structure, and a group's
+  ⋮ on the canvas) has **Translate title…**, which opens the title's translations in the editor
+  drawer, like a button's. The base language is the title itself (editing it renames the tab or
+  group); other languages are added, typed and removed as for buttons. Only your own tabs and
+  groups can be translated, as only they can be renamed. A title whose label other tabs, groups or
+  buttons share stays read-only (its translations would change for all of them), and so does a
+  copied or imported title until you change it. A new tab's or group's title is now published with
+  every language it has; before, only the base language was written.
+
+### 🔧 Changed
+
+- **The solution picker is the scope chip FetchXML Studio and Dataverse Request Studio share
+  (#174, #264).** The top bar's solution button now reads **Solution: Sales Core v1.2.0** (three
+  version parts, so a patch reads apart from its parent), with an **Unmanaged** badge and the
+  publisher prefix, which is warning-coloured for the org's default publisher. Its tooltip has the
+  full name, unique name, version and publisher. With nothing chosen it reads **Choose scope**, in
+  outline like the chosen state, so Publish stays the top bar's one primary button. The popover is
+  titled **Solution**, searches name, unique name and version, and ends with "Changes apply right
+  away." and **Done**. On an environment where no solution is chosen yet, a first-run tip points at
+  the chip; **Choose scope** opens it, and **Got it** dismisses the tip for that environment.
 
 ### 🔧 Changed
 
@@ -60,6 +82,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its own failure, for example "Dataverse couldn't import the solution (0x80048033): …". When an
   import succeeds but no ribbon was applied, the job's failure is shown, if it has one, instead of
   "no entityRibbon result". Quotes, apostrophes and ampersands in Dataverse's text are decoded.
+- **Adding a language by typing it no longer adds two (#136).** Typing an LCID such as 1036 in
+  **Add a language** and pressing Enter added French and the first language in the list (German);
+  the list now narrows to what's typed.
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
   one-word resource key showed the key: the account grid's **OpenAllRecordsViewImageButtonText**
   now reads "Open All Records View". A tab or group without a title showed its whole id

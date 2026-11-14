@@ -28,6 +28,15 @@ import {
 	ToolbarButton,
 	ToolbarDivider,
 	Tooltip,
+	Caption1,
+	mergeClasses,
+	useMergedRefs,
+	TeachingPopover,
+	TeachingPopoverSurface,
+	TeachingPopoverHeader,
+	TeachingPopoverBody,
+	TeachingPopoverTitle,
+	TeachingPopoverFooter,
 	useComboboxFilter,
 	useIsOverflowItemVisible,
 	useOverflowMenu,
@@ -41,13 +50,14 @@ import {
 	QuestionCircleRegular,
 	CloudArrowUpRegular,
 	SearchRegular,
-	DatabaseRegular,
+	Filter20Regular,
+	Warning16Regular,
 	ChevronDownRegular,
+	ChevronDown16Regular,
 	CodeRegular,
 	OpenRegular,
 	LayoutColumnTwoSplitRightRegular,
 	MoreHorizontalRegular,
-	WarningRegular,
 } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore, type RightPaneMode } from "@/store/uiStore";
@@ -110,11 +120,23 @@ const useStyles = makeStyles({
 		flexShrink: 0,
 	},
 	solutionTrigger: {
-		minWidth: "120px",
-		maxWidth: "260px",
+		minWidth: 0,
+		maxWidth: "420px",
 		flexShrink: 1,
 		justifyContent: "flex-start",
-		"@media (max-width: 1200px)": { maxWidth: "200px" },
+		columnGap: tokens.spacingHorizontalSNudge,
+		// Narrow: room for the name before the badges (#174 review)
+		"@media (max-width: 1200px)": { maxWidth: "300px" },
+	},
+	chipBadge: { flexShrink: 0 },
+	/** Shown only where there's room for it next to the name. */
+	wideOnly: { "@media (max-width: 1200px)": { display: "none" } },
+	pickerFooter: {
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "space-between",
+		gap: tokens.spacingHorizontalS,
+		marginTop: tokens.spacingVerticalXS,
 	},
 	ellipsis: {
 		minWidth: 0,
@@ -286,19 +308,51 @@ function isDefaultPublisher(solution: Solution): boolean {
 	return prefix === "new" || /^defaultpublisher/i.test(solution.publisherUniqueName ?? "");
 }
 
+/** `Name vX.Y.Z`: three version parts tell a patch from its parent (#174). */
+function solutionLabel(solution: Solution): string {
+	const name = solution.friendlyName || solution.uniqueName;
+	const version = (solution.version ?? "").split(".").slice(0, 3).join(".");
+	return version ? `${name} v${version}` : name;
+}
+
+/**
+ * The solution chip and its popover (#174, #264): the scope chip FetchXML Studio and Dataverse
+ * Request Studio share, in CBS's one-unmanaged-solution form. Outline when nothing is chosen, so
+ * the top bar keeps one primary button (Publish); a first-run tip per environment.
+ */
 function SolutionPicker() {
 	const styles = useStyles();
 	const solutions = useSessionStore((s) => s.solutions);
 	const activeSolution = useSessionStore((s) => s.activeSolution);
+	const connectionUrl = useSessionStore((s) => s.connectionUrl);
 	const requestSolutionSwitch = useDraftStore((s) => s.requestSolutionSwitch);
 	const pickerOpen = useUIStore((s) => s.solutionPickerOpen);
 	const setPickerOpen = useUIStore((s) => s.setSolutionPickerOpen);
+	const tipDismissed = useUIStore((s) => s.scopeTipDismissed.includes(connectionUrl));
+	const dismissScopeTip = useUIStore((s) => s.dismissScopeTip);
 	const [query, setQuery] = useState("");
 	const triggerRef = useRef<HTMLButtonElement>(null);
+	// The chip as state too: the first-run tip anchors to it, and only once it exists (a ref
+	// read while rendering is null the first time, and the tip opened at the page's corner).
+	const [chip, setChip] = useState<HTMLButtonElement | null>(null);
+	const chipRef = useMergedRefs<HTMLButtonElement>(
+		triggerRef,
+		setChip as React.RefCallback<HTMLButtonElement>,
+	);
+	/** Focus back on the chip unless something else took it (#174 review). */
+	const refocusChip = () =>
+		requestAnimationFrame(() => {
+			const active = document.activeElement;
+			if (!active || active === document.body) triggerRef.current?.focus();
+		});
+	const dismissTip = () => {
+		dismissScopeTip(connectionUrl);
+		refocusChip();
+	};
 
 	// Managed solutions can never be modified by a tool: ribbon customizations
 	// only flow through the user's unmanaged solution layer, so the list is
-	// unmanaged only.
+	// unmanaged only (never the Default solution either: solutionService, #105).
 	const comboOptions: ComboSolutionOption[] = useMemo(
 		() =>
 			solutions
@@ -306,7 +360,8 @@ function SolutionPicker() {
 				.map((sol) => ({
 					value: sol.id,
 					children: sol.friendlyName || sol.uniqueName,
-					searchText: `${sol.friendlyName ?? ""} ${sol.uniqueName ?? ""}`.toLowerCase(),
+					searchText:
+						`${sol.friendlyName ?? ""} ${sol.uniqueName ?? ""} ${sol.version ?? ""}`.toLowerCase(),
 					solution: sol,
 				})),
 		[solutions],
@@ -334,7 +389,11 @@ function SolutionPicker() {
 			</Option>
 		),
 		noOptionsMessage:
-			solutions.length === 0 ? "Loading solutions…" : "No solutions match the filter.",
+			solutions.length === 0
+				? "Loading solutions…"
+				: comboOptions.length === 0
+					? "No solutions found"
+					: `No solutions match "${query}"`,
 	});
 
 	const handleOptionSelect: ComboboxProps["onOptionSelect"] = (_, data) => {
@@ -353,95 +412,157 @@ function SolutionPicker() {
 		}
 	};
 
-	const name = activeSolution ? activeSolution.friendlyName || activeSolution.uniqueName : "";
+	const label = activeSolution ? solutionLabel(activeSolution) : "";
 	const defaultPublisher = activeSolution ? isDefaultPublisher(activeSolution) : false;
 	const prefix = activeSolution?.publisherPrefix || "new";
+	const fullScope = activeSolution
+		? `${activeSolution.friendlyName || activeSolution.uniqueName} (${activeSolution.uniqueName}) v${activeSolution.version}${activeSolution.publisherName ? ` · ${activeSolution.publisherName}` : ""}${defaultPublisher ? ". Imports will land under the org's default publisher." : ""}`
+		: "Choose the solution your changes are saved to";
+	// First run on this environment: point at the chip until a solution is chosen or the tip
+	// is dismissed. Not while the picker itself is open.
+	const showTip = !activeSolution && !!connectionUrl && !tipDismissed && !pickerOpen && !!chip;
 
 	return (
-		<Popover
-			open={pickerOpen}
-			onOpenChange={(_, d) => setPickerOpen(d.open)}
-			positioning="below-start"
-			trapFocus
-		>
-			<PopoverTrigger disableButtonEnhancement>
-				<Tooltip
-					content={
-						activeSolution ? name : "Choose the solution your changes are saved to"
-					}
-					relationship="description"
-				>
-					<Button
-						ref={triggerRef}
-						appearance={activeSolution ? "subtle" : "primary"}
-						icon={<DatabaseRegular />}
-						aria-label={activeSolution ? `Solution: ${name}` : "Select solution"}
-						className={styles.solutionTrigger}
-					>
-						{activeSolution ? (
-							<>
-								<span className={styles.ellipsis}>{name}</span>
-								{defaultPublisher && (
-									<WarningRegular
-										aria-label="Default publisher"
-										style={{
-											color: tokens.colorPaletteDarkOrangeForeground1,
-											flexShrink: 0,
-										}}
-									/>
-								)}
-							</>
-						) : (
-							"Choose solution"
-						)}
-						<ChevronDownRegular fontSize={12} className={styles.muted} />
-					</Button>
-				</Tooltip>
-			</PopoverTrigger>
-			<PopoverSurface className={styles.solutionPickerSurface}>
-				<Field label="Solution your changes are saved to">
-					<Combobox
-						placeholder={
-							solutions.length === 0
-								? "Loading solutions…"
-								: "Search by display name or unique name"
-						}
-						value={query}
-						onChange={(ev) => setQuery(ev.target.value)}
-						onOptionSelect={handleOptionSelect}
-						freeform
-						clearable
-					>
-						{filteredChildren}
-					</Combobox>
-				</Field>
-				<Text size={200} className={styles.muted}>
-					{comboOptions.length} unmanaged solution
-					{comboOptions.length !== 1 ? "s" : ""} available
-				</Text>
-				{activeSolution && (
-					<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-						<InfoLabel
-							size="small"
-							info={
-								defaultPublisher
-									? `New ids are prefixed "${prefix}_", the org's default publisher. To use your own prefix, create a solution in make.powerapps.com bound to your publisher.`
-									: `New ids are prefixed "${prefix}_" (publisher ${activeSolution.publisherName || activeSolution.publisherUniqueName || prefix}).`
+		<>
+			<Popover
+				open={pickerOpen}
+				onOpenChange={(_, d) => setPickerOpen(d.open)}
+				positioning="below-start"
+				trapFocus
+				withArrow
+			>
+				<PopoverTrigger disableButtonEnhancement>
+					<Tooltip content={fullScope} relationship="description">
+						<Button
+							ref={chipRef}
+							// Outline either way (#264): Publish is the top bar's one primary button
+							appearance="outline"
+							icon={<Filter20Regular />}
+							aria-label={activeSolution ? `Solution: ${label}` : "Choose scope"}
+							className={styles.solutionTrigger}
+						>
+							{activeSolution ? (
+								<>
+									<span className={styles.ellipsis}>Solution: {label}</span>
+									<Badge
+										appearance="outline"
+										size="small"
+										className={mergeClasses(styles.chipBadge, styles.wideOnly)}
+									>
+										Unmanaged
+									</Badge>
+									<Badge
+										appearance="tint"
+										size="small"
+										color={defaultPublisher ? "warning" : "informative"}
+										className={styles.chipBadge}
+										// Not by colour alone (WCAG 1.4.1)
+										icon={defaultPublisher ? <Warning16Regular /> : undefined}
+									>
+										{prefix}_
+									</Badge>
+								</>
+							) : (
+								"Choose scope"
+							)}
+							<ChevronDown16Regular className={styles.muted} />
+						</Button>
+					</Tooltip>
+				</PopoverTrigger>
+				<PopoverSurface className={styles.solutionPickerSurface}>
+					<Text weight="semibold" size={400}>
+						Solution
+					</Text>
+					<Field label="Unmanaged solution">
+						<Combobox
+							placeholder={
+								solutions.length === 0
+									? "Loading solutions…"
+									: "Search name, unique name or version…"
 							}
+							value={query}
+							onChange={(ev) => setQuery(ev.target.value)}
+							onOptionSelect={handleOptionSelect}
+							freeform
+							clearable
 						>
-							Publisher prefix
-						</InfoLabel>
-						<Badge
-							appearance="tint"
-							color={defaultPublisher ? "warning" : "informative"}
-							size="medium"
+							{filteredChildren}
+						</Combobox>
+					</Field>
+					<Caption1 className={styles.muted}>
+						Command Bar Studio edits one unmanaged solution at a time. Its entities
+						appear in the entity picker.
+					</Caption1>
+					{activeSolution && (
+						<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+							<InfoLabel
+								size="small"
+								info={
+									defaultPublisher
+										? `New ids are prefixed "${prefix}_", the org's default publisher: imports will land under it. To use your own prefix, create a solution in make.powerapps.com bound to your publisher.`
+										: `New ids are prefixed "${prefix}_" (publisher ${activeSolution.publisherName || activeSolution.publisherUniqueName || prefix}).`
+								}
+							>
+								Publisher prefix
+							</InfoLabel>
+							<Badge
+								appearance="tint"
+								color={defaultPublisher ? "warning" : "informative"}
+								size="medium"
+							>
+								{prefix}_
+							</Badge>
+						</div>
+					)}
+					<div className={styles.pickerFooter}>
+						<Caption1 className={styles.muted}>Changes apply right away.</Caption1>
+						<Button
+							appearance="primary"
+							size="small"
+							onClick={() => {
+								setPickerOpen(false);
+								refocusChip();
+							}}
 						>
-							{prefix}_
-						</Badge>
+							Done
+						</Button>
 					</div>
-				)}
-			</PopoverSurface>
-		</Popover>
+				</PopoverSurface>
+			</Popover>
+			{showTip && (
+				<TeachingPopover
+					open
+					onOpenChange={(_, d) => {
+						if (!d.open) dismissTip();
+					}}
+					positioning={{ target: chip, position: "below", align: "start" }}
+				>
+					<TeachingPopoverSurface style={{ maxWidth: 320 }}>
+						<TeachingPopoverHeader>Tip</TeachingPopoverHeader>
+						<TeachingPopoverBody>
+							<TeachingPopoverTitle>
+								Choose where entities come from
+							</TeachingPopoverTitle>
+							Pick the unmanaged solution whose command bars you want to edit. Its
+							entities appear in the entity picker.
+						</TeachingPopoverBody>
+						<TeachingPopoverFooter
+							primary={{
+								children: "Choose scope",
+								onClick: () => {
+									dismissScopeTip(connectionUrl);
+									setPickerOpen(true);
+								},
+							}}
+							secondary={{
+								children: "Got it",
+								onClick: dismissTip,
+							}}
+						/>
+					</TeachingPopoverSurface>
+				</TeachingPopover>
+			)}
+		</>
 	);
 }
 
