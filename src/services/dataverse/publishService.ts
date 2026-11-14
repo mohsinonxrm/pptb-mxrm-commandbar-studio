@@ -576,6 +576,7 @@ export function publishValidationContext(
 	const tabScaling: Record<string, ScalingDefinition> = {};
 	const groupTemplates: Record<string, string> = {};
 	const templateLayouts: Record<string, string[]> = {};
+	const templateAliases: Record<string, string[]> = {};
 	const loadedAttributes: Record<string, Record<string, string>> = {};
 	const baselineGroups = new Set<string>();
 	const currentGroups = new Set<string>();
@@ -589,6 +590,7 @@ export function publishValidationContext(
 							menuControlsIds.add(section.controlsId);
 	for (const { current, baseline } of input.locations) {
 		Object.assign(templateLayouts, baseline.templateLayouts);
+		Object.assign(templateAliases, baseline.templateAliases);
 		for (const tab of baseline.tabs) {
 			elementIds.push(tab.id);
 			if (tab.label) loadedAttributes[tab.id] = { Title: tab.label };
@@ -655,6 +657,7 @@ export function publishValidationContext(
 		tabScaling,
 		groupTemplates,
 		templateLayouts,
+		templateAliases,
 		menuControlsIds,
 		// Where the table's CustomActions can place what they add (#64).
 		...(input.entity
