@@ -179,6 +179,15 @@ describe("#181 the canvas", () => {
 		expect(byName("About this location")).toBeTruthy();
 	});
 
+	it("says what Unified Interface's sub-grid command bar has, not Add / Show List / Delete only (#167)", async () => {
+		const { LOCATION_INFO } = await import("@/constants/locationInfo");
+		const body = LOCATION_INFO.SubGrid.body;
+		expect(body).not.toContain("only Add, Show List and Delete");
+		expect(body).not.toContain("icons can't be changed");
+		expect(body).toContain("whole sub-grid command bar");
+		expect(body).toContain("can be overridden");
+	});
+
 	it("a custom tab's Unified Interface note is behind an info button", () => {
 		useSelectionStore.setState({ tabId: "cbs.account.Mine" });
 		render(<RibbonCanvas />);
