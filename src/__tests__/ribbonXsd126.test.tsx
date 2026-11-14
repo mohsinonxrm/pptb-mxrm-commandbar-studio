@@ -10,7 +10,9 @@ import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import {
 	checkRibbonSchema,
+	MAX_SCHEMA_FINDINGS,
 	schemaDocument,
+	validatorFailure,
 	type KnownSchemaException,
 	type XsdValidator,
 } from "@/services/ribbonXsdCheck";
@@ -22,6 +24,17 @@ import { useUIStore } from "@/store/uiStore";
 import type { EntityMetadata } from "@/types/entity";
 import type { RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 import type { Solution } from "@/types/solution";
+
+// The real xmllint, unless a test makes its worker fail to start.
+let failValidator = false;
+vi.mock("xmllint-wasm", async (importOriginal) => {
+	const real = await importOriginal<typeof import("xmllint-wasm")>();
+	return {
+		...real,
+		validateXML: (options: Parameters<typeof real.validateXML>[0]) =>
+			failValidator ? Promise.reject(new Event("error")) : real.validateXML(options),
+	};
+});
 
 // xmllint starts a worker and compiles the WebAssembly on each check.
 vi.setConfig({ testTimeout: 60_000 });
@@ -156,6 +169,56 @@ describe("#126 Microsoft's ribbon schema", () => {
 		expect(lines.find((l) => l.includes("ToolTipDescription"))).toContain(
 			'ToolTipDescription="one&#10;two &amp; &quot;three&quot;"',
 		);
+	});
+
+	it("text with a line break doesn't shift the lines: the finding still names its command", async () => {
+		const xml = asImported(
+			layer({
+				commandBody:
+					'<EnableRules /><DisplayRules /><Actions><Url Address="https://contoso.com" /></Actions><Bogus>one&#10;two&#13;three</Bogus>',
+			}),
+		);
+		const { xml: doc, owners } = schemaDocument(parseRibbonDiffParts(xml), true);
+		expect(doc.split("\n")).toHaveLength(owners.length);
+		const findings = await checkRibbonSchema({ xml, entity: true });
+		expect(findings).toHaveLength(1);
+		expect(findings[0].elementId).toBe(COMMAND);
+		expect(findings[0].message).toContain("Element 'Bogus'");
+	});
+
+	it(`lists at most ${MAX_SCHEMA_FINDINGS} findings and sums up the rest`, async () => {
+		const xml = asImported(layer());
+		const line = schemaDocument(parseRibbonDiffParts(xml), true)
+			.xml.split("\n")
+			.findIndex((l) => l.includes("<Button "));
+		const many: XsdValidator = async () => ({
+			valid: false,
+			errors: Array.from({ length: MAX_SCHEMA_FINDINGS + 10 }, (_, i) => ({
+				message: `element Button: Schemas validity error : Element 'Button', attribute 'A${i}': The attribute 'A${i}' is not allowed.`,
+				lineNumber: line + 1,
+			})),
+		});
+		const findings = await checkRibbonSchema({ xml, entity: true }, many);
+		expect(findings).toHaveLength(MAX_SCHEMA_FINDINGS + 1);
+		expect(findings.at(-1)?.message).toBe(
+			"…and 10 more the schema doesn't allow. View XML shows the whole RibbonDiffXml.",
+		);
+		expect(findings.every((f) => f.severity === "warning")).toBe(true);
+	});
+
+	it("says in a sentence why the validator couldn't run", () => {
+		expect(validatorFailure(new Event("error")).message).toBe(
+			"the validator's Web Worker couldn't start",
+		);
+		expect(
+			validatorFailure(Object.assign(new Error("ribbon.xml:9: error"), { code: 9 })).message,
+		).toBe("the ribbon XML is too large for the schema check");
+		expect(validatorFailure(new Error("Aborted(OOM)")).message).toBe(
+			"the ribbon XML is too large for the schema check",
+		);
+		const long = validatorFailure(new Error(`${"x".repeat(300)}\nsecond line`)).message;
+		expect(long).toHaveLength(201);
+		expect(long.endsWith("…")).toBe(true);
 	});
 
 	it("rejects when the validator can't run, so the dialog can say so", async () => {
@@ -321,6 +384,29 @@ describe("#126 in the publish dialog", () => {
 		expect(text).toContain("Microsoft's schema from 2017 doesn't allow these");
 		expect(text).toContain(`${BUTTON}: Element 'Button', attribute 'Bogus'`);
 		expect(publishButton()?.disabled).toBe(false);
+	});
+
+	it("where the validator can't run, Good to know says so and Publish stays enabled", async () => {
+		checkedXml = asImported(layer({ buttonAttrs: ' Bogus="1"' }));
+		failValidator = true;
+		try {
+			await open();
+			await waitFor(() => dialogText().includes("Good to know · 2"));
+			act(() =>
+				[...document.querySelectorAll<HTMLButtonElement>("button")]
+					.find((b) => b.textContent?.startsWith("Good to know"))!
+					.click(),
+			);
+			await flush();
+			const text = dialogText();
+			expect(text).toContain(
+				"Microsoft's ribbon schema check couldn't run here (the validator's Web Worker couldn't start). It never blocks publishing.",
+			);
+			expect(text).not.toContain("Warnings ·");
+			expect(publishButton()?.disabled).toBe(false);
+		} finally {
+			failValidator = false;
+		}
 	});
 
 	it("a clean layer adds no warning", async () => {

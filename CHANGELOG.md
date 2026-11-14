@@ -25,8 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   'Button', attribute 'Bogus': The attribute 'Bogus' is not allowed.". **These are only ever
   warnings, and Publish stays enabled:** the schemas are from 2017, and Dataverse accepts ribbon
   XML they don't describe. If Dataverse rejects the import, Publish shows its error. A finding in
-  something this publish doesn't write is marked as already published, and publishing anyway logs
-  the findings to the Console log. The check runs after the dialog's own check and never holds
+  something this publish doesn't write is marked as already published; past 50 findings, the rest
+  are summed up in one line. Publishing anyway logs the findings to the Console log. The check runs after the dialog's own check and never holds
   Publish back. The validator (xmllint compiled to WebAssembly, about 0.8 MB) loads the first time
   the dialog runs it, in a Web Worker; where the host doesn't allow workers, **Good to know** says
   the check couldn't run. The checks that block a publish are unchanged.

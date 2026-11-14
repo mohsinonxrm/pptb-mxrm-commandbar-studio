@@ -57,16 +57,36 @@ const SCHEMA_FILES: Record<string, string> = {
 	"RibbonWSS.xsd": wssXsd,
 };
 
+/** 256 MiB of WebAssembly memory (64 KiB pages): xmllint-wasm's default 32 MiB runs out on a layer of about 8 MB. */
+const MAX_MEMORY_PAGES = 4096;
+
+/** Why the validator couldn't run, in a sentence the dialog can show. */
+export function validatorFailure(err: unknown): Error {
+	// A worker that can't start rejects with its `error` Event, not an Error.
+	if (!(err instanceof Error)) return new Error("the validator's Web Worker couldn't start");
+	const code = (err as Error & { code?: unknown }).code;
+	if (code === 9 || /\bAbort|out of memory/i.test(err.message))
+		return new Error("the ribbon XML is too large for the schema check");
+	const message = err.message.split("\n")[0].trim() || "the validator failed";
+	return new Error(message.length > 200 ? `${message.slice(0, 200)}…` : message);
+}
+
 /** xmllint-wasm, loaded on first use. It runs in a module Web Worker. */
 export const xmllintValidator: XsdValidator = async ({ xml, schema, files }) => {
-	const { validateXML } = await import("xmllint-wasm");
-	const result = await validateXML({
-		xml: [{ fileName: "ribbon.xml", contents: xml }],
-		schema: [{ fileName: schema, contents: files[schema] ?? "" }],
-		preload: Object.entries(files)
-			.filter(([name]) => name !== schema)
-			.map(([fileName, contents]) => ({ fileName, contents })),
-	});
+	let result: Awaited<ReturnType<typeof import("xmllint-wasm").validateXML>>;
+	try {
+		const { validateXML } = await import("xmllint-wasm");
+		result = await validateXML({
+			xml: [{ fileName: "ribbon.xml", contents: xml }],
+			schema: [{ fileName: schema, contents: files[schema] ?? "" }],
+			preload: Object.entries(files)
+				.filter(([name]) => name !== schema)
+				.map(([fileName, contents]) => ({ fileName, contents })),
+			maxMemoryPages: MAX_MEMORY_PAGES,
+		});
+	} catch (err) {
+		throw validatorFailure(err);
+	}
 	return {
 		valid: result.valid,
 		// Only what xmllint says about the ribbon. Its stderr has other lines too:
@@ -98,8 +118,14 @@ const escapeAttribute = (v: string) =>
 		.replace(/\n/g, "&#10;")
 		.replace(/\r/g, "&#13;");
 
+/** Line breaks too: each element must stay on its own line (the ribbon schemas allow no text anyway). */
 const escapeText = (v: string) =>
-	v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+	v
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/\n/g, "&#10;")
+		.replace(/\r/g, "&#13;");
 
 const identityOf = (el: Element) =>
 	el.getAttribute("Id") ?? el.getAttribute("HideActionId") ?? el.getAttribute("TabCommand");
@@ -202,6 +228,12 @@ export function schemaDocument(
 	return { xml: lines.join("\n"), owners };
 }
 
+/**
+ * Past this many findings the rest are summed up in one: a rejected pattern
+ * repeated across a large published layer would otherwise list hundreds.
+ */
+export const MAX_SCHEMA_FINDINGS = 50;
+
 const VALIDITY_ERROR = /^(?:element ([^:]+): )?Schemas validity error : (.*)$/s;
 /** xmllint lists every element a sequence would accept; past this, the list is cut. */
 const MAX_DETAIL = 300;
@@ -258,5 +290,14 @@ export async function checkRibbonSchema(
 		seen.add(message);
 		findings.push({ severity: "warning", code: "xsd", message, elementId: owner?.elementId });
 	}
-	return findings;
+	if (findings.length <= MAX_SCHEMA_FINDINGS) return findings;
+	const more = findings.length - MAX_SCHEMA_FINDINGS;
+	return [
+		...findings.slice(0, MAX_SCHEMA_FINDINGS),
+		{
+			severity: "warning",
+			code: "xsd",
+			message: `…and ${more} more the schema doesn't allow. View XML shows the whole RibbonDiffXml.`,
+		},
+	];
 }

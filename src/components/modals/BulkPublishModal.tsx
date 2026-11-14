@@ -448,7 +448,9 @@ export const BulkPublishModal: React.FC = () => {
 				: "";
 	const checkErrors = checkFindings.filter((f) => f.severity === "error");
 	const checkWarnings = checkFindings.filter((f) => f.severity === "warning");
-	const showFindingScope = new Set(checkFindings.map((f) => f.scope)).size > 1;
+	// Two imports (the entity and the application ribbon): every finding says which.
+	const showFindingScope =
+		checkXml.length > 1 || new Set(checkFindings.map((f) => f.scope)).size > 1;
 	const checkBlocks = canCheck && (checkState === "running" || checkErrors.length > 0);
 
 	const handlePublish = () =>
@@ -510,6 +512,11 @@ export const BulkPublishModal: React.FC = () => {
 			if (publishComment.trim())
 				logs.logInfo("publish", `Publish comment: ${publishComment.trim()}`);
 			// Published anyway: the schema warnings go to the Console log with it (#126).
+			if (schemaState === "running")
+				logs.logInfo(
+					"publish",
+					"Microsoft's ribbon schema check hadn't finished when this publish started; its findings aren't logged.",
+				);
 			for (const f of schemaFindings)
 				logs.logWarn(
 					"publish",
