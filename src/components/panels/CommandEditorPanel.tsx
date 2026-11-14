@@ -49,6 +49,7 @@ import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCa
 import { buttonsUsing } from "@/utils/ribbonMenu";
 import { LOCATION_INFO } from "@/constants/locationInfo";
 import { WEB_RESOURCE_URL_PARAMETERS } from "@/constants/crmParameters";
+import { PLATFORM_ENABLE_RULES } from "@/constants/ruleKinds";
 import { useStableKeys } from "@/hooks/useStableKeys";
 import { useDisplayText } from "@/hooks/useDisplayText";
 import { CommandProvenanceBar } from "@/components/shared/CommandProvenanceBar";
@@ -649,6 +650,15 @@ export const CommandEditorPanel: React.FC = () => {
 		const availableRules = (kind === "enable" ? enableRules : displayRules)
 			.map((r) => r.id)
 			.filter((id) => !ruleIds.includes(id));
+		// Microsoft's grid and quick action rules aren't in a table's ribbon (#162). They place a
+		// main grid command, so they're offered for one (or a command no button uses yet).
+		const platformRules =
+			kind === "enable" &&
+			(uses.length === 0 || uses.some((u) => u.location === "HomepageGrid"))
+				? PLATFORM_ENABLE_RULES.filter(
+						(r) => !ruleIds.includes(r.id) && !availableRules.includes(r.id),
+					)
+				: [];
 		const selectedBindRuleId = kind === "enable" ? bindEnableRuleId : bindDisplayRuleId;
 		const setRules = (ids: string[]) =>
 			updateCommand(kind === "enable" ? { enableRules: ids } : { displayRules: ids });
@@ -683,7 +693,13 @@ export const CommandEditorPanel: React.FC = () => {
 								key={ruleId}
 								ruleId={ruleId}
 								kind={kind}
-								onOpen={() => openRuleEditor(ruleId, kind)}
+								onOpen={
+									(kind === "enable" ? enableRules : displayRules).some(
+										(r) => r.id === ruleId,
+									)
+										? () => openRuleEditor(ruleId, kind)
+										: undefined
+								}
 								onRemove={
 									readOnly
 										? undefined
@@ -720,6 +736,15 @@ export const CommandEditorPanel: React.FC = () => {
 										{ruleId}
 									</option>
 								))}
+								{platformRules.length > 0 && (
+									<optgroup label="Microsoft's grid rules">
+										{platformRules.map((r) => (
+											<option key={r.id} value={r.id}>
+												{r.label} ({r.id})
+											</option>
+										))}
+									</optgroup>
+								)}
 							</Select>
 						</Field>
 						<Button

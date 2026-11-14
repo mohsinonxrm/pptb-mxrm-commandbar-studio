@@ -8,6 +8,7 @@ import { parseRibbonDiffParts, type RibbonDiffParts } from "@/services/ribbonDif
 import {
 	DISPLAY_ONLY_RULE_TAGS,
 	ENABLE_ONLY_RULE_KINDS,
+	PLATFORM_ENABLE_RULE_IDS,
 	type RuleContainer,
 	type RuleKind,
 } from "@/constants/ruleKinds";
@@ -783,7 +784,12 @@ export function validatePublishRibbonDiff(
 	}
 	const knownRules: Record<string, Set<string> | null> = {
 		EnableRule: context.known?.enableRuleIds
-			? new Set([...parts.enableRules.keys(), ...context.known.enableRuleIds])
+			? new Set([
+					...parts.enableRules.keys(),
+					...context.known.enableRuleIds,
+					// Documented, in the application ribbon (#162)
+					...PLATFORM_ENABLE_RULE_IDS,
+				])
 			: null,
 		DisplayRule: context.known?.displayRuleIds
 			? new Set([...parts.displayRules.keys(), ...context.known.displayRuleIds])

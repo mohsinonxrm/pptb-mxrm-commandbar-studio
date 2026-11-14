@@ -159,7 +159,7 @@ export const RuleStepPicker: React.FC<RuleStepPickerProps> = ({
 					value={search}
 					onChange={(_, d) => setSearch(d.value)}
 				/>
-				<InfoLabel info="Show on grid or quick action comes from Microsoft's rules (Mscrm.ShowOnGrid, Mscrm.ShowOnQuickAction): add them to the command by ID instead.">
+				<InfoLabel info="Show on grid or quick action comes from Microsoft's rules (Mscrm.ShowOnGrid, Mscrm.ShowOnQuickAction): bind them in the command's Enable rules, under Microsoft's grid rules.">
 					<span className={styles.groupLabel}>Not here?</span>
 				</InfoLabel>
 			</div>
