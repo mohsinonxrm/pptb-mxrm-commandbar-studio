@@ -450,8 +450,8 @@ describe("#107 imports run as a system job", () => {
 		});
 		expect(result.verification!.message).toBe(
 			"Your changes were imported and published, but you cancelled the second import, which " +
-				"refreshes Unified Interface's command-bar metadata (You cancelled the publish. Dataverse " +
-				"cancelled the import.). New or changed buttons may not appear in the app until the entity's " +
+				"refreshes Unified Interface's command-bar metadata. Dataverse " +
+				"cancelled the import. New or changed buttons may not appear in the app until the entity's " +
 				"ribbon is published again, or for up to about 25 minutes.",
 		);
 	});

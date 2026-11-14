@@ -396,7 +396,7 @@ describe("#107 the publish dialog: Cancel and View import log", () => {
 				differing: [],
 				importJobId: "job-2",
 				message:
-					"Your changes were imported and published, but you cancelled the second import, which refreshes Unified Interface's command-bar metadata (You cancelled the publish. Dataverse cancelled the import.). New or changed buttons may not appear in the app until the entity's ribbon is published again, or for up to about 25 minutes.",
+					"Your changes were imported and published, but you cancelled the second import, which refreshes Unified Interface's command-bar metadata. Dataverse cancelled the import. New or changed buttons may not appear in the app until the entity's ribbon is published again, or for up to about 25 minutes.",
 			},
 		});
 		const fetched: string[] = [];

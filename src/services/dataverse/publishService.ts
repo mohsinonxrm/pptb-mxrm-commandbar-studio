@@ -109,6 +109,12 @@ async function startImport(
 
 const GUID = /^\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}?$/i;
 
+/** A cancel's message without its "You cancelled the publish." lead, as a sentence to append ("" when nothing is left). */
+function afterCancel(message: string): string {
+	const rest = message.replace(/^You cancelled the publish\.\s*/, "").trim();
+	return rest ? ` ${rest}` : "";
+}
+
 /** System job (asyncoperation) states: statecode 3 is Completed, with statuscode 30 / 31 / 32. */
 const ASYNC_COMPLETED = 3;
 const ASYNC_SUCCEEDED = 30;
@@ -1666,7 +1672,9 @@ async function publishRibbonUnguarded(
 						message:
 							(isPublishCancelled(err)
 								? `Your changes were imported and published, but you cancelled the second import, ` +
-									`which refreshes Unified Interface's command-bar metadata (${why}).`
+									`which refreshes Unified Interface's command-bar metadata.` +
+									// "You cancelled the publish." adds nothing here; what Dataverse did with the job does.
+									afterCancel(why)
 								: `Your changes were imported and published, but refreshing Unified Interface's ` +
 									`command-bar metadata failed (${why}).`) +
 							` New or changed buttons may not appear in the app until ` +
