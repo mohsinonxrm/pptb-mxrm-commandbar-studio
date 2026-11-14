@@ -1,10 +1,18 @@
 import React, { useState } from "react";
-import { Button, Field, Input, Select } from "@fluentui/react-components";
+import {
+	Button,
+	Field,
+	Input,
+	MessageBar,
+	MessageBarBody,
+	Select,
+} from "@fluentui/react-components";
 import { AppDialog } from "@/components/shared/AppDialog";
 import { PLATFORM_GROUP_TEMPLATES } from "@/services/xmlGenerator";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { newGroupBlockedReason } from "@/utils/globalTab";
 
 // The platform's templates, as Change template offers them (#187).
 const DEFAULT_TEMPLATE = "Mscrm.Templates.Flexible2";
@@ -39,6 +47,11 @@ export const NewGroupModal: React.FC = () => {
 		closeNewGroup();
 	};
 
+	const blocked =
+		activeLocation && activeTabId
+			? newGroupBlockedReason(activeLocation, activeTabId)
+			: undefined;
+
 	return (
 		<AppDialog
 			open={newGroupOpen}
@@ -50,12 +63,21 @@ export const NewGroupModal: React.FC = () => {
 					<Button appearance="secondary" onClick={closeNewGroup}>
 						Cancel
 					</Button>
-					<Button appearance="primary" onClick={handleCreate} disabled={!label.trim()}>
+					<Button
+						appearance="primary"
+						onClick={handleCreate}
+						disabled={!label.trim() || !!blocked}
+					>
 						Create group
 					</Button>
 				</>
 			}
 		>
+			{blocked && (
+				<MessageBar intent="warning">
+					<MessageBarBody>{blocked}</MessageBarBody>
+				</MessageBar>
+			)}
 			<Field label="Label" required>
 				<Input value={label} onChange={(_, d) => setLabel(d.value)} data-autofocus />
 			</Field>

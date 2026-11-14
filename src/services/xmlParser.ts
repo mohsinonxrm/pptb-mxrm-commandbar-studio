@@ -131,6 +131,7 @@ export function parseRibbonXml(
 
 	// Layout titles of the templates the groups use, for the pre-publish check (#35).
 	const templateLayouts = parseTemplateLayouts(doc, tabs);
+	const templateAliases = parseTemplateAliases(doc, tabs);
 	return {
 		ribbon: {
 			location,
@@ -138,6 +139,7 @@ export function parseRibbonXml(
 			tabs,
 			...(Object.keys(scalingByTab).length > 0 ? { scalingByTab } : {}),
 			...(Object.keys(templateLayouts).length ? { templateLayouts } : {}),
+			...(Object.keys(templateAliases).length ? { templateAliases } : {}),
 		},
 		commands,
 		displayRules,
@@ -253,6 +255,26 @@ function parseTemplateLayouts(doc: Document, tabs: RibbonTab[]): Record<string, 
 		out[id] = Array.from(el.querySelectorAll(":scope > Layout"))
 			.map((l) => l.getAttribute("Title") ?? "")
 			.filter(Boolean);
+	});
+	return out;
+}
+
+/**
+ * The TemplateAlias values of the group templates the groups use (#165): a control is laid out on
+ * the classic ribbon only at an alias of its group's template (Section / OverflowSection / ControlRef).
+ */
+function parseTemplateAliases(doc: Document, tabs: RibbonTab[]): Record<string, string[]> {
+	const used = new Set(tabs.flatMap((t) => t.groups.map((g) => g.template)).filter(Boolean));
+	const out: Record<string, string[]> = {};
+	doc.querySelectorAll("GroupTemplate").forEach((el) => {
+		const id = el.getAttribute("Id");
+		if (!id || !used.has(id)) return;
+		const aliases = new Set<string>();
+		el.querySelectorAll("[TemplateAlias]").forEach((n) => {
+			const alias = n.getAttribute("TemplateAlias");
+			if (alias) aliases.add(alias);
+		});
+		out[id] = [...aliases];
 	});
 	return out;
 }

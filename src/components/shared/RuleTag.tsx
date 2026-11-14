@@ -5,7 +5,7 @@ import {
 	InteractionTagSecondary,
 	Tooltip,
 } from "@fluentui/react-components";
-import { ruleShortName } from "@/utils/ruleLabel";
+import { ruleShortName, ruleTagTip } from "@/utils/ruleLabel";
 
 /**
  * A bound rule (#190, #184): the primary part opens the rule, the secondary
@@ -16,7 +16,8 @@ import { ruleShortName } from "@/utils/ruleLabel";
 export interface RuleTagProps {
 	ruleId: string;
 	kind: "enable" | "display";
-	onOpen: () => void;
+	/** Leave out when the rule isn't in the loaded ribbon (#162): there's nothing to open. */
+	onOpen?: () => void;
 	/** Leave out when the rule can't be unbound here (read-only). */
 	onRemove?: () => void;
 }
@@ -24,9 +25,10 @@ export interface RuleTagProps {
 export const RuleTag: React.FC<RuleTagProps> = ({ ruleId, kind, onOpen, onRemove }) => {
 	const name = ruleShortName(ruleId);
 	const kindText = kind === "enable" ? "enable rule" : "display rule";
+	const tip = ruleTagTip(ruleId, kind, !!onOpen);
 	return (
 		<InteractionTag value={ruleId} size="small" appearance="outline">
-			<Tooltip content={ruleId} relationship="description">
+			<Tooltip content={tip} relationship="description">
 				<InteractionTagPrimary hasSecondaryAction={!!onRemove} onClick={onOpen}>
 					{name}
 				</InteractionTagPrimary>

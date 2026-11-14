@@ -30,6 +30,7 @@ import {
 } from "@/utils/ribbonProvenance";
 import type { RibbonGroup, RibbonLocation, RibbonTab } from "@/types/ribbon";
 import { idCaption } from "@/utils/displayText";
+import { newButtonBlockedReason, newGroupBlockedReason } from "@/utils/globalTab";
 
 /**
  * The one menu for a ribbon group (#194), wherever it is shown: the Classic
@@ -134,8 +135,11 @@ export function GroupContextMenu({
 					</MenuTrigger>
 					<MenuPopover>
 						<MenuList aria-label={`Actions for ${groupText(group)}`}>
+							{/* Only where the button would show (#166) */}
 							<MenuItem
 								icon={<AddRegular />}
+								disabled={!!newButtonBlockedReason(location, tab.id, group.id)}
+								subText={newButtonBlockedReason(location, tab.id, group.id)}
 								onClick={run(() => openNewButton(group.id))}
 							>
 								Add button…
@@ -165,6 +169,8 @@ export function GroupContextMenu({
 							)}
 							<MenuItem
 								icon={<CopyRegular />}
+								disabled={!!newGroupBlockedReason(location, tab.id)}
+								subText={newGroupBlockedReason(location, tab.id)}
 								onClick={run(() => duplicateGroup(location, tab.id, group.id))}
 							>
 								Duplicate group

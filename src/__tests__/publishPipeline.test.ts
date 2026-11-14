@@ -285,6 +285,28 @@ describe("verifyRibbonImport", () => {
 		expect(v.message).toContain("Bad LocLabel");
 	});
 
+	it("shows the solution's own failure when no ribbon was processed (#107)", () => {
+		const failed =
+			'<importexportxml><solutionManifests><solutionManifest languagecode="1033" id="CBSLiveTest" processed="true">' +
+			'<result result="failure" errorcode="0x80048033" errortext="The publisher prefix &quot;new&quot; isn&apos;t valid &amp; can&apos;t be used." datetime="05:12:01.22" />' +
+			"</solutionManifest></solutionManifests><entities /></importexportxml>";
+		const v = verifyRibbonImport(failed, { kind: "entity", names: ["Account"] });
+		expect(v.ok).toBe(false);
+		expect(v.message).toBe(
+			`Dataverse couldn't import the solution (0x80048033): The publisher prefix "new" isn't valid & can't be used.`,
+		);
+		expect(
+			verifyRibbonImport(failed.replace("<entities />", ""), { kind: "application" }).message,
+		).toMatch(/^Dataverse couldn't import the solution/);
+		// A success elsewhere isn't a failure: still the "no ribbon" message
+		expect(
+			verifyRibbonImport(
+				'<importexportxml><entities><entity id="X"><result result="success" /></entity></entities></importexportxml>',
+				{ kind: "entity", names: ["Account"] },
+			).message,
+		).toMatch(/did not apply a ribbon/);
+	});
+
 	it("verifies the application ribbon", () => {
 		const app =
 			'<ribbons><ribbon LocalizedName="Application Ribbons" processed="true"><result result="success" /></ribbon></ribbons>';

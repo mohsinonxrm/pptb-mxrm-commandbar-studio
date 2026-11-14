@@ -49,6 +49,7 @@ import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { canDeleteControl, canDeleteGroup, canDeleteTab } from "@/utils/ribbonProvenance";
 import { onSolutionSwitch, useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
+import { newButtonBlockedReason, newGroupBlockedReason } from "@/utils/globalTab";
 import {
 	OPEN_RECORD_ITEM_COMMAND_ID,
 	OPEN_RECORD_ITEM_LOCATIONS,
@@ -572,14 +573,42 @@ function record(
 	return { ...change, ...historyAfter(state, meta, () => workspaceOf(state), coalesceKey) };
 }
 
+/**
+ * The ribbons for a mutator to change in place (#111): a location is copied the first time the
+ * mutator reads it. A one-field edit of one location used to copy all four ribbons, keystrokes
+ * included; now it copies one, and the others stay shared with the state before.
+ */
+function copyOnRead(ribbons: Record<RibbonLocation, RibbonDefinition>): {
+	draft: Record<RibbonLocation, RibbonDefinition>;
+	next: Record<RibbonLocation, RibbonDefinition>;
+} {
+	const next = { ...ribbons };
+	const copied = new Set<PropertyKey>();
+	const draft = new Proxy(next, {
+		get(target, key, receiver) {
+			if (!copied.has(key) && Object.prototype.hasOwnProperty.call(target, key)) {
+				copied.add(key);
+				const location = key as RibbonLocation;
+				target[location] = JSON.parse(JSON.stringify(target[location]));
+			}
+			return Reflect.get(target, key, receiver);
+		},
+		set(target, key, value, receiver) {
+			copied.add(key);
+			return Reflect.set(target, key, value, receiver);
+		},
+	});
+	return { draft, next };
+}
+
 function commitMutation(
 	state: RibbonStoreState,
 	mutator: (ribbons: Record<RibbonLocation, RibbonDefinition>) => void,
 	meta: HistoryMeta,
 	coalesceKey?: string,
 ): Partial<RibbonStoreState> {
-	const next = cloneRibbons(state.ribbons);
-	mutator(next);
+	const { draft, next } = copyOnRead(state.ribbons);
+	mutator(draft);
 	return record(state, { ribbons: next }, meta, coalesceKey);
 }
 
@@ -825,6 +854,13 @@ export function isLoadedControl(
 	return (state.baseline[location]?.tabs ?? []).some((t) =>
 		t.groups.some((g) => groupControls(g).some((b) => b.id === id)),
 	);
+}
+
+/** Logs why an add or move to the global command bar was refused (#166); true when it was. */
+function refusedOnGlobalTab(what: string, reason: string | undefined): boolean {
+	if (!reason) return false;
+	useRuntimeLogStore.getState().logWarn("ribbon", `Can't ${what}: ${reason}`);
+	return true;
 }
 
 function isReadOnlyGlobalOobButton(
@@ -1160,6 +1196,17 @@ export const useRibbonStore = create<RibbonStore>()(
 				.find((t) => t.id === dst.tabId)
 				?.groups.find((g) => g.id === dst.groupId);
 			if (!original || !srcGroup || !dstGroup) return null;
+			// Reordering inside a group is fine; moving into another global command bar group isn't
+			if (
+				(src.location !== dst.location ||
+					src.tabId !== dst.tabId ||
+					src.groupId !== dst.groupId) &&
+				refusedOnGlobalTab(
+					`move ${original.id} to ${dst.groupId}`,
+					newButtonBlockedReason(dst.location, dst.tabId, dst.groupId),
+				)
+			)
+				return null;
 			// Judged by the origin it was loaded with, as publish does: "Create
 			// override…" makes the current origin unmanaged, but the button is
 			// still not in your layer. Only when the origin is known (provenance
@@ -1395,6 +1442,13 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		addMenuItem({ location, tabId, groupId, parentId, sectionId, item }) {
+			if (
+				refusedOnGlobalTab(
+					`add a menu item to ${parentId}`,
+					newButtonBlockedReason(location, tabId, groupId),
+				)
+			)
+				return;
 			set((state) =>
 				commitMutation(
 					state,
@@ -1442,6 +1496,13 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		addMenuSection(location, tabId, groupId, parentId, title) {
+			if (
+				refusedOnGlobalTab(
+					`add a menu section to ${parentId}`,
+					newButtonBlockedReason(location, tabId, groupId),
+				)
+			)
+				return;
 			set((state) =>
 				commitMutation(
 					state,
@@ -1541,6 +1602,13 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		duplicateButton(location, tabId, groupId, buttonId) {
+			if (
+				refusedOnGlobalTab(
+					`duplicate ${buttonId} in ${groupId}`,
+					newButtonBlockedReason(location, tabId, groupId),
+				)
+			)
+				return;
 			set((state) =>
 				commitMutation(
 					state,
@@ -1606,6 +1674,13 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		createButton({ tabId, groupId, location, button }) {
+			if (
+				refusedOnGlobalTab(
+					`add "${button.label ?? "New Button"}" to ${groupId}`,
+					newButtonBlockedReason(location, tabId, groupId),
+				)
+			)
+				return;
 			set((state) =>
 				commitMutation(
 					state,
@@ -1655,6 +1730,13 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		createGroup({ tabId, location, group }) {
+			if (
+				refusedOnGlobalTab(
+					`add the group "${group.label ?? "New Group"}" to ${tabId}`,
+					newGroupBlockedReason(location, tabId),
+				)
+			)
+				return;
 			set((state) =>
 				commitMutation(
 					state,
@@ -1725,6 +1807,8 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		duplicateGroup(location, tabId, groupId) {
+			if (refusedOnGlobalTab(`duplicate ${groupId}`, newGroupBlockedReason(location, tabId)))
+				return;
 			// The copy's id and title, when it kept a title it can't rename once published.
 			let keptTitle: { copyId: string; title: string } | null = null;
 			set((state) =>
@@ -2175,6 +2259,14 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		customiseButton(location, tabId, groupId, buttonId, idPrefix) {
+			// The copy goes in the same group (#166)
+			if (
+				refusedOnGlobalTab(
+					`customise ${buttonId} in ${groupId}`,
+					newButtonBlockedReason(location, tabId, groupId),
+				)
+			)
+				return null;
 			const state = get();
 			const btn = state.ribbons[location].tabs
 				.find((t) => t.id === tabId)

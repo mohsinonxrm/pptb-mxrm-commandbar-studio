@@ -16,7 +16,11 @@ import {
 	ArrowDownRegular,
 } from "@fluentui/react-icons";
 import type { ActionParameter, CrmParameterValue } from "@/types/ribbon";
-import { URL_INVALID_CRM_PARAMETER_VALUES } from "@/constants/crmParameters";
+import {
+	DEPRECATED_CRM_PARAMETER_VALUES,
+	URL_INVALID_CRM_PARAMETER_VALUES,
+	crmParameterDescription,
+} from "@/constants/crmParameters";
 
 const useStyles = makeStyles({
 	root: {
@@ -31,7 +35,8 @@ const useStyles = makeStyles({
 		flexWrap: "wrap",
 		minWidth: 0,
 		gap: tokens.spacingHorizontalS,
-		alignItems: "flex-end",
+		// Top: a field's hint or message below it mustn't lift its control (#161 review)
+		alignItems: "flex-start",
 		padding: tokens.spacingVerticalXS,
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
 		borderRadius: tokens.borderRadiusMedium,
@@ -54,6 +59,8 @@ const useStyles = makeStyles({
 		display: "flex",
 		gap: tokens.spacingHorizontalXS,
 		flexShrink: 0,
+		// Level with the fields' controls: below a small Field's label
+		marginTop: "20px",
 	},
 	addButton: {
 		alignSelf: "flex-start",
@@ -112,6 +119,11 @@ interface CrmParameterEditorProps {
 	onChange: (params: ActionParameter[]) => void;
 	/** For URL actions: show Name field and warn on missing names */
 	urlMode?: boolean;
+	/**
+	 * The only names the target accepts (#160): an HTML web resource takes a fixed set. Another
+	 * name is flagged, as the request fails.
+	 */
+	allowedNames?: string[];
 }
 
 /**
@@ -156,6 +168,7 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 	params,
 	onChange,
 	urlMode = false,
+	allowedNames,
 }) => {
 	const styles = useStyles();
 
@@ -178,7 +191,24 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 	};
 
 	const addParam = () => {
-		onChange([...params, { kind: "CrmParameter", value: "PrimaryControl" }]);
+		// PrimaryControl is an object: meaningless in a query string (#160)
+		onChange([
+			...params,
+			urlMode
+				? { kind: "StringParameter", value: "" }
+				: { kind: "CrmParameter", value: "PrimaryControl" },
+		]);
+	};
+
+	// A Url parameter's problem with its name, if any (#160): every kind needs one, and a web
+	// resource accepts only its own names.
+	const nameProblem = (param: ActionParameter): string | undefined => {
+		if (!urlMode) return undefined;
+		const name = param.name?.trim();
+		if (!name) return "Needs a name: it's the query string key.";
+		if (allowedNames && !allowedNames.includes(param.name ?? ""))
+			return `A web resource accepts only ${allowedNames.join(", ")}: put your own values in data.`;
+		return undefined;
 	};
 
 	return (
@@ -190,13 +220,19 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 							value={param.kind}
 							onChange={(_, d) => {
 								const kind = d.value as ActionParameter["kind"];
+								// A Url parameter keeps its name (#160)
+								const name = param.name;
 								if (kind === "CrmParameter")
-									setParam(i, { kind, value: "PrimaryControl" });
+									setParam(i, {
+										kind,
+										name,
+										value: urlMode ? "PrimaryEntityTypeName" : "PrimaryControl",
+									});
 								else if (kind === "BoolParameter")
-									setParam(i, { kind, value: false });
+									setParam(i, { kind, name, value: false });
 								else if (kind === "IntParameter" || kind === "DecimalParameter")
-									setParam(i, { kind, value: 0 });
-								else setParam(i, { kind: "StringParameter", value: "" });
+									setParam(i, { kind, name, value: 0 });
+								else setParam(i, { kind: "StringParameter", name, value: "" });
 							}}
 						>
 							<option value="CrmParameter">From the context</option>
@@ -212,15 +248,15 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 							label="Name"
 							size="small"
 							className={styles.nameField}
-							// Url parameters are sent by name, so a context value needs one (#41, #189).
+							// Url parameters are sent by name, so every kind needs one (#41, #189, #160).
 							validationState={
-								param.kind === "CrmParameter" && !param.name ? "error" : "none"
+								!nameProblem(param)
+									? "none"
+									: param.name?.trim()
+										? "warning"
+										: "error"
 							}
-							validationMessage={
-								param.kind === "CrmParameter" && !param.name
-									? "Needs a name: it's the query string key."
-									: undefined
-							}
+							validationMessage={nameProblem(param)}
 						>
 							<Input
 								value={param.name ?? ""}
@@ -232,7 +268,30 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 						</Field>
 					)}
 
-					<Field label="Value" size="small" className={styles.valueField}>
+					<Field
+						label="Value"
+						size="small"
+						className={styles.valueField}
+						// What the value passes, in words (#161)
+						hint={
+							param.kind === "CrmParameter"
+								? (crmParameterDescription(String(param.value)) ??
+									"A value CBS doesn't list, kept as loaded.")
+								: undefined
+						}
+						validationState={
+							param.kind === "CrmParameter" &&
+							DEPRECATED_CRM_PARAMETER_VALUES[String(param.value)]
+								? "warning"
+								: "none"
+						}
+						validationMessage={
+							param.kind === "CrmParameter" &&
+							DEPRECATED_CRM_PARAMETER_VALUES[String(param.value)]
+								? `Deprecated: use ${DEPRECATED_CRM_PARAMETER_VALUES[String(param.value)]}.`
+								: undefined
+						}
+					>
 						{param.kind === "CrmParameter" ? (
 							<Select
 								value={param.value as string}
@@ -240,6 +299,18 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 									setParam(i, { ...param, value: d.value as CrmParameterValue })
 								}
 							>
+								{/* A loaded value CBS doesn't list shows as itself, not as the first option (#161). */}
+								{!CRM_PARAM_GROUPED.some((g) =>
+									g.values.includes(param.value as CrmParameterValue),
+								) ||
+								(urlMode &&
+									URL_INVALID_CRM_PARAMETER_VALUES.has(String(param.value))) ? (
+									<optgroup label="As loaded">
+										<option value={String(param.value)}>
+											{String(param.value)}
+										</option>
+									</optgroup>
+								) : null}
 								{/* Grouped as the platform documents them (#189). */}
 								{CRM_PARAM_GROUPED.map((group) => (
 									<optgroup key={group.label} label={group.label}>
@@ -252,7 +323,9 @@ export const CrmParameterEditor: React.FC<CrmParameterEditorProps> = ({
 											)
 											.map((v) => (
 												<option key={v} value={v}>
-													{v}
+													{DEPRECATED_CRM_PARAMETER_VALUES[v]
+														? `${v} (deprecated)`
+														: v}
 												</option>
 											))}
 									</optgroup>
