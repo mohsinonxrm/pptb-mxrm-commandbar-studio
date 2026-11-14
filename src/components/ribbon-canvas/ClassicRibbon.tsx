@@ -1,13 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { useDisplayText } from "@/hooks/useDisplayText";
-import {
-	tokens,
-	Text,
-	Badge,
-	Tooltip,
-	MessageBar,
-	MessageBarBody,
-} from "@fluentui/react-components";
+import { tokens, Text, Badge, Tooltip } from "@fluentui/react-components";
 import {
 	AddRegular,
 	EyeOffRegular,
@@ -426,19 +419,9 @@ export function ClassicRibbon({ tab, location }: ClassicRibbonProps) {
 
 	return (
 		<>
-			{/* Location banners */}
-			{location === "SubGrid" && (
-				<MessageBar
-					intent="info"
-					style={{ margin: `${tokens.spacingVerticalS} ${tokens.spacingHorizontalM} 0` }}
-				>
-					<MessageBarBody>
-						Subgrid ribbons support only 3 native controls: <strong>Add</strong>,{" "}
-						<strong>Show List</strong>, and <strong>Delete</strong>. Their icons cannot
-						be changed.
-					</MessageBarBody>
-				</MessageBar>
-			)}
+			{/* No location banners: About this location explains each location (#181). The
+			    sub-grid one said only Add, Show List and Delete exist, which isn't so in
+			    Unified Interface (#167). */}
 			{/* Form-ribbon Unified-Interface note rendered at RibbonCanvas level — not duplicated here. */}
 
 			<DndContext

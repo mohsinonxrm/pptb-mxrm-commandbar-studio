@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     say).
   - **The Application ribbon's note** says this, instead of "Buttons on GlobalTab appear in the
     global command bar".
+- **The sub-grid note matches Unified Interface (#167).** "About this location" and a banner on
+  the Classic canvas said a sub-grid supports only Add, Show List and Delete, with icons that can't
+  change. That's the pre-Unified-Interface page. A live check showed Unified Interface shows the
+  entity's whole sub-grid command bar, and that overriding a built-in sub-grid button's label, icon
+  and command takes effect. The note now says so, and the banner is gone, as the other location
+  banners went in 0.9.0 (#181).
 - **The context value picker explains itself (#161).** Under a parameter's **Value**, the field
   now says what the chosen value passes, in Microsoft's terms: FirstPrimaryItemId is the record
   being viewed (empty on a main grid), PrimaryControl the form's context, SelectedControl the grid's.
