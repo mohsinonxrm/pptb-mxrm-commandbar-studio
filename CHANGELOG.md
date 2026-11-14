@@ -82,6 +82,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its own failure, for example "Dataverse couldn't import the solution (0x80048033): …". When an
   import succeeds but no ribbon was applied, the job's failure is shown, if it has one, instead of
   "no entityRibbon result". Quotes, apostrophes and ampersands in Dataverse's text are decoded.
+- **Imports run in the background, and you can cancel them (#107).** Publish now imports with
+  `ImportSolutionAsync` and follows the system job it starts, so a long import can't hit a host or
+  HTTP timeout. A failed job shows Dataverse's message with the import job's own failure. While
+  ribbons import, **Cancel** stops the publish: Command Bar Studio stops waiting, asks Dataverse to
+  cancel the import, and says what happened. Dataverse may refuse or finish the import anyway, and
+  the message says so. What didn't finish isn't marked published, so those changes stay to
+  publish. An import that takes more than 10 minutes is stopped the same way. After a failed or cancelled import,
+  **View import log** shows the import job's log read-only in the publish dialog.
 - **Adding a language by typing it no longer adds two (#136).** Typing an LCID such as 1036 in
   **Add a language** and pressing Enter added French and the first language in the list (German);
   the list now narrows to what's typed.
