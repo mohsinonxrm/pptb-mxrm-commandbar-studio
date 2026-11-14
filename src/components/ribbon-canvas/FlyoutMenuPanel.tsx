@@ -35,6 +35,7 @@ import { useModernAppNames, useModernLocation } from "@/hooks/useModernCommands"
 import { overrideNote } from "@/services/modernCommands";
 import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
 import type { RibbonButton, RibbonLocation, RibbonMenuSection, RibbonTab } from "@/types/ribbon";
+import { newButtonBlockedReason } from "@/utils/globalTab";
 
 const useStyles = makeStyles({
 	root: {
@@ -363,6 +364,8 @@ function AddItemButton({ parent, section }: { parent: RibbonButton; section: Rib
 	const sessionPrefix = useSessionStore((s) => s.publisherPrefix);
 	const activeEntity = useSessionStore((s) => s.activeEntity);
 
+	const blocked = tabId && groupId ? newButtonBlockedReason(location, tabId, groupId) : undefined;
+
 	const add = () => {
 		if (!groupId) return;
 		const { ribbons, commands } = useRibbonStore.getState();
@@ -393,7 +396,15 @@ function AddItemButton({ parent, section }: { parent: RibbonButton; section: Rib
 
 	return (
 		<div>
-			<Button size="small" appearance="subtle" icon={<AddRegular />} onClick={add}>
+			<Button
+				size="small"
+				appearance="subtle"
+				icon={<AddRegular />}
+				// Not in a global command bar group that wouldn't show it (#166)
+				disabledFocusable={!!blocked}
+				title={blocked}
+				onClick={add}
+			>
 				Add item
 			</Button>
 		</div>

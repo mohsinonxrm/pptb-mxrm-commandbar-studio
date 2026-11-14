@@ -48,6 +48,7 @@ import {
 } from "@/utils/ribbonProvenance";
 import type { RibbonButton, RibbonGroup, RibbonTab } from "@/types/ribbon";
 import { idCaption } from "@/utils/displayText";
+import { newGroupBlockedReason } from "@/utils/globalTab";
 
 /**
  * The left pane's Structure tab (#194): the location's ribbon as a tree of
@@ -610,6 +611,8 @@ export function StructurePane() {
 							</MenuItem>
 							<MenuItem
 								icon={<AddRegular />}
+								disabled={!!newGroupBlockedReason(location, tabMenu.tab.id)}
+								subText={newGroupBlockedReason(location, tabMenu.tab.id)}
 								onClick={() => {
 									chooseTab(tabMenu.tab);
 									openNewGroup();

@@ -42,6 +42,7 @@ import { isGlobalOobReadOnly } from "@/utils/ribbonProvenance";
 import { dropPlace, type DropSpot } from "@/utils/groupCards";
 import type { RibbonButton, RibbonGroup, RibbonLocation, RibbonTab } from "@/types/ribbon";
 import { idCaption } from "@/utils/displayText";
+import { newButtonBlockedReason } from "@/utils/globalTab";
 
 /**
  * Edit mode's Groups view (#194): a card per group of the tab, in the tab's
@@ -319,6 +320,7 @@ export function GroupCards({ tab, location }: { tab: RibbonTab; location: Ribbon
 								setButtonMenu({ button: b, groupId: group.id, anchor })
 							}
 							onAddButton={() => openNewButton(group.id)}
+							addBlockedReason={newButtonBlockedReason(location, tab.id, group.id)}
 						/>
 					))}
 				</div>
@@ -370,6 +372,8 @@ interface GroupCardProps {
 	onGroupMenu: (anchor: HTMLElement) => void;
 	onButtonMenu: (b: RibbonButton, anchor: HTMLElement) => void;
 	onAddButton: () => void;
+	/** Why no button can be added to this group (#166): the Add button is disabled and says so. */
+	addBlockedReason?: string;
 }
 
 function GroupCard({
@@ -386,6 +390,7 @@ function GroupCard({
 	onGroupMenu,
 	onButtonMenu,
 	onAddButton,
+	addBlockedReason,
 }: GroupCardProps) {
 	const styles = useStyles();
 	// The card's empty space takes a drop too (an empty group, or "last").
@@ -463,6 +468,8 @@ function GroupCard({
 					appearance="subtle"
 					size="small"
 					icon={<AddRegular />}
+					disabledFocusable={!!addBlockedReason}
+					title={addBlockedReason}
 					onClick={onAddButton}
 					aria-label={`Add button to ${title}`}
 				>
