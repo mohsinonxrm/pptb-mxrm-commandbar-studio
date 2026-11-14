@@ -31,7 +31,7 @@ import {
 	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
 import { fetchUnmanagedRibbonParts } from "@/services/dataverse/ribbonLayerService";
-import { writeGuard, type WriteGuard } from "@/services/hostConnection";
+import { ConnectionChangedError, writeGuard, type WriteGuard } from "@/services/hostConnection";
 import {
 	fetchOrganizationLanguageCode,
 	isEnvironmentBusyError,
@@ -44,7 +44,7 @@ import { describeScalingChange, type ScalingChange } from "@/services/scalingSeq
 import { ribbonPlaces } from "@/services/layerOrphans";
 import { groupControls } from "@/utils/ribbonMenu";
 import { controlCommandIds } from "@/utils/controlKinds";
-import { verifyRibbonImport } from "@/services/importJobVerification";
+import { importJobFailure, verifyRibbonImport } from "@/services/importJobVerification";
 import {
 	validatePublishRibbonDiff,
 	webResourceReferences,
@@ -87,6 +87,27 @@ async function importSolution(
 			PublishWorkflows: false,
 		},
 	});
+}
+
+/**
+ * A failed import's error with the import job's first failure added (#107), when the job
+ * exists, says why, and the error doesn't already. Never fails itself: the original error is
+ * what's thrown when the job can't be read.
+ */
+export async function withImportJobReason(err: unknown, importJobId: string): Promise<unknown> {
+	try {
+		const job = (await withCheckTimeout(
+			dataverseAPI.retrieve("importjob", importJobId, ["data"]) as Promise<unknown>,
+			10_000,
+		)) as { data?: string } | null;
+		const reason = importJobFailure(job?.data);
+		const message = err instanceof Error ? err.message : String(err);
+		const text = reason?.replace(/^[^:]*: /, "");
+		if (!reason || (text && message.includes(text))) return err;
+		return new Error(`${message} — ${reason}`, { cause: err });
+	} catch {
+		return err;
+	}
 }
 
 /** PublishXml for the given tables. */
@@ -576,6 +597,7 @@ export function publishValidationContext(
 	const tabScaling: Record<string, ScalingDefinition> = {};
 	const groupTemplates: Record<string, string> = {};
 	const templateLayouts: Record<string, string[]> = {};
+	const templateAliases: Record<string, string[]> = {};
 	const loadedAttributes: Record<string, Record<string, string>> = {};
 	const baselineGroups = new Set<string>();
 	const currentGroups = new Set<string>();
@@ -589,6 +611,7 @@ export function publishValidationContext(
 							menuControlsIds.add(section.controlsId);
 	for (const { current, baseline } of input.locations) {
 		Object.assign(templateLayouts, baseline.templateLayouts);
+		Object.assign(templateAliases, baseline.templateAliases);
 		for (const tab of baseline.tabs) {
 			elementIds.push(tab.id);
 			if (tab.label) loadedAttributes[tab.id] = { Title: tab.label };
@@ -655,6 +678,7 @@ export function publishValidationContext(
 		tabScaling,
 		groupTemplates,
 		templateLayouts,
+		templateAliases,
 		menuControlsIds,
 		// Where the table's CustomActions can place what they add (#64).
 		...(input.entity
@@ -1164,12 +1188,15 @@ async function publishRibbonUnguarded(
 				try {
 					await importSolution(base64Zip, importJobId, guard);
 				} catch (err) {
-					if (
-						isEnvironmentBusyError(err) &&
-						runningOperationOf(err)?.toLowerCase() === "import"
-					)
-						importRan = true;
-					throw err;
+					if (isEnvironmentBusyError(err)) {
+						if (runningOperationOf(err)?.toLowerCase() === "import") importRan = true;
+						throw err;
+					}
+					// The import itself failed (#107): add the import job's own reason when the
+					// fault doesn't already say it (a generic 500, a timeout).
+					throw err instanceof ConnectionChangedError
+						? err
+						: await withImportJobReason(err, importJobId);
 				}
 				importedOnce = true;
 			},

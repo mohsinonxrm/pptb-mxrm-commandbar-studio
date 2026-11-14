@@ -173,6 +173,8 @@ export interface RibbonDefinition {
 	scalingByTab?: Record<string, ScalingDefinition>;
 	/** Layout titles of the group templates this ribbon's groups use, as loaded (template id → titles). */
 	templateLayouts?: Record<string, string[]>;
+	/** The TemplateAlias values each of those templates places controls at, as loaded (#165). */
+	templateAliases?: Record<string, string[]>;
 }
 
 export interface CommandDefinition {

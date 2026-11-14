@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PrimaryEntityTypeCode and SelectedEntityTypeCode read "(deprecated)", and picking one warns to
   use the …TypeName value instead. A loaded value the list doesn't have, or one a URL can't take,
   now shows as itself; before, the picker showed PrimaryControl while keeping the real value.
+- **A failed import says why (#107).** When the import itself fails with a fault that doesn't
+  give the reason (a generic server error, a timeout), Publish now reads the import job and adds
+  its own failure, for example "Dataverse couldn't import the solution (0x80048033): …". When an
+  import succeeds but no ribbon was applied, the job's failure is shown, if it has one, instead of
+  "no entityRibbon result". Quotes, apostrophes and ampersands in Dataverse's text are decoded.
 - **Adding a language by typing it no longer adds two (#136).** Typing an LCID such as 1036 in
   **Add a language** and pressing Enter added French and the first language in the list (German);
   the list now narrows to what's typed.
@@ -113,6 +118,30 @@ are the full list. Requires Power Platform ToolBox 1.2.7 or later, as 0.8 does.
 - **0.8.x is end of life:** 0.8.0 is deprecated on npm and gets no support window, because
   0.9.0 needs the same PPTB (see `SECURITY.md`).
 - **0.9.0-beta.3 wasn't published to npm.** Its fixes ship in 0.9.0.
+- **Microsoft's grid and quick action rules can be bound (#162).** Microsoft documents placing a
+  grid command with the enable rules `Mscrm.ShowOnGrid`, `Mscrm.ShowOnQuickAction` and
+  `Mscrm.ShowOnGridAndQuickAction`, but they live in the application ribbon, so an entity's rule
+  list didn't offer them. For a main grid command, the command editor's **Add an existing enable
+  rule** now lists them under Microsoft's grid rules, and so does the Properties pane's **Bind an
+  existing enable rule**. The publish check knows them. A bound rule that isn't in the loaded
+  ribbon no longer opens an editor that closes at once, there or in the bottom panel's Commands
+  list: its tag says why there's nothing to open. A display rule that a
+  sub-grid button uses now warns about a **Column value** step: Microsoft says Unified Interface
+  doesn't check one there, so put it in an enable rule.
+- **Scaling and layout checks (#165).** A new group whose template isn't one CBS lists now gets its
+  MaxSize from the template's largest layout as loaded; when nothing knows the template, the publish
+  dialog warns that the group gets none (every group needs one on the classic ribbon). The publish
+  check also warns when a control's **Template alias** isn't one its group's template has: the
+  classic ribbon doesn't lay it out (Unified Interface ignores templates). An unused helper that
+  had the MaxSize / Scale order backwards is gone. Scaling stays read-only until changes to it can
+  be published.
+- **Compare with published shows what Publish writes (#216).** Compare built both sides from the
+  generator alone, so changes only Publish's merge writes, such as a moved tab, showed +0 / −0.
+  Compare now reads your published customizations for the entity (and the application ribbon, when
+  it's published too) and compares them with the RibbonDiffXml Publish would import. When that
+  can't be built (no connection, a change Publish can't write yet, or no answer within 30 s), it
+  compares the generated XML as before and says why. Application ribbon changes Publish can't
+  import yet (the solution has no Application Ribbons) are left out, and Compare says so.
 
 ## [0.9.0-beta.3] - 2026-11-12
 
