@@ -526,11 +526,11 @@ export function StructurePane() {
 			<div className={styles.body}>
 				{!hasTable ? (
 					<Text as="p" block size={200} className={styles.empty}>
-						Choose a table to see its tabs, groups and buttons.
+						Choose an entity to see its tabs, groups and buttons.
 					</Text>
 				) : !loaded ? (
 					<Text as="p" block size={200} className={styles.empty}>
-						Shown once the table&apos;s ribbon is loaded.
+						Shown once the entity&apos;s ribbon is loaded.
 					</Text>
 				) : tabs.length === 0 ? (
 					<Text as="p" block size={200} className={styles.empty}>

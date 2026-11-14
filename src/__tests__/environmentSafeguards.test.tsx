@@ -296,7 +296,7 @@ describe("the publish dialog names its target and guards Production (#121)", () 
 		try {
 			await openPublishDialog();
 			expect(document.body.textContent).toContain(
-				"base language couldn't be read when the table loaded",
+				"base language couldn't be read when the entity loaded",
 			);
 			expect(publishButton()?.disabled).toBe(true);
 		} finally {

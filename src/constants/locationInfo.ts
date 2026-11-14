@@ -19,13 +19,13 @@ export const LOCATION_INFO: Record<RibbonLocation, LocationInfo> = {
 	HomepageGrid: {
 		label: "Main grid",
 		title: "Main grid",
-		body: "The command bar above the table's full-page list of records. Unified Interface shows this ribbon as one flat bar: tabs, group layout and scaling are ignored, and commands that don't fit move under More commands (⋮).",
+		body: "The command bar above the entity's full-page list of records. Unified Interface shows this ribbon as one flat bar: tabs, group layout and scaling are ignored, and commands that don't fit move under More commands (⋮).",
 		ribbonId: "Mscrm.HomepageGrid.{table}",
 	},
 	Form: {
 		label: "Main form",
 		title: "Main form",
-		body: "The command bar at the top of the table's main form. Unified Interface shows it as one flat bar: tab layout and scaling are ignored, but button visibility and command actions work as configured, as in Ribbon Workbench. Microsoft doesn't support the tabbed ribbon on Unified Interface.",
+		body: "The command bar at the top of the entity's main form. Unified Interface shows it as one flat bar: tab layout and scaling are ignored, but button visibility and command actions work as configured, as in Ribbon Workbench. Microsoft doesn't support the tabbed ribbon on Unified Interface.",
 		ribbonId: "Mscrm.Form.{table}",
 	},
 	SubGrid: {
@@ -44,5 +44,5 @@ export const LOCATION_INFO: Record<RibbonLocation, LocationInfo> = {
 
 /** The ribbon id for a location and table, e.g. "Mscrm.Form.account". */
 export function locationRibbonId(location: RibbonLocation, table?: string): string {
-	return LOCATION_INFO[location].ribbonId.replace("{table}", table || "<table>");
+	return LOCATION_INFO[location].ribbonId.replace("{table}", table || "<entity>");
 }

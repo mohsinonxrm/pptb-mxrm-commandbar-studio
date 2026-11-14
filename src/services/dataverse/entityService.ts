@@ -83,7 +83,7 @@ export async function fetchEntitiesByMetadataIds(metadataIds: string[]): Promise
 					// One at a time: if the chunk was throttled, 40 parallel reads would be too.
 					logs.logWarn(
 						"dataverse",
-						`Couldn't read ${chunk.length} tables in one request (${
+						`Couldn't read ${chunk.length} entities in one request (${
 							e instanceof Error ? e.message : String(e)
 						}); reading them one at a time.`,
 					);
@@ -99,6 +99,6 @@ export async function fetchEntitiesByMetadataIds(metadataIds: string[]): Promise
 		.filter((e): e is EntityMetadata => e !== null && !e.isIntersect)
 		.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
-	logs.logInfo("dataverse", `Loaded metadata for ${mapped.length} table(s).`);
+	logs.logInfo("dataverse", `Loaded metadata for ${mapped.length} entities.`);
 	return mapped;
 }

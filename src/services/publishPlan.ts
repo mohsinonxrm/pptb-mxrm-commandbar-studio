@@ -157,7 +157,7 @@ export interface ScopePlan {
  * command bar (or its overflow menu) where the tab's display rule applies.
  */
 export const UCI_TAB_NOTE =
-	"Unified Interface has no visible tabs: this tab's buttons appear in the table's command bar (or its overflow " +
+	"Unified Interface has no visible tabs: this tab's buttons appear in the entity's command bar (or its overflow " +
 	"menu) wherever the tab's display rule applies.";
 
 /** A tab / group title the publish renames (#58). */

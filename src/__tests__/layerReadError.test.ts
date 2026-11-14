@@ -89,14 +89,14 @@ describe("#110 layer read errors", () => {
 		layerResult.entity = new Error("503 Service Unavailable");
 		const ws = await fetchRibbonWorkspace(T);
 		expect(ws.ribbons.HomepageGrid.tabs).toHaveLength(1);
-		expect(ws.layerReadError).toBe(`the ${T} table's customizations: 503 Service Unavailable`);
+		expect(ws.layerReadError).toBe(`the ${T} entity's customizations: 503 Service Unavailable`);
 	});
 
 	it("both layers fail: both are named", async () => {
 		layerResult.entity = new Error("timeout");
 		layerResult.app = new Error("401");
 		const ws = await fetchRibbonWorkspace(T);
-		expect(ws.layerReadError).toContain(`the ${T} table's customizations: timeout`);
+		expect(ws.layerReadError).toContain(`the ${T} entity's customizations: timeout`);
 		expect(ws.layerReadError).toContain("the application ribbon's customizations: 401");
 	});
 
@@ -205,7 +205,7 @@ describe("#4 the load reports its steps", () => {
 		await fetchRibbonWorkspace(T, (s) => steps.push(s));
 		expect(steps).toEqual([
 			"Reading your customizations…",
-			"Reading the table's ribbon and the application ribbon…",
+			"Reading the entity's ribbon and the application ribbon…",
 			"Matching labels and ownership…",
 		]);
 	});

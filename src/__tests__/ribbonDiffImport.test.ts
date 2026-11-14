@@ -303,7 +303,7 @@ describe("CustomActions are applied to the loaded ribbon", () => {
 		expect(
 			result.notApplied.some(
 				(m) =>
-					m.includes("cbs.Contact.Button") && m.includes("belongs to the contact table"),
+					m.includes("cbs.Contact.Button") && m.includes("belongs to the contact entity"),
 			),
 		).toBe(true);
 		expect(
@@ -843,7 +843,7 @@ describe("#68 review 6 — a table import stays on the table", () => {
 		expect(btn(result.ribbons.HomepageGrid, SHARED)?.hidden).toBe(true);
 		expect(btn(result.ribbons.Application, SHARED)?.hidden).toBe(false);
 		expect(result.notes).toEqual(
-			expect.arrayContaining([expect.stringContaining(`name the ${T} table`)]),
+			expect.arrayContaining([expect.stringContaining(`name the ${T} entity`)]),
 		);
 	});
 

@@ -1185,7 +1185,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				// commands and rules aren't in the application ribbon, nor the reverse.
 				if ((src.location === "Application") !== (dst.location === "Application"))
 					return refuse(
-						"it isn't yours, and a copy can't move between the table's ribbon and the application ribbon.",
+						"it isn't yours, and a copy can't move between the entity's ribbon and the application ribbon.",
 					);
 				const prefix = sessionIdPrefix();
 				let moved: string | null = null;
@@ -2316,7 +2316,7 @@ export const useRibbonStore = create<RibbonStore>()(
 					historyMeta(
 						"uncustomised",
 						commandId,
-						`command removed from the ${scope === "entity" ? "table's" : "application ribbon's"} layer on publish`,
+						`command removed from the ${scope === "entity" ? "entity's" : "application ribbon's"} layer on publish`,
 						"arrow_undo",
 					),
 				),
@@ -2374,7 +2374,7 @@ export const useRibbonStore = create<RibbonStore>()(
 							id,
 							label: "Open record",
 							tooltipTitle: "Open record",
-							tooltipBody: `Runs the table's ${OPEN_RECORD_ITEM_COMMAND_ID} action for the selected row, as opening a row does.`,
+							tooltipBody: `Runs the entity's ${OPEN_RECORD_ITEM_COMMAND_ID} action for the selected row, as opening a row does.`,
 							kind: "button",
 							templateAlias: "o1",
 							commandId: OPEN_RECORD_ITEM_COMMAND_ID,

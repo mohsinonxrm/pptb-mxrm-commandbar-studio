@@ -253,7 +253,7 @@ export function TopBar() {
 				publishButton
 			) : (
 				<Tooltip
-					content="No unpublished changes on this table. Make a change and it shows here as Publish 1 change."
+					content="No unpublished changes on this entity. Make a change and it shows here as Publish 1 change."
 					relationship="description"
 				>
 					{publishButton}
@@ -575,7 +575,7 @@ function Tools({ onHelp }: { onHelp: () => void }) {
 						</span>
 					</OverflowItem>
 					<OverflowItem id="open">
-						<Tooltip content="Open this table in Dynamics 365" relationship="label">
+						<Tooltip content="Open this entity in Dynamics 365" relationship="label">
 							<ToolbarButton
 								icon={<OpenRegular />}
 								disabledFocusable={!t.canOpenInApp}
@@ -706,7 +706,7 @@ function HelpContent() {
 	return (
 		<div className={styles.helpBody}>
 			<Text size={200}>
-				Your changes are kept as a draft for each table automatically, until you publish or
+				Your changes are kept as a draft for each entity automatically, until you publish or
 				discard them.
 			</Text>
 			<dl className={styles.shortcuts}>

@@ -237,7 +237,7 @@ export const CompareView: React.FC<{ historyIndex?: number }> = ({ historyIndex 
 				<Text size={500} weight="semibold">
 					No changes since the last publish
 				</Text>
-				<Text>What you see matches what&apos;s published for this table.</Text>
+				<Text>What you see matches what&apos;s published for this entity.</Text>
 				<Button onClick={() => setShowUnchanged(true)}>Show the full XML anyway</Button>
 			</div>
 		);

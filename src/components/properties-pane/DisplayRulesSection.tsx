@@ -76,7 +76,7 @@ export const RulesSection: React.FC<RulesSectionProps> = ({ kind }) => {
 		provenance?.provenance === "uncustomising"
 			? "Undo the uncustomise to change its rules."
 			: provenance?.provenance === "reloadRequired"
-				? "Reload the table to change its rules."
+				? "Reload the entity to change its rules."
 				: "Customise the command to change its rules.";
 	const ruleIds =
 		kind === "display" ? (command?.displayRules ?? []) : (command?.enableRules ?? []);

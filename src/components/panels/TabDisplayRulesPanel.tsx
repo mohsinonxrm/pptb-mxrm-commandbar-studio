@@ -169,7 +169,7 @@ export const TabDisplayRulesPanel: React.FC<{ location: RibbonLocation; tabId: s
 						<li key={keys.keys[si]} className={styles.step}>
 							<div className={styles.stepHeader}>
 								<Text weight="semibold">
-									{si + 1}. {step.kind === "PageRule" ? "Page" : "Table"}
+									{si + 1}. {step.kind === "PageRule" ? "Page" : "Entity"}
 								</Text>
 								{!readOnly && (
 									<Tooltip content="Remove step" relationship="label">
@@ -225,7 +225,7 @@ export const TabDisplayRulesPanel: React.FC<{ location: RibbonLocation; tabId: s
 										</Select>
 									</Field>
 									{isApplication ? (
-										<Field label="Table" hint="Leave empty for any table.">
+										<Field label="Entity" hint="Leave empty for any entity.">
 											<Input
 												value={step.entityName ?? ""}
 												disabled={readOnly}
@@ -238,7 +238,7 @@ export const TabDisplayRulesPanel: React.FC<{ location: RibbonLocation; tabId: s
 											/>
 										</Field>
 									) : (
-										<Field label="Table">
+										<Field label="Entity">
 											<Select
 												value={step.entityName ?? ""}
 												disabled={readOnly}
@@ -286,7 +286,7 @@ export const TabDisplayRulesPanel: React.FC<{ location: RibbonLocation; tabId: s
 					{readOnly
 						? "This tab has no display rule of its own."
 						: isNewTab && !isApplication
-							? "No steps: when you publish, this new tab gets the default rule for its location (this table, where the tab is)."
+							? "No steps: when you publish, this new tab gets the default rule for its location (this entity, where the tab is)."
 							: "No steps: this tab will be hidden."}
 				</Text>
 			)}
@@ -300,7 +300,7 @@ export const TabDisplayRulesPanel: React.FC<{ location: RibbonLocation; tabId: s
 							</MenuTrigger>
 							<MenuPopover>
 								<MenuList>
-									<MenuItem onClick={() => add(entityStep())}>Table</MenuItem>
+									<MenuItem onClick={() => add(entityStep())}>Entity</MenuItem>
 									<MenuItem onClick={() => add(pageStep())}>Page</MenuItem>
 								</MenuList>
 							</MenuPopover>
@@ -315,8 +315,8 @@ export const TabDisplayRulesPanel: React.FC<{ location: RibbonLocation; tabId: s
 				))}
 			<Caption1 className={styles.muted}>
 				{isApplication
-					? "Application ribbon tabs take table and page steps."
-					: "A table's tabs take table steps only."}
+					? "Application ribbon tabs take entity and page steps."
+					: "An entity's tabs take entity steps only."}
 			</Caption1>
 		</div>
 	);

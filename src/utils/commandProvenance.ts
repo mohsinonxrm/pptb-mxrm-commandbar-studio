@@ -111,5 +111,5 @@ export const COMMAND_PROVENANCE_LABEL: Record<CommandProvenance, string> = {
 	customised: "Customised in your layer",
 	uncustomising: "Uncustomised (unpublished)",
 	custom: "Custom",
-	reloadRequired: "Uncustomised — reload the table",
+	reloadRequired: "Uncustomised — reload the entity",
 };

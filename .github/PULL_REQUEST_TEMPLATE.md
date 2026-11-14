@@ -26,8 +26,8 @@ VS Code extension …).
 
 ### Publishing changes (if any)
 
-- [ ] Verified live: publish on a test table, then check the layer and the app's command bar
-- [ ] The test table was restored afterwards
+- [ ] Verified live: publish on a test entity, then check the layer and the app's command bar
+- [ ] The test entity was restored afterwards
 
 ## Release-prep PRs only
 
