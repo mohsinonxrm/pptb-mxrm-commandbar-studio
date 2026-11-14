@@ -30,6 +30,7 @@ import {
 import type { LayerOrphan } from "@/services/layerOrphans";
 import { defaultTabDisplayRules, newTabCommandId } from "@/services/xmlGenerator";
 import { generateRibbonId, newButtonIds } from "@/utils/idGenerator";
+import { jsonEqual } from "@/utils/jsonEqual";
 import {
 	copyControl,
 	findGroupControl,
@@ -615,9 +616,15 @@ function commitMutation(
 /**
  * Whether the workspace has anything to publish (#34 review): after an undo
  * the change counter alone can't tell, e.g. when undoing past a publish.
+ *
+ * Compares by reference first (#111): a load or publish shares each location, command, rule and
+ * label between the workspace and its baseline, edits copy only what they change, and undo puts
+ * back the very objects it saved. What is still shared isn't walked; what isn't is compared by
+ * value, so an edit typed back to what was loaded is no change. Nothing in the workspace or the
+ * baseline is changed in place (only copies an edit made itself), so sharing them is safe.
  */
 export function hasPendingChanges(state: RibbonStoreState): boolean {
-	const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+	const same = jsonEqual;
 	return (
 		state.pendingUnhides.entity.length + state.pendingUnhides.application.length > 0 ||
 		state.pendingOrphanDeletes.entity.length + state.pendingOrphanDeletes.application.length >
@@ -638,7 +645,7 @@ export function hasPendingChanges(state: RibbonStoreState): boolean {
 function upsertById<T extends { id: string }>(items: T[], item: T): T[] | null {
 	const i = items.findIndex((x) => x.id === item.id);
 	if (i < 0) return [...items, item];
-	if (JSON.stringify(items[i]) === JSON.stringify(item)) return null;
+	if (jsonEqual(items[i], item)) return null;
 	return items.map((x, j) => (j === i ? item : x));
 }
 
@@ -975,9 +982,9 @@ const withoutCommand = (
 function loadedCommands(state: RibbonStoreState, commandId: string): CommandDefinition[] {
 	const loaded = state.baselineCommands.find((c) => c.id === commandId);
 	const current = state.commands.find((c) => c.id === commandId);
-	if (!loaded || !current || JSON.stringify(loaded) === JSON.stringify(current))
-		return state.commands;
-	return state.commands.map((c) => (c.id === commandId ? JSON.parse(JSON.stringify(loaded)) : c));
+	if (!loaded || !current || jsonEqual(loaded, current)) return state.commands;
+	// The loaded definition itself: shared with the baseline, it compares by reference (#111).
+	return state.commands.map((c) => (c.id === commandId ? loaded : c));
 }
 
 export const useRibbonStore = create<RibbonStore>()(
@@ -1009,9 +1016,11 @@ export const useRibbonStore = create<RibbonStore>()(
 		future: [],
 
 		loadRibbons(ribbons) {
+			const loaded = cloneRibbons(ribbons);
 			set({
-				ribbons: cloneRibbons(ribbons),
-				baseline: cloneRibbons(ribbons),
+				// The baseline shares the loaded locations (#111): see hasPendingChanges.
+				ribbons: loaded,
+				baseline: { ...loaded },
 				mutationsSincePublish: 0,
 				past: [],
 				future: [],
@@ -1043,18 +1052,24 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		loadWorkspace(seed) {
+			// One copy of what was loaded, shared by the workspace and its baseline (#111): see
+			// hasPendingChanges. Each gets its own lists.
 			const ribbons = cloneRibbons(seed.ribbons);
+			const commands: CommandDefinition[] = JSON.parse(JSON.stringify(seed.commands));
+			const displayRules: DisplayRule[] = JSON.parse(JSON.stringify(seed.displayRules));
+			const enableRules: EnableRule[] = JSON.parse(JSON.stringify(seed.enableRules));
+			const locLabels: LocLabel[] = JSON.parse(JSON.stringify(seed.locLabels));
 			set({
 				ribbons,
-				baseline: cloneRibbons(ribbons),
-				commands: [...seed.commands],
-				displayRules: [...seed.displayRules],
-				enableRules: [...seed.enableRules],
-				baselineCommands: JSON.parse(JSON.stringify(seed.commands)),
-				baselineDisplayRules: JSON.parse(JSON.stringify(seed.displayRules)),
-				baselineEnableRules: JSON.parse(JSON.stringify(seed.enableRules)),
-				locLabels: [...seed.locLabels],
-				baselineLocLabels: JSON.parse(JSON.stringify(seed.locLabels)),
+				baseline: { ...ribbons },
+				commands,
+				displayRules,
+				enableRules,
+				baselineCommands: [...commands],
+				baselineDisplayRules: [...displayRules],
+				baselineEnableRules: [...enableRules],
+				locLabels,
+				baselineLocLabels: [...locLabels],
 				layers: { ...NO_LAYERS, ...(seed.layers ?? {}) },
 				pendingUnhides: { ...NO_UNHIDES },
 				orphans: { entity: [], application: [], ...(seed.orphans ?? {}) },
@@ -2310,7 +2325,7 @@ export const useRibbonStore = create<RibbonStore>()(
 			}
 			const labelIds = new Set(labels.map((l) => l.id));
 			set((s) => {
-				const ribbons = cloneRibbons(s.ribbons);
+				const { draft: ribbons, next: copied } = copyOnRead(s.ribbons);
 				const group = ribbons[location].tabs
 					.find((t) => t.id === tabId)
 					?.groups.find((g) => g.id === groupId);
@@ -2341,7 +2356,7 @@ export const useRibbonStore = create<RibbonStore>()(
 				return record(
 					s,
 					{
-						ribbons,
+						ribbons: copied,
 						...(labels.length > 0
 							? {
 									locLabels: [
@@ -2755,8 +2770,10 @@ export const useRibbonStore = create<RibbonStore>()(
 			set((state) => {
 				const all = Object.keys(state.ribbons) as RibbonLocation[];
 				const published = locations ?? all;
-				const baseline = cloneRibbons(state.baseline);
-				const current = cloneRibbons(state.ribbons);
+				// The published locations become the baseline as they are, shared with the
+				// workspace (#111): only a location the published layer changes is copied.
+				const baseline = { ...state.baseline };
+				const current = { ...state.ribbons };
 				let locLabels = state.locLabels;
 				let baselineLocLabels = state.baselineLocLabels;
 				const withLabels = (list: LocLabel[], from: LocLabel[]) => [
@@ -2769,17 +2786,18 @@ export const useRibbonStore = create<RibbonStore>()(
 				][]) {
 					const locs: RibbonLocation[] =
 						scope === "entity" ? ENTITY_LOCATIONS : ["Application"];
-					for (const loc of locs)
-						if (published.includes(loc)) applyPublishedLayer(current[loc], parts);
+					for (const loc of locs) {
+						if (!published.includes(loc)) continue;
+						if (current[loc] === state.ribbons[loc])
+							current[loc] = JSON.parse(JSON.stringify(current[loc]));
+						applyPublishedLayer(current[loc], parts);
+					}
 					// The layer's labels as published are both current and baseline.
 					const fromLayer = locLabelsFromParts(parts);
 					locLabels = withLabels(locLabels, fromLayer);
-					baselineLocLabels = withLabels(
-						baselineLocLabels,
-						JSON.parse(JSON.stringify(fromLayer)),
-					);
+					baselineLocLabels = withLabels(baselineLocLabels, fromLayer);
 				}
-				for (const loc of published) baseline[loc] = cloneRibbons(current)[loc];
+				for (const loc of published) baseline[loc] = current[loc];
 				const everything = all.every((loc) => published.includes(loc));
 				// Un-hides of published scopes are done: drop them from the hidden list.
 				const layers = { ...state.layers };
@@ -2904,12 +2922,10 @@ export const useRibbonStore = create<RibbonStore>()(
 					pendingOrphanDeletes,
 					...(everything
 						? {
-								baselineCommands: JSON.parse(JSON.stringify(state.commands)),
-								baselineEnableRules: JSON.parse(JSON.stringify(state.enableRules)),
-								baselineDisplayRules: JSON.parse(
-									JSON.stringify(state.displayRules),
-								),
-								baselineLocLabels: JSON.parse(JSON.stringify(locLabels)),
+								baselineCommands: [...state.commands],
+								baselineEnableRules: [...state.enableRules],
+								baselineDisplayRules: [...state.displayRules],
+								baselineLocLabels: [...locLabels],
 								customisedCommandIds: [],
 							}
 						: {}),
