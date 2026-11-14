@@ -214,8 +214,6 @@ export interface UrlAction {
 	winMode?: 0 | 1 | 2;
 	/** `WinParams`, e.g. `dialogWidth:640px;dialogHeight:658px`. */
 	winParams?: string;
-	width?: number;
-	height?: number;
 	/** Named parameters (RibbonTypes.xsd `NamedParameterType`: Name is required). */
 	params: ActionParameter[];
 }
