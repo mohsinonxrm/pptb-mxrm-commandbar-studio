@@ -32,6 +32,7 @@ import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds
 import { moveTargets } from "@/utils/moveTargets";
 import { canDeleteControl, isGlobalOobReadOnly } from "@/utils/ribbonProvenance";
 import type { RibbonButton, RibbonLocation, RibbonTab } from "@/types/ribbon";
+import { newButtonBlockedReason } from "@/utils/globalTab";
 
 /**
  * The one menu for a ribbon button (#182, #190), wherever it is shown: the
@@ -89,7 +90,10 @@ export function ButtonContextMenu({ location, tab, target, onClose }: ButtonCont
 			const { button, groupId } = target;
 			const locked = isGlobalOobReadOnly(location, tab.id, button);
 			const readOnlyKind = isReadOnlyControlKind(button.kind);
-			const targets = moveTargets(tab, groupId, button.id, locLabels, lang, captionOf);
+			// Not into a global command bar group that wouldn't show it (#166)
+			const targets = moveTargets(tab, groupId, button.id, locLabels, lang, captionOf).filter(
+				(t) => !newButtonBlockedReason(location, tab.id, t.groupId),
+			);
 			const run = (action: () => void) => () => {
 				action();
 				onClose();
@@ -192,7 +196,14 @@ export function ButtonContextMenu({ location, tab, target, onClose }: ButtonCont
 							<MenuDivider />
 							<MenuItem
 								icon={<CopyRegular />}
-								disabled={locked}
+								disabled={
+									locked || !!newButtonBlockedReason(location, tab.id, groupId)
+								}
+								subText={
+									locked
+										? undefined
+										: newButtonBlockedReason(location, tab.id, groupId)
+								}
 								onClick={run(() =>
 									duplicateButton(location, tab.id, groupId, button.id),
 								)}

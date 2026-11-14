@@ -55,14 +55,14 @@ ToolBox (PPTB) and talks to Dataverse only through the host's
 | Betas (npm `beta`) | Fixed in the next beta |
 | Anything older | ❌ |
 
-**Everything before 0.8.0 is deprecated on npm and gets no further fixes**, 0.7.x, 0.6.x
-and 0.5.x included:
+**Everything before 0.9.0 is deprecated on npm and gets no further fixes**, 0.8.x, 0.7.x,
+0.6.x and 0.5.x included:
 - **Before 0.6.2:** these versions bundle DOMPurify 3.2.7 (in the Monaco editor), which has
   critical advisories.
-- **0.6.x and 0.7.x:** they get no support window, because the next minor needs the same Power
+- **0.6.x, 0.7.x and 0.8.x:** they get no support window, because the next minor needs the same Power
   Platform ToolBox (1.2.7). Update to the latest release.
 
-Use 0.8.0 or later, which requires Power Platform ToolBox 1.2.7 or later; users on an older
+Use 0.9.0 or later, which requires Power Platform ToolBox 1.2.7 or later; users on an older
 PPTB need to update it. A previous minor keeps a support window only when the next minor
 raises that requirement, because only then can users be unable to update. See
 [RELEASING.md](RELEASING.md) → *Supported versions*.
