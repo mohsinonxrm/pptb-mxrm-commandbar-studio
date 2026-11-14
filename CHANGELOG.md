@@ -42,6 +42,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   entity's whole sub-grid command bar, and that overriding a built-in sub-grid button's label, icon
   and command takes effect. The note now says so, and the banner is gone, as the other location
   banners went in 0.9.0 (#181).
+- **The context value picker explains itself (#161).** Under a parameter's **Value**, the field
+  now says what the chosen value passes, in Microsoft's terms: FirstPrimaryItemId is the record
+  being viewed (empty on a main grid), PrimaryControl the form's context, SelectedControl the grid's.
+  Some old descriptions were wrong (FirstPrimaryItemId said "first selected record").
+  PrimaryEntityTypeCode and SelectedEntityTypeCode read "(deprecated)", and picking one warns to
+  use the …TypeName value instead. A loaded value the list doesn't have, or one a URL can't take,
+  now shows as itself; before, the picker showed PrimaryControl while keeping the real value.
 - **Adding a language by typing it no longer adds two (#136).** Typing an LCID such as 1036 in
   **Add a language** and pressing Enter added French and the first language in the list (German);
   the list now narrows to what's typed.
@@ -53,6 +60,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command palette, Properties and the editors. It now reads "Modern Client"; an id ending in a word
   like Group or Tab is still shown as the id. The List view's search still finds a group by its
   id. Display only: what publishes is unchanged.
+- **Open a URL accepts web resources and relative addresses (#160).** The address showed a red
+  "must start with https://" for `$webresource:` and relative addresses, which Microsoft documents
+  and recommends. Now only an empty address is an error, and `http://` is a warning (a dialog can't
+  show it). **Browse…** picks a web resource, as it does for a script. For a web resource, the
+  field lists the query string names it reads, and a parameter with another name is flagged: the
+  page's request fails on it, so put your own values in `data`. Every query string parameter now
+  needs a name, not only a context value; changing a parameter's type keeps its name; and a new
+  one is text instead of PrimaryControl, which means nothing in an address. **Open in** reads New
+  window (default), Modal dialog and Modeless dialog, as Microsoft names them, and a new **Window
+  settings** field sets WinParams, such as a dialog's size. The publish check also stops a bare
+  `$webresource:` with no name.
 
 ## [0.9.0] - 2026-11-14
 

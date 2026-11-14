@@ -100,9 +100,12 @@ export function openRecordCarrierPlacement(
 
 /**
  * The command a new override starts with: a JavaScript action receiving the
- * selected row's reference (`SelectedControlSelectedItemReferences`, as in
- * Microsoft's samples). The library is left empty so the publish is blocked
- * until a real web resource is chosen.
+ * selected rows' references (`SelectedControlSelectedItemReferences`), so the
+ * function knows which row was opened. "Override the default open behavior of data
+ * rows" passes no parameter; Microsoft's custom-page sample ("Navigate to a custom
+ * page", open from a grid's primary field link) passes this one, and CBS follows it.
+ * The library is left empty so the publish is blocked until a real web resource
+ * is chosen.
  */
 export function defaultOpenRecordCommand(): CommandDefinition {
 	return {
