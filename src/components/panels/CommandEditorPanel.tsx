@@ -48,6 +48,7 @@ import { generateRuleId } from "@/utils/idGenerator";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
 import { buttonsUsing } from "@/utils/ribbonMenu";
 import { LOCATION_INFO } from "@/constants/locationInfo";
+import { WEB_RESOURCE_URL_PARAMETERS } from "@/constants/crmParameters";
 import { PLATFORM_ENABLE_RULES } from "@/constants/ruleKinds";
 import { useStableKeys } from "@/hooks/useStableKeys";
 import { useDisplayText } from "@/hooks/useDisplayText";
@@ -452,23 +453,64 @@ export const CommandEditorPanel: React.FC = () => {
 		}
 
 		if (action.kind === "url") {
-			const isHttpsAddress = action.address.trim().startsWith("https://");
+			// What the address field says about the address (#160): a web resource, https or a
+			// relative address all work; only an empty one can't, and http:// is flagged.
+			const address = action.address.trim();
+			const isWebResource = /^\$webresource:/i.test(address);
+			const addressState: "none" | "warning" | "error" =
+				!address || /^https?:\/\/$/i.test(address) || /^\$webresource:$/i.test(address)
+					? "error"
+					: /^http:\/\//i.test(address)
+						? "warning"
+						: "none";
+			const addressMessage =
+				addressState === "error"
+					? "Enter the address to open, or pick a web resource."
+					: addressState === "warning"
+						? "Use https://: a dialog can't show an http:// page."
+						: undefined;
 			return (
 				<fieldset disabled={readOnly} className={styles.fields}>
 					<Field
 						label="Address"
-						validationState={isHttpsAddress ? "none" : "error"}
-						validationMessage={
-							isHttpsAddress ? undefined : "The address must start with https://"
+						validationState={addressState}
+						validationMessage={addressMessage}
+						hint={
+							isWebResource
+								? `A web resource reads only these query string names: ${WEB_RESOURCE_URL_PARAMETERS.join(", ")}. Put your own values in data.`
+								: "An https:// address, a relative address, or $webresource:<name>."
 						}
 					>
-						<Input
-							value={action.address}
-							onChange={(_, d) =>
-								updateAction(index, { ...action, address: d.value })
-							}
-							placeholder="https://"
-						/>
+						<div className={styles.library}>
+							<Input
+								className={styles.grow}
+								value={action.address}
+								onChange={(_, d) =>
+									updateAction(index, {
+										...action,
+										// As for a script library: a repeated prefix never resolves
+										address: d.value.replace(
+											/^(\s*\$webresource:\s*)+/i,
+											"$webresource:",
+										),
+									})
+								}
+								placeholder="https://"
+							/>
+							<Button
+								onClick={() => {
+									webResourceBrowserCallbackRegistry.set((wr) => {
+										updateAction(index, {
+											...action,
+											address: `$webresource:${wr.name}`,
+										});
+									});
+									openWebResourceBrowser();
+								}}
+							>
+								Browse…
+							</Button>
+						</div>
 					</Field>
 					<Field label="Open in">
 						<Select
@@ -480,10 +522,25 @@ export const CommandEditorPanel: React.FC = () => {
 								})
 							}
 						>
-							<option value="0">Navigate (0)</option>
-							<option value="1">Dialog (1)</option>
-							<option value="2">Popup (2)</option>
+							<option value="0">New window (default)</option>
+							<option value="1">Modal dialog</option>
+							<option value="2">Modeless dialog</option>
 						</Select>
+					</Field>
+					<Field
+						label="Window settings"
+						hint="Optional. The dialog's size, for example dialogWidth:640px;dialogHeight:480px."
+					>
+						<Input
+							value={action.winParams ?? ""}
+							onChange={(_, d) =>
+								updateAction(index, {
+									...action,
+									winParams: d.value.trim() ? d.value : undefined,
+								})
+							}
+							placeholder="dialogWidth:640px;dialogHeight:480px"
+						/>
 					</Field>
 					<Field hint="Adds the record's details to the address: typename, type, id, orgname and the user's languages.">
 						<Switch
@@ -502,6 +559,7 @@ export const CommandEditorPanel: React.FC = () => {
 						params={action.params}
 						onChange={(p) => updateAction(index, { ...action, params: p })}
 						urlMode={true}
+						allowedNames={isWebResource ? WEB_RESOURCE_URL_PARAMETERS : undefined}
 					/>
 				</fieldset>
 			);

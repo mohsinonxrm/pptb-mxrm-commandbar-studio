@@ -20,6 +20,7 @@ import { overrideNote } from "@/services/modernCommands";
 import { ModernCommandChip } from "./modern/ModernCommandChip";
 import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
 import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds";
+import { newButtonBlockedReason } from "@/utils/globalTab";
 
 const DRAG_MIME = "application/x-rw-btn";
 // Drag-source MIME emitted by SolutionElementsPane when the user drags an
@@ -149,6 +150,7 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 	const groupText = (label: string, id: string, titleToken?: string) =>
 		captionOf(label, locLabels, lang, titleToken) || id;
 	const openNewButton = useUIStore((s) => s.openNewButton);
+	const announce = useUIStore((s) => s.announce);
 
 	const [dropOver, setDropOver] = useState<DropState | null>(null);
 	const [dragging, setDragging] = useState<string | null>(null);
@@ -244,7 +246,10 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 			try {
 				const src = JSON.parse(sePayload) as { button?: RibbonButton };
 				const seButton = src?.button;
-				if (seButton) {
+				const blocked = newButtonBlockedReason(location, tab.id, groupId);
+				// Not into a global command bar group that wouldn't show it (#166)
+				if (seButton && blocked) announce(blocked);
+				else if (seButton) {
 					// A copy of the whole button with an id of its own (#60).
 					createButton({
 						location,

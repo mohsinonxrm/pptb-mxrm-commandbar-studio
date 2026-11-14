@@ -11,6 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Fixed
 
+- **Buttons for the global command bar go only where it shows them (#166).** Microsoft's docs
+  support one place for your buttons on `Mscrm.GlobalTab`: its New group
+  (`Mscrm.GlobalTab.New.Controls._children`), in Unified Interface. CBS let you add groups to
+  GlobalTab and buttons to its other groups, and published them without a word. Now:
+  - **No new groups on GlobalTab:** Add group, Duplicate group and New group are disabled there and
+    say why.
+  - **New buttons only in the New group:** on GlobalTab's other groups, Add button, Duplicate (and
+    Ctrl+D), a flyout's Add item and Customise button are disabled or refused with the reason. Move
+    to and the Solution tab's Add to don't offer those groups, and dropping a button there is
+    refused. Your buttons already there stay editable.
+  - **The publish dialog warns** about anything already added outside the New group (an import,
+    say).
+  - **The Application ribbon's note** says this, instead of "Buttons on GlobalTab appear in the
+    global command bar".
+- **The sub-grid note matches Unified Interface (#167).** "About this location" and a banner on
+  the Classic canvas said a sub-grid supports only Add, Show List and Delete, with icons that can't
+  change. That's the pre-Unified-Interface page. A live check showed Unified Interface shows the
+  entity's whole sub-grid command bar, and that overriding a built-in sub-grid button's label, icon
+  and command takes effect. The note now says so, and the banner is gone, as the other location
+  banners went in 0.9.0 (#181).
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
   one-word resource key showed the key: the account grid's **OpenAllRecordsViewImageButtonText**
   now reads "Open All Records View". A tab or group without a title showed its whole id
@@ -19,6 +39,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command palette, Properties and the editors. It now reads "Modern Client"; an id ending in a word
   like Group or Tab is still shown as the id. The List view's search still finds a group by its
   id. Display only: what publishes is unchanged.
+- **Open a URL accepts web resources and relative addresses (#160).** The address showed a red
+  "must start with https://" for `$webresource:` and relative addresses, which Microsoft documents
+  and recommends. Now only an empty address is an error, and `http://` is a warning (a dialog can't
+  show it). **Browse…** picks a web resource, as it does for a script. For a web resource, the
+  field lists the query string names it reads, and a parameter with another name is flagged: the
+  page's request fails on it, so put your own values in `data`. Every query string parameter now
+  needs a name, not only a context value; changing a parameter's type keeps its name; and a new
+  one is text instead of PrimaryControl, which means nothing in an address. **Open in** reads New
+  window (default), Modal dialog and Modeless dialog, as Microsoft names them, and a new **Window
+  settings** field sets WinParams, such as a dialog's size. The publish check also stops a bare
+  `$webresource:` with no name.
+
+## [0.9.0] - 2026-11-14
+
+The UX overhaul in Fluent 2, and Edit mode. Command Bar Studio now shows a Structure tree and
+group cards you can reorder, edits commands, rules, scripts and XML in one drawer, and says what
+a publish will do before it runs. This release is 0.9.0-beta.1 to 0.9.0-beta.3, whose notes below
+are the full list. Requires Power Platform ToolBox 1.2.7 or later, as 0.8 does.
+
+### Highlights
+
+- **Edit mode (#193):**
+  - a Structure tree of tabs, groups and buttons, and group cards you can reorder;
+  - "How users see it", a preview of the command bar;
+  - a Solution tab, an entity picker in the top bar, and a List view that fits and sorts.
+- **One editor drawer** for commands, rules, scripts, XML, Compare and Translations, with Done
+  and one Undo step per drawer.
+- **Properties:** sections by kind, with texts shown as the canvas shows them. A button that
+  isn't yours is read-only until you customise it, and since beta.3 its rules can't be bound or
+  unbound from Properties either (#267).
+- **The publish dialog** says what will publish and why Publish is blocked.
+- **Dialogs** use one shell and open on the right control: search boxes get focus, and default
+  names are selected so typing replaces them (#268).
+- **Keyboard and screen readers (#23):** the pane resize handles work from the keyboard, and the
+  Classic and Modern canvases have accurate roles and keyboard selection.
+- **Lighter start (#118):** the code editor loads the first time you open one, with XML and
+  JavaScript only; the package is 2.7 MB smaller (16.3 → 13.6 MB unpacked).
+- **Fixes:** closing Compare no longer logs a disposed-model error (#266).
+
+### ⚠️ Upgrading from 0.8.x
+
+- **Changes you'll notice:**
+  - **Layout:** the entity picker moved from the left pane to the top bar. The left pane has
+    Structure and Solution tabs, and the canvas view (Group cards, Classic, Modern or List) is
+    picked from **View** above the canvas.
+  - **Editors:** commands, rules, scripts, XML, Compare and Translations open in one drawer
+    instead of separate panels and dialogs; **Done** closes it.
+  - **Microsoft's buttons:** Properties and the command editor are read-only for a button or
+    command that isn't yours until you choose **Customise command**.
+- **Nothing else changes:** the PPTB requirement and the published format are the same.
+- **0.8.x is end of life:** 0.8.0 is deprecated on npm and gets no support window, because
+  0.9.0 needs the same PPTB (see `SECURITY.md`).
+- **0.9.0-beta.3 wasn't published to npm.** Its fixes ship in 0.9.0.
 - **Microsoft's grid and quick action rules can be bound (#162).** Microsoft documents placing a
   grid command with the enable rules `Mscrm.ShowOnGrid`, `Mscrm.ShowOnQuickAction` and
   `Mscrm.ShowOnGridAndQuickAction`, but they live in the application ribbon, so an entity's rule
@@ -31,6 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   doesn't check one there, so put it in an enable rule.
 
 ## [0.9.0-beta.3] - 2026-11-12
+
+Not published to npm: these fixes ship in 0.9.0.
 
 ### 🔧 Fixed
 
