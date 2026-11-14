@@ -109,6 +109,13 @@ are the full list. Requires Power Platform ToolBox 1.2.7 or later, as 0.8 does.
   list: its tag says why there's nothing to open. A display rule that a
   sub-grid button uses now warns about a **Column value** step: Microsoft says Unified Interface
   doesn't check one there, so put it in an enable rule.
+- **Scaling and layout checks (#165).** A new group whose template isn't one CBS lists now gets its
+  MaxSize from the template's largest layout as loaded; when nothing knows the template, the publish
+  dialog warns that the group gets none (every group needs one on the classic ribbon). The publish
+  check also warns when a control's **Template alias** isn't one its group's template has: the
+  classic ribbon doesn't lay it out (Unified Interface ignores templates). An unused helper that
+  had the MaxSize / Scale order backwards is gone. Scaling stays read-only until changes to it can
+  be published.
 - **Compare with published shows what Publish writes (#216).** Compare built both sides from the
   generator alone, so changes only Publish's merge writes, such as a moved tab, showed +0 / −0.
   Compare now reads your published customizations for the entity (and the application ribbon, when

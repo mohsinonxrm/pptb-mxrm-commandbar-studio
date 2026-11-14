@@ -210,6 +210,10 @@ export async function fetchEntityRibbonAllLocations(
 		for (const def of Object.values(ribbons))
 			def.templateLayouts = parsed.ribbon.templateLayouts;
 	}
+	if (parsed.ribbon.templateAliases) {
+		for (const def of Object.values(ribbons))
+			def.templateAliases = parsed.ribbon.templateAliases;
+	}
 
 	useRuntimeLogStore
 		.getState()

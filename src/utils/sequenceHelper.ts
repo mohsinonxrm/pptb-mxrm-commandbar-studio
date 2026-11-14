@@ -9,34 +9,6 @@ export function nextSequence(existingSequences: number[], step = 10): number {
 }
 
 /**
- * Checks whether MaxSize and Scale sequence ranges overlap.
- * Returns true if they are non-overlapping (valid).
- */
-export function validateSequenceRanges(
-	maxSizeSequences: number[],
-	scaleSequences: number[],
-): { valid: boolean; message?: string } {
-	if (maxSizeSequences.length === 0 || scaleSequences.length === 0) {
-		return { valid: true };
-	}
-
-	const maxSizeMin = Math.min(...maxSizeSequences);
-	const maxSizeMax = Math.max(...maxSizeSequences);
-	const scaleMin = Math.min(...scaleSequences);
-	const scaleMax = Math.max(...scaleSequences);
-
-	// MaxSize must be above Scale range (higher sequence numbers)
-	if (maxSizeMin <= scaleMax) {
-		return {
-			valid: false,
-			message: `MaxSize sequence range [${maxSizeMin}–${maxSizeMax}] overlaps with Scale range [${scaleMin}–${scaleMax}]. MaxSize sequences must be higher than all Scale sequences.`,
-		};
-	}
-
-	return { valid: true };
-}
-
-/**
  * Detects duplicate sequence values within a flat list.
  * Returns the duplicate values (if any).
  */
