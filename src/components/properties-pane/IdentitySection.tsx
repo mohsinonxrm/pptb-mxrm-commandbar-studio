@@ -9,21 +9,24 @@ import {
 	Text,
 	Button,
 	Divider,
-	Badge,
 	Select,
-	MessageBar,
-	MessageBarBody,
+	Link,
+	Tooltip,
+	TagGroup,
+	InteractionTag,
+	InteractionTagPrimary,
 } from "@fluentui/react-components";
-import { ImageRegular, AddRegular } from "@fluentui/react-icons";
-import { canCustomiseButton, isLoadedControl, useRibbonStore } from "@/store/ribbonStore";
+import { ImageRegular, AddRegular, LockClosedRegular } from "@fluentui/react-icons";
+import { isLoadedControl, useRibbonStore } from "@/store/ribbonStore";
 import { MENU_ITEM_KINDS } from "@/utils/ribbonMenu";
-import { useSessionStore } from "@/store/sessionStore";
-import { useSelectionStore } from "@/store/selectionStore";
 import { useUIStore } from "@/store/uiStore";
 import FluentIcon from "@/components/shared/FluentIcon";
 import { effectiveModernImage } from "@/services/xmlGenerator";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
 import { buttonTranslationLcids } from "@/utils/locLabelRef";
+import { IdField } from "@/components/shared/IdField";
+import { useDisplayText } from "@/hooks/useDisplayText";
+import { CONTROL_KIND_LABELS } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
 
 const BUTTON_KINDS: RibbonButton["kind"][] = [
@@ -37,17 +40,10 @@ const BUTTON_KINDS: RibbonButton["kind"][] = [
 
 const useStyles = makeStyles({
 	root: {
-		padding: `${tokens.spacingHorizontalM}`,
 		display: "flex",
 		flexDirection: "column",
-		gap: tokens.spacingHorizontalS,
-	},
-	sectionLabel: {
-		color: tokens.colorNeutralForeground3,
-		textTransform: "uppercase",
-		letterSpacing: "0.5px",
-		marginBottom: tokens.spacingHorizontalXS,
-		marginTop: tokens.spacingHorizontalS,
+		gap: tokens.spacingVerticalM,
+		minWidth: 0,
 	},
 	row: {
 		display: "flex",
@@ -72,6 +68,13 @@ const useStyles = makeStyles({
 		border: `1px solid ${tokens.colorNeutralStroke2}`,
 		flexShrink: 0,
 	},
+	keyHint: { overflowWrap: "anywhere" },
+	lockedNote: {
+		display: "flex",
+		alignItems: "center",
+		gap: tokens.spacingHorizontalXS,
+		color: tokens.colorNeutralForeground2,
+	},
 	webResLink: {
 		fontFamily: tokens.fontFamilyMonospace,
 		fontSize: tokens.fontSizeBase200,
@@ -93,9 +96,14 @@ interface IdentitySectionProps {
 	location: RibbonLocation;
 	tabId: string;
 	groupId: string;
+	/**
+	 * Which fields (#184): what the button looks like and its id; where it sits
+	 * in its group; or the technical ones (kind, template alias).
+	 */
+	part: "appearance" | "position" | "advanced";
 }
 
-export function IdentitySection({ button, location, tabId, groupId }: IdentitySectionProps) {
+export function IdentitySection({ button, location, tabId, groupId, part }: IdentitySectionProps) {
 	const styles = useStyles();
 	const setButtonProp = useRibbonStore((s) => s.setButtonProp);
 	const locLabels = useRibbonStore((s) => s.locLabels);
@@ -103,11 +111,6 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 	const openIconPicker = useUIStore((s) => s.openIconPicker);
 	const openLocalizationEditor = useUIStore((s) => s.openLocalizationEditor);
 	const openWebResourceBrowser = useUIStore((s) => s.openWebResourceBrowser);
-	const customizeOobButton = useRibbonStore((s) => s.customizeOobButton);
-	const customiseButton = useRibbonStore((s) => s.customiseButton);
-	const activeSolution = useSessionStore((s) => s.activeSolution);
-	const sessionPrefix = useSessionStore((s) => s.publisherPrefix);
-	const selectButtonInContext = useSelectionStore((s) => s.selectButtonInContext);
 
 	// A menu item can be a button or a flyout; a loaded control keeps its kind (#154).
 	const isMenuItem = useRibbonStore(
@@ -118,99 +121,157 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 				?.buttons.some((b) => b.id === button.id),
 	);
 	const kindLocked = useRibbonStore((s) => isLoadedControl(s, location, button.id));
-	const kindOptions = [...new Set([...(isMenuItem ? MENU_ITEM_KINDS : BUTTON_KINDS), button.kind])];
+	const group = useRibbonStore((s) =>
+		s.ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId),
+	);
+	const captionOf = useDisplayText();
+	const kindOptions = [
+		...new Set([...(isMenuItem ? MENU_ITEM_KINDS : BUTTON_KINDS), button.kind]),
+	];
 
 	function patch(update: Partial<RibbonButton>) {
 		setButtonProp(location, tabId, groupId, button.id, update);
 	}
+	// Microsoft's or a managed solution's button is changed through Customise or
+	// Create override (the notice above), not by editing its fields (#184).
+	const locked = button.origin !== "unmanaged";
+	// A locked button's texts as the canvas shows them, not their resource keys
+	// (#229, #6); the key is the field's hint.
+	const shown = {
+		label: captionOf(button.label, locLabels, undefined, button.source?.labelToken),
+		tooltipTitle: captionOf(
+			button.tooltipTitle,
+			locLabels,
+			undefined,
+			button.source?.tooltipTitleToken,
+		),
+		tooltipBody: captionOf(
+			button.tooltipBody,
+			locLabels,
+			undefined,
+			button.source?.tooltipBodyToken,
+		),
+	};
+	// A key has no spaces to wrap at: it breaks anywhere rather than run past the pane.
+	const keyHint = (raw: string | undefined, text: string) =>
+		raw && raw !== text ? { children: `From ${raw}`, className: styles.keyHint } : undefined;
 
 	// Languages of the labels this button's text and tooltips use (exact ids:
 	// a prefix match showed `Foo.Button2`'s translations on `Foo.Button`, #22).
 	const activeLcids = buttonTranslationLcids(button, locLabels, baseLanguageCode);
 
+	if (part === "position") {
+		return (
+			<div className={styles.root}>
+				<Field label="Group" hint="Use Move to in the button's menu to move it.">
+					<Input
+						readOnly
+						appearance="filled-darker"
+						value={
+							group
+								? captionOf(
+										group.label,
+										locLabels,
+										baseLanguageCode,
+										group.source?.titleToken,
+									) || group.id
+								: groupId
+						}
+					/>
+				</Field>
+				<Field
+					label="Order"
+					hint="Lower numbers show first within the group. Unified Interface merges the groups into one bar."
+				>
+					<SpinButton
+						value={button.sequence}
+						disabled={locked}
+						step={10}
+						min={0}
+						onChange={(_, d) => patch({ sequence: Number(d.value ?? button.sequence) })}
+					/>
+				</Field>
+			</div>
+		);
+	}
+
+	if (part === "advanced") {
+		return (
+			<div className={styles.root}>
+				<Field
+					label="Kind"
+					hint={
+						kindLocked
+							? "A loaded control's kind can't be changed: add a new control instead."
+							: isMenuItem
+								? "A menu holds buttons and flyouts."
+								: undefined
+					}
+				>
+					<Select
+						value={button.kind}
+						disabled={kindLocked}
+						onChange={(_, d) => patch({ kind: d.value as RibbonButton["kind"] })}
+					>
+						{kindOptions.map((k) => (
+							<option key={k} value={k}>
+								{CONTROL_KIND_LABELS[k]}
+							</option>
+						))}
+					</Select>
+				</Field>
+				<Field
+					label="Template alias"
+					hint="Which slot of the group's layout the button uses on the classic ribbon, for example o1."
+				>
+					<Input
+						value={button.templateAlias}
+						readOnly={locked}
+						onChange={(_, d) => patch({ templateAlias: d.value })}
+					/>
+				</Field>
+			</div>
+		);
+	}
+
 	return (
 		<div className={styles.root}>
-			{/* Provenance callout — OOB platform vs managed solution. Unmanaged
-			    (your own) buttons get no callout; they're directly editable. */}
-			{(button.origin === "oob" || button.origin === "managed") && (
-				<MessageBar intent="warning">
-					<MessageBarBody>
-						<Text size={200}>
-							{button.origin === "oob" ? (
-								<>
-									This is an <strong>out-of-the-box</strong> (system) button. To change it, create
-									an override.
-								</>
-							) : (
-								<>
-									This button comes from a <strong>managed solution</strong>
-									{button.solutionName ? (
-										<>
-											{" "}
-											(<strong>{button.solutionName}</strong>)
-										</>
-									) : null}
-									{button.publisherName ? <> by {button.publisherName}</> : null}. You can't edit it
-									directly — create an override to change it.
-								</>
-							)}{" "}
-							<Button
-								size="small"
-								appearance="subtle"
-								onClick={() => customizeOobButton(location, tabId, groupId, button.id)}
-							>
-								Create override
-							</Button>
-							{canCustomiseButton(location, tabId, button) && (
-								<Button
-									size="small"
-									appearance="subtle"
-									title="Copy the button into your solution and hide the original, so the copy can be changed and moved"
-									onClick={() => {
-										const prefix = activeSolution?.publisherPrefix?.trim() || sessionPrefix?.trim() || "new";
-										const id = customiseButton(location, tabId, groupId, button.id, prefix);
-										if (id) selectButtonInContext(location, tabId, groupId, id);
-									}}
-								>
-									Customise button
-								</Button>
-							)}
-						</Text>
-					</MessageBarBody>
-				</MessageBar>
+			{locked && (
+				<Text size={200} className={styles.lockedNote}>
+					<LockClosedRegular aria-hidden /> Customise this button, or create an override,
+					to edit these fields.
+				</Text>
 			)}
-
-			<Text size={100} weight="semibold" className={styles.sectionLabel}>
-				Identity
-			</Text>
-
-			<Field label="Label">
-				<Input value={button.label} onChange={(_, d) => patch({ label: d.value })} />
+			<Field label="Label" hint={locked ? keyHint(button.label, shown.label) : undefined}>
+				<Input
+					value={locked ? shown.label : button.label}
+					readOnly={locked}
+					appearance={locked ? "filled-darker" : undefined}
+					onChange={(_, d) => patch({ label: d.value })}
+				/>
 			</Field>
 
 			{/* Locale chip row */}
 			<Field label="Translations">
 				<div className={styles.localeChips}>
-					{activeLcids.map((lcid) => (
-						<Badge
-							key={lcid}
-							appearance="filled"
-							color="informative"
-							style={{ cursor: "pointer" }}
-							onClick={() => openLocalizationEditor(button.id)}
-						>
-							{lcid === 1033 ? "en-US" : String(lcid)}
-						</Badge>
-					))}
-					{activeLcids.length === 0 && (
-						<Badge appearance="outline" color="informative">
-							en-US (default)
-						</Badge>
-					)}
+					<TagGroup aria-label="Languages of this button's text" size="small">
+						{(activeLcids.length ? activeLcids : [1033]).map((lcid) => (
+							<InteractionTag key={lcid} value={String(lcid)} appearance="brand">
+								<InteractionTagPrimary
+									disabled={locked}
+									onClick={() => openLocalizationEditor(button.id)}
+								>
+									{lcid === 1033 ? "en-US" : String(lcid)}
+									{activeLcids.length === 0 ? " (default)" : ""}
+								</InteractionTagPrimary>
+							</InteractionTag>
+						))}
+					</TagGroup>
 					<Button
 						size="small"
 						appearance="subtle"
 						icon={<AddRegular />}
+						disabled={locked}
 						onClick={() => openLocalizationEditor(button.id)}
 					>
 						Add language…
@@ -218,16 +279,26 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 				</div>
 			</Field>
 
-			<Field label="Tooltip title">
+			<Field
+				label="Tooltip title"
+				hint={locked ? keyHint(button.tooltipTitle, shown.tooltipTitle) : undefined}
+			>
 				<Input
-					value={button.tooltipTitle ?? ""}
+					value={locked ? shown.tooltipTitle : (button.tooltipTitle ?? "")}
+					readOnly={locked}
+					appearance={locked ? "filled-darker" : undefined}
 					onChange={(_, d) => patch({ tooltipTitle: d.value })}
 				/>
 			</Field>
 
-			<Field label="Tooltip body">
+			<Field
+				label="Tooltip body"
+				hint={locked ? keyHint(button.tooltipBody, shown.tooltipBody) : undefined}
+			>
 				<Textarea
-					value={button.tooltipBody ?? ""}
+					value={locked ? shown.tooltipBody : (button.tooltipBody ?? "")}
+					readOnly={locked}
+					appearance={locked ? "filled-darker" : undefined}
 					onChange={(_, d) => patch({ tooltipBody: d.value })}
 					resize="vertical"
 				/>
@@ -244,24 +315,28 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 							<ImageRegular style={{ color: tokens.colorNeutralForeground3 }} />
 						)}
 					</div>
-					<Button appearance="subtle" size="small" icon={<ImageRegular />} onClick={openIconPicker}>
+					<Button
+						appearance="subtle"
+						size="small"
+						icon={<ImageRegular />}
+						disabled={locked}
+						onClick={openIconPicker}
+					>
 						Change…
 					</Button>
 				</div>
 			</Field>
 
 			{button.icon && (
-				<Field label="ModernImage (auto)">
+				<Field
+					label="Modern image"
+					hint="What Unified Interface shows. Set from the icon you pick."
+				>
 					<Input
 						// What Publish writes: a picked icon is referenced as its SVG web
 						// resource (#51); an untouched icon keeps its loaded value.
 						value={effectiveModernImage(button) ?? "(none)"}
 						readOnly
-						contentAfter={
-							<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-								auto
-							</Text>
-						}
 					/>
 				</Field>
 			)}
@@ -269,22 +344,24 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 			{button.image16 && (
 				<Field label="Image16">
 					<div className={styles.row}>
-						<button
-							type="button"
-							className={styles.webResLink}
-							onClick={() => {
-								webResourceBrowserCallbackRegistry.set((wr) => {
-									patch({
-										image16: `$webresource:${wr.name}`,
-										icon: wr.name.split("/").pop()?.replace(/\..*$/, ""),
+						<Tooltip content={button.image16} relationship="description">
+							<Link
+								as="button"
+								className={styles.webResLink}
+								disabled={locked}
+								onClick={() => {
+									webResourceBrowserCallbackRegistry.set((wr) => {
+										patch({
+											image16: `$webresource:${wr.name}`,
+											icon: wr.name.split("/").pop()?.replace(/\..*$/, ""),
+										});
 									});
-								});
-								openWebResourceBrowser();
-							}}
-							title={button.image16}
-						>
-							{button.image16}
-						</button>
+									openWebResourceBrowser();
+								}}
+							>
+								{button.image16}
+							</Link>
+						</Tooltip>
 					</div>
 				</Field>
 			)}
@@ -292,72 +369,32 @@ export function IdentitySection({ button, location, tabId, groupId }: IdentitySe
 			{button.image32 && (
 				<Field label="Image32">
 					<div className={styles.row}>
-						<button
-							type="button"
-							className={styles.webResLink}
-							onClick={() => {
-								webResourceBrowserCallbackRegistry.set((wr) => {
-									patch({ image32: `$webresource:${wr.name}` });
-								});
-								openWebResourceBrowser();
-							}}
-							title={button.image32}
-						>
-							{button.image32}
-						</button>
+						<Tooltip content={button.image32} relationship="description">
+							<Link
+								as="button"
+								className={styles.webResLink}
+								disabled={locked}
+								onClick={() => {
+									webResourceBrowserCallbackRegistry.set((wr) => {
+										patch({ image32: `$webresource:${wr.name}` });
+									});
+									openWebResourceBrowser();
+								}}
+							>
+								{button.image32}
+							</Link>
+						</Tooltip>
 					</div>
 				</Field>
 			)}
 
-			<Divider />
+			<Switch
+				label="Visible"
+				checked={!button.hidden}
+				onChange={(_, d) => patch({ hidden: !d.checked })}
+			/>
 
-			<Field
-				label="Kind"
-				hint={
-					kindLocked
-						? "A loaded control's kind can't be changed: add a new control instead."
-						: isMenuItem
-							? "A menu holds buttons and flyouts."
-							: undefined
-				}
-			>
-				<Select
-					value={button.kind}
-					disabled={kindLocked}
-					onChange={(_, d) => patch({ kind: d.value as RibbonButton["kind"] })}
-				>
-					{kindOptions.map((k) => (
-						<option key={k} value={k}>
-							{k}
-						</option>
-					))}
-				</Select>
-			</Field>
-
-			<div className={styles.row} style={{ justifyContent: "space-between" }}>
-				<Text size={200}>Visible</Text>
-				<Switch
-					checked={!button.hidden}
-					aria-label="Toggle button visibility"
-					onChange={(_, d) => patch({ hidden: !d.checked })}
-				/>
-			</div>
-
-			<Field label="Sequence">
-				<SpinButton
-					value={button.sequence}
-					step={10}
-					min={0}
-					onChange={(_, d) => patch({ sequence: Number(d.value ?? button.sequence) })}
-				/>
-			</Field>
-
-			<Field label="Template alias">
-				<Input
-					value={button.templateAlias}
-					onChange={(_, d) => patch({ templateAlias: d.value })}
-				/>
-			</Field>
+			<IdField label="Button ID" value={button.id} />
 		</div>
 	);
 }

@@ -12,8 +12,8 @@ import {
 } from "@fluentui/react-components";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useModernAppNames } from "@/hooks/useModernCommands";
-import { describeModernCommand, describeOverride } from "@/services/modernCommands";
-import type { ClassicModernOverride, ModernCommand } from "@/types/modernCommand";
+import { describeModernCommand } from "@/services/modernCommands";
+import type { ModernCommand } from "@/types/modernCommand";
 
 const useStyles = makeStyles({
 	root: {
@@ -166,37 +166,6 @@ export function ModernCommandProperties({
 					</div>
 				</>
 			)}
-		</section>
-	);
-}
-
-/** On a classic button: the migrated modern commands that hide it or render in its place. */
-export function ModernOverrideSection({ overrides }: { overrides: ClassicModernOverride[] }) {
-	const styles = useStyles();
-	const appNames = useModernAppNames();
-	const selectCommand = useModernCommandStore((s) => s.selectCommand);
-	if (overrides.length === 0) return null;
-	const hidden = overrides.some((o) => o.effect === "hidden");
-	return (
-		<section className={styles.root} aria-label="Modern command overrides">
-			<MessageBar intent={hidden ? "warning" : "info"}>
-				<MessageBarBody>
-					<div className={styles.list}>
-						{overrides.map((o) => (
-							<span key={o.command.id}>
-								{describeOverride(o, appNames)}.{" "}
-								<Link inline onClick={() => selectCommand(o.command.id)}>
-									View
-								</Link>
-							</span>
-						))}
-						<Caption1>
-							Matched by the migrated command&apos;s unique name. Unified Interface
-							may show the modern command instead of this button.
-						</Caption1>
-					</div>
-				</MessageBarBody>
-			</MessageBar>
 		</section>
 	);
 }

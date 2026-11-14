@@ -849,20 +849,34 @@ describe("#26 / #31 — Customise Button", () => {
 
 	describe("#26 — moving a button that isn't yours moves a copy", () => {
 		const COLLAB = `${MAIN}.Collaborate`;
-		const src = (buttonId: string) => ({ groupId: MGMT, buttonId, tabId: MAIN, location: "HomepageGrid" as const });
+		const src = (buttonId: string) => ({
+			groupId: MGMT,
+			buttonId,
+			tabId: MAIN,
+			location: "HomepageGrid" as const,
+		});
 		const collab = () =>
-			useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups.find((g) => g.id === COLLAB)!;
+			useRibbonStore
+				.getState()
+				.ribbons.HomepageGrid.tabs[0].groups.find((g) => g.id === COLLAB)!;
 		// The copy takes the active solution's publisher prefix.
-		beforeEach(() => useSessionStore.setState({ activeSolution: null, publisherPrefix: "cbs" }));
+		beforeEach(() =>
+			useSessionStore.setState({ activeSolution: null, publisherPrefix: "cbs" }),
+		);
 
 		it("to another group: the original stays hidden in place, your copy moves, publish is allowed", () => {
 			loadStore();
 			const before = useRibbonStore.getState().past.length;
-			useRibbonStore.getState().moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" });
+			useRibbonStore
+				.getState()
+				.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" });
 			const original = mgmt().buttons.find((b) => b.id === EDIT)!;
 			expect(original.hidden).toBe(true);
 			expect(mgmt().buttons.some((b) => b.id === `cbs.${EDIT}`)).toBe(false);
-			expect(collab().buttons.map((b) => b.id)).toEqual([`Mscrm.HomepageGrid.${T}.Share`, `cbs.${EDIT}`]);
+			expect(collab().buttons.map((b) => b.id)).toEqual([
+				`Mscrm.HomepageGrid.${T}.Share`,
+				`cbs.${EDIT}`,
+			]);
 			const p = storePlan();
 			expect(p.unsupported).toEqual([]);
 			expect(p.hasChanges).toBe(true);
@@ -884,14 +898,21 @@ describe("#26 / #31 — Customise Button", () => {
 			});
 			const ids = mgmt().buttons.map((b) => b.id);
 			expect(ids.indexOf(`cbs.Mscrm.HomepageGrid.${T}.Assign`)).toBe(ids.indexOf(EDIT) - 1);
-			expect(mgmt().buttons.find((b) => b.id === `Mscrm.HomepageGrid.${T}.Assign`)!.hidden).toBe(true);
+			expect(
+				mgmt().buttons.find((b) => b.id === `Mscrm.HomepageGrid.${T}.Assign`)!.hidden,
+			).toBe(true);
 			expect(storePlan().unsupported).toEqual([]);
 		});
 
 		it("a drop in place changes nothing", () => {
 			loadStore();
 			const s = useRibbonStore.getState();
-			s.moveButton(src(EDIT), { groupId: MGMT, tabId: MAIN, location: "HomepageGrid", beforeButtonId: EDIT });
+			s.moveButton(src(EDIT), {
+				groupId: MGMT,
+				tabId: MAIN,
+				location: "HomepageGrid",
+				beforeButtonId: EDIT,
+			});
 			s.moveButton(src(EDIT), {
 				groupId: MGMT,
 				tabId: MAIN,
@@ -905,15 +926,34 @@ describe("#26 / #31 — Customise Button", () => {
 		it("returns the id now at the target: the copy's, your own button's, or null", () => {
 			loadStore();
 			const s = useRibbonStore.getState();
-			expect(s.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" })).toBe(`cbs.${EDIT}`);
-			expect(s.moveButton(src("cbs.Mine"), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" })).toBe("cbs.Mine");
-			expect(s.moveButton(src(EDIT), { groupId: MGMT, tabId: MAIN, location: "HomepageGrid", beforeButtonId: EDIT })).toBeNull();
+			expect(
+				s.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" }),
+			).toBe(`cbs.${EDIT}`);
+			expect(
+				s.moveButton(src("cbs.Mine"), {
+					groupId: COLLAB,
+					tabId: MAIN,
+					location: "HomepageGrid",
+				}),
+			).toBe("cbs.Mine");
+			expect(
+				s.moveButton(src(EDIT), {
+					groupId: MGMT,
+					tabId: MAIN,
+					location: "HomepageGrid",
+					beforeButtonId: EDIT,
+				}),
+			).toBeNull();
 		});
 
 		it("a move to a missing group changes nothing (no copy, no hide, no history)", () => {
 			loadStore();
 			expect(
-				useRibbonStore.getState().moveButton(src(EDIT), { groupId: "nope", tabId: MAIN, location: "HomepageGrid" }),
+				useRibbonStore.getState().moveButton(src(EDIT), {
+					groupId: "nope",
+					tabId: MAIN,
+					location: "HomepageGrid",
+				}),
 			).toBeNull();
 			expect(useRibbonStore.getState().past).toHaveLength(0);
 			expect(mgmt().buttons.find((b) => b.id === EDIT)!.hidden).toBeFalsy();
@@ -930,14 +970,24 @@ describe("#26 / #31 — Customise Button", () => {
 						label: "Home",
 						sequence: 10,
 						tabDisplayRules: [],
-						groups: [{ id: "App.G", label: "G", sequence: 10, template: "Mscrm.Templates.Flexible2", buttons: [] }],
+						groups: [
+							{
+								id: "App.G",
+								label: "G",
+								sequence: 10,
+								template: "Mscrm.Templates.Flexible2",
+								buttons: [],
+							},
+						],
 					},
 				],
 			} as RibbonDefinition);
 			const s = useRibbonStore.getState();
 			s.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" });
 			const before = useRibbonStore.getState().past.length;
-			expect(s.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" })).toBeNull();
+			expect(
+				s.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" }),
+			).toBeNull();
 			expect(useRibbonStore.getState().past.length).toBe(before);
 			expect(storePlan().unsupported).toEqual([]);
 			expect(
@@ -948,7 +998,9 @@ describe("#26 / #31 — Customise Button", () => {
 				}),
 			).toBeNull();
 			expect(useRibbonStore.getState().past.length).toBe(before);
-			expect(useRibbonStore.getState().ribbons.Application.tabs[0].groups[0].buttons).toEqual([]);
+			expect(useRibbonStore.getState().ribbons.Application.tabs[0].groups[0].buttons).toEqual(
+				[],
+			);
 		});
 
 		it("is judged by the loaded origin: an overridden OOB button isn't moved in place (review)", () => {
@@ -956,7 +1008,9 @@ describe("#26 / #31 — Customise Button", () => {
 			const s = useRibbonStore.getState();
 			s.customizeOobButton("HomepageGrid", MAIN, MGMT, EDIT);
 			const before = useRibbonStore.getState().past.length;
-			expect(s.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" })).toBeNull();
+			expect(
+				s.moveButton(src(EDIT), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" }),
+			).toBeNull();
 			expect(useRibbonStore.getState().past.length).toBe(before);
 			expect(collab().buttons.some((b) => b.id === EDIT)).toBe(false);
 		});
@@ -964,12 +1018,22 @@ describe("#26 / #31 — Customise Button", () => {
 		it("your own buttons still move in place, and flyouts are not copied", () => {
 			loadStore();
 			const s = useRibbonStore.getState();
-			s.moveButton(src("cbs.Mine"), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" });
+			s.moveButton(src("cbs.Mine"), {
+				groupId: COLLAB,
+				tabId: MAIN,
+				location: "HomepageGrid",
+			});
 			expect(collab().buttons.map((b) => b.id)).toContain("cbs.Mine");
 			expect(collab().buttons.some((b) => b.id.startsWith("cbs.cbs."))).toBe(false);
-			s.moveButton(src(`Mscrm.HomepageGrid.${T}.Flows`), { groupId: COLLAB, tabId: MAIN, location: "HomepageGrid" });
+			s.moveButton(src(`Mscrm.HomepageGrid.${T}.Flows`), {
+				groupId: COLLAB,
+				tabId: MAIN,
+				location: "HomepageGrid",
+			});
 			expect(collab().buttons.map((b) => b.id)).toContain(`Mscrm.HomepageGrid.${T}.Flows`);
-			expect(storePlan().unsupported).toEqual([expect.stringMatching(/^Moving or re-ordering "Flow"/)]);
+			expect(storePlan().unsupported).toEqual([
+				expect.stringMatching(/^Moving or re-ordering "Flow"/),
+			]);
 		});
 	});
 
@@ -1069,7 +1133,9 @@ describe("#26 / #31 — Customise Button", () => {
 			"$LocLabels:msdyn.Thing.Tip is defined by another solution",
 		);
 		expect(s.past.at(-1)?.detail).toContain("keeps another solution's labels");
-		const copied = s.ribbons.HomepageGrid.tabs[0].groups.find((g) => g.id === MGMT)!.buttons.find((b) => b.id === id)!;
+		const copied = s.ribbons.HomepageGrid.tabs[0].groups
+			.find((g) => g.id === MGMT)!
+			.buttons.find((b) => b.id === id)!;
 		expect(copied.source?.tooltipTitleToken).toBe("$LocLabels:msdyn.Thing.Tip");
 		expect(copied.source?.labelToken).toBeUndefined();
 
@@ -1159,7 +1225,9 @@ describe("#137 — copies of controls whose labels another solution defines", ()
 		return new DOMParser().parseFromString(result.xml, "application/xml");
 	}
 	const buttonIn = (doc: Document, id: string) =>
-		Array.from(doc.querySelectorAll("CustomAction Button")).find((b) => b.getAttribute("Id") === id)!;
+		Array.from(doc.querySelectorAll("CustomAction Button")).find(
+			(b) => b.getAttribute("Id") === id,
+		)!;
 	const copies = (prefix: string) =>
 		useRibbonStore
 			.getState()
@@ -1176,8 +1244,12 @@ describe("#137 — copies of controls whose labels another solution defines", ()
 		expect(copy.label).toBe("msdyn.Other.LabelText");
 
 		const doc = await published();
-		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe("$LocLabels:msdyn.Other.LabelText");
-		expect(buttonIn(doc, copy.id).getAttribute("ToolTipTitle")).toBe("$LocLabels:msdyn.Other.Tip");
+		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe(
+			"$LocLabels:msdyn.Other.LabelText",
+		);
+		expect(buttonIn(doc, copy.id).getAttribute("ToolTipTitle")).toBe(
+			"$LocLabels:msdyn.Other.Tip",
+		);
 		// Neither the other solution's labels nor new ones reading their ids.
 		expect(ids(doc, "LocLabels > LocLabel").filter((id) => id?.includes("Other"))).toEqual([]);
 	});
@@ -1188,7 +1260,9 @@ describe("#137 — copies of controls whose labels another solution defines", ()
 		const copy = copies(`${OTHER}_copy_`)[0];
 		expect(copy.source?.labelToken).toBe("$LocLabels:msdyn.Other.LabelText");
 		const doc = await published();
-		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe("$LocLabels:msdyn.Other.LabelText");
+		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe(
+			"$LocLabels:msdyn.Other.LabelText",
+		);
 		expect(ids(doc, "LocLabels > LocLabel").filter((id) => id?.includes("Other"))).toEqual([]);
 	});
 
@@ -1196,10 +1270,16 @@ describe("#137 — copies of controls whose labels another solution defines", ()
 		loadWithOther();
 		useRibbonStore.getState().duplicateButton("HomepageGrid", MAIN, MGMT, OTHER);
 		const [copy] = copies(`${OTHER}_copy_`);
-		useRibbonStore.getState().setButtonProp("HomepageGrid", MAIN, MGMT, copy.id, { label: "Book it" });
+		useRibbonStore
+			.getState()
+			.setButtonProp("HomepageGrid", MAIN, MGMT, copy.id, { label: "Book it" });
 		const doc = await published();
-		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe(`$LocLabels:${copy.id}.LabelText`);
-		expect(buttonIn(doc, copy.id).getAttribute("ToolTipTitle")).toBe("$LocLabels:msdyn.Other.Tip");
+		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe(
+			`$LocLabels:${copy.id}.LabelText`,
+		);
+		expect(buttonIn(doc, copy.id).getAttribute("ToolTipTitle")).toBe(
+			"$LocLabels:msdyn.Other.Tip",
+		);
 		const labels = ids(doc, "LocLabels > LocLabel");
 		expect(labels).toContain(`${copy.id}.LabelText`);
 		expect(labels).not.toContain("msdyn.Other.LabelText");
@@ -1212,16 +1292,29 @@ describe("#137 — copies of controls whose labels another solution defines", ()
 		const target = () => {
 			const c = copies(`${OTHER}_copy_`)[0];
 			const s = useRibbonStore.getState();
-			return textLabelId(c.source?.labelToken, buttonLabelId(c.id), c.label, s.locLabels, s.baseLanguageCode);
+			return textLabelId(
+				c.source?.labelToken,
+				buttonLabelId(c.id),
+				c.label,
+				s.locLabels,
+				s.baseLanguageCode,
+			);
 		};
 		// Unchanged: the shared label isn't edited.
 		expect(target()).toBeNull();
 		// Its text edited: the copy's own label, which the translation joins.
-		useRibbonStore.getState().setButtonProp("HomepageGrid", MAIN, MGMT, copy.id, { label: "Book it" });
+		useRibbonStore
+			.getState()
+			.setButtonProp("HomepageGrid", MAIN, MGMT, copy.id, { label: "Book it" });
 		expect(target()).toBe(`${copy.id}.LabelText`);
-		useRibbonStore.getState().upsertLocLabel({ id: target()!, titles: [{ languageCode: 1036, description: "Réserver" }] });
+		useRibbonStore.getState().upsertLocLabel({
+			id: target()!,
+			titles: [{ languageCode: 1036, description: "Réserver" }],
+		});
 		const doc = await published();
-		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe(`$LocLabels:${copy.id}.LabelText`);
+		expect(buttonIn(doc, copy.id).getAttribute("LabelText")).toBe(
+			`$LocLabels:${copy.id}.LabelText`,
+		);
 		const titles = Array.from(
 			Array.from(doc.querySelectorAll("LocLabels > LocLabel"))
 				.find((l) => l.getAttribute("Id") === `${copy.id}.LabelText`)!
@@ -1238,7 +1331,9 @@ describe("#137 — copies of controls whose labels another solution defines", ()
 		const [copy] = copies(`${OTHER}_copy_`);
 		expect(copy.source?.labelToken).toBeUndefined();
 		expect(copy.label).toBe("msdyn.Other.LabelText (copy)");
-		const id = useRibbonStore.getState().customiseButton("HomepageGrid", MAIN, MGMT, OTHER, "cbs")!;
+		const id = useRibbonStore
+			.getState()
+			.customiseButton("HomepageGrid", MAIN, MGMT, OTHER, "cbs")!;
 		const customised = copies(id)[0];
 		expect(customised.source?.tooltipTitleToken).toBeUndefined();
 	});
@@ -1261,7 +1356,10 @@ describe("#137 — copies of controls whose labels another solution defines", ()
 						id: "msdyn.Fly.Menu.S",
 						sequence: 10,
 						controlsId: "msdyn.Fly.Menu.S.Controls",
-						controls: [item("msdyn.Fly.A", "$LocLabels:msdyn.A.LabelText"), item("msdyn.Fly.B", "$LocLabels:mine.B.LabelText")],
+						controls: [
+							item("msdyn.Fly.A", "$LocLabels:msdyn.A.LabelText"),
+							item("msdyn.Fly.B", "$LocLabels:mine.B.LabelText"),
+						],
 					},
 				],
 			},

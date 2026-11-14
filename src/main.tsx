@@ -1,8 +1,3 @@
-// Configure Monaco to use the locally-bundled instance instead of CDN.
-// Must be the very first import so the loader is configured before any
-// component that calls useMonaco() / <Editor> / <DiffEditor> is loaded.
-import "@/utils/monacoSetup";
-
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { useSessionStore } from "@/store/sessionStore";
@@ -19,7 +14,10 @@ async function bootstrap() {
 	const logInfo = useRuntimeLogStore.getState().logInfo;
 	const win = window as Window & typeof globalThis;
 	const toolboxAPI = win.toolboxAPI;
-	const { connection, theme, warnings } = await connectToHost({ toolboxAPI, dataverseAPI: win.dataverseAPI });
+	const { connection, theme, warnings } = await connectToHost({
+		toolboxAPI,
+		dataverseAPI: win.dataverseAPI,
+	});
 	logInfo("startup", "Connected to PPTB host runtime.");
 	for (const w of warnings) useRuntimeLogStore.getState().logWarn("startup", w);
 	logInfo("startup", `Host theme loaded: ${theme}.`);

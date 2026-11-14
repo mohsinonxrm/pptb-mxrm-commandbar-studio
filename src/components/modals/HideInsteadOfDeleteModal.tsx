@@ -33,15 +33,19 @@ export const HideInsteadOfDeleteModal: React.FC = () => {
 		<HideOobWarningModal
 			open
 			buttonLabel={captionOf(button.label, locLabels, undefined, button.source?.labelToken)}
+			buttonId={button.id}
 			commandId={button.commandId}
 			deleteBlockedReason={deleteBlockedReason(button, baseline)}
 			onConfirmHide={() => {
-				useRibbonStore.getState().hideOobButton(target.location, target.tabId, target.groupId, target.buttonId);
+				useRibbonStore
+					.getState()
+					.hideOobButton(target.location, target.tabId, target.groupId, target.buttonId);
 				announce("Button hidden");
 				close();
 			}}
 			onConfirmDisplayRule={() => {
-				if (useRibbonStore.getState().hideWithDisplayRules(button.commandId)) announce("Button hidden");
+				if (useRibbonStore.getState().hideWithDisplayRules(button.commandId))
+					announce("Button hidden");
 				close();
 			}}
 			onCancel={close}

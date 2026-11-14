@@ -1,0 +1,84 @@
+{
+	"source": {
+		"org": "CRM279420 (org382cc706), Dataverse 9.2.26092.168",
+		"app": "Sales Hub (msdynce_saleshub)",
+		"recorded": "2026-10-29",
+		"page": "account form → Related → Contacts (associated view), ribbondebug=true. data-id prefix contact|NoRelationship|SubGridAssociated",
+		"notes": "Items are in rendered order. A '|split' or '|flyout' suffix gives the rendered kind. The bar's aria-label is 'Contact Commands'. It uses the same Mscrm.SubGrid.contact ribbon as the sub-grid, with room for more items, and adds Show Chart (system). Command checker sits on the bar when everything fits (1920 px, none selected)."
+	},
+	"entity": "contact",
+	"location": "SubGridAssociated",
+	"parent": { "entity": "account", "relationship": "contact_customer_accounts" },
+	"labels": {
+		"ShowChartPane": "Show Chart",
+		"Mscrm.SubGrid.contact.AddNewStandard": "Add New Contact",
+		"Mscrm.SubGrid.contact.AddExistingAssoc": "Add Existing Contact",
+		"Mscrm.SubGrid.contact.RefreshButton": "Refresh",
+		"Mscrm.SubGrid.contact.QuickCampaign": "Quick Campaign",
+		"Mscrm.SubGrid.contact.Flows.RefreshCommandBar": "Run Flow",
+		"Mscrm.SubGrid.contact.RunReport": "Run Report",
+		"Mscrm.SubGrid.contact.DocumentTemplate": "Excel Templates",
+		"Mscrm.SubGrid.contact.ExportToExcel": "Export Contacts",
+		"CommandChecker": "Command checker",
+		"Mscrm.SubGrid.contact.Edit": "Edit",
+		"Mscrm.SubGrid.contact.Activate": "Activate",
+		"Mscrm.SubGrid.contact.Deactivate": "Deactivate",
+		"Mscrm.SubGrid.contact.Delete": "Delete Contact",
+		"Mscrm.SubGrid.contact.MergeRecords": "Merge",
+		"Mscrm.SubGrid.contact.AddToList": "Add to Marketing List",
+		"Mscrm.SubGrid.contact.Assign": "Assign Contacts",
+		"Mscrm.SubGrid.contact.Sharing": "Share",
+		"Mscrm.SubGrid.contact.SendSelected": "Email a Link",
+		"Mscrm.SubGrid.contact.FollowButton": "Follow",
+		"Mscrm.SubGrid.contact.UnfollowButton": "Unfollow",
+		"Mscrm.SubGrid.contact.WordTemplate": "Word Templates",
+		"Mscrm.SubGrid.contact.ExportSelectedToExcel": "Export to Excel"
+	},
+	"states": {
+		"w1920.sel0": {
+			"selected": 0,
+			"visible": ["ShowChartPane", "Mscrm.SubGrid.contact.AddNewStandard", "Mscrm.SubGrid.contact.AddExistingAssoc", "Mscrm.SubGrid.contact.RefreshButton", "Mscrm.SubGrid.contact.QuickCampaign|flyout", "Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout", "Mscrm.SubGrid.contact.RunReport|flyout", "Mscrm.SubGrid.contact.DocumentTemplate|flyout", "Mscrm.SubGrid.contact.ExportToExcel|split", "CommandChecker"],
+			"overflow": []
+		},
+		"w1920.sel1": {
+			"selected": 1,
+			"visible": ["ShowChartPane", "Mscrm.SubGrid.contact.Edit", "Mscrm.SubGrid.contact.Activate", "Mscrm.SubGrid.contact.Deactivate", "Mscrm.SubGrid.contact.Delete", "Mscrm.SubGrid.contact.MergeRecords", "Mscrm.SubGrid.contact.AddToList", "Mscrm.SubGrid.contact.QuickCampaign|flyout", "Mscrm.SubGrid.contact.Assign", "Mscrm.SubGrid.contact.Sharing", "Mscrm.SubGrid.contact.SendSelected", "Mscrm.SubGrid.contact.FollowButton"],
+			"overflow": ["Mscrm.SubGrid.contact.UnfollowButton", "Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout", "Mscrm.SubGrid.contact.RunReport|flyout", "Mscrm.SubGrid.contact.WordTemplate|flyout", "Mscrm.SubGrid.contact.ExportSelectedToExcel", "CommandChecker"]
+		},
+		"w1920.sel2": {
+			"selected": 2,
+			"visible": ["ShowChartPane", "Mscrm.SubGrid.contact.Edit", "Mscrm.SubGrid.contact.Activate", "Mscrm.SubGrid.contact.Deactivate", "Mscrm.SubGrid.contact.Delete", "Mscrm.SubGrid.contact.MergeRecords", "Mscrm.SubGrid.contact.AddToList", "Mscrm.SubGrid.contact.QuickCampaign|flyout", "Mscrm.SubGrid.contact.Assign", "Mscrm.SubGrid.contact.Sharing", "Mscrm.SubGrid.contact.SendSelected", "Mscrm.SubGrid.contact.FollowButton"],
+			"overflow": ["Mscrm.SubGrid.contact.UnfollowButton", "Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout", "Mscrm.SubGrid.contact.RunReport|flyout", "Mscrm.SubGrid.contact.ExportSelectedToExcel", "CommandChecker"]
+		},
+		"w1280.sel0": {
+			"selected": 0,
+			"visible": ["ShowChartPane", "Mscrm.SubGrid.contact.AddNewStandard", "Mscrm.SubGrid.contact.AddExistingAssoc", "Mscrm.SubGrid.contact.RefreshButton", "Mscrm.SubGrid.contact.QuickCampaign|flyout", "Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout"],
+			"overflow": ["Mscrm.SubGrid.contact.RunReport|flyout", "Mscrm.SubGrid.contact.DocumentTemplate|flyout", "Mscrm.SubGrid.contact.ExportToExcel|split", "CommandChecker"]
+		},
+		"w1280.sel1": {
+			"selected": 1,
+			"visible": ["ShowChartPane", "Mscrm.SubGrid.contact.Edit", "Mscrm.SubGrid.contact.Activate", "Mscrm.SubGrid.contact.Deactivate", "Mscrm.SubGrid.contact.Delete", "Mscrm.SubGrid.contact.MergeRecords", "Mscrm.SubGrid.contact.AddToList"],
+			"overflow": ["Mscrm.SubGrid.contact.QuickCampaign|flyout", "Mscrm.SubGrid.contact.Assign", "Mscrm.SubGrid.contact.Sharing", "Mscrm.SubGrid.contact.SendSelected", "Mscrm.SubGrid.contact.FollowButton", "Mscrm.SubGrid.contact.UnfollowButton", "Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout", "Mscrm.SubGrid.contact.RunReport|flyout", "Mscrm.SubGrid.contact.WordTemplate|flyout", "Mscrm.SubGrid.contact.ExportSelectedToExcel", "CommandChecker"]
+		},
+		"w1280.sel2": {
+			"selected": 2,
+			"visible": ["ShowChartPane", "Mscrm.SubGrid.contact.Edit", "Mscrm.SubGrid.contact.Activate", "Mscrm.SubGrid.contact.Deactivate", "Mscrm.SubGrid.contact.Delete", "Mscrm.SubGrid.contact.MergeRecords", "Mscrm.SubGrid.contact.AddToList"],
+			"overflow": ["Mscrm.SubGrid.contact.QuickCampaign|flyout", "Mscrm.SubGrid.contact.Assign", "Mscrm.SubGrid.contact.Sharing", "Mscrm.SubGrid.contact.SendSelected", "Mscrm.SubGrid.contact.FollowButton", "Mscrm.SubGrid.contact.UnfollowButton", "Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout", "Mscrm.SubGrid.contact.RunReport|flyout", "Mscrm.SubGrid.contact.ExportSelectedToExcel", "CommandChecker"]
+		},
+		"w820.sel0": {
+			"selected": 0,
+			"visible": ["ShowChartPane", "Mscrm.SubGrid.contact.AddNewStandard", "Mscrm.SubGrid.contact.AddExistingAssoc"],
+			"overflow": ["Mscrm.SubGrid.contact.RefreshButton", "Mscrm.SubGrid.contact.QuickCampaign|flyout", "Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout", "Mscrm.SubGrid.contact.RunReport|flyout", "Mscrm.SubGrid.contact.DocumentTemplate|flyout", "Mscrm.SubGrid.contact.ExportToExcel|split", "CommandChecker"]
+		},
+		"w820.sel1": {
+			"selected": 1,
+			"visible": ["ShowChartPane", "Mscrm.SubGrid.contact.Edit", "Mscrm.SubGrid.contact.Activate", "Mscrm.SubGrid.contact.Deactivate"],
+			"overflow": ["Mscrm.SubGrid.contact.Delete", "Mscrm.SubGrid.contact.MergeRecords", "Mscrm.SubGrid.contact.AddToList", "Mscrm.SubGrid.contact.QuickCampaign|flyout", "Mscrm.SubGrid.contact.Assign", "Mscrm.SubGrid.contact.Sharing", "Mscrm.SubGrid.contact.SendSelected", "Mscrm.SubGrid.contact.FollowButton", "Mscrm.SubGrid.contact.UnfollowButton", "Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout", "Mscrm.SubGrid.contact.RunReport|flyout", "Mscrm.SubGrid.contact.WordTemplate|flyout", "Mscrm.SubGrid.contact.ExportSelectedToExcel", "CommandChecker"]
+		},
+		"w820.sel2": {
+			"selected": 2,
+			"visible": ["ShowChartPane", "Mscrm.SubGrid.contact.Edit", "Mscrm.SubGrid.contact.Activate", "Mscrm.SubGrid.contact.Deactivate"],
+			"overflow": ["Mscrm.SubGrid.contact.Delete", "Mscrm.SubGrid.contact.MergeRecords", "Mscrm.SubGrid.contact.AddToList", "Mscrm.SubGrid.contact.QuickCampaign|flyout", "Mscrm.SubGrid.contact.Assign", "Mscrm.SubGrid.contact.Sharing", "Mscrm.SubGrid.contact.SendSelected", "Mscrm.SubGrid.contact.FollowButton", "Mscrm.SubGrid.contact.UnfollowButton", "Mscrm.SubGrid.contact.Flows.RefreshCommandBar|flyout", "Mscrm.SubGrid.contact.RunReport|flyout", "Mscrm.SubGrid.contact.ExportSelectedToExcel", "CommandChecker"]
+		}
+	}
+}

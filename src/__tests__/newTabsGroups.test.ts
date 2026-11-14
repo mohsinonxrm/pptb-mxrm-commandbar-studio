@@ -15,7 +15,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { generateRibbonDiffXml, effectiveNewTab, planNewGroupScaling } from "@/services/xmlGenerator";
+import {
+	generateRibbonDiffXml,
+	effectiveNewTab,
+	planNewGroupScaling,
+} from "@/services/xmlGenerator";
 import { validateRibbonDiffXml } from "@/services/xmlValidator";
 import { parseRibbonXml } from "@/services/xmlParser";
 import {
@@ -29,8 +33,15 @@ import {
 	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
 import { planScope, UCI_TAB_NOTE } from "@/services/publishPlan";
-import { layerSnapshotFromParts, locLabelsFromParts } from "@/services/dataverse/ribbonLayerService";
-import { addLayerTabs, reconcileWithLayer, splitTabsByLocation } from "@/services/dataverse/ribbonService";
+import {
+	layerSnapshotFromParts,
+	locLabelsFromParts,
+} from "@/services/dataverse/ribbonLayerService";
+import {
+	addLayerTabs,
+	reconcileWithLayer,
+	splitTabsByLocation,
+} from "@/services/dataverse/ribbonService";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -58,12 +69,20 @@ const GROUP = "cbs.contact.Approvals.Group";
 const TAB = "cbs.contact.HomepageGrid.Tools.Tab";
 const TAB_GROUP = "cbs.contact.Tools.Group";
 
-const clone = <V,>(v: V): V => JSON.parse(JSON.stringify(v));
+const clone = <V>(v: V): V => JSON.parse(JSON.stringify(v));
 const parse = (xml: string) => new DOMParser().parseFromString(xml, "application/xml");
-const attrs = (els: Iterable<Element>, name = "Id") => Array.from(els).map((e) => e.getAttribute(name));
-const errorsOf = (xml: string) => validateRibbonDiffXml(xml).filter((e) => e.severity !== "warning");
+const attrs = (els: Iterable<Element>, name = "Id") =>
+	Array.from(els).map((e) => e.getAttribute(name));
+const errorsOf = (xml: string) =>
+	validateRibbonDiffXml(xml).filter((e) => e.severity !== "warning");
 
-const btn = (id: string, label: string, sequence: number, commandId: string, extra: Partial<RibbonButton> = {}): RibbonButton => ({
+const btn = (
+	id: string,
+	label: string,
+	sequence: number,
+	commandId: string,
+	extra: Partial<RibbonButton> = {},
+): RibbonButton => ({
 	id,
 	label,
 	kind: "button",
@@ -82,7 +101,9 @@ const cmd = (id: string, fn: string): CommandDefinition => ({
 	id,
 	enableRules: [],
 	displayRules: [],
-	actions: [{ kind: "javascript", library: "cbs_/scripts/contact.js", functionName: fn, params: [] }],
+	actions: [
+		{ kind: "javascript", library: "cbs_/scripts/contact.js", functionName: fn, params: [] },
+	],
 });
 
 const COMMANDS = [
@@ -124,7 +145,14 @@ const def = (location: RibbonLocation, tabs: RibbonTab[]): RibbonDefinition => (
 				scalingByTab: {
 					[MAIN]: {
 						tabId: MAIN,
-						maxSizes: [{ id: `${MAIN}.Management.MaxSize`, groupId: `${MAIN}.Management`, size: "LargeMedium", sequence: 10 }],
+						maxSizes: [
+							{
+								id: `${MAIN}.Management.MaxSize`,
+								groupId: `${MAIN}.Management`,
+								size: "LargeMedium",
+								sequence: 10,
+							},
+						],
 						scales: [],
 					},
 				},
@@ -163,7 +191,11 @@ function session1(): RibbonDefinition {
 	return def("HomepageGrid", [main, tab]);
 }
 
-function generate(current: RibbonDefinition, baseline: RibbonDefinition, commands = COMMANDS): string {
+function generate(
+	current: RibbonDefinition,
+	baseline: RibbonDefinition,
+	commands = COMMANDS,
+): string {
 	return generateRibbonDiffXml({
 		current,
 		baseline,
@@ -197,8 +229,14 @@ describe("#59 — a new group on an existing tab", () => {
 		expect(group.getAttribute("Title")).toBe(`$LocLabels:${GROUP}.Title`);
 		const controls = group.querySelector(":scope > Controls")!;
 		expect(controls.getAttribute("Id")).toBe(`${GROUP}.Controls`);
-		expect(attrs(controls.children)).toEqual(["cbs.contact.Approve.Button", "cbs.contact.Reject.Button"]);
-		expect(attrs(controls.children, "Command")).toEqual(["cbs.contact.Approve.Command", "cbs.contact.Reject.Command"]);
+		expect(attrs(controls.children)).toEqual([
+			"cbs.contact.Approve.Button",
+			"cbs.contact.Reject.Button",
+		]);
+		expect(attrs(controls.children, "Command")).toEqual([
+			"cbs.contact.Approve.Command",
+			"cbs.contact.Reject.Command",
+		]);
 		expect(attrs(controls.children, "LabelText")).toEqual([
 			"$LocLabels:cbs.contact.Approve.Button.LabelText",
 			"$LocLabels:cbs.contact.Reject.Button.LabelText",
@@ -212,7 +250,9 @@ describe("#59 — a new group on an existing tab", () => {
 	});
 
 	it("adds a MaxSize for the group to the tab's scaling", () => {
-		const maxSize = doc.querySelector(`CustomAction[Location="${MAIN}.Scaling._children"] MaxSize`)!;
+		const maxSize = doc.querySelector(
+			`CustomAction[Location="${MAIN}.Scaling._children"] MaxSize`,
+		)!;
 		expect(maxSize.getAttribute("GroupId")).toBe(GROUP);
 		expect(maxSize.getAttribute("Size")).toBe("LargeLarge");
 	});
@@ -228,11 +268,17 @@ describe("#59 — a new group on an existing tab", () => {
 
 	it("an existing button moved into the new group keeps its own CustomAction (not written twice)", () => {
 		const baseline = def("HomepageGrid", [oobMain()]);
-		baseline.tabs[0].groups[0].buttons.push(btn("cbs.contact.Mine.Button", "Mine", 900, "cbs.contact.Approve.Command"));
+		baseline.tabs[0].groups[0].buttons.push(
+			btn("cbs.contact.Mine.Button", "Mine", 900, "cbs.contact.Approve.Command"),
+		);
 		const current = session1();
-		current.tabs[0].groups[1].buttons.push(btn("cbs.contact.Mine.Button", "Mine", 30, "cbs.contact.Approve.Command"));
+		current.tabs[0].groups[1].buttons.push(
+			btn("cbs.contact.Mine.Button", "Mine", 30, "cbs.contact.Approve.Command"),
+		);
 		const d = parse(generate(current, baseline));
-		expect(d.querySelector(`Group[Id="${GROUP}"] Button[Id="cbs.contact.Mine.Button"]`)).toBeNull();
+		expect(
+			d.querySelector(`Group[Id="${GROUP}"] Button[Id="cbs.contact.Mine.Button"]`),
+		).toBeNull();
 	});
 });
 
@@ -246,37 +292,66 @@ describe("#58 — a new tab", () => {
 		const tab = ca.querySelector(":scope > CommandUIDefinition > Tab")!;
 		expect(tab.getAttribute("Command")).toBe(`${TAB}.Command`);
 		expect(Array.from(tab.children).map((c) => c.tagName)).toEqual(["Scaling", "Groups"]);
-		expect(attrs(tab.querySelectorAll("Groups > Group > Controls > Button"))).toEqual(["cbs.contact.Sync.Button"]);
-		expect(doc.querySelector(`CustomAction[Location="${TAB_GROUP}.Controls._children"]`)).toBeNull();
+		expect(attrs(tab.querySelectorAll("Groups > Group > Controls > Button"))).toEqual([
+			"cbs.contact.Sync.Button",
+		]);
+		expect(
+			doc.querySelector(`CustomAction[Location="${TAB_GROUP}.Controls._children"]`),
+		).toBeNull();
 		expect(doc.querySelector(`CustomAction[Location="${TAB}.Groups._children"]`)).toBeNull();
 	});
 
 	it("gets a TabDisplayRule for the table's home grid, bound to its Command, and the Command is defined", () => {
 		const rule = doc.querySelector(`TabDisplayRule[TabCommand="${TAB}.Command"]`)!;
 		const entityRules = Array.from(rule.children);
-		expect(entityRules.map((r) => [r.tagName, r.getAttribute("EntityName"), r.getAttribute("Context"), r.getAttribute("AppliesTo")])).toEqual([
-			["EntityRule", E, "HomePageGrid", "PrimaryEntity"],
-		]);
+		expect(
+			entityRules.map((r) => [
+				r.tagName,
+				r.getAttribute("EntityName"),
+				r.getAttribute("Context"),
+				r.getAttribute("AppliesTo"),
+			]),
+		).toEqual([["EntityRule", E, "HomePageGrid", "PrimaryEntity"]]);
 		const command = doc.querySelector(`CommandDefinition[Id="${TAB}.Command"]`)!;
-		expect(Array.from(command.children).map((c) => c.tagName)).toEqual(["EnableRules", "DisplayRules", "Actions"]);
-		expect(attrs(doc.querySelectorAll("CommandDefinitions > CommandDefinition"))).toContain("cbs.contact.Sync.Command");
+		expect(Array.from(command.children).map((c) => c.tagName)).toEqual([
+			"EnableRules",
+			"DisplayRules",
+			"Actions",
+		]);
+		expect(attrs(doc.querySelectorAll("CommandDefinitions > CommandDefinition"))).toContain(
+			"cbs.contact.Sync.Command",
+		);
 		expect(errorsOf(xml)).toEqual([]);
 	});
 
 	it("on the form gets a Form rule; on the sub-grid it goes into the contextual group with sub-grid rules", () => {
 		const tab = (): RibbonTab => ({ ...session1().tabs[1], id: "cbs.contact.X.Tab" });
 		const form = parse(generate(def("Form", [tab()]), def("Form", [])));
-		expect(form.querySelector("CustomAction")!.getAttribute("Location")).toBe("Mscrm.Tabs._children");
-		expect(attrs(form.querySelectorAll("TabDisplayRule > EntityRule"), "Context")).toEqual(["Form"]);
+		expect(form.querySelector("CustomAction")!.getAttribute("Location")).toBe(
+			"Mscrm.Tabs._children",
+		);
+		expect(attrs(form.querySelectorAll("TabDisplayRule > EntityRule"), "Context")).toEqual([
+			"Form",
+		]);
 
 		const sub = parse(generate(def("SubGrid", [tab()]), def("SubGrid", [])));
-		expect(sub.querySelector("CustomAction")!.getAttribute("Location")).toBe(`Mscrm.SubGrid.${E}.ContextualTabs._children`);
-		expect(attrs(sub.querySelectorAll("TabDisplayRule > EntityRule"), "Context")).toEqual(["SubGridStandard", "SubGridAssociated"]);
+		expect(sub.querySelector("CustomAction")!.getAttribute("Location")).toBe(
+			`Mscrm.SubGrid.${E}.ContextualTabs._children`,
+		);
+		expect(attrs(sub.querySelectorAll("TabDisplayRule > EntityRule"), "Context")).toEqual([
+			"SubGridStandard",
+			"SubGridAssociated",
+		]);
 	});
 
 	it("keeps the user's display rules (binding a rule without TabCommand to the tab's Command)", () => {
 		const current = session1();
-		current.tabs[1].tabDisplayRules = [{ tabCommand: "", rules: [{ kind: "EntityRule", context: "Form", appliesTo: "PrimaryEntity" }] }];
+		current.tabs[1].tabDisplayRules = [
+			{
+				tabCommand: "",
+				rules: [{ kind: "EntityRule", context: "Form", appliesTo: "PrimaryEntity" }],
+			},
+		];
 		const d = parse(generate(current, def("HomepageGrid", [oobMain()])));
 		const rules = d.querySelectorAll("TabDisplayRule");
 		expect(rules).toHaveLength(1);
@@ -285,7 +360,11 @@ describe("#58 — a new tab", () => {
 	});
 
 	it("keeps a Command the tab already has", () => {
-		const tab = effectiveNewTab({ ...session1().tabs[1], commandId: "my.Command" }, "HomepageGrid", E);
+		const tab = effectiveNewTab(
+			{ ...session1().tabs[1], commandId: "my.Command" },
+			"HomepageGrid",
+			E,
+		);
 		expect(tab.commandId).toBe("my.Command");
 		expect(tab.tabDisplayRules[0].tabCommand).toBe("my.Command");
 	});
@@ -298,7 +377,11 @@ describe("#58 — creating a tab in the store", () => {
 				HomepageGrid: def("HomepageGrid", [oobMain()]),
 				Form: def("Form", []),
 				SubGrid: def("SubGrid", []),
-				Application: { location: "Application", entityLogicalName: "{!EntityLogicalName}", tabs: [] },
+				Application: {
+					location: "Application",
+					entityLogicalName: "{!EntityLogicalName}",
+					tabs: [],
+				},
 			},
 			commands: [],
 			displayRules: [],
@@ -308,13 +391,22 @@ describe("#58 — creating a tab in the store", () => {
 	});
 
 	it("gives a table tab a Command and the display rule of its location", () => {
-		useRibbonStore.getState().createTab("Form", { id: "cbs.contact.Form.Review.Tab", label: "Review" });
+		useRibbonStore
+			.getState()
+			.createTab("Form", { id: "cbs.contact.Form.Review.Tab", label: "Review" });
 		const tab = useRibbonStore.getState().ribbons.Form.tabs[0];
 		expect(tab.commandId).toBe("cbs.contact.Form.Review.Tab.Command");
 		expect(tab.tabDisplayRules).toEqual([
 			{
 				tabCommand: "cbs.contact.Form.Review.Tab.Command",
-				rules: [{ kind: "EntityRule", entityName: E, context: "Form", appliesTo: "PrimaryEntity" }],
+				rules: [
+					{
+						kind: "EntityRule",
+						entityName: E,
+						context: "Form",
+						appliesTo: "PrimaryEntity",
+					},
+				],
 			},
 		]);
 	});
@@ -331,7 +423,15 @@ describe("#58 — creating a tab in the store", () => {
 // Plan
 // ---------------------------------------------------------------------------
 
-function planOf(current: RibbonDefinition, baseline: RibbonDefinition, extra: { commands?: CommandDefinition[]; baselineCommands?: CommandDefinition[]; locLabels?: LocLabel[] } = {}) {
+function planOf(
+	current: RibbonDefinition,
+	baseline: RibbonDefinition,
+	extra: {
+		commands?: CommandDefinition[];
+		baselineCommands?: CommandDefinition[];
+		locLabels?: LocLabel[];
+	} = {},
+) {
 	return planScope({
 		locations: [{ current, baseline }],
 		commands: extra.commands ?? COMMANDS,
@@ -356,12 +456,31 @@ describe("publish plan for new tabs and groups", () => {
 	});
 
 	it("reports an application tab without a display rule (it would never be shown)", () => {
-		const tab: RibbonTab = { id: "cbs.App.Tab", label: "App", sequence: 10, commandId: "cbs.App.Tab.Command", tabDisplayRules: [], groups: [] };
-		const app = (tabs: RibbonTab[]): RibbonDefinition => ({ location: "Application", entityLogicalName: "{!EntityLogicalName}", tabs });
+		const tab: RibbonTab = {
+			id: "cbs.App.Tab",
+			label: "App",
+			sequence: 10,
+			commandId: "cbs.App.Tab.Command",
+			tabDisplayRules: [],
+			groups: [],
+		};
+		const app = (tabs: RibbonTab[]): RibbonDefinition => ({
+			location: "Application",
+			entityLogicalName: "{!EntityLogicalName}",
+			tabs,
+		});
 		expect(planOf(app([tab]), app([])).unsupported).toEqual([
 			"New tab cbs.App.Tab has no tab display rule, so it would never be shown — add one in Tab rules",
 		]);
-		const withRule = { ...tab, tabDisplayRules: [{ tabCommand: "cbs.App.Tab.Command", rules: [{ kind: "PageRule" as const, address: "/main.aspx" }] }] };
+		const withRule = {
+			...tab,
+			tabDisplayRules: [
+				{
+					tabCommand: "cbs.App.Tab.Command",
+					rules: [{ kind: "PageRule" as const, address: "/main.aspx" }],
+				},
+			],
+		};
 		expect(planOf(app([withRule]), app([])).unsupported).toEqual([]);
 	});
 });
@@ -373,7 +492,11 @@ describe("publish plan for new tabs and groups", () => {
 async function publish(
 	current: RibbonDefinition,
 	baseline: RibbonDefinition,
-	opts: { commands?: CommandDefinition[]; baselineCommands?: CommandDefinition[]; locLabels?: LocLabel[] } = {},
+	opts: {
+		commands?: CommandDefinition[];
+		baselineCommands?: CommandDefinition[];
+		locLabels?: LocLabel[];
+	} = {},
 ) {
 	const { buildMergedRibbonDiffXml } = await import("@/services/dataverse/publishService");
 	const commands = opts.commands ?? COMMANDS;
@@ -391,7 +514,10 @@ async function publish(
 	return { plan: p, ...result, doc: parse(result.xml) };
 }
 
-const FIXTURE = readFileSync(resolve(__dirname, "../__fixtures__/ribbon/contact-cbs-tabs.xml"), "utf-8");
+const FIXTURE = readFileSync(
+	resolve(__dirname, "../__fixtures__/ribbon/contact-cbs-tabs.xml"),
+	"utf-8",
+);
 
 /**
  * What RetrieveEntityRibbon really returns after a CBS publish (verified live,
@@ -400,7 +526,8 @@ const FIXTURE = readFileSync(resolve(__dirname, "../__fixtures__/ribbon/contact-
  */
 const LIVE = (() => {
 	const doc = parse(FIXTURE);
-	for (const el of Array.from(doc.querySelectorAll('Tab[Id^="cbs."], TabDisplayRule'))) el.remove();
+	for (const el of Array.from(doc.querySelectorAll('Tab[Id^="cbs."], TabDisplayRule')))
+		el.remove();
 	for (const el of Array.from(doc.querySelectorAll("CommandDefinition"))) {
 		if (/Sync|\.Tab\.Command$/.test(el.getAttribute("Id") ?? "")) el.remove();
 	}
@@ -433,18 +560,26 @@ describe("round trip — publish, reload, publish again", () => {
 	it("the first publish writes the group, the tab, their buttons, commands, labels and tab rule", async () => {
 		const { doc, xml } = await publishSession1();
 		expect(attrs(doc.querySelectorAll("CustomActions > CustomAction"))).toEqual(
-			expect.arrayContaining([`${TAB}.CustomAction`, `${GROUP}.CustomAction`, `${GROUP}.MaxSize.CustomAction`]),
+			expect.arrayContaining([
+				`${TAB}.CustomAction`,
+				`${GROUP}.CustomAction`,
+				`${GROUP}.MaxSize.CustomAction`,
+			]),
 		);
 		expect(attrs(doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`))).toEqual([
 			"cbs.contact.Approve.Button",
 			"cbs.contact.Reject.Button",
 		]);
-		expect(attrs(doc.querySelectorAll(`Tab[Id="${TAB}"] Button`))).toEqual(["cbs.contact.Sync.Button"]);
+		expect(attrs(doc.querySelectorAll(`Tab[Id="${TAB}"] Button`))).toEqual([
+			"cbs.contact.Sync.Button",
+		]);
 		// The tab's Command survives the "only edited commands" filter of the publish.
-		expect(attrs(doc.querySelectorAll("CommandDefinitions > CommandDefinition")).sort()).toEqual(
-			[...COMMANDS.map((c) => c.id), `${TAB}.Command`].sort(),
-		);
-		expect(attrs(doc.querySelectorAll("TabDisplayRule"), "TabCommand")).toEqual([`${TAB}.Command`]);
+		expect(
+			attrs(doc.querySelectorAll("CommandDefinitions > CommandDefinition")).sort(),
+		).toEqual([...COMMANDS.map((c) => c.id), `${TAB}.Command`].sort());
+		expect(attrs(doc.querySelectorAll("TabDisplayRule"), "TabCommand")).toEqual([
+			`${TAB}.Command`,
+		]);
 		expect(errorsOf(xml)).toEqual([]);
 	});
 
@@ -452,7 +587,11 @@ describe("round trip — publish, reload, publish again", () => {
 		await publishSession1();
 		expect([...ownContainerIds(layer)].sort()).toEqual([GROUP, TAB, TAB_GROUP].sort());
 		expect([...ownControlIds(layer)]).toEqual(
-			expect.arrayContaining(["cbs.contact.Approve.Button", "cbs.contact.Reject.Button", "cbs.contact.Sync.Button"]),
+			expect.arrayContaining([
+				"cbs.contact.Approve.Button",
+				"cbs.contact.Reject.Button",
+				"cbs.contact.Sync.Button",
+			]),
 		);
 	});
 
@@ -460,8 +599,14 @@ describe("round trip — publish, reload, publish again", () => {
 		await publishSession1();
 		const { ribbons } = reload(FIXTURE);
 		expect(ribbons.HomepageGrid.tabs.map((t) => t.id)).toEqual([MAIN, TAB]);
-		expect(ribbons.Form.tabs.map((t) => t.id)).toEqual([`Mscrm.Form.${E}.MainTab`, "cbs.contact.Form.Review.Tab"]);
-		expect(ribbons.SubGrid.tabs.map((t) => t.id)).toEqual([`Mscrm.SubGrid.${E}.MainTab`, "cbs.contact.SubGrid.Extra.Tab"]);
+		expect(ribbons.Form.tabs.map((t) => t.id)).toEqual([
+			`Mscrm.Form.${E}.MainTab`,
+			"cbs.contact.Form.Review.Tab",
+		]);
+		expect(ribbons.SubGrid.tabs.map((t) => t.id)).toEqual([
+			`Mscrm.SubGrid.${E}.MainTab`,
+			"cbs.contact.SubGrid.Extra.Tab",
+		]);
 	});
 
 	it("reload: the layer's tab, missing from RetrieveEntityRibbon, is rebuilt from the layer with its group, button, rule and command", async () => {
@@ -470,17 +615,34 @@ describe("round trip — publish, reload, publish again", () => {
 		const { ribbons, locLabels, commands } = reload();
 		expect(ribbons.HomepageGrid.tabs.map((t) => t.id)).toEqual([MAIN, TAB]);
 		expect(ribbons.Form.tabs.map((t) => t.id)).toEqual([`Mscrm.Form.${E}.MainTab`]);
-		expect(ribbons.HomepageGrid.scalingByTab?.[TAB]?.maxSizes.map((m) => m.groupId)).toEqual([TAB_GROUP]);
-		expect(ribbons.HomepageGrid.tabs[1].groups[0].buttons.map((b) => [b.id, b.label, b.origin, b.commandId])).toEqual([
-			["cbs.contact.Sync.Button", "Sync", "unmanaged", "cbs.contact.Sync.Command"],
+		expect(ribbons.HomepageGrid.scalingByTab?.[TAB]?.maxSizes.map((m) => m.groupId)).toEqual([
+			TAB_GROUP,
 		]);
+		expect(
+			ribbons.HomepageGrid.tabs[1].groups[0].buttons.map((b) => [
+				b.id,
+				b.label,
+				b.origin,
+				b.commandId,
+			]),
+		).toEqual([["cbs.contact.Sync.Button", "Sync", "unmanaged", "cbs.contact.Sync.Command"]]);
 		// The button's command comes from the layer (the #57 reconcile path).
 		expect(commands.find((c) => c.id === "cbs.contact.Sync.Command")?.actions).toHaveLength(1);
 
 		const tab = ribbons.HomepageGrid.tabs[1];
 		expect(tab.commandId).toBe(`${TAB}.Command`);
 		expect(tab.tabDisplayRules).toEqual([
-			{ tabCommand: `${TAB}.Command`, rules: [{ kind: "EntityRule", entityName: E, context: "HomePageGrid", appliesTo: "PrimaryEntity" }] },
+			{
+				tabCommand: `${TAB}.Command`,
+				rules: [
+					{
+						kind: "EntityRule",
+						entityName: E,
+						context: "HomePageGrid",
+						appliesTo: "PrimaryEntity",
+					},
+				],
+			},
 		]);
 		expect(resolveDisplayLabel(tab.label, locLabels)).toBe("Tools");
 		expect(resolveDisplayLabel(tab.groups[0].label, locLabels)).toBe("Tools");
@@ -496,7 +658,11 @@ describe("round trip — publish, reload, publish again", () => {
 	it("an unchanged reload plans nothing", async () => {
 		await publishSession1();
 		const { ribbons, commands, locLabels } = reload();
-		const p = planOf(ribbons.HomepageGrid, clone(ribbons.HomepageGrid), { commands, baselineCommands: clone(commands), locLabels });
+		const p = planOf(ribbons.HomepageGrid, clone(ribbons.HomepageGrid), {
+			commands,
+			baselineCommands: clone(commands),
+			locLabels,
+		});
 		expect(p.hasChanges).toBe(false);
 		expect(p.unsupported).toEqual([]);
 		expect(p.warnings).toEqual([]);
@@ -509,16 +675,28 @@ describe("round trip — publish, reload, publish again", () => {
 		const baseline = clone(ribbons.HomepageGrid);
 		const current = clone(ribbons.HomepageGrid);
 		current.tabs[0].groups[0].buttons[0].hidden = true; // an unrelated change: hide New
-		const { doc } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		const { doc } = await publish(current, baseline, {
+			commands,
+			baselineCommands: clone(commands),
+			locLabels,
+		});
 		const after = parseRibbonDiffParts(new XMLSerializer().serializeToString(doc));
-		for (const key of [`ca:${TAB}.CustomAction`, `ca:${GROUP}.CustomAction`, `ca:${GROUP}.MaxSize.CustomAction`]) {
+		for (const key of [
+			`ca:${TAB}.CustomAction`,
+			`ca:${GROUP}.CustomAction`,
+			`ca:${GROUP}.MaxSize.CustomAction`,
+		]) {
 			expect(stableElementXml("customActions", after.customActions.get(key)!)).toBe(
 				stableElementXml("customActions", before.get(key)!),
 			);
 		}
 		expect(doc.querySelectorAll("HideCustomAction")).toHaveLength(1);
-		expect(attrs(doc.querySelectorAll("TabDisplayRule"), "TabCommand")).toEqual([`${TAB}.Command`]);
-		expect(attrs(doc.querySelectorAll("CommandDefinitions > CommandDefinition"))).toContain(`${TAB}.Command`);
+		expect(attrs(doc.querySelectorAll("TabDisplayRule"), "TabCommand")).toEqual([
+			`${TAB}.Command`,
+		]);
+		expect(attrs(doc.querySelectorAll("CommandDefinitions > CommandDefinition"))).toContain(
+			`${TAB}.Command`,
+		);
 	});
 
 	it("buttons added to the published group and tab are written inside them; an edit is made in place", async () => {
@@ -528,9 +706,17 @@ describe("round trip — publish, reload, publish again", () => {
 		const current = clone(ribbons.HomepageGrid);
 		const group = current.tabs[0].groups.find((g) => g.id === GROUP)!;
 		group.buttons[1].label = "Decline";
-		group.buttons.push(btn("cbs.contact.Escalate.Button", "Escalate", 30, "cbs.contact.Approve.Command"));
-		current.tabs[1].groups[0].buttons.push(btn("cbs.contact.Export.Button", "Export", 20, "cbs.contact.Sync.Command"));
-		const { doc, plan, xml } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		group.buttons.push(
+			btn("cbs.contact.Escalate.Button", "Escalate", 30, "cbs.contact.Approve.Command"),
+		);
+		current.tabs[1].groups[0].buttons.push(
+			btn("cbs.contact.Export.Button", "Export", 20, "cbs.contact.Sync.Command"),
+		);
+		const { doc, plan, xml } = await publish(current, baseline, {
+			commands,
+			baselineCommands: clone(commands),
+			locLabels,
+		});
 		expect(plan.unsupported).toEqual([]);
 
 		expect(attrs(doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`))).toEqual([
@@ -538,18 +724,28 @@ describe("round trip — publish, reload, publish again", () => {
 			"cbs.contact.Reject.Button",
 			"cbs.contact.Escalate.Button",
 		]);
-		expect(attrs(doc.querySelectorAll(`Tab[Id="${TAB}"] Group[Id="${TAB_GROUP}"] > Controls > Button`))).toEqual([
-			"cbs.contact.Sync.Button",
-			"cbs.contact.Export.Button",
-		]);
+		expect(
+			attrs(
+				doc.querySelectorAll(
+					`Tab[Id="${TAB}"] Group[Id="${TAB_GROUP}"] > Controls > Button`,
+				),
+			),
+		).toEqual(["cbs.contact.Sync.Button", "cbs.contact.Export.Button"]);
 		const children = attrs(doc.querySelectorAll("CustomActions > CustomAction"), "Location");
 		expect(children.filter((l) => l?.endsWith(".Controls._children"))).toEqual([]);
 		expect(doc.querySelectorAll('Button[Id="cbs.contact.Reject.Button"]')).toHaveLength(1);
 		expect(
-			doc.querySelector('LocLabel[Id="cbs.contact.Reject.Button.LabelText"] Title')!.getAttribute("description"),
+			doc
+				.querySelector('LocLabel[Id="cbs.contact.Reject.Button.LabelText"] Title')!
+				.getAttribute("description"),
 		).toBe("Decline");
 		expect(attrs(doc.querySelectorAll("LocLabels > LocLabel"))).toEqual(
-			expect.arrayContaining(["cbs.contact.Escalate.Button.LabelText", "cbs.contact.Export.Button.LabelText", `${TAB}.Title`, `${GROUP}.Title`]),
+			expect.arrayContaining([
+				"cbs.contact.Escalate.Button.LabelText",
+				"cbs.contact.Export.Button.LabelText",
+				`${TAB}.Title`,
+				`${GROUP}.Title`,
+			]),
 		);
 		expect(errorsOf(xml)).toEqual([]);
 	});
@@ -566,12 +762,26 @@ describe("round trip — publish, reload, publish again", () => {
 			template: "Flexible2",
 			buttons: [btn("cbs.contact.More.Button", "More", 10, "cbs.contact.Sync.Command")],
 		});
-		const { doc, plan, xml } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		const { doc, plan, xml } = await publish(current, baseline, {
+			commands,
+			baselineCommands: clone(commands),
+			locLabels,
+		});
 		expect(plan.unsupported).toEqual([]);
-		const tab = doc.querySelector(`CustomAction[Id="${TAB}.CustomAction"] > CommandUIDefinition > Tab`)!;
-		expect(attrs(tab.querySelectorAll(":scope > Groups > Group"))).toEqual([TAB_GROUP, "cbs.contact.More.Group"]);
-		expect(attrs(tab.querySelectorAll('Group[Id="cbs.contact.More.Group"] > Controls > Button'))).toEqual(["cbs.contact.More.Button"]);
-		expect(attrs(tab.querySelectorAll(":scope > Scaling > MaxSize"), "GroupId")).toEqual([TAB_GROUP, "cbs.contact.More.Group"]);
+		const tab = doc.querySelector(
+			`CustomAction[Id="${TAB}.CustomAction"] > CommandUIDefinition > Tab`,
+		)!;
+		expect(attrs(tab.querySelectorAll(":scope > Groups > Group"))).toEqual([
+			TAB_GROUP,
+			"cbs.contact.More.Group",
+		]);
+		expect(
+			attrs(tab.querySelectorAll('Group[Id="cbs.contact.More.Group"] > Controls > Button')),
+		).toEqual(["cbs.contact.More.Button"]);
+		expect(attrs(tab.querySelectorAll(":scope > Scaling > MaxSize"), "GroupId")).toEqual([
+			TAB_GROUP,
+			"cbs.contact.More.Group",
+		]);
 		const locations = attrs(doc.querySelectorAll("CustomActions > CustomAction"), "Location");
 		expect(locations.filter((l) => l?.startsWith(`${TAB}.`))).toEqual([]);
 		expect(errorsOf(xml)).toEqual([]);
@@ -584,12 +794,22 @@ describe("round trip — publish, reload, publish again", () => {
 		const current = clone(ribbons.HomepageGrid);
 		const group = current.tabs[0].groups.find((g) => g.id === GROUP)!;
 		group.buttons = group.buttons.filter((b) => b.id !== "cbs.contact.Reject.Button");
-		const { doc, plan } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		const { doc, plan } = await publish(current, baseline, {
+			commands,
+			baselineCommands: clone(commands),
+			locLabels,
+		});
 		expect(plan.deletedButtonIds).toEqual(["cbs.contact.Reject.Button"]);
 		expect(plan.unsupported).toEqual([]);
-		expect(attrs(doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`))).toEqual(["cbs.contact.Approve.Button"]);
-		expect(attrs(doc.querySelectorAll("CommandDefinitions > CommandDefinition"))).not.toContain("cbs.contact.Reject.Command");
-		expect(attrs(doc.querySelectorAll("LocLabels > LocLabel"))).not.toContain("cbs.contact.Reject.Button.LabelText");
+		expect(attrs(doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`))).toEqual([
+			"cbs.contact.Approve.Button",
+		]);
+		expect(attrs(doc.querySelectorAll("CommandDefinitions > CommandDefinition"))).not.toContain(
+			"cbs.contact.Reject.Command",
+		);
+		expect(attrs(doc.querySelectorAll("LocLabels > LocLabel"))).not.toContain(
+			"cbs.contact.Reject.Button.LabelText",
+		);
 	});
 
 	it("moving a button out of the published group gives it its own CustomAction at the new group", async () => {
@@ -600,8 +820,14 @@ describe("round trip — publish, reload, publish again", () => {
 		const group = current.tabs[0].groups.find((g) => g.id === GROUP)!;
 		const [approve] = group.buttons.splice(0, 1);
 		current.tabs[0].groups[0].buttons.push({ ...approve, sequence: 50 });
-		const { doc, plan } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
-		expect(plan.movedButtons).toEqual([{ id: "cbs.contact.Approve.Button", groupId: `${MAIN}.Management`, sequence: 50 }]);
+		const { doc, plan } = await publish(current, baseline, {
+			commands,
+			baselineCommands: clone(commands),
+			locLabels,
+		});
+		expect(plan.movedButtons).toEqual([
+			{ id: "cbs.contact.Approve.Button", groupId: `${MAIN}.Management`, sequence: 50 },
+		]);
 		expect(plan.unsupported).toEqual([]);
 		expect(doc.querySelectorAll('Button[Id="cbs.contact.Approve.Button"]')).toHaveLength(1);
 		const moved = doc.querySelector('Button[Id="cbs.contact.Approve.Button"]')!;
@@ -609,7 +835,9 @@ describe("round trip — publish, reload, publish again", () => {
 		expect(ca.getAttribute("Location")).toBe(`${MAIN}.Management.Controls._children`);
 		expect(ca.getAttribute("Sequence")).toBe("50");
 		expect(moved.getAttribute("Sequence")).toBe("50");
-		expect(attrs(doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`))).toEqual(["cbs.contact.Reject.Button"]);
+		expect(attrs(doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`))).toEqual([
+			"cbs.contact.Reject.Button",
+		]);
 	});
 
 	it("deleting the published tab removes it with its buttons, command and display rule", async () => {
@@ -618,7 +846,11 @@ describe("round trip — publish, reload, publish again", () => {
 		const baseline = clone(ribbons.HomepageGrid);
 		const current = clone(ribbons.HomepageGrid);
 		current.tabs = current.tabs.filter((t) => t.id !== TAB);
-		const { doc, plan } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		const { doc, plan } = await publish(current, baseline, {
+			commands,
+			baselineCommands: clone(commands),
+			locLabels,
+		});
 		expect(plan.deletedContainerIds).toEqual([TAB]);
 		expect(doc.querySelector(`Tab[Id="${TAB}"]`)).toBeNull();
 		expect(doc.querySelector('Button[Id="cbs.contact.Sync.Button"]')).toBeNull();
@@ -627,7 +859,9 @@ describe("round trip — publish, reload, publish again", () => {
 		expect(cmds).not.toContain(`${TAB}.Command`);
 		expect(cmds).not.toContain("cbs.contact.Sync.Command");
 		// The group on the main tab is untouched.
-		expect(attrs(doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`))).toHaveLength(2);
+		expect(
+			attrs(doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`)),
+		).toHaveLength(2);
 	});
 });
 
@@ -648,20 +882,39 @@ describe("layers written by earlier CBS versions are repaired (#59)", () => {
 	it("folds children of the layer's own groups and tabs into them", () => {
 		const folded = foldIntoOwnContainers(legacy().customActions);
 		expect([...folded.keys()].sort()).toEqual(
-			[`ca:${GROUP}.CustomAction`, `ca:${TAB}.CustomAction`, "ca:cbs.contact.Mine.CustomAction"].sort(),
+			[
+				`ca:${GROUP}.CustomAction`,
+				`ca:${TAB}.CustomAction`,
+				"ca:cbs.contact.Mine.CustomAction",
+			].sort(),
 		);
 		const doc = parse(`<x>${[...folded.values()].join("")}</x>`);
-		expect(attrs(doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`))).toEqual(["cbs.contact.Approve.Button"]);
-		expect(attrs(doc.querySelectorAll(`Group[Id="${TAB_GROUP}"] > Controls > Button`))).toEqual(["cbs.contact.Sync.Button"]);
-		// The CustomAction's Sequence is kept when the control had none.
-		expect(doc.querySelector('Button[Id="cbs.contact.Sync.Button"]')!.getAttribute("Sequence")).toBe("10");
-		expect(attrs(doc.querySelectorAll(`Tab[Id="${TAB}"] > Groups > Group`))).toEqual([TAB_GROUP, "cbs.contact.G2"]);
-		// Every MaxSize before any Scale.
-		expect(Array.from(doc.querySelector(`Tab[Id="${TAB}"] > Scaling`)!.children).map((c) => c.tagName)).toEqual(["MaxSize", "Scale"]);
-		// A button the layer adds to an out-of-the-box group stays as it is.
-		expect(doc.querySelector(`CustomAction[Id="cbs.contact.Mine.CustomAction"]`)!.getAttribute("Location")).toBe(
-			`${MAIN}.Management.Controls._children`,
+		expect(attrs(doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`))).toEqual([
+			"cbs.contact.Approve.Button",
+		]);
+		expect(attrs(doc.querySelectorAll(`Group[Id="${TAB_GROUP}"] > Controls > Button`))).toEqual(
+			["cbs.contact.Sync.Button"],
 		);
+		// The CustomAction's Sequence is kept when the control had none.
+		expect(
+			doc.querySelector('Button[Id="cbs.contact.Sync.Button"]')!.getAttribute("Sequence"),
+		).toBe("10");
+		expect(attrs(doc.querySelectorAll(`Tab[Id="${TAB}"] > Groups > Group`))).toEqual([
+			TAB_GROUP,
+			"cbs.contact.G2",
+		]);
+		// Every MaxSize before any Scale.
+		expect(
+			Array.from(doc.querySelector(`Tab[Id="${TAB}"] > Scaling`)!.children).map(
+				(c) => c.tagName,
+			),
+		).toEqual(["MaxSize", "Scale"]);
+		// A button the layer adds to an out-of-the-box group stays as it is.
+		expect(
+			doc
+				.querySelector(`CustomAction[Id="cbs.contact.Mine.CustomAction"]`)!
+				.getAttribute("Location"),
+		).toBe(`${MAIN}.Management.Controls._children`);
 	});
 
 	it("…when the publish touches the container, and never rewrites rows an unrelated publish doesn't touch (m5)", async () => {
@@ -671,24 +924,37 @@ describe("layers written by earlier CBS versions are repaired (#59)", () => {
 		unrelated.tabs[0].groups[0].buttons[0].hidden = true;
 		const { doc } = await publish(unrelated, baseline);
 		// Another tool's (or an older version's) rows stay exactly as they are.
-		expect(doc.querySelector(`CustomAction[Id="cbs.contact.Approve.Button.CustomAction"]`)!.getAttribute("Location")).toBe(
-			`${GROUP}.Controls._children`,
-		);
-		expect(doc.querySelector(`CustomAction[Id="cbs.contact.Sync.Button.CustomAction"]`)).not.toBeNull();
+		expect(
+			doc
+				.querySelector(`CustomAction[Id="cbs.contact.Approve.Button.CustomAction"]`)!
+				.getAttribute("Location"),
+		).toBe(`${GROUP}.Controls._children`);
+		expect(
+			doc.querySelector(`CustomAction[Id="cbs.contact.Sync.Button.CustomAction"]`),
+		).not.toBeNull();
 
 		// A button added to the group: the session writes into it, so it is folded.
 		layer = legacy();
 		const withGroup = def("HomepageGrid", [oobMain()]);
-		withGroup.tabs[0].groups.push({ id: GROUP, label: "Approvals", sequence: 60, template: "Flexible2", buttons: [] });
+		withGroup.tabs[0].groups.push({
+			id: GROUP,
+			label: "Approvals",
+			sequence: 60,
+			template: "Flexible2",
+			buttons: [],
+		});
 		const touched = clone(withGroup);
-		touched.tabs[0].groups[1].buttons.push(btn("cbs.contact.Reject.Button", "Reject", 20, "cbs.contact.Reject.Command"));
+		touched.tabs[0].groups[1].buttons.push(
+			btn("cbs.contact.Reject.Button", "Reject", 20, "cbs.contact.Reject.Command"),
+		);
 		const second = await publish(touched, withGroup);
-		expect(attrs(second.doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`)).sort()).toEqual([
-			"cbs.contact.Approve.Button",
-			"cbs.contact.Reject.Button",
-		]);
+		expect(
+			attrs(second.doc.querySelectorAll(`Group[Id="${GROUP}"] > Controls > Button`)).sort(),
+		).toEqual(["cbs.contact.Approve.Button", "cbs.contact.Reject.Button"]);
 		// The untouched tab's separate child stays.
-		expect(second.doc.querySelector(`CustomAction[Id="cbs.contact.Sync.Button.CustomAction"]`)).not.toBeNull();
+		expect(
+			second.doc.querySelector(`CustomAction[Id="cbs.contact.Sync.Button.CustomAction"]`),
+		).not.toBeNull();
 	});
 });
 
@@ -739,7 +1005,15 @@ describe("#66 review — a new group's MaxSize never reuses a scaling Sequence o
 				sequence: 10,
 				commandId: TMAIN,
 				tabDisplayRules: [],
-				groups: ["Management", "Collaborate", "Actions", "ExportData", "Workflow", "Find", "OutlookHelp"].map((g, i) => ({
+				groups: [
+					"Management",
+					"Collaborate",
+					"Actions",
+					"ExportData",
+					"Workflow",
+					"Find",
+					"OutlookHelp",
+				].map((g, i) => ({
 					id: `${TMAIN}.${g}`,
 					label: g,
 					sequence: (i + 1) * 10,
@@ -764,10 +1038,11 @@ describe("#66 review — a new group's MaxSize never reuses a scaling Sequence o
 		return d;
 	};
 	const maxSizesOf = (xml: string) =>
-		Array.from(parse(xml).querySelectorAll(`CustomAction[Location="${TMAIN}.Scaling._children"] MaxSize`)).map((m) => [
-			m.getAttribute("GroupId"),
-			Number(m.getAttribute("Sequence")),
-		]);
+		Array.from(
+			parse(xml).querySelectorAll(
+				`CustomAction[Location="${TMAIN}.Scaling._children"] MaxSize`,
+			),
+		).map((m) => [m.getAttribute("GroupId"), Number(m.getAttribute("Sequence"))]);
 
 	it("goes after the last MaxSize and before the first Scale — not at the group's Sequence (80 = Scale ExportData)", () => {
 		const xml = generate(withNewGroups(80), realMain());
@@ -775,15 +1050,22 @@ describe("#66 review — a new group's MaxSize never reuses a scaling Sequence o
 		const ca = parse(xml).querySelector(`CustomAction[Location="${TMAIN}.Scaling._children"]`)!;
 		expect(ca.getAttribute("Sequence")).toBe("62");
 		// The group keeps its own Sequence.
-		expect(parse(xml).querySelector(`Group[Id="new.${T}.HomepageGrid.G0.Group"]`)!.getAttribute("Sequence")).toBe("80");
+		expect(
+			parse(xml)
+				.querySelector(`Group[Id="new.${T}.HomepageGrid.G0.Group"]`)!
+				.getAttribute("Sequence"),
+		).toBe("80");
 		expect(planOf(withNewGroups(80), realMain()).unsupported).toEqual([]);
 	});
 
 	it("several new groups get distinct Sequences, skipping ones already used (a MaxSize the layer added before)", () => {
 		const current = withNewGroups(80, 80, 150);
 		const baseline = realMain();
-		for (const d of [current, baseline]) d.scalingByTab![TMAIN].maxSizes.push(step("MaxSize", 63, "Earlier"));
-		const all = [...REAL_SCALING.maxSizes, ...REAL_SCALING.scales].map((s) => s.sequence).concat(63);
+		for (const d of [current, baseline])
+			d.scalingByTab![TMAIN].maxSizes.push(step("MaxSize", 63, "Earlier"));
+		const all = [...REAL_SCALING.maxSizes, ...REAL_SCALING.scales]
+			.map((s) => s.sequence)
+			.concat(63);
 		const got = maxSizesOf(generate(current, baseline)).map(([, seq]) => seq as number);
 		expect(got).toEqual([64, 65, 66]);
 		for (const seq of got) expect(all).not.toContain(seq);
@@ -793,7 +1075,8 @@ describe("#66 review — a new group's MaxSize never reuses a scaling Sequence o
 	it("with no free Sequence between the last MaxSize and the first Scale, the publish is blocked", () => {
 		const current = withNewGroups(80);
 		const baseline = realMain();
-		for (const d of [current, baseline]) d.scalingByTab![TMAIN].scales.unshift(step("Scale", 62, "Find"));
+		for (const d of [current, baseline])
+			d.scalingByTab![TMAIN].scales.unshift(step("Scale", 62, "Find"));
 		const p = planOf(current, baseline);
 		expect(p.unsupported).toEqual([
 			`No free scaling position for the new group "G0" (new.${T}.HomepageGrid.G0.Group) on tab ${TMAIN}: its MaxSize must ` +
@@ -806,7 +1089,10 @@ describe("#66 review — a new group's MaxSize never reuses a scaling Sequence o
 		const tab = session1().tabs[1];
 		tab.groups.push({ ...clone(tab.groups[0]), id: "cbs.contact.Tools2.Group", buttons: [] });
 		const doc = parse(generate(def("HomepageGrid", [tab]), def("HomepageGrid", [])));
-		const seqs = attrs(doc.querySelectorAll(`Tab[Id="${TAB}"] > Scaling > MaxSize`), "Sequence");
+		const seqs = attrs(
+			doc.querySelectorAll(`Tab[Id="${TAB}"] > Scaling > MaxSize`),
+			"Sequence",
+		);
 		expect(seqs).toEqual(["10", "11"]);
 	});
 
@@ -830,7 +1116,12 @@ describe("#66 review — a new group's MaxSize never reuses a scaling Sequence o
 		expect(ribbons.HomepageGrid.scalingByTab?.[MAIN]).toEqual({
 			tabId: MAIN,
 			maxSizes: [
-				{ id: `${MAIN}.Management.MaxSize`, groupId: `${MAIN}.Management`, size: "LargeMedium", sequence: 10 },
+				{
+					id: `${MAIN}.Management.MaxSize`,
+					groupId: `${MAIN}.Management`,
+					size: "LargeMedium",
+					sequence: 10,
+				},
 				{ id: `${GROUP}.MaxSize`, groupId: GROUP, size: "LargeLarge", sequence: 11 },
 			],
 			scales: [],
@@ -838,9 +1129,14 @@ describe("#66 review — a new group's MaxSize never reuses a scaling Sequence o
 		expect(Object.keys(ribbons.HomepageGrid.scalingByTab ?? {})).toEqual([MAIN, TAB]);
 		const full = reload(FIXTURE).ribbons;
 		expect(Object.keys(full.Form.scalingByTab ?? {})).toEqual(["cbs.contact.Form.Review.Tab"]);
-		expect(Object.keys(full.SubGrid.scalingByTab ?? {})).toEqual(["cbs.contact.SubGrid.Extra.Tab"]);
+		expect(Object.keys(full.SubGrid.scalingByTab ?? {})).toEqual([
+			"cbs.contact.SubGrid.Extra.Tab",
+		]);
 		// An unchanged reload still plans nothing (scaling is compared too).
-		const p = planOf(ribbons.HomepageGrid, clone(ribbons.HomepageGrid), { commands, baselineCommands: clone(commands) });
+		const p = planOf(ribbons.HomepageGrid, clone(ribbons.HomepageGrid), {
+			commands,
+			baselineCommands: clone(commands),
+		});
 		expect(p.hasChanges).toBe(false);
 		expect(p.unsupported).toEqual([]);
 	});
@@ -850,8 +1146,18 @@ describe("#66 review — a new group's MaxSize never reuses a scaling Sequence o
 		const { ribbons, commands, locLabels } = reload();
 		const baseline = clone(ribbons.HomepageGrid);
 		const current = clone(ribbons.HomepageGrid);
-		current.tabs[0].groups.push({ id: "cbs.contact.Next.Group", label: "Next", sequence: 60, template: "Flexible2", buttons: [] });
-		const { doc } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		current.tabs[0].groups.push({
+			id: "cbs.contact.Next.Group",
+			label: "Next",
+			sequence: 60,
+			template: "Flexible2",
+			buttons: [],
+		});
+		const { doc } = await publish(current, baseline, {
+			commands,
+			baselineCommands: clone(commands),
+			locLabels,
+		});
 		const maxSize = doc.querySelector('MaxSize[GroupId="cbs.contact.Next.Group"]')!;
 		expect(maxSize.getAttribute("Sequence")).toBe("12");
 	});
@@ -865,7 +1171,11 @@ describe("#66 review — new group ids and new button sequences", () => {
 				HomepageGrid: def("HomepageGrid", [oobMain()]),
 				Form: def("Form", []),
 				SubGrid: def("SubGrid", []),
-				Application: { location: "Application", entityLogicalName: "{!EntityLogicalName}", tabs: [] },
+				Application: {
+					location: "Application",
+					entityLogicalName: "{!EntityLogicalName}",
+					tabs: [],
+				},
 			},
 			commands: [],
 			displayRules: [],
@@ -876,8 +1186,16 @@ describe("#66 review — new group ids and new button sequences", () => {
 
 	it("a new group gets a prefixed, unique id and a sequence no other group of the tab has", () => {
 		const s = useRibbonStore.getState();
-		s.createGroup({ location: "HomepageGrid", tabId: MAIN, group: { label: "New Group", sequence: 10, template: "Flexible2", buttons: [] } });
-		s.createGroup({ location: "HomepageGrid", tabId: MAIN, group: { label: "New Group", template: "Flexible2", buttons: [] } });
+		s.createGroup({
+			location: "HomepageGrid",
+			tabId: MAIN,
+			group: { label: "New Group", sequence: 10, template: "Flexible2", buttons: [] },
+		});
+		s.createGroup({
+			location: "HomepageGrid",
+			tabId: MAIN,
+			group: { label: "New Group", template: "Flexible2", buttons: [] },
+		});
 		const groups = useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups;
 		expect(groups.map((g) => [g.id, g.sequence])).toEqual([
 			[`${MAIN}.Management`, 10],
@@ -888,7 +1206,11 @@ describe("#66 review — new group ids and new button sequences", () => {
 
 	it("buttons added to a group get increasing, unique sequences", () => {
 		const s = useRibbonStore.getState();
-		s.createGroup({ location: "HomepageGrid", tabId: MAIN, group: { label: "Approvals", template: "Flexible2", buttons: [] } });
+		s.createGroup({
+			location: "HomepageGrid",
+			tabId: MAIN,
+			group: { label: "Approvals", template: "Flexible2", buttons: [] },
+		});
 		const groupId = useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[1].id;
 		const add = (id: string, sequence?: number) =>
 			useRibbonStore.getState().createButton({
@@ -920,32 +1242,55 @@ describe("#58 — the layer's own tabs are loaded from the layer", () => {
 	const reloadFor = async () => {
 		await publishSession1();
 		const { ribbons, commands, locLabels } = reload();
-		return { baseline: clone(ribbons.HomepageGrid), current: clone(ribbons.HomepageGrid), commands, locLabels };
+		return {
+			baseline: clone(ribbons.HomepageGrid),
+			current: clone(ribbons.HomepageGrid),
+			commands,
+			locLabels,
+		};
 	};
 
 	it("renaming the tab changes its title label only", async () => {
 		const { baseline, current, commands, locLabels } = await reloadFor();
 		const before = layer.customActions.get(`ca:${TAB}.CustomAction`)!;
 		current.tabs[1].label = "Utilities";
-		const { doc, plan } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		const { doc, plan } = await publish(current, baseline, {
+			commands,
+			baselineCommands: clone(commands),
+			locLabels,
+		});
 		expect(plan.unsupported).toEqual([]);
-		expect(plan.renamedLabels).toEqual([{ id: `${TAB}.Title`, text: "Utilities", containerId: TAB }]);
-		expect(doc.querySelector(`LocLabel[Id="${TAB}.Title"] Title`)!.getAttribute("description")).toBe("Utilities");
+		expect(plan.renamedLabels).toEqual([
+			{ id: `${TAB}.Title`, text: "Utilities", containerId: TAB },
+		]);
+		expect(
+			doc.querySelector(`LocLabel[Id="${TAB}.Title"] Title`)!.getAttribute("description"),
+		).toBe("Utilities");
 		const after = parseRibbonDiffParts(new XMLSerializer().serializeToString(doc));
-		expect(stableElementXml("customActions", after.customActions.get(`ca:${TAB}.CustomAction`)!)).toBe(
-			stableElementXml("customActions", before),
-		);
+		expect(
+			stableElementXml("customActions", after.customActions.get(`ca:${TAB}.CustomAction`)!),
+		).toBe(stableElementXml("customActions", before));
 	});
 
 	it("renaming a group of the tab (or the layer's group on the main tab) changes its title label; other languages stay", async () => {
 		const { baseline, current, commands, locLabels } = await reloadFor();
 		current.tabs[1].groups[0].label = "Sync tools";
 		current.tabs[0].groups.find((g) => g.id === GROUP)!.label = "Reviews";
-		const labels = locLabels.map((l) => (l.id === `${GROUP}.Title` ? { ...l, titles: [...l.titles, { languageCode: 1031, description: "Freigaben" }] } : l));
-		const { doc, plan } = await publish(current, baseline, { commands, baselineCommands: clone(commands), locLabels: labels });
+		const labels = locLabels.map((l) =>
+			l.id === `${GROUP}.Title`
+				? { ...l, titles: [...l.titles, { languageCode: 1031, description: "Freigaben" }] }
+				: l,
+		);
+		const { doc, plan } = await publish(current, baseline, {
+			commands,
+			baselineCommands: clone(commands),
+			locLabels: labels,
+		});
 		expect(plan.unsupported).toEqual([]);
 		const titles = (id: string) =>
-			Array.from(doc.querySelectorAll(`LocLabel[Id="${id}"] Title`)).map((t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`);
+			Array.from(doc.querySelectorAll(`LocLabel[Id="${id}"] Title`)).map(
+				(t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`,
+			);
 		expect(titles(`${TAB_GROUP}.Title`)).toEqual(["1033=Sync tools"]);
 		expect(titles(`${GROUP}.Title`).sort()).toEqual(["1031=Freigaben", "1033=Reviews"]);
 	});
@@ -953,7 +1298,11 @@ describe("#58 — the layer's own tabs are loaded from the layer", () => {
 	it("renaming an out-of-the-box tab is still reported", async () => {
 		const { baseline, current, commands, locLabels } = await reloadFor();
 		current.tabs[0].label = "My contacts";
-		const p = planOf(current, baseline, { commands, baselineCommands: clone(commands), locLabels });
+		const p = planOf(current, baseline, {
+			commands,
+			baselineCommands: clone(commands),
+			locLabels,
+		});
 		expect(p.unsupported).toEqual([
 			`Renaming tab ${MAIN} — only tabs and groups your unmanaged customizations add (with a translatable title) can be renamed`,
 		]);
@@ -962,14 +1311,27 @@ describe("#58 — the layer's own tabs are loaded from the layer", () => {
 	it("form and sub-grid tabs of the layer are placed by their location and display rule", () => {
 		const tab = (id: string): RibbonTab => ({ ...clone(session1().tabs[1]), id, groups: [] });
 		layer = mergeRibbonDiffParts(
-			parseRibbonDiffParts(generate(def("Form", [tab("cbs.contact.Form.F.Tab")]), def("Form", []))),
-			parseRibbonDiffParts(generate(def("SubGrid", [tab("cbs.contact.SubGrid.S.Tab")]), def("SubGrid", []))),
+			parseRibbonDiffParts(
+				generate(def("Form", [tab("cbs.contact.Form.F.Tab")]), def("Form", [])),
+			),
+			parseRibbonDiffParts(
+				generate(def("SubGrid", [tab("cbs.contact.SubGrid.S.Tab")]), def("SubGrid", [])),
+			),
 		);
 		const { ribbons } = reload();
-		expect(ribbons.Form.tabs.map((t) => t.id)).toEqual([`Mscrm.Form.${E}.MainTab`, "cbs.contact.Form.F.Tab"]);
-		expect(ribbons.SubGrid.tabs.map((t) => t.id)).toEqual([`Mscrm.SubGrid.${E}.MainTab`, "cbs.contact.SubGrid.S.Tab"]);
+		expect(ribbons.Form.tabs.map((t) => t.id)).toEqual([
+			`Mscrm.Form.${E}.MainTab`,
+			"cbs.contact.Form.F.Tab",
+		]);
+		expect(ribbons.SubGrid.tabs.map((t) => t.id)).toEqual([
+			`Mscrm.SubGrid.${E}.MainTab`,
+			"cbs.contact.SubGrid.S.Tab",
+		]);
 		expect(ribbons.HomepageGrid.tabs.map((t) => t.id)).toEqual([MAIN]);
-		expect(ribbons.Form.tabs[1].tabDisplayRules[0].rules[0]).toMatchObject({ kind: "EntityRule", context: "Form" });
+		expect(ribbons.Form.tabs[1].tabDisplayRules[0].rules[0]).toMatchObject({
+			kind: "EntityRule",
+			context: "Form",
+		});
 	});
 
 	it("children the layer adds separately are folded in, and controls it hides are left out", () => {
@@ -982,24 +1344,39 @@ describe("#58 — the layer's own tabs are loaded from the layer", () => {
 		</CustomActions></RibbonDiffXml>`);
 		const { ribbons } = reload();
 		const tab = ribbons.HomepageGrid.tabs.find((t) => t.id === TAB)!;
-		expect(tab.groups[0].buttons.map((b) => [b.id, b.origin])).toEqual([["cbs.contact.Sync.Button", "unmanaged"]]);
+		expect(tab.groups[0].buttons.map((b) => [b.id, b.origin])).toEqual([
+			["cbs.contact.Sync.Button", "unmanaged"],
+		]);
 		// No display rule in the layer → the home grid.
 		expect(tab.tabDisplayRules).toEqual([]);
 	});
 
 	it("an application-ribbon tab of the layer is added to the application ribbon", () => {
-		const app: RibbonDefinition = { location: "Application", entityLogicalName: "{!EntityLogicalName}", tabs: [] };
+		const app: RibbonDefinition = {
+			location: "Application",
+			entityLogicalName: "{!EntityLogicalName}",
+			tabs: [],
+		};
 		const tab: RibbonTab = {
 			id: "cbs.App.Tab",
 			label: "App",
 			sequence: 10,
 			commandId: "cbs.App.Tab.Command",
-			tabDisplayRules: [{ tabCommand: "cbs.App.Tab.Command", rules: [{ kind: "PageRule", address: "/main.aspx" }] }],
+			tabDisplayRules: [
+				{
+					tabCommand: "cbs.App.Tab.Command",
+					rules: [{ kind: "PageRule", address: "/main.aspx" }],
+				},
+			],
 			groups: [],
 		};
 		const appLayer = parseRibbonDiffParts(generate({ ...app, tabs: [tab] }, app));
 		expect(addLayerTabs({ Application: app }, appLayer, null, [])).toEqual(["cbs.App.Tab"]);
-		expect(app.tabs.map((t) => [t.id, t.commandId])).toEqual([["cbs.App.Tab", "cbs.App.Tab.Command"]]);
-		expect(app.tabs[0].tabDisplayRules[0].rules).toEqual([{ kind: "PageRule", address: "/main.aspx" }]);
+		expect(app.tabs.map((t) => [t.id, t.commandId])).toEqual([
+			["cbs.App.Tab", "cbs.App.Tab.Command"],
+		]);
+		expect(app.tabs[0].tabDisplayRules[0].rules).toEqual([
+			{ kind: "PageRule", address: "/main.aspx" },
+		]);
 	});
 });

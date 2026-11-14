@@ -43,7 +43,12 @@ export function generateRuleId(
  * `Mscrm.AssignSelectedRecord` → `AssignSelectedRecord`.
  */
 export function ruleNameFromCommandId(commandId: string): string {
-	return commandId.replace(/\.Command$/, "").split(".").pop() || "Rule";
+	return (
+		commandId
+			.replace(/\.Command$/, "")
+			.split(".")
+			.pop() || "Rule"
+	);
 }
 
 export function generateLocLabelId(buttonId: string, part: "LabelText" | "ToolTip"): string {

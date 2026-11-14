@@ -19,9 +19,7 @@ function getDataverseAPI() {
  *
  * Batched, 40 tables per `$filter=MetadataId eq … or …` request (#4).
  */
-export async function fetchEntitiesByMetadataIds(
-	metadataIds: string[],
-): Promise<EntityMetadata[]> {
+export async function fetchEntitiesByMetadataIds(metadataIds: string[]): Promise<EntityMetadata[]> {
 	if (metadataIds.length === 0) return [];
 
 	const dataverseAPI = getDataverseAPI();
@@ -38,15 +36,19 @@ export async function fetchEntitiesByMetadataIds(
 		logicalName: String(r["LogicalName"] ?? ""),
 		schemaName: r["SchemaName"] ? String(r["SchemaName"]) : undefined,
 		displayName:
-			(r["DisplayName"] as { UserLocalizedLabel?: { Label?: string } })?.UserLocalizedLabel?.Label ??
-			String(r["LogicalName"] ?? ""),
+			(r["DisplayName"] as { UserLocalizedLabel?: { Label?: string } })?.UserLocalizedLabel
+				?.Label ?? String(r["LogicalName"] ?? ""),
 		isCustomEntity: Boolean(r["IsCustomEntity"]),
 		isManaged: false,
 		isIntersect: Boolean(r["IsIntersect"]),
 	});
 	const one = async (id: string): Promise<EntityMetadata | null> => {
 		try {
-			return toEntity((await dataverseAPI.queryData(`EntityDefinitions(${id})?$select=${select}`)) as Record<string, unknown>);
+			return toEntity(
+				(await dataverseAPI.queryData(
+					`EntityDefinitions(${id})?$select=${select}`,
+				)) as Record<string, unknown>,
+			);
 		} catch (err) {
 			logs.logWarn(
 				"dataverse",
@@ -72,7 +74,10 @@ export async function fetchEntitiesByMetadataIds(
 					const foundIds = new Set(found.map((e) => e.metadataId.toLowerCase()));
 					for (const id of chunk)
 						if (!foundIds.has(id.toLowerCase()))
-							logs.logWarn("dataverse", `Could not resolve entity for component ${id}: not found.`);
+							logs.logWarn(
+								"dataverse",
+								`Could not resolve entity for component ${id}: not found.`,
+							);
 					return found;
 				} catch (e) {
 					// One at a time: if the chunk was throttled, 40 parallel reads would be too.
@@ -97,4 +102,3 @@ export async function fetchEntitiesByMetadataIds(
 	logs.logInfo("dataverse", `Loaded metadata for ${mapped.length} table(s).`);
 	return mapped;
 }
-

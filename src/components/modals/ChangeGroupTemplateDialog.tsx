@@ -1,18 +1,6 @@
 import React, { useState } from "react";
-import {
-	Dialog,
-	DialogSurface,
-	DialogTitle,
-	DialogBody,
-	DialogContent,
-	DialogActions,
-	Button,
-	Field,
-	Select,
-	Text,
-	MessageBar,
-	MessageBarBody,
-} from "@fluentui/react-components";
+import { Button, Field, Select, MessageBar, MessageBarBody } from "@fluentui/react-components";
+import { AppDialog } from "@/components/shared/AppDialog";
 import { PLATFORM_GROUP_TEMPLATES, normalizeGroupTemplate } from "@/services/xmlGenerator";
 
 // Replaces window.prompt(), a no-op in PPTB's Electron host (#18). A free-text
@@ -52,45 +40,47 @@ export const ChangeGroupTemplateDialog: React.FC<ChangeGroupTemplateDialogProps>
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={(_, d) => !d.open && onCancel()}>
-			<DialogSurface style={{ maxWidth: "480px" }}>
-				<DialogBody>
-					<DialogTitle>Change group template</DialogTitle>
-					<DialogContent>
-						<Field label="Group template">
-							<Select value={value} onChange={(_, d) => setValue(d.value)}>
-								{options.map((id) => (
-									<option key={id} value={id}>
-										{shortName(id)}
-										{id === current ? " (current)" : ""}
-									</option>
-								))}
-							</Select>
-						</Field>
-						<Text size={200} style={{ display: "block", marginTop: "8px" }}>
-							The group template defines how buttons scale when the ribbon is resized.
-						</Text>
-						{loadedGroup && (
-							<MessageBar intent="warning" style={{ marginTop: "12px" }}>
-								<MessageBarBody>
-									This group was loaded from the environment. Publishing can&apos;t change an existing
-									group&apos;s template yet (it&apos;s reported as not supported); groups you add publish
-									theirs.
-								</MessageBarBody>
-							</MessageBar>
-						)}
-					</DialogContent>
-					<DialogActions>
-						<Button appearance="secondary" onClick={onCancel}>
-							Cancel
-						</Button>
-						<Button appearance="primary" onClick={submit} disabled={value === current}>
-							Change template
-						</Button>
-					</DialogActions>
-				</DialogBody>
-			</DialogSurface>
-		</Dialog>
+		<AppDialog
+			open={open}
+			onOpenChange={(o) => !o && onCancel()}
+			size="small"
+			title="Change group template"
+			actions={
+				<>
+					<Button appearance="secondary" onClick={onCancel}>
+						Cancel
+					</Button>
+					<Button appearance="primary" onClick={submit} disabled={value === current}>
+						Change template
+					</Button>
+				</>
+			}
+		>
+			<Field
+				label="Group template"
+				hint={
+					"How the group's buttons shrink when the classic ribbon is narrow. Unified Interface ignores it."
+				}
+			>
+				<Select value={value} onChange={(_, d) => setValue(d.value)}>
+					{options.map((id) => (
+						<option key={id} value={id}>
+							{shortName(id)}
+							{id === current ? " (current)" : ""}
+						</option>
+					))}
+				</Select>
+			</Field>
+			{loadedGroup && (
+				<MessageBar intent="warning" style={{ marginTop: "12px" }}>
+					<MessageBarBody>
+						This group was loaded from the environment. Publishing can&apos;t change an
+						existing group&apos;s template yet (it&apos;s reported as not supported);
+						groups you add publish theirs.
+					</MessageBarBody>
+				</MessageBar>
+			)}
+		</AppDialog>
 	);
 };
 

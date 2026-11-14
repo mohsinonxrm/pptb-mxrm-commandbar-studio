@@ -25,13 +25,17 @@ Before opening a PR, run what CI runs:
 ```bash
 npm run typecheck      # app + node configs + dev harness
 npm run lint           # zero warnings
-npm test
+npm test               # or npm run test:coverage, as CI does
 npm run validate       # PPTB manifest rules
 npm run build
 ```
 
-CI also fails on any **high or critical** `npm audit --omit=dev` finding and checks the
-package contents (`.github/scripts/check-pack.mjs`).
+CI also fails on any **moderate, high or critical** `npm audit --omit=dev` finding, checks
+the formatting (`npm run format:check`) and the package contents
+(`.github/scripts/check-pack.mjs`), and checks that the version, `package-lock.json`, the
+CHANGELOG section, the version badge and the bundled icon agree
+(`node .github/scripts/check-release.mjs`, then `--dist` after the build). CI installs with
+`npm ci --ignore-scripts`.
 
 To try a build inside PPTB, load the repository folder as a local tool after
 `npm run build`.

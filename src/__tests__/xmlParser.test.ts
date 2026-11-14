@@ -90,7 +90,9 @@ describe("parseRibbonXml — provenance heuristic", () => {
 </Tabs></Ribbon></UI></RibbonDefinition></RibbonDefinitions>`;
 
 	function findButton(ribbon: ReturnType<typeof parseRibbonXml>["ribbon"], id: string) {
-		return ribbon.tabs.flatMap((t) => t.groups.flatMap((g) => g.buttons)).find((b) => b.id === id);
+		return ribbon.tabs
+			.flatMap((t) => t.groups.flatMap((g) => g.buttons))
+			.find((b) => b.id === id);
 	}
 
 	it("treats any non-system id as a customization (not OOB) by heuristic", () => {
@@ -221,8 +223,14 @@ describe("parseRibbonXml — all rule kinds fixture", () => {
 </DisplayRules><EnableRules/></RuleDefinitions></RibbonDefinition></RibbonDefinitions>`;
 		const { displayRules } = parseRibbonXml(withShowOn, "HomepageGrid", "account");
 		const rule = displayRules.find((r) => r.id === "TestDisplayRule")!;
-		const raw = rule.steps.filter((s) => s.kind === "RawRule").map((s) => (s.kind === "RawRule" ? s.tagName : ""));
-		expect(raw).toEqual(["ShowOnQuickActionRule", "ShowOnGridAndQuickActionRule", "ShowOnGridRule"]);
+		const raw = rule.steps
+			.filter((s) => s.kind === "RawRule")
+			.map((s) => (s.kind === "RawRule" ? s.tagName : ""));
+		expect(raw).toEqual([
+			"ShowOnQuickActionRule",
+			"ShowOnGridAndQuickActionRule",
+			"ShowOnGridRule",
+		]);
 	});
 
 	// Verify parsed attribute values on a sampling of kinds

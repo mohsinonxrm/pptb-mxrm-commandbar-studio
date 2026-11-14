@@ -1,7 +1,7 @@
 /**
  * #155: a tab has one TabDisplayRule. The layer keeps one per TabCommand, so
  * a second rule replaced the first and the tab disappeared from where the
- * first rule showed it. The panel edits one rule's steps (any step shows the
+ * first rule showed it. The view edits one rule's steps (any step shows the
  * tab); several rules, loaded or saved before, are written as one.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -14,7 +14,6 @@ import { generateTabDisplayRulesForTab } from "@/services/xmlGenerator";
 import { parseRibbonDiffParts } from "@/services/ribbonDiffMerge";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
-import { useUIStore } from "@/store/uiStore";
 import type { RibbonDefinition, RibbonLocation, RibbonTab, TabDisplayRule } from "@/types/ribbon";
 
 vi.setConfig({ testTimeout: 30_000 });
@@ -133,34 +132,35 @@ describe("#155 the Tab rules panel", () => {
 	afterEach(() => {
 		act(() => root.unmount());
 		container.remove();
-		useUIStore.setState({ tabDisplayRulesOpen: false });
 	});
 
+	// A view of the editor drawer (#186): it applies as you edit.
 	const open = () => {
-		act(() => useUIStore.setState({ tabDisplayRulesOpen: true }));
 		act(() =>
 			root.render(
 				<FluentProvider theme={webLightTheme}>
-					<TabDisplayRulesPanel />
+					<TabDisplayRulesPanel location="HomepageGrid" tabId={TAB} />
 				</FluentProvider>,
 			),
 		);
 	};
 	const buttons = () => [...document.body.querySelectorAll<HTMLButtonElement>("button")];
-	const button = (text: string) => buttons().find((b) => b.textContent?.trim() === text);
+	const button = (text: string) =>
+		buttons().find(
+			(b) => b.textContent?.trim() === text || b.getAttribute("aria-label") === text,
+		);
 	const selects = () => [...document.body.querySelectorAll<HTMLSelectElement>("select")];
 	const savedRules = () => useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].tabDisplayRules;
 
-	it("shows one rule whose steps come from every loaded rule, and saves it as one", () => {
+	it("shows one rule whose steps come from every loaded rule, and the first change writes it as one", () => {
 		load([
 			{ tabCommand: CMD, rules: [homeGrid] },
 			{ tabCommand: CMD, rules: [form] },
 		]);
 		open();
 		expect(button("Add display rule")).toBeUndefined();
-		expect(document.body.textContent).toContain("The tab shows where any step matches.");
+		expect(document.body.textContent).toContain("where any step below matches");
 		act(() => button("Add step")!.click());
-		act(() => button("Save rules")!.click());
 		expect(savedRules()).toHaveLength(1);
 		expect(savedRules()[0].tabCommand).toBe(CMD);
 		expect(savedRules()[0].rules).toHaveLength(3);
@@ -170,27 +170,35 @@ describe("#155 the Tab rules panel", () => {
 	it("a step without Applies to / Context shows Any, and Any clears them", () => {
 		load([{ tabCommand: CMD, rules: [form, homeGrid] }]);
 		open();
-		// [type, applies to, context, table] per step
-		const [, appliesTo, context, table] = selects();
+		// [applies to, context, table] per step
+		const [appliesTo, context, table] = selects();
 		expect(appliesTo.value).toBe("");
 		expect(context.value).toBe("Form");
 		// The table picker offers this table or any; another table's name isn't typed in.
 		expect([...table.options].map((o) => o.value)).toEqual(["", T]);
-		const second = selects().slice(4);
+		const second = selects().slice(3);
 		act(() => {
-			second[1].value = "";
-			second[1].dispatchEvent(new Event("change", { bubbles: true }));
+			second[0].value = "";
+			second[0].dispatchEvent(new Event("change", { bubbles: true }));
 		});
-		act(() => button("Save rules")!.click());
 		expect(savedRules()[0].rules[1]).toEqual({ ...homeGrid, appliesTo: undefined });
+	});
+
+	it("removing the last step leaves the tab without a rule", () => {
+		load([{ tabCommand: CMD, rules: [homeGrid] }]);
+		open();
+		act(() => button("Remove step")!.click());
+		expect(savedRules()).toEqual([]);
+		expect(document.body.textContent).toContain("No steps: this tab will be hidden.");
 	});
 
 	it("a tab another solution adds is read-only", () => {
 		load([{ tabCommand: CMD, rules: [homeGrid] }], { layerTabs: [] });
 		open();
-		expect(document.body.textContent).toContain("isn't added by your customizations");
-		expect(button("Save rules")!.disabled).toBe(true);
-		expect(button("Add step")!.disabled).toBe(true);
+		expect(document.body.textContent).toContain("Another solution adds this tab");
+		expect(button("Add step")).toBeUndefined();
+		expect(button("Remove step")).toBeUndefined();
+		expect(selects().every((s) => s.disabled)).toBe(true);
 	});
 
 	it("an out-of-the-box tab without a rule isn't said to be hidden", () => {
@@ -200,13 +208,12 @@ describe("#155 the Tab rules panel", () => {
 		expect(document.body.textContent).not.toContain("this tab will be hidden");
 	});
 
-	it("a tab is editable when the layer couldn't be read, and saving without a change changes nothing", () => {
+	it("a tab is editable when the layer couldn't be read, and opening it changes nothing", () => {
 		load([{ tabCommand: CMD, rules: [homeGrid] }]);
 		useRibbonStore.setState((st) => ({ layers: { ...st.layers, entity: null } }));
-		open();
-		expect(button("Save rules")!.disabled).toBe(false);
 		const before = savedRules();
-		act(() => button("Save rules")!.click());
-		expect(savedRules()).toEqual(before);
+		open();
+		expect(button("Add step")).toBeDefined();
+		expect(savedRules()).toBe(before);
 	});
 });

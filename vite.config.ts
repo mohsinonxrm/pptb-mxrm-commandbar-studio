@@ -46,7 +46,11 @@ function monacoDompurify(): Plugin {
 		name: "cbs-monaco-dompurify",
 		enforce: "pre",
 		async resolveId(source, importer, options) {
-			if (!importer || !/[\\/]monaco-editor[\\/]esm[\\/]vs[\\/]base[\\/]browser[\\/]/.test(importer)) return null;
+			if (
+				!importer ||
+				!/[\\/]monaco-editor[\\/]esm[\\/]vs[\\/]base[\\/]browser[\\/]/.test(importer)
+			)
+				return null;
 			if (!/(^|[\\/])dompurify[\\/]dompurify\.js$/.test(source)) return null;
 			// Resolved from Monaco's folder: its own (overridden) dompurify dependency.
 			return this.resolve("dompurify", importer, { ...options, skipSelf: true });
@@ -80,7 +84,15 @@ export default defineConfig(({ command }) => ({
 		// Pre-bundle Monaco at dev-time so Vite doesn't lazily transform its
 		// deep internal imports (avoids CJS/ESM interop edge cases that surface
 		// as runtime "module not found" errors). Mirrors DRS / FetchXML Studio.
-		include: ["monaco-editor"],
+		// These are the modules monacoSetup imports (#118), pre-bundled together so
+		// they share one Monaco instance.
+		include: [
+			"monaco-editor/editor/editor.api",
+			"monaco-editor/features/register.all",
+			"monaco-editor/languages/definitions/xml/register",
+			"monaco-editor/languages/definitions/javascript/register",
+			"monaco-editor/languages/features/typescript/register",
+		],
 	},
 	build: {
 		target: ["chrome108", "firefox115", "safari16"],
@@ -91,11 +103,21 @@ export default defineConfig(({ command }) => ({
 		sourcemap: false,
 		rollupOptions: {
 			output: {
-				manualChunks: {
-					monaco: ["@monaco-editor/react", "monaco-editor"],
-					"fluent-ui": ["@fluentui/react-components"],
-					"fluent-icons": ["@fluentui/react-icons"],
-					dnd: ["@dnd-kit/core", "@dnd-kit/sortable"],
+				// By package path (Vite's module ids use "/"). With the object form,
+				// Monaco's chunk also took Vite's preload helper, which Monaco's language
+				// loaders use, so the entry imported the whole editor at startup (#118).
+				// The helper gets a chunk of its own; Monaco loads with the first editor.
+				manualChunks(id) {
+					if (id.includes("vite/preload-helper")) return "preload-helper";
+					const pkg = /\/node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(id)?.[1];
+					if (!pkg) return undefined;
+					if (pkg === "monaco-editor" || pkg.startsWith("@monaco-editor/"))
+						return "monaco";
+					// One chunk: the icons and the components import each other
+					if (/^(@fluentui|@griffel)\/|^(tabster|keyborg)$|^@floating-ui\//.test(pkg))
+						return "fluent-ui";
+					if (pkg.startsWith("@dnd-kit/")) return "dnd";
+					return undefined;
 				},
 			},
 		},

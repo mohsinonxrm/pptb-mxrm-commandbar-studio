@@ -108,21 +108,44 @@ const LAYER_ROWS = {
 		},
 		{
 			difftype: 0,
-			rdx: ca("cbs.Grp.CustomAction", `${MAIN}.Groups._children`, 100, `<Group Id="cbs.Grp" Title="$LocLabels:cbs.Grp.Title" Sequence="100" Template="Mscrm.Templates.Flexible2"><Controls Id="cbs.Grp.Controls"><Button Id="cbs.B3" Command="cbs.Shared.Command" Sequence="10" LabelText="$LocLabels:cbs.B3.LabelText" TemplateAlias="o1" /></Controls></Group>`),
+			rdx: ca(
+				"cbs.Grp.CustomAction",
+				`${MAIN}.Groups._children`,
+				100,
+				`<Group Id="cbs.Grp" Title="$LocLabels:cbs.Grp.Title" Sequence="100" Template="Mscrm.Templates.Flexible2"><Controls Id="cbs.Grp.Controls"><Button Id="cbs.B3" Command="cbs.Shared.Command" Sequence="10" LabelText="$LocLabels:cbs.B3.LabelText" TemplateAlias="o1" /></Controls></Group>`,
+			),
 		},
 		{
 			difftype: 0,
-			rdx: ca("cbs.Grp.MaxSize.CustomAction", `${MAIN}.Scaling._children`, 120, `<MaxSize Id="cbs.Grp.MaxSize" GroupId="cbs.Grp" Sequence="120" Size="LargeLarge" />`),
+			rdx: ca(
+				"cbs.Grp.MaxSize.CustomAction",
+				`${MAIN}.Scaling._children`,
+				120,
+				`<MaxSize Id="cbs.Grp.MaxSize" GroupId="cbs.Grp" Sequence="120" Size="LargeLarge" />`,
+			),
 		},
 		{
 			difftype: 0,
-			rdx: ca("cbs.B4.CustomAction", `${MAIN}.Management.Controls._children`, 900, `<Button Id="cbs.B4" Command="cbs.B4.Command" Sequence="900" LabelText="$LocLabels:cbs.B4.LabelText" TemplateAlias="o1" />`),
+			rdx: ca(
+				"cbs.B4.CustomAction",
+				`${MAIN}.Management.Controls._children`,
+				900,
+				`<Button Id="cbs.B4" Command="cbs.B4.Command" Sequence="900" LabelText="$LocLabels:cbs.B4.LabelText" TemplateAlias="o1" />`,
+			),
 		},
 		{
 			difftype: 0,
-			rdx: ca("cbs.B5.CustomAction", `${MAIN}.Management.Controls._children`, 910, `<Button Id="cbs.B5" Command="cbs.Shared.Command" Sequence="910" LabelText="Five" TemplateAlias="o1" />`),
+			rdx: ca(
+				"cbs.B5.CustomAction",
+				`${MAIN}.Management.Controls._children`,
+				910,
+				`<Button Id="cbs.B5" Command="cbs.Shared.Command" Sequence="910" LabelText="Five" TemplateAlias="o1" />`,
+			),
 		},
-		{ difftype: 0, rdx: `<HideCustomAction HideActionId="cbs.HideRefresh" Location="Mscrm.HomepageGrid.${T}.Refresh" />` },
+		{
+			difftype: 0,
+			rdx: `<HideCustomAction HideActionId="cbs.HideRefresh" Location="Mscrm.HomepageGrid.${T}.Refresh" />`,
+		},
 		{ difftype: 3, rdx: label("cbs.Tab.Title", [1033, "CBS"]) },
 		{ difftype: 3, rdx: label("cbs.Tab.G1.Title", [1033, "G1"]) },
 		{ difftype: 3, rdx: label("cbs.Tab.G2.Title", [1033, "G2"]) },
@@ -132,18 +155,43 @@ const LAYER_ROWS = {
 		{ difftype: 3, rdx: label("cbs.B4.LabelText", [1033, "Four"], [1031, "Vier"]) },
 	],
 	commands: [
-		{ command: "cbs.B1.Command", commanddefinition: '<CommandDefinition Id="cbs.B1.Command"><EnableRules><EnableRule Id="cbs.B1.Rule" /></EnableRules><DisplayRules /><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="B1" /></Actions></CommandDefinition>' },
-		{ command: "cbs.Shared.Command", commanddefinition: '<CommandDefinition Id="cbs.Shared.Command"><EnableRules /><DisplayRules /><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="Shared" /></Actions></CommandDefinition>' },
-		{ command: "cbs.B4.Command", commanddefinition: '<CommandDefinition Id="cbs.B4.Command"><EnableRules /><DisplayRules /><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="B4" /></Actions></CommandDefinition>' },
-		{ command: "cbs.Tab.Command", commanddefinition: '<CommandDefinition Id="cbs.Tab.Command"><EnableRules /><DisplayRules /><Actions /></CommandDefinition>' },
+		{
+			command: "cbs.B1.Command",
+			commanddefinition:
+				'<CommandDefinition Id="cbs.B1.Command"><EnableRules><EnableRule Id="cbs.B1.Rule" /></EnableRules><DisplayRules /><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="B1" /></Actions></CommandDefinition>',
+		},
+		{
+			command: "cbs.Shared.Command",
+			commanddefinition:
+				'<CommandDefinition Id="cbs.Shared.Command"><EnableRules /><DisplayRules /><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="Shared" /></Actions></CommandDefinition>',
+		},
+		{
+			command: "cbs.B4.Command",
+			commanddefinition:
+				'<CommandDefinition Id="cbs.B4.Command"><EnableRules /><DisplayRules /><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="B4" /></Actions></CommandDefinition>',
+		},
+		{
+			command: "cbs.Tab.Command",
+			commanddefinition:
+				'<CommandDefinition Id="cbs.Tab.Command"><EnableRules /><DisplayRules /><Actions /></CommandDefinition>',
+		},
 	],
 	rules: [
-		{ ruleid: "cbs.B1.Rule", ruletype: 1, ruledefinition: '<EnableRule Id="cbs.B1.Rule"><SelectionCountRule Minimum="1" /></EnableRule>' },
-		{ ruleid: "cbs.Tab.Command", ruletype: 3, ruledefinition: `<TabDisplayRule TabCommand="cbs.Tab.Command"><EntityRule EntityName="${T}" Context="HomePageGrid" AppliesTo="PrimaryEntity" /></TabDisplayRule>` },
+		{
+			ruleid: "cbs.B1.Rule",
+			ruletype: 1,
+			ruledefinition:
+				'<EnableRule Id="cbs.B1.Rule"><SelectionCountRule Minimum="1" /></EnableRule>',
+		},
+		{
+			ruleid: "cbs.Tab.Command",
+			ruletype: 3,
+			ruledefinition: `<TabDisplayRule TabCommand="cbs.Tab.Command"><EntityRule EntityName="${T}" Context="HomePageGrid" AppliesTo="PrimaryEntity" /></TabDisplayRule>`,
+		},
 	],
 };
 
-const clone = <V,>(v: V): V => JSON.parse(JSON.stringify(v));
+const clone = <V>(v: V): V => JSON.parse(JSON.stringify(v));
 const layerParts = () => partsFromRibbonTables(LAYER_ROWS);
 
 function load() {
@@ -155,7 +203,9 @@ function load() {
 function locLabelsOf(parts: RibbonDiffParts): LocLabel[] {
 	return Array.from(parts.locLabels.entries()).map(([id, xml]) => ({
 		id,
-		titles: Array.from(new DOMParser().parseFromString(xml, "application/xml").querySelectorAll("Title")).map((t) => ({
+		titles: Array.from(
+			new DOMParser().parseFromString(xml, "application/xml").querySelectorAll("Title"),
+		).map((t) => ({
 			languageCode: Number(t.getAttribute("languagecode")),
 			description: t.getAttribute("description") ?? "",
 		})),
@@ -164,7 +214,8 @@ function locLabelsOf(parts: RibbonDiffParts): LocLabel[] {
 
 type Parsed = ReturnType<typeof load>;
 const tab = (def: RibbonDefinition, id: string) => def.tabs.find((t) => t.id === id)!;
-const group = (def: RibbonDefinition, id: string) => def.tabs.flatMap((t) => t.groups).find((g) => g.id === id)!;
+const group = (def: RibbonDefinition, id: string) =>
+	def.tabs.flatMap((t) => t.groups).find((g) => g.id === id)!;
 
 function plan(current: RibbonDefinition, parsed: Parsed = load(), extra: Partial<PlanInput> = {}) {
 	const base = load();
@@ -183,7 +234,12 @@ function plan(current: RibbonDefinition, parsed: Parsed = load(), extra: Partial
 	});
 }
 
-async function build(current: RibbonDefinition, parsed: Parsed = load(), extra: Partial<PlanInput> = {}, languageCode?: number) {
+async function build(
+	current: RibbonDefinition,
+	parsed: Parsed = load(),
+	extra: Partial<PlanInput> = {},
+	languageCode?: number,
+) {
 	const { buildMergedRibbonDiffXml } = await import("@/services/dataverse/publishService");
 	const p = plan(current, parsed, extra);
 	const result = await buildMergedRibbonDiffXml({
@@ -210,10 +266,16 @@ beforeEach(() => {
 describe("layer snapshot", () => {
 	it("knows the layer's own tabs / groups (including groups inside its tab), labels and hides", () => {
 		const snap = layerSnapshotFromParts(layerParts());
-		expect(new Set(snap.containerIds)).toEqual(new Set(["cbs.Tab", "cbs.Tab.G1", "cbs.Tab.G2", "cbs.Grp"]));
-		expect(snap.controlIds).toEqual(expect.arrayContaining(["cbs.B1", "cbs.B4", "cbs.Tab", "cbs.Grp"]));
+		expect(new Set(snap.containerIds)).toEqual(
+			new Set(["cbs.Tab", "cbs.Tab.G1", "cbs.Tab.G2", "cbs.Grp"]),
+		);
+		expect(snap.controlIds).toEqual(
+			expect.arrayContaining(["cbs.B1", "cbs.B4", "cbs.Tab", "cbs.Grp"]),
+		);
 		expect(snap.locLabelIds).toContain("cbs.B4.LabelText");
-		expect(snap.hides).toEqual([{ hideActionId: "cbs.HideRefresh", location: `Mscrm.HomepageGrid.${T}.Refresh` }]);
+		expect(snap.hides).toEqual([
+			{ hideActionId: "cbs.HideRefresh", location: `Mscrm.HomepageGrid.${T}.Refresh` },
+		]);
 		expect(hideActionsOf(layerParts())).toHaveLength(1);
 		expect(ownContainerIds(layerParts()).has("cbs.B1")).toBe(false);
 	});
@@ -244,7 +306,12 @@ describe("#47 — controls hidden by the layer can be un-hidden", () => {
 	it("the store tracks pending un-hides and drops them from the list once published", () => {
 		const s = useRibbonStore.getState();
 		s.loadWorkspace({
-			ribbons: { HomepageGrid: load().ribbon, SubGrid: { location: "SubGrid", entityLogicalName: T, tabs: [] }, Form: { location: "Form", entityLogicalName: T, tabs: [] }, Application: { location: "Application", entityLogicalName: "", tabs: [] } },
+			ribbons: {
+				HomepageGrid: load().ribbon,
+				SubGrid: { location: "SubGrid", entityLogicalName: T, tabs: [] },
+				Form: { location: "Form", entityLogicalName: T, tabs: [] },
+				Application: { location: "Application", entityLogicalName: "", tabs: [] },
+			},
 			commands: [],
 			displayRules: [],
 			enableRules: [],
@@ -288,11 +355,25 @@ describe("#48 — deleting a tab or group the layer adds", () => {
 		expect(cas).not.toContain("cbs.Tab.CustomAction");
 		expect(doc.querySelector('Button[Id="cbs.B1"]')).toBeNull();
 		expect(doc.querySelector('Button[Id="cbs.B2"]')).toBeNull();
-		expect(cas).toEqual(expect.arrayContaining(["cbs.Grp.CustomAction", "cbs.B4.CustomAction", "cbs.B5.CustomAction"]));
+		expect(cas).toEqual(
+			expect.arrayContaining([
+				"cbs.Grp.CustomAction",
+				"cbs.B4.CustomAction",
+				"cbs.B5.CustomAction",
+			]),
+		);
 		expect(doc.querySelector('Group[Id="cbs.Grp"] Button[Id="cbs.B3"]')).not.toBeNull();
 		const labels = ids(doc, "LocLabels > LocLabel");
-		for (const gone of ["cbs.Tab.Title", "cbs.Tab.G1.Title", "cbs.Tab.G2.Title", "cbs.B1.LabelText"]) expect(labels).not.toContain(gone);
-		expect(labels).toEqual(expect.arrayContaining(["cbs.Grp.Title", "cbs.B3.LabelText", "cbs.B4.LabelText"]));
+		for (const gone of [
+			"cbs.Tab.Title",
+			"cbs.Tab.G1.Title",
+			"cbs.Tab.G2.Title",
+			"cbs.B1.LabelText",
+		])
+			expect(labels).not.toContain(gone);
+		expect(labels).toEqual(
+			expect.arrayContaining(["cbs.Grp.Title", "cbs.B3.LabelText", "cbs.B4.LabelText"]),
+		);
 		const commands = ids(doc, "CommandDefinitions > CommandDefinition");
 		expect(commands).not.toContain("cbs.B1.Command");
 		expect(commands).not.toContain("cbs.Tab.Command");
@@ -327,7 +408,12 @@ describe("#48 — deleting a tab or group the layer adds", () => {
 		const { doc, plan: p } = await build(parsed.ribbon, parsed);
 		expect(p.deletedContainerIds).toEqual(["cbs.Grp"]);
 		const cas = ids(doc, "CustomActions > CustomAction");
-		for (const gone of ["cbs.Grp.CustomAction", "cbs.Grp.MaxSize.CustomAction", "cbs.B3.CustomAction"]) expect(cas).not.toContain(gone);
+		for (const gone of [
+			"cbs.Grp.CustomAction",
+			"cbs.Grp.MaxSize.CustomAction",
+			"cbs.B3.CustomAction",
+		])
+			expect(cas).not.toContain(gone);
 		expect(ids(doc, "LocLabels > LocLabel")).not.toContain("cbs.Grp.Title");
 		expect(ids(doc, "CommandDefinitions > CommandDefinition")).toContain("cbs.Shared.Command");
 	});
@@ -342,13 +428,17 @@ describe("#48 — deleting a tab or group the layer adds", () => {
 
 		const parsed2 = load();
 		parsed2.ribbon.tabs = parsed2.ribbon.tabs.filter((x) => x.id !== MAIN);
-		expect(plan(parsed2.ribbon, parsed2).unsupported.join("\n")).toContain(`Removing tab ${MAIN}`);
+		expect(plan(parsed2.ribbon, parsed2).unsupported.join("\n")).toContain(
+			`Removing tab ${MAIN}`,
+		);
 	});
 
 	it("without layer information tab deletes are reported, and the publish refuses a container the layer doesn't add", async () => {
 		const parsed = load();
 		parsed.ribbon.tabs = parsed.ribbon.tabs.filter((t) => t.id !== "cbs.Tab");
-		expect(plan(parsed.ribbon, parsed, { layer: undefined }).unsupported.join("\n")).toContain("Removing tab cbs.Tab");
+		expect(plan(parsed.ribbon, parsed, { layer: undefined }).unsupported.join("\n")).toContain(
+			"Removing tab cbs.Tab",
+		);
 
 		const { buildMergedRibbonDiffXml } = await import("@/services/dataverse/publishService");
 		await expect(
@@ -359,21 +449,40 @@ describe("#48 — deleting a tab or group the layer adds", () => {
 				enableRules: [],
 				displayRules: [],
 				locLabels: [],
-				plan: { editedCommandIds: [], editedEnableRuleIds: [], editedDisplayRuleIds: [], deletedButtonIds: [], unhiddenButtonIds: [], deletedContainerIds: [MAIN] },
+				plan: {
+					editedCommandIds: [],
+					editedEnableRuleIds: [],
+					editedDisplayRuleIds: [],
+					deletedButtonIds: [],
+					unhiddenButtonIds: [],
+					deletedContainerIds: [MAIN],
+				},
 			}),
 		).rejects.toThrow(/Can't delete/);
 	});
 
 	it("mergeScopeChanges removes hides and overrides that target a deleted container's controls", () => {
 		const existing = layerParts();
-		existing.customActions.set("hide:x", `<HideCustomAction HideActionId="x" Location="cbs.B1" />`);
+		existing.customActions.set(
+			"hide:x",
+			`<HideCustomAction HideActionId="x" Location="cbs.B1" />`,
+		);
 		existing.customActions.set(
 			"ca:cbs.B2.Override",
-			ca("cbs.B2.Override", "cbs.B2", 10, `<Button Id="cbs.B2" Command="cbs.Shared.Command" Sequence="10" LabelText="Two!" />`),
+			ca(
+				"cbs.B2.Override",
+				"cbs.B2",
+				10,
+				`<Button Id="cbs.B2" Command="cbs.Shared.Command" Sequence="10" LabelText="Two!" />`,
+			),
 		);
-		const merged = mergeScopeChanges(existing, partsFromRibbonTables({ diffs: [], commands: [], rules: [] }), {
-			deletedContainerIds: ["cbs.Tab"],
-		});
+		const merged = mergeScopeChanges(
+			existing,
+			partsFromRibbonTables({ diffs: [], commands: [], rules: [] }),
+			{
+				deletedContainerIds: ["cbs.Tab"],
+			},
+		);
 		expect(merged.customActions.has("hide:x")).toBe(false);
 		expect(merged.customActions.has("ca:cbs.B2.Override")).toBe(false);
 		expect(merged.customActions.has("hide:cbs.HideRefresh")).toBe(true);
@@ -384,14 +493,23 @@ describe("#49 — translation-only and existing-tab display rule edits", () => {
 	it("a translation of a label the layer defines is published with every language", async () => {
 		const parsed = load();
 		parsed.locLabels = parsed.locLabels.map((l) =>
-			l.id === "cbs.B4.LabelText" ? { id: l.id, titles: [...l.titles.filter((t) => t.languageCode !== 1031), { languageCode: 1031, description: "Vier!" }, { languageCode: 1036, description: "Quatre" }] } : l,
+			l.id === "cbs.B4.LabelText"
+				? {
+						id: l.id,
+						titles: [
+							...l.titles.filter((t) => t.languageCode !== 1031),
+							{ languageCode: 1031, description: "Vier!" },
+							{ languageCode: 1036, description: "Quatre" },
+						],
+					}
+				: l,
 		);
 		const { doc, plan: p } = await build(parsed.ribbon, parsed);
 		expect(p.editedLocLabelIds).toEqual(["cbs.B4.LabelText"]);
 		expect(p.hasChanges).toBe(true);
-		const titles = Array.from(doc.querySelectorAll('LocLabel[Id="cbs.B4.LabelText"] Title')).map(
-			(t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`,
-		);
+		const titles = Array.from(
+			doc.querySelectorAll('LocLabel[Id="cbs.B4.LabelText"] Title'),
+		).map((t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`);
 		expect(titles.sort()).toEqual(["1031=Vier!", "1033=Four", "1036=Quatre"]);
 		// No CustomAction is touched.
 		expect(doc.querySelectorAll("CustomActions > CustomAction")).toHaveLength(5);
@@ -400,7 +518,12 @@ describe("#49 — translation-only and existing-tab display rule edits", () => {
 	it("a translation of the tab title (referenced by the tab) is published", () => {
 		const parsed = load();
 		parsed.locLabels = parsed.locLabels.map((l) =>
-			l.id === "cbs.Tab.Title" ? { id: l.id, titles: [...l.titles, { languageCode: 1031, description: "CBS (de)" }] } : l,
+			l.id === "cbs.Tab.Title"
+				? {
+						id: l.id,
+						titles: [...l.titles, { languageCode: 1031, description: "CBS (de)" }],
+					}
+				: l,
 		);
 		expect(plan(parsed.ribbon, parsed).editedLocLabelIds).toEqual(["cbs.Tab.Title"]);
 	});
@@ -408,7 +531,9 @@ describe("#49 — translation-only and existing-tab display rule edits", () => {
 	it("a translation of a label defined elsewhere is reported", () => {
 		const parsed = load();
 		parsed.locLabels = parsed.locLabels.map((l) =>
-			l.id === "cbs.B4.LabelText" ? { ...l, titles: [...l.titles, { languageCode: 1036, description: "Quatre" }] } : l,
+			l.id === "cbs.B4.LabelText"
+				? { ...l, titles: [...l.titles, { languageCode: 1036, description: "Quatre" }] }
+				: l,
 		);
 		const p = plan(parsed.ribbon, parsed, { layer: { containerIds: [], locLabelIds: [] } });
 		expect(p.editedLocLabelIds).toEqual([]);
@@ -417,23 +542,38 @@ describe("#49 — translation-only and existing-tab display rule edits", () => {
 
 	it("translations for a button whose text isn't a label yet are reported", () => {
 		const parsed = load();
-		parsed.locLabels.push({ id: "cbs.B5.LabelText", titles: [{ languageCode: 1033, description: "Five" }, { languageCode: 1031, description: "Fünf" }] });
+		parsed.locLabels.push({
+			id: "cbs.B5.LabelText",
+			titles: [
+				{ languageCode: 1033, description: "Five" },
+				{ languageCode: 1031, description: "Fünf" },
+			],
+		});
 		const p = plan(parsed.ribbon, parsed);
 		expect(p.unsupported.join("\n")).toMatch(/Translations for "Five" \(cbs\.B5\)/);
 	});
 
 	it("…but once the text is edited, the generator writes the label with the translations", async () => {
 		const parsed = load();
-		parsed.locLabels.push({ id: "cbs.B5.LabelText", titles: [{ languageCode: 1033, description: "Five" }, { languageCode: 1031, description: "Fünf" }] });
-		group(parsed.ribbon, `${MAIN}.Management`).buttons.find((b) => b.id === "cbs.B5")!.label = "Five!";
+		parsed.locLabels.push({
+			id: "cbs.B5.LabelText",
+			titles: [
+				{ languageCode: 1033, description: "Five" },
+				{ languageCode: 1031, description: "Fünf" },
+			],
+		});
+		group(parsed.ribbon, `${MAIN}.Management`).buttons.find((b) => b.id === "cbs.B5")!.label =
+			"Five!";
 		const { doc, plan: p } = await build(parsed.ribbon, parsed);
 		expect(p.unsupported).toEqual([]);
 		expect(p.editedLocLabelIds).toEqual([]);
-		const titles = Array.from(doc.querySelectorAll('LocLabel[Id="cbs.B5.LabelText"] Title')).map(
-			(t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`,
-		);
+		const titles = Array.from(
+			doc.querySelectorAll('LocLabel[Id="cbs.B5.LabelText"] Title'),
+		).map((t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`);
 		expect(titles.sort()).toEqual(["1031=Fünf", "1033=Five!"]);
-		expect(doc.querySelector('Button[Id="cbs.B5"]')!.getAttribute("LabelText")).toBe("$LocLabels:cbs.B5.LabelText");
+		expect(doc.querySelector('Button[Id="cbs.B5"]')!.getAttribute("LabelText")).toBe(
+			"$LocLabels:cbs.B5.LabelText",
+		);
 	});
 
 	it("the store counts a translation edit as a change and advances the label baseline on publish", () => {
@@ -445,9 +585,13 @@ describe("#49 — translation-only and existing-tab display rule edits", () => {
 			enableRules: [],
 			locLabels: [{ id: "x", titles: [{ languageCode: 1033, description: "X" }] }],
 		});
-		useRibbonStore.getState().upsertLocLabel({ id: "x", titles: [{ languageCode: 1033, description: "X" }] });
+		useRibbonStore
+			.getState()
+			.upsertLocLabel({ id: "x", titles: [{ languageCode: 1033, description: "X" }] });
 		expect(useRibbonStore.getState().mutationsSincePublish).toBe(0);
-		useRibbonStore.getState().upsertLocLabel({ id: "x", titles: [{ languageCode: 1033, description: "Y" }] });
+		useRibbonStore
+			.getState()
+			.upsertLocLabel({ id: "x", titles: [{ languageCode: 1033, description: "Y" }] });
 		expect(useRibbonStore.getState().mutationsSincePublish).toBe(1);
 		expect(useRibbonStore.getState().baselineLocLabels[0].titles[0].description).toBe("X");
 		useRibbonStore.getState().markPublished();
@@ -457,7 +601,17 @@ describe("#49 — translation-only and existing-tab display rule edits", () => {
 	it("an edited display rule of the layer's own tab replaces its TabDisplayRule", async () => {
 		const parsed = load();
 		tab(parsed.ribbon, "cbs.Tab").tabDisplayRules = [
-			{ tabCommand: "cbs.Tab.Command", rules: [{ kind: "EntityRule", entityName: T, context: "Form", appliesTo: "PrimaryEntity" }] },
+			{
+				tabCommand: "cbs.Tab.Command",
+				rules: [
+					{
+						kind: "EntityRule",
+						entityName: T,
+						context: "Form",
+						appliesTo: "PrimaryEntity",
+					},
+				],
+			},
 		];
 		const { doc, plan: p } = await build(parsed.ribbon, parsed);
 		expect(p.editedTabIds).toEqual(["cbs.Tab"]);
@@ -477,7 +631,9 @@ describe("#49 — translation-only and existing-tab display rule edits", () => {
 
 	it("changing an out-of-the-box tab's display rules is reported", () => {
 		const parsed = load();
-		tab(parsed.ribbon, MAIN).tabDisplayRules = [{ tabCommand: MAIN, rules: [{ kind: "PageRule", address: "/x" }] }];
+		tab(parsed.ribbon, MAIN).tabDisplayRules = [
+			{ tabCommand: MAIN, rules: [{ kind: "PageRule", address: "/x" }] },
+		];
 		const p = plan(parsed.ribbon, parsed);
 		expect(p.editedTabIds).toEqual([]);
 		expect(p.unsupported.join("\n")).toContain(`Changing the display rules of tab ${MAIN}`);
@@ -487,11 +643,12 @@ describe("#49 — translation-only and existing-tab display rule edits", () => {
 describe("#50 — labels are written in the organisation's base language", () => {
 	it("an edited $LocLabels label updates the base-language title and keeps the others", async () => {
 		const parsed = load();
-		group(parsed.ribbon, `${MAIN}.Management`).buttons.find((b) => b.id === "cbs.B4")!.label = "Vier!!";
+		group(parsed.ribbon, `${MAIN}.Management`).buttons.find((b) => b.id === "cbs.B4")!.label =
+			"Vier!!";
 		const { doc } = await build(parsed.ribbon, parsed, {}, 1031);
-		const titles = Array.from(doc.querySelectorAll('LocLabel[Id="cbs.B4.LabelText"] Title')).map(
-			(t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`,
-		);
+		const titles = Array.from(
+			doc.querySelectorAll('LocLabel[Id="cbs.B4.LabelText"] Title'),
+		).map((t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`);
 		expect(titles.sort()).toEqual(["1031=Vier!!", "1033=Four"]);
 	});
 
@@ -503,7 +660,15 @@ describe("#50 — labels are written in the organisation's base language", () =>
 			label: "Neu",
 			sequence: 900,
 			tabDisplayRules: [],
-			groups: [{ id: "cbs.NewTab.G", label: "Gruppe", sequence: 10, template: "Flexible2", buttons: [] }],
+			groups: [
+				{
+					id: "cbs.NewTab.G",
+					label: "Gruppe",
+					sequence: 10,
+					template: "Flexible2",
+					buttons: [],
+				},
+			],
 		});
 		group(current, `${MAIN}.Management`).buttons.push({
 			id: "cbs.New",
@@ -529,19 +694,24 @@ describe("#50 — labels are written in the organisation's base language", () =>
 			languageCode: 1031,
 		});
 		const doc = new DOMParser().parseFromString(xml, "application/xml");
-		const langs = Array.from(doc.querySelectorAll("LocLabel Title")).map((t) => t.getAttribute("languagecode"));
+		const langs = Array.from(doc.querySelectorAll("LocLabel Title")).map((t) =>
+			t.getAttribute("languagecode"),
+		);
 		expect(langs.length).toBeGreaterThanOrEqual(3);
 		expect(new Set(langs)).toEqual(new Set(["1031"]));
 	});
 
 	it("an unchanged label shown in the base language is not treated as edited", () => {
 		const parsed = load();
-		const b4 = group(parsed.ribbon, `${MAIN}.Management`).buttons.find((b) => b.id === "cbs.B4")!;
+		const b4 = group(parsed.ribbon, `${MAIN}.Management`).buttons.find(
+			(b) => b.id === "cbs.B4",
+		)!;
 		// What the canvas shows in a German organisation; the tooltip edit forces an override.
 		b4.label = "Vier";
 		b4.tooltipTitle = "Tip";
 		const baseline = clone(parsed.ribbon);
-		group(baseline, `${MAIN}.Management`).buttons.find((b) => b.id === "cbs.B4")!.tooltipTitle = undefined;
+		group(baseline, `${MAIN}.Management`).buttons.find((b) => b.id === "cbs.B4")!.tooltipTitle =
+			undefined;
 		const xml = generateRibbonDiffXml({
 			current: parsed.ribbon,
 			baseline,
@@ -554,9 +724,9 @@ describe("#50 — labels are written in the organisation's base language", () =>
 			languageCode: 1031,
 		});
 		const doc = new DOMParser().parseFromString(xml, "application/xml");
-		const titles = Array.from(doc.querySelectorAll('LocLabel[Id="cbs.B4.LabelText"] Title')).map(
-			(t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`,
-		);
+		const titles = Array.from(
+			doc.querySelectorAll('LocLabel[Id="cbs.B4.LabelText"] Title'),
+		).map((t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`);
 		expect(titles.sort()).toEqual(["1031=Vier", "1033=Four"]);
 	});
 });
@@ -590,11 +760,28 @@ describe("#26 — moving / re-sequencing your own buttons", () => {
 			locLabels: [],
 		});
 		useRibbonStore.getState().moveButton(
-			{ groupId: `${MAIN}.Management`, buttonId: "cbs.B4", tabId: MAIN, location: "HomepageGrid" },
-			{ groupId: `${MAIN}.Management`, beforeButtonId: `Mscrm.HomepageGrid.${T}.Edit`, tabId: MAIN, location: "HomepageGrid" },
+			{
+				groupId: `${MAIN}.Management`,
+				buttonId: "cbs.B4",
+				tabId: MAIN,
+				location: "HomepageGrid",
+			},
+			{
+				groupId: `${MAIN}.Management`,
+				beforeButtonId: `Mscrm.HomepageGrid.${T}.Edit`,
+				tabId: MAIN,
+				location: "HomepageGrid",
+			},
 		);
-		const buttons = group(useRibbonStore.getState().ribbons.HomepageGrid, `${MAIN}.Management`).buttons;
-		expect(buttons.map((b) => b.id).slice(0, 3)).toEqual([`Mscrm.HomepageGrid.${T}.NewRecord`, "cbs.B4", `Mscrm.HomepageGrid.${T}.Edit`]);
+		const buttons = group(
+			useRibbonStore.getState().ribbons.HomepageGrid,
+			`${MAIN}.Management`,
+		).buttons;
+		expect(buttons.map((b) => b.id).slice(0, 3)).toEqual([
+			`Mscrm.HomepageGrid.${T}.NewRecord`,
+			"cbs.B4",
+			`Mscrm.HomepageGrid.${T}.Edit`,
+		]);
 		expect(buttons[1].sequence).toBe(15);
 	});
 
@@ -609,7 +796,9 @@ describe("#26 — moving / re-sequencing your own buttons", () => {
 		expect(p.movedButtons).toEqual([{ id: "cbs.B4", groupId: "cbs.Tab.G1", sequence: 20 }]);
 		// The destination is the layer's own group: the button is written inside it (#59).
 		expect(doc.querySelector('CustomAction[Id="cbs.B4.CustomAction"]')).toBeNull();
-		const moved = doc.querySelector('Tab[Id="cbs.Tab"] Group[Id="cbs.Tab.G1"] > Controls > Button[Id="cbs.B4"]')!;
+		const moved = doc.querySelector(
+			'Tab[Id="cbs.Tab"] Group[Id="cbs.Tab.G1"] > Controls > Button[Id="cbs.B4"]',
+		)!;
 		expect(moved.getAttribute("Sequence")).toBe("20");
 		expect(moved.getAttribute("LabelText")).toBe("$LocLabels:cbs.B4.LabelText");
 		expect(ids(doc, "LocLabels > LocLabel")).toContain("cbs.B4.LabelText");
@@ -619,7 +808,9 @@ describe("#26 — moving / re-sequencing your own buttons", () => {
 
 	it("a re-sequence plus an edit keeps one CustomAction with both changes", async () => {
 		const parsed = load();
-		const b4 = group(parsed.ribbon, `${MAIN}.Management`).buttons.find((b) => b.id === "cbs.B4")!;
+		const b4 = group(parsed.ribbon, `${MAIN}.Management`).buttons.find(
+			(b) => b.id === "cbs.B4",
+		)!;
 		b4.sequence = 5;
 		b4.tooltipTitle = "Moved";
 		const { doc } = await build(parsed.ribbon, parsed);
@@ -627,12 +818,16 @@ describe("#26 — moving / re-sequencing your own buttons", () => {
 		const caEl = doc.querySelector('CustomAction[Id="cbs.B4.CustomAction"]')!;
 		expect(caEl.getAttribute("Sequence")).toBe("5");
 		expect(caEl.getAttribute("Location")).toBe(`${MAIN}.Management.Controls._children`);
-		expect(caEl.querySelector("Button")!.getAttribute("ToolTipTitle")).toBe("$LocLabels:cbs.B4.ToolTipTitle");
+		expect(caEl.querySelector("Button")!.getAttribute("ToolTipTitle")).toBe(
+			"$LocLabels:cbs.B4.ToolTipTitle",
+		);
 	});
 
 	it("moving an out-of-the-box button is still reported as unsupported", () => {
 		const parsed = load();
-		group(parsed.ribbon, `${MAIN}.Management`).buttons.find((b) => b.id === `Mscrm.HomepageGrid.${T}.Edit`)!.sequence = 1;
+		group(parsed.ribbon, `${MAIN}.Management`).buttons.find(
+			(b) => b.id === `Mscrm.HomepageGrid.${T}.Edit`,
+		)!.sequence = 1;
 		const p = plan(parsed.ribbon, parsed);
 		expect(p.movedButtons).toEqual([]);
 		expect(p.unsupported.join("\n")).toContain("Moving or re-ordering");
@@ -654,7 +849,9 @@ describe("#26 — moving / re-sequencing your own buttons", () => {
 					editedDisplayRuleIds: [],
 					deletedButtonIds: [],
 					unhiddenButtonIds: [],
-					movedButtons: [{ id: `Mscrm.HomepageGrid.${T}.Edit`, groupId: "x", sequence: 1 }],
+					movedButtons: [
+						{ id: `Mscrm.HomepageGrid.${T}.Edit`, groupId: "x", sequence: 1 },
+					],
 				},
 			}),
 		).rejects.toThrow(/Can't move/);
@@ -672,7 +869,11 @@ describe("compareRibbonDiffParts (#46 verification)", () => {
 			unexpected: ["locLabels:extra"],
 			differing: [],
 		});
-		expect(compareRibbonDiffParts(a, layerParts())).toEqual({ missing: [], unexpected: [], differing: [] });
+		expect(compareRibbonDiffParts(a, layerParts())).toEqual({
+			missing: [],
+			unexpected: [],
+			differing: [],
+		});
 	});
 });
 
@@ -691,7 +892,9 @@ const formRibbon = (): RibbonDefinition => ({
 			label: "Form",
 			sequence: 10,
 			tabDisplayRules: [],
-			groups: [{ id: FORM_GROUP, label: "Save", sequence: 10, template: "Flexible2", buttons: [] }],
+			groups: [
+				{ id: FORM_GROUP, label: "Save", sequence: 10, template: "Flexible2", buttons: [] },
+			],
 		},
 	],
 });
@@ -754,16 +957,19 @@ describe("#57 review — moving your own button to another location", () => {
 		expect(buttons[0].getAttribute("Command")).toBe("cbs.B4.Command");
 		expect(buttons[0].getAttribute("LabelText")).toBe("$LocLabels:cbs.B4.LabelText");
 		expect(ids(doc, "CommandDefinitions > CommandDefinition")).toContain("cbs.B4.Command");
-		const titles = Array.from(doc.querySelectorAll('LocLabel[Id="cbs.B4.LabelText"] Title')).map(
-			(t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`,
-		);
+		const titles = Array.from(
+			doc.querySelectorAll('LocLabel[Id="cbs.B4.LabelText"] Title'),
+		).map((t) => `${t.getAttribute("languagecode")}=${t.getAttribute("description")}`);
 		expect(titles.sort()).toEqual(["1031=Vier", "1033=Four"]);
 	});
 
 	it("keeps the layer's own CustomAction id when it differs from CBS's naming", async () => {
 		const xml = layer.customActions.get("ca:cbs.B4.CustomAction")!;
 		layer.customActions.delete("ca:cbs.B4.CustomAction");
-		layer.customActions.set("ca:rw.B4.CustomAction", xml.replace('Id="cbs.B4.CustomAction"', 'Id="rw.B4.CustomAction"'));
+		layer.customActions.set(
+			"ca:rw.B4.CustomAction",
+			xml.replace('Id="cbs.B4.CustomAction"', 'Id="rw.B4.CustomAction"'),
+		);
 		const { doc } = await moveB4ToForm();
 		const buttons = doc.querySelectorAll('Button[Id="cbs.B4"]');
 		expect(buttons).toHaveLength(1);
@@ -795,14 +1001,21 @@ describe("#57 review — deleting a button keeps labels other controls still use
 	it("a LocLabel referenced by a remaining control survives the delete", () => {
 		const existing = layerParts();
 		const b5 = existing.customActions.get("ca:cbs.B5.CustomAction")!;
-		existing.customActions.set("ca:cbs.B5.CustomAction", b5.replace('LabelText="Five"', 'LabelText="$LocLabels:cbs.B4.LabelText"'));
-		const merged = mergeScopeChanges(existing, parseRibbonDiffParts("<RibbonDiffXml/>"), { deletedControlIds: ["cbs.B4"] });
+		existing.customActions.set(
+			"ca:cbs.B5.CustomAction",
+			b5.replace('LabelText="Five"', 'LabelText="$LocLabels:cbs.B4.LabelText"'),
+		);
+		const merged = mergeScopeChanges(existing, parseRibbonDiffParts("<RibbonDiffXml/>"), {
+			deletedControlIds: ["cbs.B4"],
+		});
 		expect(merged.customActions.has("ca:cbs.B4.CustomAction")).toBe(false);
 		expect(merged.locLabels.has("cbs.B4.LabelText")).toBe(true);
 	});
 
 	it("…and is removed when nothing else uses it", () => {
-		const merged = mergeScopeChanges(layerParts(), parseRibbonDiffParts("<RibbonDiffXml/>"), { deletedControlIds: ["cbs.B4"] });
+		const merged = mergeScopeChanges(layerParts(), parseRibbonDiffParts("<RibbonDiffXml/>"), {
+			deletedControlIds: ["cbs.B4"],
+		});
 		expect(merged.locLabels.has("cbs.B4.LabelText")).toBe(false);
 	});
 });
@@ -842,7 +1055,8 @@ describe("#57 review — rule references kept verbatim (rawRuleRefs)", () => {
 describe("#57 review — sequences never collide", () => {
 	function loadStore(sequences: Record<string, number>) {
 		const parsed = load();
-		for (const b of group(parsed.ribbon, `${MAIN}.Management`).buttons) if (b.id in sequences) b.sequence = sequences[b.id];
+		for (const b of group(parsed.ribbon, `${MAIN}.Management`).buttons)
+			if (b.id in sequences) b.sequence = sequences[b.id];
 		useRibbonStore.getState().loadWorkspace({
 			ribbons: {
 				HomepageGrid: parsed.ribbon,
@@ -862,9 +1076,15 @@ describe("#57 review — sequences never collide", () => {
 	const move = (buttonId: string, beforeButtonId: string) =>
 		useRibbonStore.getState().moveButton(
 			{ groupId: `${MAIN}.Management`, buttonId, tabId: MAIN, location: "HomepageGrid" },
-			{ groupId: `${MAIN}.Management`, beforeButtonId, tabId: MAIN, location: "HomepageGrid" },
+			{
+				groupId: `${MAIN}.Management`,
+				beforeButtonId,
+				tabId: MAIN,
+				location: "HomepageGrid",
+			},
 		);
-	const management = () => group(useRibbonStore.getState().ribbons.HomepageGrid, `${MAIN}.Management`).buttons;
+	const management = () =>
+		group(useRibbonStore.getState().ribbons.HomepageGrid, `${MAIN}.Management`).buttons;
 	const seqOf = (id: string) => management().find((b) => b.id === id)!.sequence;
 
 	it("re-numbers your own buttons when there is no gap, keeping the order", () => {
@@ -901,7 +1121,12 @@ describe("#57 review — sequences never collide", () => {
 	it("moveButton keeps the button when the destination doesn't exist", () => {
 		loadStore({});
 		useRibbonStore.getState().moveButton(
-			{ groupId: `${MAIN}.Management`, buttonId: "cbs.B4", tabId: MAIN, location: "HomepageGrid" },
+			{
+				groupId: `${MAIN}.Management`,
+				buttonId: "cbs.B4",
+				tabId: MAIN,
+				location: "HomepageGrid",
+			},
 			{ groupId: "no.such.group", tabId: MAIN, location: "HomepageGrid" },
 		);
 		expect(management().map((b) => b.id)).toContain("cbs.B4");
@@ -911,7 +1136,10 @@ describe("#57 review — sequences never collide", () => {
 describe("#57 review — post-publish verification compares content", () => {
 	const RULE_KEY = "enableRules:cbs.B1.Rule";
 	const withRule = (parts: RibbonDiffParts, minimum: number) => {
-		parts.enableRules.set("cbs.B1.Rule", `<EnableRule Id="cbs.B1.Rule"><SelectionCountRule Minimum="${minimum}" /></EnableRule>`);
+		parts.enableRules.set(
+			"cbs.B1.Rule",
+			`<EnableRule Id="cbs.B1.Rule"><SelectionCountRule Minimum="${minimum}" /></EnableRule>`,
+		);
 		return parts;
 	};
 
@@ -947,7 +1175,10 @@ describe("#57 review — post-publish verification compares content", () => {
 			),
 		);
 		layer = layerParts();
-		layer.enableRules.set("cbs.B1.Rule", `<EnableRule Id="cbs.B1.Rule">\n  <SelectionCountRule Minimum="2"/>\n</EnableRule>`);
+		layer.enableRules.set(
+			"cbs.B1.Rule",
+			`<EnableRule Id="cbs.B1.Rule">\n  <SelectionCountRule Minimum="2"/>\n</EnableRule>`,
+		);
 		layer.commandDefinitions.set(
 			"cbs.B4.Command",
 			cmd(
@@ -958,7 +1189,11 @@ describe("#57 review — post-publish verification compares content", () => {
 		layer.locLabels.set("cbs.B4.LabelText", label("cbs.B4.LabelText", [1033, "Four"]));
 		const v = await verifyPublishedLayer(T, expected, {
 			attempts: 1,
-			contentKeys: [RULE_KEY, "commandDefinitions:cbs.B4.Command", "locLabels:cbs.B4.LabelText"],
+			contentKeys: [
+				RULE_KEY,
+				"commandDefinitions:cbs.B4.Command",
+				"locLabels:cbs.B4.LabelText",
+			],
 		});
 		expect(v).toMatchObject({ ok: true, missing: [], unexpected: [], differing: [] });
 		expect(v.message).toMatch(/3 element\(s\) this publish changed have the imported content/);
@@ -972,24 +1207,37 @@ describe("#57 review — post-publish verification compares content", () => {
 			'<CommandDefinition Id="cbs.B4.Command"><EnableRules /><DisplayRules /><Actions><JavaScriptFunction Library="$webresource:cbs.js" FunctionName="B4v2" /></Actions></CommandDefinition>',
 		);
 		expect(
-			compareRibbonDiffParts(expected, actual, { contentKeys: ["commandDefinitions:cbs.B4.Command"] }).differing,
+			compareRibbonDiffParts(expected, actual, {
+				contentKeys: ["commandDefinitions:cbs.B4.Command"],
+			}).differing,
 		).toEqual(["commandDefinitions:cbs.B4.Command"]);
-		expect(changedRibbonDiffKeys(actual, expected)).toEqual(["commandDefinitions:cbs.B4.Command"]);
+		expect(changedRibbonDiffKeys(actual, expected)).toEqual([
+			"commandDefinitions:cbs.B4.Command",
+		]);
 	});
 });
 
 describe("#57 review — a stuck solution-history row doesn't block publishing for hours", () => {
 	it("ignores Started / Queued rows older than the stale window", async () => {
-		const { findRunningSolutionOperations, STALE_OPERATION_MINUTES } = await import(
-			"@/services/dataverse/environmentService"
-		);
+		const { findRunningSolutionOperations, STALE_OPERATION_MINUTES } =
+			await import("@/services/dataverse/environmentService");
 		const now = Date.parse("2026-10-17T12:00:00Z");
 		const ago = (min: number) => new Date(now - min * 60_000).toISOString();
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = {
 			queryData: vi.fn(async () => ({
 				value: [
-					{ msdyn_name: "Stuck", msdyn_operation: 0, msdyn_status: 0, msdyn_starttime: ago(STALE_OPERATION_MINUTES + 15) },
-					{ msdyn_name: "Fresh", msdyn_operation: 7, msdyn_status: 2, msdyn_starttime: ago(2) },
+					{
+						msdyn_name: "Stuck",
+						msdyn_operation: 0,
+						msdyn_status: 0,
+						msdyn_starttime: ago(STALE_OPERATION_MINUTES + 15),
+					},
+					{
+						msdyn_name: "Fresh",
+						msdyn_operation: 7,
+						msdyn_status: 2,
+						msdyn_starttime: ago(2),
+					},
 				],
 			})),
 		};

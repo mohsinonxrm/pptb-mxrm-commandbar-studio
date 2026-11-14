@@ -11,7 +11,7 @@
  * Call `disposeMonacoCompletions(disposables)` on component unmount to clean up.
  */
 
-import type * as Monaco from "monaco-editor";
+import type * as Monaco from "monaco-editor/editor/editor.api";
 import { useRibbonStore } from "@/store/ribbonStore";
 
 /** Top Fluent icon names available as ModernImage values */
@@ -295,14 +295,16 @@ export function registerMonacoCompletions(
 					endColumn: position.column,
 				};
 
-				const suggestions: Monaco.languages.CompletionItem[] = FLUENT_ICON_NAMES.map((name) => ({
-					label: name,
-					kind: monaco.languages.CompletionItemKind.Color,
-					insertText: name,
-					range,
-					detail: "Fluent icon (ModernImage)",
-					documentation: `Renders the ${name}_20_Regular Fluent icon`,
-				}));
+				const suggestions: Monaco.languages.CompletionItem[] = FLUENT_ICON_NAMES.map(
+					(name) => ({
+						label: name,
+						kind: monaco.languages.CompletionItemKind.Color,
+						insertText: name,
+						range,
+						detail: "Fluent icon (ModernImage)",
+						documentation: `Renders the ${name}_20_Regular Fluent icon`,
+					}),
+				);
 
 				return { suggestions };
 			},

@@ -28,7 +28,9 @@ describe("RootErrorBoundary (#89)", () => {
 		const alert = container.querySelector('[role="alert"]');
 		expect(alert?.querySelector("h1")?.textContent).toBe("Command Bar Studio stopped working");
 		expect(alert?.textContent).toContain("Failed to fetch dynamically imported module");
-		expect(alert?.textContent).toContain("Close the Command Bar Studio tab and open the tool again.");
+		expect(alert?.textContent).toContain(
+			"Close the Command Bar Studio tab and open the tool again.",
+		);
 		act(() => root.unmount());
 	});
 

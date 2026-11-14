@@ -34,7 +34,8 @@ import {
 import type { EntityMetadata } from "@/types/entity";
 import type { Solution } from "@/types/solution";
 
-export type PendingSwitch = { kind: "entity"; entity: EntityMetadata } | { kind: "solution"; solution: Solution };
+export type PendingSwitch =
+	{ kind: "entity"; entity: EntityMetadata } | { kind: "solution"; solution: Solution };
 
 /** What to do with the unpublished changes when switching: keep them as a draft, or discard them. */
 export type SwitchChoice = "keep" | "discard" | "cancel";
@@ -105,7 +106,9 @@ function saveOrClear(state: RibbonStoreState): boolean {
 	let ok = true;
 	if (!unpublished(state)) {
 		// Undoing a restore keeps the draft it restored (redo brings it back).
-		const restoreUndone = restoredAt !== null && state.future.some((e) => e.op === "restored" && e.ts === restoredAt);
+		const restoreUndone =
+			restoredAt !== null &&
+			state.future.some((e) => e.op === "restored" && e.ts === restoredAt);
 		if (!restoreUndone) {
 			deleteDraft(target);
 			useDraftStore.setState({ lastSavedAt: null });
@@ -203,7 +206,14 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 
 	beginLoad() {
 		restoredAt = null;
-		set({ target: null, pending: null, pendingBaselineChanged: false, restoreError: null, saveFailed: false, lastSavedAt: null });
+		set({
+			target: null,
+			pending: null,
+			pendingBaselineChanged: false,
+			restoreError: null,
+			saveFailed: false,
+			lastSavedAt: null,
+		});
 	},
 
 	workspaceLoaded(key) {
@@ -214,7 +224,9 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 			pending: draft,
 			restoreError: null,
 			lastSavedAt: draft?.savedAt ?? null,
-			pendingBaselineChanged: !!draft && draft.baselineFingerprint !== baselineFingerprint(useRibbonStore.getState()),
+			pendingBaselineChanged:
+				!!draft &&
+				draft.baselineFingerprint !== baselineFingerprint(useRibbonStore.getState()),
 		});
 	},
 
@@ -225,10 +237,18 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 		const ribbons = useRibbonStore.getState();
 		try {
 			// The draft stays offered (and autosave leaves it alone) until this works.
-			ribbons.restoreWorkspace(draftWorkspace(pending, ribbons), `saved ${new Date(pending.savedAt).toLocaleString()}`);
+			ribbons.restoreWorkspace(
+				draftWorkspace(pending, ribbons),
+				`saved ${new Date(pending.savedAt).toLocaleString()}`,
+			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			useRuntimeLogStore.getState().logError("ribbon", `The unsaved changes saved ${pending.savedAt} couldn't be restored: ${message}`);
+			useRuntimeLogStore
+				.getState()
+				.logError(
+					"ribbon",
+					`The unsaved changes saved ${pending.savedAt} couldn't be restored: ${message}`,
+				);
 			set({ restoreError: message });
 			return false;
 		}
@@ -246,7 +266,12 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 		const { target, pending } = get();
 		if (!pending) return;
 		deleteDraft(pending.key);
-		set({ pending: null, pendingBaselineChanged: false, restoreError: null, lastSavedAt: null });
+		set({
+			pending: null,
+			pendingBaselineChanged: false,
+			restoreError: null,
+			lastSavedAt: null,
+		});
 		// Changes made while the draft was offered are saved now.
 		if (target && sameDraftKey(target, pending.key)) saveOrClear(useRibbonStore.getState());
 	},
@@ -266,8 +291,7 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 		if (hasUnpublishedChanges()) {
 			saveOrClear(useRibbonStore.getState());
 			set({ pendingSwitch: { kind: "solution", solution } });
-		}
-		else applySwitch({ kind: "solution", solution });
+		} else applySwitch({ kind: "solution", solution });
 	},
 
 	resolveSwitch(choice) {
@@ -284,7 +308,13 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 		if (choice === "discard" && target && !pending) deleteDraft(target);
 		// The workspace no longer belongs to a draft: resetting it (and the
 		// load that follows) must not touch the one kept.
-		set({ pendingSwitch: null, target: null, pending: null, pendingBaselineChanged: false, saveFailed: false });
+		set({
+			pendingSwitch: null,
+			target: null,
+			pending: null,
+			pendingBaselineChanged: false,
+			saveFailed: false,
+		});
 		resetWorkspace();
 		applySwitch(pendingSwitch);
 	},

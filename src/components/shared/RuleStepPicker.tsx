@@ -1,5 +1,13 @@
 import React, { useState } from "react";
-import { makeStyles, tokens, Input, Button, Text } from "@fluentui/react-components";
+import {
+	makeStyles,
+	tokens,
+	Button,
+	Caption1,
+	InfoLabel,
+	SearchBox,
+	useArrowNavigationGroup,
+} from "@fluentui/react-components";
 import type { RuleStep } from "@/types/ribbon";
 import {
 	RULE_KIND_GROUPS,
@@ -14,9 +22,13 @@ const useStyles = makeStyles({
 		flexDirection: "column",
 		gap: tokens.spacingVerticalXS,
 	},
-	search: {
+	searchRow: {
+		display: "flex",
+		alignItems: "center",
+		gap: tokens.spacingHorizontalS,
 		marginBottom: tokens.spacingVerticalXS,
 	},
+	search: { flex: 1, minWidth: 0 },
 	group: {
 		display: "flex",
 		flexDirection: "column",
@@ -24,6 +36,7 @@ const useStyles = makeStyles({
 	},
 	groupLabel: {
 		color: tokens.colorNeutralForeground3,
+		fontWeight: tokens.fontWeightSemibold,
 		paddingTop: tokens.spacingVerticalXS,
 	},
 	kindButton: {
@@ -64,7 +77,10 @@ function createDefaultStep(kind: RuleStep["kind"]): RuleStep {
 		case "OrRule":
 			return {
 				kind,
-				groups: [[{ kind: "FormStateRule", state: "Existing" }], [{ kind: "FormStateRule", state: "Create" }]],
+				groups: [
+					[{ kind: "FormStateRule", state: "Existing" }],
+					[{ kind: "FormStateRule", state: "Create" }],
+				],
 			};
 		case "FeatureControlRule":
 			return { kind, featureControlBit: "", expectedValue: true };
@@ -116,6 +132,8 @@ export const RuleStepPicker: React.FC<RuleStepPickerProps> = ({
 }) => {
 	const styles = useStyles();
 	const [search, setSearch] = useState("");
+	// Arrow keys move through the kinds (#189): Tab enters and leaves the list once.
+	const navigation = useArrowNavigationGroup({ axis: "vertical" });
 
 	const filtered = RULE_KIND_GROUPS.map((group) => ({
 		...group,
@@ -133,33 +151,36 @@ export const RuleStepPicker: React.FC<RuleStepPickerProps> = ({
 
 	return (
 		<div className={styles.root}>
-			<Text size={100} style={{ color: tokens.colorNeutralForeground3 }}>
-				Quick action rules are OOB references and should be bound by ID (for example,
-				Mscrm.ShowOnQuickAction), not created as custom step kinds.
-			</Text>
-			<Input
-				className={styles.search}
-				placeholder="Search rule kinds…"
-				value={search}
-				onChange={(_, d) => setSearch(d.value)}
-			/>
-			{filtered.map((group) => (
-				<div key={group.label} className={styles.group}>
-					<Text size={100} weight="semibold" className={styles.groupLabel}>
-						{group.label}
-					</Text>
-					{group.kinds.map((k) => (
-						<Button
-							key={k}
-							appearance="subtle"
-							className={styles.kindButton}
-							onClick={() => onSelect(createDefaultStep(k))}
-						>
-							{RULE_KIND_LABELS[k] ?? k}
-						</Button>
-					))}
-				</div>
-			))}
+			<div className={styles.searchRow}>
+				<SearchBox
+					className={styles.search}
+					placeholder="Search steps"
+					aria-label="Search steps"
+					value={search}
+					onChange={(_, d) => setSearch(d.value)}
+				/>
+				<InfoLabel info="Show on grid or quick action comes from Microsoft's rules (Mscrm.ShowOnGrid, Mscrm.ShowOnQuickAction): add them to the command by ID instead.">
+					<span className={styles.groupLabel}>Not here?</span>
+				</InfoLabel>
+			</div>
+			<div role="group" aria-label="Kinds of step" {...navigation}>
+				{filtered.map((group) => (
+					<div key={group.label} className={styles.group}>
+						<Caption1 className={styles.groupLabel}>{group.label}</Caption1>
+						{group.kinds.map((k) => (
+							<Button
+								key={k}
+								appearance="subtle"
+								className={styles.kindButton}
+								onClick={() => onSelect(createDefaultStep(k))}
+							>
+								{RULE_KIND_LABELS[k] ?? k}
+							</Button>
+						))}
+					</div>
+				))}
+				{filtered.length === 0 && <Caption1>No kind of step matches.</Caption1>}
+			</div>
 		</div>
 	);
 };

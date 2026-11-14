@@ -3,13 +3,13 @@ import {
 	Caption1,
 	makeStyles,
 	mergeClasses,
-	Subtitle2,
 	Text,
 	tokens,
 	Tooltip,
 } from "@fluentui/react-components";
 import { LinkDismissRegular } from "@fluentui/react-icons";
 import { useState } from "react";
+import { ConfirmDialog } from "@/components/modals/ConfirmDialog";
 import { useRibbonStore, type LayerScope } from "@/store/ribbonStore";
 
 const useStyles = makeStyles({
@@ -69,7 +69,11 @@ export function OrphanedCustomizationsSection() {
 	const pendingOrphanDeletes = useRibbonStore((s) => s.pendingOrphanDeletes);
 	const setOrphanDeleted = useRibbonStore((s) => s.setOrphanDeleted);
 	// The row whose Delete waits for a confirmation (published recently).
-	const [confirming, setConfirming] = useState<string | null>(null);
+	const [confirming, setConfirming] = useState<{
+		scope: LayerScope;
+		id: string;
+		minutesAgo?: number;
+	} | null>(null);
 
 	const rows = (["entity", "application"] as LayerScope[]).flatMap((scope) =>
 		orphans[scope].map((o) => ({ scope, ...o })),
@@ -78,7 +82,9 @@ export function OrphanedCustomizationsSection() {
 
 	return (
 		<section className={styles.root} aria-label="Orphaned customizations">
-			<Subtitle2>Orphaned customizations</Subtitle2>
+			<Text as="h3" size={300} weight="semibold">
+				Orphaned customizations
+			</Text>
 			<Caption1>
 				In your unmanaged customizations, but the ribbon doesn&apos;t return them, so they
 				aren&apos;t on the canvas (and, except for tabs, Unified Interface doesn&apos;t show
@@ -111,26 +117,20 @@ export function OrphanedCustomizationsSection() {
 							Delete
 						</Button>
 					</Tooltip>
-				) : r.recentPublish && confirming !== key ? (
+				) : r.recentPublish ? (
 					<Button
 						size="small"
 						appearance="secondary"
 						aria-label={`Delete ${r.id}`}
-						onClick={() => setConfirming(key)}
+						onClick={() =>
+							setConfirming({
+								scope: r.scope,
+								id: r.id,
+								minutesAgo: r.recentPublish?.minutesAgo,
+							})
+						}
 					>
 						Delete…
-					</Button>
-				) : r.recentPublish ? (
-					<Button
-						size="small"
-						appearance="primary"
-						aria-label={`Delete ${r.id} anyway`}
-						onClick={() => {
-							setConfirming(null);
-							setOrphanDeleted(r.scope, r.id, true);
-						}}
-					>
-						Delete anyway
 					</Button>
 				) : (
 					<Button
@@ -166,6 +166,26 @@ export function OrphanedCustomizationsSection() {
 					</div>
 				);
 			})}
+			{confirming && (
+				<ConfirmDialog
+					open
+					title="Delete a recent customization?"
+					confirmLabel="Delete anyway"
+					destructive
+					onConfirm={() => {
+						setOrphanDeleted(confirming.scope, confirming.id, true);
+						setConfirming(null);
+					}}
+					onCancel={() => setConfirming(null)}
+				>
+					{confirming.id} was published
+					{confirming.minutesAgo !== undefined
+						? ` about ${confirming.minutesAgo} minute${confirming.minutesAgo === 1 ? "" : "s"} ago`
+						: " recently"}
+					. The ribbon may not show it yet, so it may not be orphaned at all. Reload the
+					table later to check before deleting it.
+				</ConfirmDialog>
+			)}
 		</section>
 	);
 }

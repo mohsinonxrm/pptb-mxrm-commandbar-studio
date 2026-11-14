@@ -114,7 +114,10 @@ export function draftStorageKey(key: DraftKey): string {
 	return `${PREFIX}${encodeURIComponent(k.orgUrl)}:${encodeURIComponent(k.solutionId)}:${encodeURIComponent(k.entityLogicalName)}`;
 }
 
-export function sameDraftKey(a: DraftKey | null | undefined, b: DraftKey | null | undefined): boolean {
+export function sameDraftKey(
+	a: DraftKey | null | undefined,
+	b: DraftKey | null | undefined,
+): boolean {
 	if (!a || !b) return false;
 	return draftStorageKey(a) === draftStorageKey(b);
 }
@@ -153,7 +156,8 @@ export function baselineFingerprint(state: BaselineState): string {
 		state.layers,
 		state.baseLanguageCode,
 	];
-	if (lastFingerprint && lastFingerprint.of.every((v, i) => v === of[i])) return lastFingerprint.value;
+	if (lastFingerprint && lastFingerprint.of.every((v, i) => v === of[i]))
+		return lastFingerprint.value;
 	const value = hash(JSON.stringify(of));
 	lastFingerprint = { of, value };
 	return value;
@@ -194,13 +198,19 @@ function diffItem(item: Item, loaded: Item | undefined, level: Level): unknown {
 	if (!level.list || !Array.isArray(item[level.list])) return item;
 	const loadedList = (loaded?.[level.list] as Item[] | undefined) ?? [];
 	// Spread keeps the key order (the publish compares JSON).
-	return { ...item, [level.list]: diffList(item[level.list] as Item[], loadedList, level.child ?? LEAF) };
+	return {
+		...item,
+		[level.list]: diffList(item[level.list] as Item[], loadedList, level.child ?? LEAF),
+	};
 }
 
 function patchItem(stored: Item, loaded: Item | undefined, level: Level): Item {
 	if (!level.list || stored[level.list] === undefined) return stored;
 	const loadedList = (loaded?.[level.list] as Item[] | undefined) ?? [];
-	return { ...stored, [level.list]: patchList(stored[level.list] as ListDelta, loadedList, level.child ?? LEAF) };
+	return {
+		...stored,
+		[level.list]: patchList(stored[level.list] as ListDelta, loadedList, level.child ?? LEAF),
+	};
 }
 
 function diffList(items: Item[], baseline: Item[], level: Level): ListDelta {
@@ -235,7 +245,8 @@ function patchList(delta: ListDelta, baseline: Item[], level: Level): Item[] {
 	if (Array.isArray(delta)) {
 		const out: Item[] = [];
 		for (const e of delta) {
-			if (typeof e !== "string") out.push(patchItem(e as Item, byId.get((e as Item).id) ?? undefined, level));
+			if (typeof e !== "string")
+				out.push(patchItem(e as Item, byId.get((e as Item).id) ?? undefined, level));
 			else {
 				const loaded = byId.get(e);
 				if (loaded) out.push(clone(loaded));
@@ -254,15 +265,20 @@ function patchList(delta: ListDelta, baseline: Item[], level: Level): Item[] {
 	}
 	const loadedIds = new Set(baseline.map((b) => b.id));
 	return [
-		...baseline.filter((b) => !drop.has(b.id)).map((b) => (set.has(b.id) ? patchItem(set.get(b.id)!, b, level) : clone(b))),
+		...baseline
+			.filter((b) => !drop.has(b.id))
+			.map((b) => (set.has(b.id) ? patchItem(set.get(b.id)!, b, level) : clone(b))),
 		// A changed item the load no longer has is kept as changed (as in the
 		// list form); an unchanged one goes with the load.
-		...[...set.values()].filter((i) => !loadedIds.has(i.id)).map((i) => patchItem(i, undefined, level)),
+		...[...set.values()]
+			.filter((i) => !loadedIds.has(i.id))
+			.map((i) => patchItem(i, undefined, level)),
 		...added.map((a) => patchItem(a, undefined, level)),
 	];
 }
 
-const isEmptyPatch = (d: ListDelta) => !Array.isArray(d) && d.set.length + d.drop.length + d.add.length === 0;
+const isEmptyPatch = (d: ListDelta) =>
+	!Array.isArray(d) && d.set.length + d.drop.length + d.add.length === 0;
 
 /** `list` (of objects with ids) as plain items, for the generic diff. */
 const items = (list: { id: string }[]) => list as unknown as Item[];
@@ -275,16 +291,22 @@ export function workspaceDelta(state: RibbonStoreState): WorkspaceDelta {
 		const current = w.ribbons[loc] as unknown as Record<string, unknown> | undefined;
 		const loaded = state.baseline[loc] as unknown as Record<string, unknown> | undefined;
 		if (!current) continue;
-		const tabs = diffList(current.tabs as Item[], (loaded?.tabs as Item[] | undefined) ?? [], TABS);
+		const tabs = diffList(
+			current.tabs as Item[],
+			(loaded?.tabs as Item[] | undefined) ?? [],
+			TABS,
+		);
 		const props: Record<string, unknown> = {};
 		for (const [k, v] of Object.entries(current)) {
 			if (k !== "tabs" && JSON.stringify(v) !== JSON.stringify(loaded?.[k])) props[k] = v;
 		}
 		const unset = Object.keys(loaded ?? {}).filter((k) => k !== "tabs" && !(k in current));
-		if (!isEmptyPatch(tabs) || Object.keys(props).length + unset.length > 0) ribbons[loc] = { props, unset, tabs };
+		if (!isEmptyPatch(tabs) || Object.keys(props).length + unset.length > 0)
+			ribbons[loc] = { props, unset, tabs };
 	}
 	const lists = {} as WorkspaceDelta["lists"];
-	for (const f of Object.keys(DIFFED) as DiffedField[]) lists[f] = diffList(items(w[f]), items(state[DIFFED[f]]), LEAF);
+	for (const f of Object.keys(DIFFED) as DiffedField[])
+		lists[f] = diffList(items(w[f]), items(state[DIFFED[f]]), LEAF);
 	const other: Partial<WorkspaceSnapshot> = { ...w };
 	delete other.ribbons;
 	for (const f of Object.keys(DIFFED) as DiffedField[]) delete other[f];
@@ -308,9 +330,17 @@ export function draftWorkspace(draft: RibbonDraft, state: RibbonStoreState): Wor
 		def.tabs = patchList(d.tabs, items(loaded?.tabs ?? []), TABS);
 		ribbons[loc] = def as unknown as RibbonDefinition;
 	}
-	const workspace = { ...workspaceOf(state), ...clone(delta.other), ribbons } as WorkspaceSnapshot;
+	const workspace = {
+		...workspaceOf(state),
+		...clone(delta.other),
+		ribbons,
+	} as WorkspaceSnapshot;
 	for (const f of Object.keys(DIFFED) as DiffedField[]) {
-		(workspace as Record<DiffedField, unknown>)[f] = patchList(delta.lists[f], items(state[DIFFED[f]]), LEAF);
+		(workspace as Record<DiffedField, unknown>)[f] = patchList(
+			delta.lists[f],
+			items(state[DIFFED[f]]),
+			LEAF,
+		);
 	}
 	return workspace;
 }
@@ -331,25 +361,37 @@ const isListDelta = (v: unknown) => {
 	return !!x && typeof x === "object" && isArray(x.set) && isArray(x.drop) && isArray(x.add);
 };
 const isScopeLists = (v: unknown) =>
-	!!v && typeof v === "object" && isArray((v as Record<string, unknown>).entity) && isArray((v as Record<string, unknown>).application);
+	!!v &&
+	typeof v === "object" &&
+	isArray((v as Record<string, unknown>).entity) &&
+	isArray((v as Record<string, unknown>).application);
 
 /** Whether `d` has everything a delta needs (a damaged or hand-edited draft is not restored). */
 function isDelta(d: unknown): d is WorkspaceDelta {
 	if (!d || typeof d !== "object") return false;
 	const x = d as Record<string, unknown>;
-	const ribbons = x.ribbons as Record<string, { tabs?: unknown; props?: unknown; unset?: unknown } | undefined> | undefined;
+	const ribbons = x.ribbons as
+		| Record<string, { tabs?: unknown; props?: unknown; unset?: unknown } | undefined>
+		| undefined;
 	const other = (x.other ?? {}) as Record<string, unknown>;
 	return (
 		!!ribbons &&
 		typeof ribbons === "object" &&
 		Object.entries(ribbons).every(
 			([loc, def]) =>
-				LOCATIONS.includes(loc as RibbonLocation) && isListDelta(def?.tabs) && isObject(def?.props) && isArray(def?.unset),
+				LOCATIONS.includes(loc as RibbonLocation) &&
+				isListDelta(def?.tabs) &&
+				isObject(def?.props) &&
+				isArray(def?.unset),
 		) &&
 		isObject(x.lists) &&
-		(Object.keys(DIFFED) as DiffedField[]).every((f) => isListDelta((x.lists as Record<string, unknown>)[f])) &&
+		(Object.keys(DIFFED) as DiffedField[]).every((f) =>
+			isListDelta((x.lists as Record<string, unknown>)[f]),
+		) &&
 		isObject(x.other) &&
-		["pendingUnhides", "uncustomisedCommandIds"].every((f) => !(f in other) || isScopeLists(other[f])) &&
+		["pendingUnhides", "uncustomisedCommandIds"].every(
+			(f) => !(f in other) || isScopeLists(other[f]),
+		) &&
 		(!("customisedCommandIds" in other) || isArray(other.customisedCommandIds))
 	);
 }
@@ -387,11 +429,21 @@ export function readDraft(key: DraftKey): RibbonDraft | null {
 	if (!raw) return null;
 	try {
 		const stored = JSON.parse(raw) as Partial<StoredDraft>;
-		if (stored.format === DRAFT_FORMAT && sameDraftKey(stored.key, key) && typeof stored.data === "string") {
+		if (
+			stored.format === DRAFT_FORMAT &&
+			sameDraftKey(stored.key, key) &&
+			typeof stored.data === "string"
+		) {
 			const delta = decode(stored.data);
 			if (isDelta(delta)) {
 				const s = stored as StoredDraft;
-				return { format: s.format, key: s.key, savedAt: s.savedAt, baselineFingerprint: s.baselineFingerprint, delta };
+				return {
+					format: s.format,
+					key: s.key,
+					savedAt: s.savedAt,
+					baselineFingerprint: s.baselineFingerprint,
+					delta,
+				};
 			}
 		}
 	} catch {
@@ -399,6 +451,25 @@ export function readDraft(key: DraftKey): RibbonDraft | null {
 	}
 	deleteDraft(key);
 	return null;
+}
+
+/**
+ * Whether a usable draft is saved for `key` (the table picker's marker, #194):
+ * the checks readDraft makes, without decoding the changes.
+ */
+export function hasDraft(key: DraftKey): boolean {
+	try {
+		const raw = localStorage.getItem(draftStorageKey(key));
+		if (!raw) return false;
+		const stored = JSON.parse(raw) as Partial<StoredDraft>;
+		return (
+			stored.format === DRAFT_FORMAT &&
+			sameDraftKey(stored.key, key) &&
+			typeof stored.data === "string"
+		);
+	} catch {
+		return false;
+	}
 }
 
 export function deleteDraft(key: DraftKey): void {
@@ -429,7 +500,11 @@ export function discardOutdatedDrafts(now = Date.now()): number {
 		for (let i = 0; i < localStorage.length; i++) {
 			const k = localStorage.key(i);
 			if (!k) continue;
-			if (k.startsWith(PREFIX) ? expired(localStorage.getItem(k), now) : LEGACY_PREFIXES.some((p) => k.startsWith(p))) {
+			if (
+				k.startsWith(PREFIX)
+					? expired(localStorage.getItem(k), now)
+					: LEGACY_PREFIXES.some((p) => k.startsWith(p))
+			) {
 				outdated.push(k);
 			}
 		}

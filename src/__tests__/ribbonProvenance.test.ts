@@ -108,7 +108,10 @@ describe("applyProvenanceToRibbons", () => {
 		const ribbons = ribbonsWith([a, b]);
 
 		const provenance = new Map<string, ButtonProvenance>([
-			["msdyn.account.FS", { origin: "managed", solutionName: "Field Service", publisherName: "Microsoft" }],
+			[
+				"msdyn.account.FS",
+				{ origin: "managed", solutionName: "Field Service", publisherName: "Microsoft" },
+			],
 		]);
 		applyProvenanceToRibbons(ribbons, provenance);
 

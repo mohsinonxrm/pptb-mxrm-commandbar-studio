@@ -2,18 +2,23 @@ import React, { Suspense } from "react";
 import { Spinner } from "@fluentui/react-components";
 import { useUIStore } from "@/store/uiStore";
 
-const MonacoEditorLazy = React.lazy(() => import("@monaco-editor/react"));
+// Monaco (and its setup) loads with the first editor, not at startup (#118)
+const MonacoEditorLazy = React.lazy(() =>
+	import("@/utils/monacoSetup").then(() => import("@monaco-editor/react")),
+);
 
 export interface MonacoEditorProps {
-	language: "xml" | "javascript" | "typescript" | "css" | "html" | "json";
+	/** The languages monacoSetup bundles. */
+	language: "xml" | "javascript";
 	value: string;
 	onChange?: (value: string) => void;
 	readOnly?: boolean;
 	height?: string | number;
 	options?: Record<string, unknown>;
 	onMount?: (
-		editor: import("monaco-editor").editor.IStandaloneCodeEditor,
-		monaco: typeof import("monaco-editor"),
+		editor: import("monaco-editor/editor/editor.api").editor.IStandaloneCodeEditor,
+		// The instance monacoSetup bundles: the editor API, without the JSON / CSS / HTML services
+		monaco: typeof import("monaco-editor/editor/editor.api"),
 	) => void;
 }
 

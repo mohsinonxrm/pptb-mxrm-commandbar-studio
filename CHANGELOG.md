@@ -9,6 +9,645 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-14
+
+The UX overhaul in Fluent 2, and Edit mode. Command Bar Studio now shows a Structure tree and
+group cards you can reorder, edits commands, rules, scripts and XML in one drawer, and says what
+a publish will do before it runs. This release is 0.9.0-beta.1 to 0.9.0-beta.3, whose notes below
+are the full list. Requires Power Platform ToolBox 1.2.7 or later, as 0.8 does.
+
+### Highlights
+
+- **Edit mode (#193):**
+  - a Structure tree of tabs, groups and buttons, and group cards you can reorder;
+  - "How users see it", a preview of the command bar;
+  - a Solution tab, an entity picker in the top bar, and a List view that fits and sorts.
+- **One editor drawer** for commands, rules, scripts, XML, Compare and Translations, with Done
+  and one Undo step per drawer.
+- **Properties:** sections by kind, with texts shown as the canvas shows them. A button that
+  isn't yours is read-only until you customise it, and since beta.3 its rules can't be bound or
+  unbound from Properties either (#267).
+- **The publish dialog** says what will publish and why Publish is blocked.
+- **Dialogs** use one shell and open on the right control: search boxes get focus, and default
+  names are selected so typing replaces them (#268).
+- **Keyboard and screen readers (#23):** the pane resize handles work from the keyboard, and the
+  Classic and Modern canvases have accurate roles and keyboard selection.
+- **Lighter start (#118):** the code editor loads the first time you open one, with XML and
+  JavaScript only; the package is 2.7 MB smaller (16.3 → 13.6 MB unpacked).
+- **Fixes:** closing Compare no longer logs a disposed-model error (#266).
+
+### ⚠️ Upgrading from 0.8.x
+
+- **Changes you'll notice:**
+  - **Layout:** the entity picker moved from the left pane to the top bar. The left pane has
+    Structure and Solution tabs, and the canvas view (Group cards, Classic, Modern or List) is
+    picked from **View** above the canvas.
+  - **Editors:** commands, rules, scripts, XML, Compare and Translations open in one drawer
+    instead of separate panels and dialogs; **Done** closes it.
+  - **Microsoft's buttons:** Properties and the command editor are read-only for a button or
+    command that isn't yours until you choose **Customise command**.
+- **Nothing else changes:** the PPTB requirement and the published format are the same.
+- **0.8.x is end of life:** 0.8.0 is deprecated on npm and gets no support window, because
+  0.9.0 needs the same PPTB (see `SECURITY.md`).
+- **0.9.0-beta.3 wasn't published to npm.** Its fixes ship in 0.9.0.
+
+## [0.9.0-beta.3] - 2026-11-12
+
+Not published to npm: these fixes ship in 0.9.0.
+
+### 🔧 Fixed
+
+- **Closing Compare no longer throws an error (#266).** Closing **Compare with published** or a
+  History diff could log "TextModel got disposed before DiffEditorWidget model got reset" in the
+  tool's console. The editor library disposed the two texts before the diff editor that showed
+  them; now they're disposed after it. Compare's repaint listeners are released when it closes,
+  too: they were never removed, because Monaco doesn't announce when a diff editor is disposed.
+- **Properties no longer changes Microsoft's commands without Customise command (#267).** On an
+  out-of-the-box button, **Display rules** and **Enable rules** in Properties still offered Bind,
+  Create new rule and unbinding, which changed Microsoft's command straight away. The command
+  editor has kept such commands read-only since 0.9.0-beta.1. Properties now does the same: the
+  bound rules still open, and a line says to customise the command to change them. After
+  **Customise command**, binding works as before.
+- **Dialogs start where you type (#268).** The web resource browser and the icon picker open on
+  their search box instead of the Close button. New button, New group and New tab open with their
+  default name ("New Button", …) selected, so typing replaces it instead of adding to it; Renaming
+  a tab or group selects the current name.
+
+### 🏗️ Technical
+
+- **Every tag is checked in PPTB first (#263, as FetchXML Studio #306).** Each PR was checked in
+  PPTB on its own build, but the build a tag publishes (every merged change plus the version
+  bump, built by `release.yml`) wasn't run in PPTB until it was on npm. RELEASING.md's new
+  *Before every tag* step runs the rehearsal's `package` tarball in PPTB, with a short smoke
+  list that includes a publish on a test table, before any beta, stable or hotfix tag. The smoke
+  test of the published beta before `latest` stays.
+
+## [0.9.0-beta.2] - 2026-11-01
+
+### 🔧 Changed
+
+- **The Insider icon's gold corner is bigger, two-tone and flush with the edge (#236).** Betas
+  show a gold corner on the tool icon. It was small and light, and a blue sliver showed between it
+  and the hexagon's edge. It's now about 1.5 times larger, sits on both edges, and is split on the
+  same diagonal as the blue in two golds (`#CC8A00` and `#F2A100`), so it reads at the 20–24 px
+  PPTB shows. FetchXML Studio and Dataverse Request Studio use the same stamp. Restart PPTB to see
+  it: PPTB keeps tool icons until it restarts.
+- **The tool starts without loading the code editor (#118).** Monaco (about 4 MB) loaded with the
+  tool, before any editor opened. It now loads the first time you open the XML view, Compare, a
+  script, Import XML or the publish dialog's XML. It brings XML and JavaScript only: the other
+  languages and the CSS, HTML and JSON workers are gone, and the package is 2.7 MB smaller
+  (16.3 → 13.6 MB unpacked).
+
+### 🔧 Fixed
+
+- **The pane resize handles work from the keyboard (#23).** Tab to the handle beside the left
+  pane, the Properties pane or the bottom panel, then use the arrow keys (Shift for bigger
+  steps). Screen readers announce which pane it sizes, its width or height, and how far it can
+  go in this window. Dragging a handle saved the pane
+  sizes on every mouse move; it now saves them at most every quarter second.
+- **Screen readers get accurate roles on the Classic and Modern canvases (#23).** The Classic
+  canvas called itself a tree grid without rows or cells; its groups are now plain groups. The
+  selected button on both canvases is marked as current, instead of with an attribute buttons
+  don't support.
+- **The Classic canvas works from the keyboard (#23).** Tabbing to a button didn't select it:
+  its group took the focus event and selected itself instead. The arrow keys didn't move between
+  buttons you can drag, because the drag handler replaced the button's own. Enter or Space
+  picks a button up to move it with the arrow keys, as before, and now keeps that button
+  selected (its group moved the selection to the group's first button). Escape cancels the move
+  without leaving the canvas stuck in drag mode.
+- **The Structure pane's hint wraps inside its padding.** With no table chosen, the second line
+  of "Choose a table to see its tabs, groups and buttons." started at the pane's edge.
+
+### 🏗️ Technical
+
+- **Accessibility lint (#23).** The `jsx-a11y` recommended rules are on, so CI fails on new
+  keyboard and screen-reader problems. The few deliberate exceptions (dialog autofocus, the
+  command palette's options, focusable tooltip triggers, the resize handles) are disabled on
+  their line with the reason.
+- **Release workflow hardening (#250, as FetchXML Studio #188).**
+  - **Separate jobs:** `release.yml` is split into `build`, `publish` and `github-release`.
+    - The job that installs and runs the dependencies (`npm ci --ignore-scripts`, no cache, the
+      checks, the build) can only read the repository.
+    - Only `publish` can get the npm OIDC token, only for a tag push, and it installs no
+      project dependencies: it publishes the tarball `build` packed.
+    - Only `github-release` can write to the repository.
+  - **More checks before publishing:** the release build now also runs the runtime audit,
+    typecheck, lint and the package-contents check, so a tag on a commit that skipped CI can't
+    publish.
+  - **Pinned versions:** npm is pinned to 11.21.1 instead of `npm@latest`, and Node to 24.22.0.
+    The actions are pinned by commit SHA (checkout v7.0.1, setup-node v7.1.0, upload-artifact
+    v7.0.2, download-artifact v8.0.2). Each is at least 14 days old, the project's dependency
+    rule.
+  - **Rehearsal:** the workflow can run by hand as a rehearsal: every check and
+    `npm publish --dry-run`, with no npm token and no GitHub Release. A manual run never
+    publishes, even on a tag.
+  - **`latest` can't move back:** a stable tag gets `latest` only for main's own version line,
+    and a `support/X.Y` commit is checked first. Support branches merge forward into `main`, so
+    re-running an older line's release after that merge could have published it to `latest`.
+  - **CI:** uses `npm ci --ignore-scripts` and the same action pins, and doesn't keep the
+    checkout's token.
+- **Releases check what they must update (#246, as FetchXML Studio #270).** A new
+  `check-release.mjs` runs in CI (every PR, and pushes to the long-lived branches) and in the
+  release build. It fails when any of these don't match `package.json`'s version:
+  - the version's shape (`X.Y.Z`, `X.Y.Z-beta.N` or `X.Y.Z-rc.N`);
+  - `package-lock.json`;
+  - the CHANGELOG (a dated `[X.Y.Z]` section with entries, under `[Unreleased]`);
+  - the version badge (`assets/badges/version.svg` must be what `npm run version-badge` writes);
+  - after the build, the bundled icon (the Insider icon for pre-releases).
+
+  The GitHub Release notes are now built from the CHANGELOG section, after a line on the channel
+  and the PPTB requirement, with GitHub's PR list after them. Before, they were the PR list
+  alone, replaced by hand. A rehearsal previews them in the run summary. RELEASING.md has a
+  table of what every release changes, and an *After every release* checklist (the npm tag, the
+  published icon, the tracking issue, the forward merge, deprecating the replaced version).
+  Forward merges keep the higher version.
+- **Repository hygiene (#118).**
+  - **Dead code removed:** the unused PublishXml publish helpers (with their PublishAllXml
+    fallback), a second copy of the LocLabel XML builder, `groupTemplates.ts` (it listed
+    templates that don't exist), and five unused exports (`fetchPublisherPrefix`,
+    `isInsidePPTB`, `classicIdForMigratedCommand`, `isOverrideCustomAction`, `evaluateRule`).
+  - **A misleading comment corrected:** the generator's system-command filter doesn't keep
+    unchanged out-of-the-box commands out of a publish (the parser keeps their actions since
+    #42); `keepOnly` in `publishService` does.
+  - **Coverage:** `npm run test:coverage` (`@vitest/coverage-v8`), and CI writes the totals to
+    the run summary. It reports; it doesn't gate.
+  - **README:** removed features the tool doesn't have (the form ribbon scope selector, Power Fx
+    and Custom API actions, editing web resources in Monaco, the URL Action Composer) and the
+    old test counts; the roadmap points at the milestones.
+  - **CHANGELOG:** entries for 0.5.1 and 0.5.2.
+
+## [0.9.0-beta.1] - 2026-11-01
+
+The first beta of 0.9.0 (npm `beta`): the UX overhaul in Fluent 2, and Edit mode.
+- **Edit mode:** a Structure tree of tabs, groups and buttons; group cards you can reorder;
+  "How users see it", a preview of the command bar; a Solution tab; a table picker in the top
+  bar; and a List view that fits and sorts.
+- **One editor drawer** for commands, rules, scripts, XML, Compare and Translations, with Done and
+  one Undo step per drawer.
+- **Properties:** sections by kind, read-only for buttons that aren't yours until you customise
+  them, with texts shown as the canvas shows them.
+- **The publish dialog** says what will publish and why Publish is blocked.
+- **Every dialog** uses one shell and opens on the right control.
+- **A screen-based visual pass** at 1024 and 1920 px, in light and dark.
+
+It includes everything in 0.8.0. Requires Power Platform ToolBox 1.2.7 or later, as 0.8 does.
+
+### 🏗️ Technical
+
+- **Formatting is enforced (#118, item 1).** The codebase is formatted with Prettier once, in its
+  own commit (146 files: line wrapping, indentation, trailing commas and parentheses; no behaviour
+  change). CI now runs `npm run format:check` after lint, so unformatted code fails the build.
+  This comes first in the UI/UX work (#193), so later diffs show only real changes.
+- **Shared Fluent UI components (#190).** These are the pieces the UI/UX issues build on, so each
+  surface looks and behaves the same:
+  - `AppDialog`: one dialog shell in three widths (440 / 600 / 960 px). Only the content scrolls,
+    so the actions never leave the dialog. A close button, and `DangerButton` for destructive
+    actions.
+  - `PropertySection`: collapsible properties sections with one heading style. The open sections
+    are remembered.
+  - `IdField`: a long id shown read-only and truncated, with the full id in a tooltip and a copy
+    button.
+  - `LocationInfo`: "About this location", with an explanation of each ribbon location in Unified
+    Interface terms. It replaces permanent banners (#181).
+  - `MessageSlot`: one message bar at a time with "+n more". Dismissing is remembered until the
+    message changes.
+  - `RuleTag`: a bound rule, named by the part of its id that tells rules apart instead of
+    "EnableRule". Click to open, ✕ to unbind.
+  - **Lint guard:** components can't add raw `button`/`input`/`select`/`textarea`/`table`
+    elements, or text in an extra-small Badge. The files that still do are listed in
+    `eslint.config.js` and come off the list as their issues are fixed.
+
+### 🔧 Changed
+
+- **The top bar fits PPTB's widths (#179).** At about 1000–1200 px, the old top bar and sub-header
+  wrapped "Publish All" onto two lines. They also pushed View as, XML and Tab rules off-screen or
+  under the Properties pane. Now:
+  - **One top bar** replaces the sub-header row (36 px more for the canvas). It holds the
+    environment, solution, search, undo/redo, an **XML** menu (View XML, Import XML…, Compare with
+    published), **Open in Dynamics 365**, a **View** menu (Properties docked / floating / hidden,
+    the bottom panel) and Help.
+  - **Narrow windows:** tools that don't fit move into a **⋯** menu. **Publish** is never hidden.
+  - **Publish** says what it does ("Publish 2 changes"). With nothing to publish it's disabled,
+    and its tooltip says why.
+  - **Solution button:** shows just the solution's name. A warning icon appears when new ids would
+    use the org's default publisher prefix. The prefix, with an explanation, is in the picker.
+  - **Environment:** below 1200 px it shows just its type badge. The full URL is in a tooltip
+    you can reach with the keyboard.
+  - **Tool-wide messages** (connection changed, draft couldn't be saved) sit under the top bar
+    and push the panes down. They used to cover the left pane's tabs and the Properties header.
+  - **Below 1200 px wide,** the left pane becomes a rail that opens it as a drawer. Properties
+    opens as a drawer when you select something; the canvas stays usable behind it, so picking
+    another button updates it. At 1024 px the canvas went from about a third of the width to
+    nearly all of it.
+  - **The bottom panel starts collapsed** (new installs) and opens when you choose one of its
+    tabs.
+- **The rows above the canvas fit and work from the keyboard (#180).** The location row was
+  hand-rolled tabs that the keyboard couldn't reach. The ribbon tab strip stacked each tab's label,
+  its full id and a delete button into 32 px, and pushed Add tab and Tab rules off-screen.
+  - **Locations use Unified Interface names:** Main grid · Main form · Sub-grid · Application. They
+    form a Fluent tab list (arrow keys, Enter) with a **More** menu when they don't fit.
+  - **About this location (ⓘ)** explains each location and shows its ribbon id.
+  - **App and View are compact menus** instead of 170 px drop-downs. The canvas's own XML button is
+    gone: the top bar's XML menu is the one entry point.
+  - **Ribbon tabs show their label only.** The id is in a tooltip. Double-click or F2 still renames.
+    **Tab options (⋯)** holds Rename…, Tab display rules…, **Move left / Move right** (the keyboard
+    way to reorder; dragging still works), and Delete tab….
+  - **Add tab and Tab rules** (with its rule count) stay reachable however many tabs there are.
+    When a rename isn't allowed, the reason is announced to screen readers.
+- **Fewer, readable messages (#181).** Up to five permanent banners used to stack above the
+  canvas, and two or three more above a built-in button's properties. The long ones were clipped
+  to one line.
+  - **Gone from the canvas:** the Form, Sub-grid and Application notes are now in **About this
+    location**. A custom tab's Unified Interface note is behind an info button in the tab strip.
+  - **One message at a time, with "+n more":** things you need to act on share a single slot.
+    These are the unread-layer warning (with Retry), the Charts-tab warning, and the orphans
+    message (with Show). Dismissing the orphans message is remembered until their number changes.
+  - **Properties shows one notice for a button that isn't yours** (out of the box, managed, or
+    customized by several solutions). It comes with Customise button, Create override and View
+    solution layers. A modern command that replaces the button is the second notice.
+  - **Explanations became info buttons or hints:**
+    - "Disabled buttons are hidden in Unified Interface" in the rules sections;
+    - "enable rules allow fewer step types" in the rule editor;
+    - the ampersand note on a URL action's address.
+  - **Removed:** the developer note about "Monaco editing … integration path", and the "Your own
+    command." bar (its badge says it).
+- **Clear empty, loading and error states (#195).**
+  - **Before a solution is chosen,** the canvas offered "This tab has no groups yet · Add
+    first group". Now it says **Choose a solution to start**, and its button opens the solution
+    picker.
+  - **With a solution but no table:** **Pick a table**. Choose table opens the tables drawer in
+    a narrow window, or puts you in the table search otherwise.
+  - **Loading** shows a progress bar, a skeleton in the shape of the canvas, and a status line
+    with the table and step.
+  - **A failed load** is a titled error with a plain-language cause (for example "Your
+    connection may have expired." for a 401) and Retry. The raw details are in a collapsible
+    section with Copy details.
+  - **Compare with nothing changed** says "No changes since the last publish", with **Show the
+    full XML anyway**, instead of a diff of identical XML.
+  - **Publish with nothing to publish** is disabled with a reason (see the top bar above).
+- **Confirmation dialogs** use the shared dialog shell: 440 px wide, with the confirm button
+  red when it deletes or discards something.
+- **Badges fit their text (#182).** Fluent's extra-small badge is a 10 px dot, so "NEW",
+  "Modern (migrated)", "Hidden by modern", control kinds and app names spilled over their
+  neighbours. Text badges are now the small size and never shrink below their text. On the
+  Modern command bar, buttons keep their full label and the row scrolls instead of squeezing
+  them. Your own Classic tiles are marked with a labelled dot ("Yours: added by your
+  customizations") instead of "NEW" text over the label.
+- **One button menu everywhere (#182).** Right-clicking a button on the Classic or Modern canvas
+  opens the same menu with the same items in the same order:
+  - Edit properties, Change icon, Edit labels;
+  - Hide or Show, Create override, Customise;
+  - Duplicate, **Move to ▸** (a submenu of groups, not one item per group);
+  - **Delete…** last, in red, and it asks first.
+
+  It opens at the button, so Shift+F10 and the Menu key work too; it used to open at the top
+  left from the keyboard. Notes such as "Microsoft's global command bar buttons can't be
+  changed" are headings in the menu, not greyed-out items.
+
+- **Properties says what is selected (#184).** A header stays at the top while you scroll: the
+  button's icon and label, whose it is (**Yours**, **Out of the box** or **Managed · solution**)
+  and its kind. Its close button clears the selection when docked, or closes the drawer in a
+  narrow window (where it replaces the drawer's own). The fields are in collapsible sections
+  that remember what you opened:
+  - **Appearance:** label, translations, tooltips, icon, Visible, and the **Button ID**;
+  - **Position:** the group and the order, with a hint;
+  - **Command:** the **Command ID** with **Edit command**;
+  - **Display rules** and **Enable rules**, with a count;
+  - **Scaling:** the tab it applies to, by name. A note says Unified Interface ignores it,
+    instead of a warning box on every button.
+  - **Advanced:** kind (now "Split button", not `splitButton`), template alias with a hint, and
+    the rest.
+
+  Both ids are read-only with a copy button and the full id in a tooltip. The doubled padding,
+  dividers and left border are gone.
+- **Show on, rules and binding in Properties (#184).**
+  - **Show on** (in Appearance) is one choice, All clients / Unified Interface only / Classic web
+    client only, instead of three badges that each added a filter. It shows what the command's
+    display rules already say, or **Custom** when they don't match one choice. It names the other
+    buttons that use the same command, since they change too. On Microsoft's commands it's
+    read-only: customise the command first. Choosing Unified Interface only also removes
+    `Mscrm.HideOnModern` from your command, which together with it would hide the button
+    everywhere.
+  - **Bound rules** are tags: the name opens the rule, ✕ unbinds it. They work from the keyboard;
+    the old pills didn't.
+  - **Binding a rule or a command** uses a list you can filter by typing, instead of a long
+    drop-down. **Bind** stays disabled until you pick one.
+- **Properties on Microsoft's buttons is read-only (#184).** Their Label, tooltips, order,
+  template alias, languages, icon and images can't be edited directly, and the fields now say so
+  ("Customise this button, or create an override, to edit these fields.") instead of looking
+  editable. Your own buttons, and Microsoft's once customised or overridden, stay editable.
+  Also in Properties:
+  - The languages of a button's text are keyboard-reachable tags, and its Image16/32 are links.
+    Before, they were click-only badges and raw buttons.
+  - "ModernImage (auto)" is now **Modern image**, with a hint saying what it is.
+  - The record-open override (OpenRecordItem) and the form note explain themselves behind an
+    info button, instead of about 110 words of small text, internal XML paths and an issue
+    number. The raw "Tab:" id line is gone.
+  - Deleting an orphaned customization you published recently asks in a dialog with a red
+    **Delete anyway**, instead of a second inline button.
+  - The Hidden, Orphaned and read-only lists use one heading style.
+- **Clearer dialogs (#187).**
+  - **Hiding a button that isn't yours** offers two plain choices:
+    - **Hide this button only:** you can show it again under Hidden by customizations.
+    - **Hide it with display rules on its command:** easy to undo, but it hides every button
+      that uses the command, and the dialog names them. A button on another location says
+      where, e.g. "Edit (main form)", in this dialog and under Show on.
+
+    Display rules are the default only when no other button uses the command. Before, the
+    permanent HideCustomAction was the default, and the text was full of jargon.
+  - **Discard** in the unpublished-changes and restore-draft dialogs is red and says **Discard
+    changes**; **Restore changes** says what it does.
+  - **New group** offers the platform's group templates, as Change template does. The made-up
+    "Layout3" is gone.
+  - **New tab** has one hint instead of two info bars. The id it will get is read-only with a
+    copy button, and the location is named in the title ("New tab on the home grid") instead of
+    "Location: HomepageGrid".
+  - New button, Rename group, Change template, New group, New tab and the two
+    unpublished-changes dialogs all use the shared dialog shell. Their actions never leave the
+    dialog, and titles are in sentence case. The dialogs' extra entrance animation is removed.
+- **The publish dialog says what it publishes first (#188).**
+  - **One row per change**, in words, with a badge (New, Change, Move, Show, Hide, Delete):
+    "Add **Credit Check** to the main grid and main form", "Hide **Edit** on the main grid".
+  - **Same count everywhere:** the top bar's **Publish n changes** and the dialog's primary
+    button count these rows, not edits. Five edits of one label are one change.
+  - **When Publish is blocked, it says why**, above the changes: no solution, changes that can't
+    be published yet, problems the check found, nothing to publish, or publishing everything
+    without its confirmation. Problems opens by itself.
+  - **Folded away until needed:** Problems, Warnings, Good to know, and Options. Options holds
+    what else to publish, the solution version (the switch now comes before the field) and the
+    comment. "PublishAllXmlAsync" is no longer shown.
+  - **View XML** shows the complete RibbonDiffXml each import writes (your layer with the
+    changes merged in) inside the dialog. Going back keeps the comment and the confirmation;
+    before, it closed the dialog.
+  - **Progress in words** ("Publishing…", "Done", "Failed"). Afterwards it says "Published 2
+    changes to CBS Ribbon Test", and that Unified Interface can take up to about 25 minutes to
+    show it (Command Checker's **Regenerate ribbon metadata** shows it sooner).
+  - The title names what publishes ("Publish CBS Ribbon Test") instead of "Publish to Dataverse",
+    and the dialog uses the shared dialog shell.
+- **One editor drawer (#186, part 1).** The command and rule editors are views of one drawer
+  instead of drawers stacked on drawers.
+  - **A rule opened from the command editor** replaces the view, with a **Back** button to the
+    command and a trail ("Edit command › Edit enable rule"). One backdrop, never two.
+  - **The header says what you're editing** ("Edit command", "Edit display rule"), with the id
+    read-only and a copy button. A command also shows whose it is: Yours, Your copy, or
+    Read-only.
+  - **One Done button**, with "Changes apply as you edit · Ctrl Z to undo". Closing it any way is
+    safe: changes already apply as you make them.
+  - **One undo step per drawer:** everything changed between opening the drawer and Done is
+    undone with a single Ctrl Z.
+  - The drawer's body is the only thing that scrolls; the editors' own padded scroll areas are
+    gone.
+- **The command editor, redone (#186, part 2).**
+  - **Its tabs sit in the drawer's header**, so they never scroll away: Actions, Enable rules (n),
+    Display rules (n) and Used by (n). The tab you're on is kept while you look at a rule.
+  - **Out-of-the-box commands are read-only until you customise them.** Before, editing one
+    customised it without asking. The fields look read-only, one line says why, and
+    **Customise command** is next to it. Viewing the script and opening a rule still work.
+  - **One Add action menu** (Run JavaScript, Open a URL) instead of a dropdown and two buttons.
+  - **Each action is a card** with a drag handle, Move up / Move down in its ⋮ menu, and Remove.
+  - **View script / Edit script** open the script inside the drawer, filling its height, with
+    Back to the command. Edit script saves straight to Dataverse, and says so. The "Monaco"
+    wording and the "integration path" note are gone.
+  - **Pass parameters** is a labelled switch instead of a button reading "✓ PassParams ON".
+  - **Plain labels and hints:** Library, Function ("The function's full name, including its
+    namespace."), Parameters, in order; the address error is a field message.
+  - **Rename** is a pencil next to your own command's id, with the error under the field.
+    Settings and Versions are gone (History in the bottom panel covers the second).
+  - **Used by** names each button and where it is ("Main grid › Main › Management").
+  - **Rules are tags:** open one with a click, unbind it with its ×. **New enable rule** now also
+    adds the rule to the command.
+- **Rules, tab display rules and scaling (#186, part 3).**
+  - **The editor drawer is 720 px wide for every view**, so it doesn't change width when you open a
+    rule from a command and go back. A rule's nested Or steps no longer scroll sideways: parameter
+    rows shrink and wrap instead of sizing themselves to their longest option.
+  - **The rule view** says "Passes when every step below is true." Steps are numbered, with a
+    drag handle and Move up / Move down in a ⋮ menu (the "Drag" text button is gone). The header
+    shows the rule's id with copy, **Rename** for a rule that isn't Microsoft's (errors under the
+    field; the "Apply ID change" row is gone) and how many commands use it. "In words" heads the
+    summary.
+  - **Tab display rules open in the editor drawer and apply as you edit.** Save and Cancel are
+    gone: Done, and one Ctrl Z undoes everything done there. Steps are numbered cards; on the
+    application ribbon Add step offers a table step or a page step. An empty page address is a
+    field error (and Publish's check still blocks it). A tab another solution adds says so and is
+    read-only.
+  - **Scaling is read-only for now (#165).** Changes to scaling could never be published, so the
+    Scaling editor is removed until #165 makes them publishable. Properties shows the tab's
+    groups and scaling steps, and says scaling only shapes the classic ribbon.
+- **XML and Compare in the editor drawer (#186, part 4).**
+  - **The XML of your changes opens on the location you're looking at**, not always on the home
+    grid, with Unified Interface names on its tabs. Copy, Download, Format and Import this XML sit
+    in a toolbar. Import takes the drawer's place instead of opening a dialog over it.
+  - **Compare with published** fills the drawer's height; Side by side / Unified are tabs.
+  - **History's View diff shows what that change did.** Before, every entry showed everything
+    since the last publish while saying it showed the entry's change.
+  - **No more "View solution layers".** Its drawer listed every solution in the environment as
+    a "layer" of the button, and called the newest the winner, whatever the button was. Dataverse
+    layers ribbon customizations per table, not per button; the button's notice still names the
+    managed solution and publisher it comes from.
+- **List view:** the buttons table no longer runs under the modern commands below it on a short
+  window. It's as tall as its rows, up to ten, and scrolls for more.
+- **Import RibbonDiffXml in two columns (#187, part 2).**
+  - **The editor keeps its height.** Before, it shrank to almost nothing after a preview, as the
+    message bars piled up under it. The preview now sits beside it and scrolls on its own.
+  - **One line above the editor** ("From Ribbon Workbench or a solution's customizations.xml. Only
+    <table>'s part is used.") replaces the 70-word introduction.
+  - **The preview counts what it found** ("Preview · 2 changes, 1 problem"), lists each change with
+    an Add / Update / Hide badge, and lists every problem in one list instead of a message bar per
+    error. A problem with a line ("Line 3: …") moves the editor to that line.
+  - **Import says how many changes it brings** ("Import 2 changes") and is off while there are
+    errors. Preview becomes "Preview again". After the import there's one Close button.
+  - **XML parse errors read as the parser's message**, without the browser's "This page contains
+    the following errors" wrapper.
+  - The dialog uses the shared dialog shell at its large size.
+- **Translations in the editor drawer, applied as you type (#187, part 3).**
+  - **No Save or Cancel:** a change applies as you type, and one Ctrl Z undoes the whole edit.
+    The base language is still the button's own text (#157) and can't be emptied ("A button needs
+    a label."). Other languages are written to the button's labels with the base text kept in
+    step; opening it writes nothing.
+  - **Languages by name** ("German · 1031") instead of emoji flags, which Windows showed as
+    letter pairs. Each language is a card of labelled fields ("Label (German)"), not a raw table
+    of browser inputs that turned into white boxes in dark theme.
+  - **Add a language** from a list, or by LCID; a language you add stores nothing until it has
+    text. Remove one with its delete button, which the keyboard reaches.
+  - **A line-break button** in each label field; the hint no longer garbles its own example.
+  - **A built-in or another solution's button is read-only here too**, as in Properties.
+- **The icon picker, redone (#187, part 4).**
+  - **Icons are buttons** in one group the arrow keys move through; Enter picks one. Before they
+    were clickable boxes the keyboard couldn't reach.
+  - **Regular / Filled are two toggles** whose labels stay put; the switch's label flipped with
+    its state.
+  - **The selection names the icon** ("Edit · Filled") and the web resource it's saved as, instead
+    of a raw `ModernImage="$webresource:…"` string.
+  - **Web resources:** the first 300 show, and the count says so ("Showing 300 of 1,240 SVG web
+    resources. Search to find others."); before, the list stopped at 200 without a word. The rows
+    are buttons, and the field takes a plain name.
+  - **Upload SVG is a real drop zone** with a **Choose SVG…** button; before it said "Drag an SVG
+    here" and ignored the drop. A file that isn't an SVG is refused with a message.
+  - Errors and notes are message bars, and the dialog uses the shared dialog shell.
+- **The command palette, redone (#189, part 1).**
+  - **A real dialog:** focus stays in it, and Escape or a click outside closes it. Its search box
+    is Fluent's, readable in dark theme and with a focus outline.
+  - **The highlighted result follows the arrow keys** (Home and End too), stays in view, and is
+    announced to screen readers. Enter chooses it.
+  - **Choosing a button selects it on the canvas**, on its location and tab; before, it only
+    closed the palette. Its line names where it is ("Main form › Main › Management") without raw
+    location names or `$LocLabels:` tokens.
+  - **Grouped results** (Actions, Buttons, Commands, Rules, Tables) with readable kinds, and a
+    count of what's left when a group is cut ("12 more: keep typing to narrow it down").
+  - **`/` shows only actions and `@` only tables**; `/` used to filter nothing.
+  - **Only actions that can run are listed:** Undo and Redo when there's something to undo or
+    redo, Translations for a selected button you can edit, New button when there's a group.
+  - **No theme toggle:** the theme follows Power Platform ToolBox's setting.
+- **The shared editors, redone (#189, part 2).**
+  - **Parameter rows label every field** (Type, Name, Value) and use plain type names ("From the
+    context", "Text", "True or false", "Whole number", "Decimal number"). Context values are
+    grouped (Context, Record, Selection context, Grid selection, Org/User) instead of one list of
+    23. A URL parameter without a name says so under its field instead of showing a coloured dot,
+    and true / false is a switch.
+  - **Rule steps show friendly names** for the values the XML keeps ("Existing record", "Primary
+    table (the form or grid)", "Sub-grid", "User (Basic)", "One-to-many"…), use spin buttons for
+    counts and versions ("At least" / "At most"), and explain "If it can't be evaluated" and
+    "Invert result" on screen instead of in hover-only tooltips. Their fields wrap in a grid.
+  - **Kinds of step have plain names** ("Table privilege", "Your JavaScript", "Column value",
+    "Selected records"…), in groups such as Client and device, Form, Table and Your code. The
+    step picker searches with a Fluent search box and the arrow keys; the Quick action note is an
+    info button.
+  - **Provenance actions** (Customise, Uncustomise, Discard) sit in the message bar's actions area.
+- **Tables are picked in the top bar (#194, step 1).** The left pane's Tables tab is replaced by a
+  Table combobox next to the solution, the first step of Edit mode.
+  - **The list** groups the solution's tables as Custom and Standard, with their logical names.
+    Typing filters by display or logical name. Alt+↓ opens it, and Escape closes it.
+  - **Markers:** the open table shows its number of unpublished changes. Another table with a
+    draft saved on this computer shows "Draft", and managed tables show a lock.
+  - **Switching** still asks first when there are unpublished changes.
+  - **"Choose table"** on the empty canvas opens the list, at any window width.
+  - **The left pane** shows Solution Elements only, until the Structure tree arrives (#194,
+    step 2).
+- **The location's tabs, groups and buttons are a tree in the left pane (#194, step 2).** The left
+  pane has two tabs: **Structure** (the default) and **Solution**, which shows Solution Elements
+  as before. The ribbon tab strip above the canvas is gone.
+  - **The tree** shows tab › group › control for the location you're on. Groups show how many
+    controls they have, and controls show their Sequence or **Hidden**, a dot for yours, and are
+    listed in Sequence order.
+  - **Choosing a node** (click or Enter) shows that tab on the canvas, or selects the group or
+    control on the canvas and in Properties. A selection made on the canvas is shown in the tree,
+    with its group opened. The arrow keys move through the tree.
+  - **Each node has a menu:** right-click, Shift+F10, the Menu key, or its **⋯** button. A tab's
+    menu has Rename…, Tab display rules… (with the rule count), Add group…, Move up / Move down
+    and Delete tab…. Groups and controls have the same menus as on the Classic canvas; a group's
+    menu now also has **Add button…**. F2 renames a tab or group, or says why it can't be renamed.
+  - **Filter** by label or id: a match's tab and group stay open.
+  - **Add tab** is next to the filter. How Unified Interface shows a custom tab is behind an info
+    button in the location row.
+  - **Below 1200 px** the rail button opens Structure and Solution as a drawer. Choosing a group or
+    control closes it and opens Properties; a node's menu keeps it open.
+- **Group cards (#194, step 3).** A new **Group cards** view, the default for anyone who hasn't
+  chosen a view: a card per group of the tab, with its template, and its buttons in Sequence order.
+  - **Rows** show the icon, the label, **Hidden** or **Yours**, and the Sequence. Click a row (or
+    Enter) to select it; right-click, Shift+F10 or the Menu key opens the button's menu.
+  - **Drag rows** to reorder them or move them to another card, with the pointer or the keyboard:
+    Space picks a row up, the arrow keys move it, Space or Enter drops it and Escape cancels. A
+    button that isn't yours moves as your copy, as on the Classic canvas (#26).
+  - **Each card's ⋮ menu** is the group menu: Add button…, Rename…, Duplicate group, Change
+    template…, **Move left / Move right** and Delete group. **+ Add button** is at the foot of the
+    card.
+- **"How users see it" (#194, step 4).** Above the group cards, the tab's commands as the Unified
+  Interface command bar lists them: groups and buttons in Sequence order, without the ones your
+  customizations or a modern command hide, a button a migrated modern command replaces under that
+  command's name, and the visible modern commands among them. What doesn't fit goes into a **⋮ n**
+  menu, as in Unified Interface, and the selected command is always in view. Choosing a command
+  selects it on the cards, in the tree and in Properties. It's marked **Preview: rules not applied**:
+  display and enable rules are evaluated by Simulate mode (#191).
+- **Visual pass, part 1 (#229).** From screenshots of CBS in PPTB Desktop at 1024 and 1920 px:
+  - **Properties of a button that isn't yours** shows its Label and tooltips as the canvas does
+    ("Save And New", not `Ribbon.Form.MainTab.Save.SaveAndNew`), in fields that look read-only; the
+    key they come from is the field's hint.
+  - **Placeholders and resource keys read as words:** the application ribbon's
+    `{!EntityPluralDisplayName}` tabs show "‹table name, plural›", and keys such as
+    `WebResource_Tab_Caption` or `Mscrm_…_ToolTipTitle` show "Web Resource" or the button's name.
+  - **No content text below Caption 1 (12 px):** small text, badges and counters are a size up across
+    Edit mode, the panes, the bottom panel and the dialogs (the Classic canvas's tiles excepted).
+  - **The bottom panel's grids no longer scroll sideways** because of their own vertical scrollbar.
+- **Visual pass, part 2 (#229):** every dialog, the editor drawer's views and the publish dialog,
+  from screenshots in PPTB Desktop at 1024 and 1920 px.
+  - **Dialogs open on the right control.** New button, New group, New tab and Rename start in their
+    name field, not on the close button. Unpublished changes from an earlier session start on
+    **Restore changes**, so Enter keeps your work instead of discarding it.
+  - **Small dialogs' buttons fit on one line** ("Create group", "Change template" no longer wrap).
+  - **Choose a web resource** (from Properties or a JavaScript action) uses the same dialog as the
+    rest of CBS. Its list fills the dialog at any window size, Enter chooses a row, and Cancel or Close
+    never delivers a choice later.
+  - **Below 1200 px, Properties opens under the top bar**, so Publish, Search and the tools stay in
+    reach while you edit.
+  - **The List view's header sticks to the top edge;** rows no longer show above it as you scroll.
+  - **Rule steps fit the drawer:** a step's dropdowns no longer run out of its box, and the step
+    list opens inside the drawer.
+  - **Translations:** Label, Tooltip title and Tooltip body line up at the top.
+  - **The publish dialog** shows **What Publish imports** wide, and Solution version at the size of
+    the fields around it.
+  - **Icon names wrap between words** ("Clipboard / Paste", not "ClipboardPast / e").
+  - **Help lists the shortcuts** one to a line. **Compare** shows a count of none in neutral, not
+    red. The bottom panel's grids say they fill in once the ribbon loads, instead of "No
+    commands." while it loads. One level into the editor drawer, the header no longer repeats the
+    Back button's name.
+  - **The URL Action Composer is gone.** Nothing opened it, and URL actions are edited in the command
+    editor.
+- **Visual pass, dark theme (#229):** every view, the panes and the dialogs captured with PPTB in
+  dark.
+  - **Button images read in the dark theme.** Ribbon images are drawn for a light command bar, so dark
+    glyphs (Sequences, AI Builder) nearly vanished. An image whose visible pixels are dark is now
+    shown inverted, in every view including the Classic ribbon; coloured and light images (Power BI,
+    Launch playbook) are shown as drawn.
+  - **The List view's Modern badge stays in its column:** after a long label, it ran into Kind.
+- **The bottom panel's Commands and rules are grids (#185).** Hundreds of rows stay quick
+  (virtualized), the header stays put while the rows scroll, and nothing scrolls sideways: ids are
+  cut to their column with the whole id in a tooltip.
+  - **A command's rules are tags** that show the part of the id that tells them apart
+    (`ExactlyOneSelected`, not `EnableRule`), and open that rule.
+  - **One target per row:** a click or Space marks the row, **Edit**, Enter or a double-click opens
+    the editor. The rules' constant Type column is gone.
+  - **Counts** are badges on the tabs; a tab opens a collapsed panel.
+  - **Used by** counts the same way as the Solution tab: a command by the tabs, groups and controls
+    that use it, a rule by the commands that list it, per kind.
+- **Search fields are SearchBoxes (#185),** with a clear button: the bottom panel's filters and the web
+  resource browser's search.
+- **The Solution tab's + makes a New enable rule or a New display rule (#185),** not always an enable
+  rule. Template rows are plain rows, and branch counts are badges.
+- **The List view fits and sorts (#183).** The grid is as tall as its rows, so only the canvas
+  scrolls, with the header kept in view; nothing scrolls sideways at 1024 px.
+  - **Columns:** #, Label (with its icon, and the id in its tooltip), Kind (`Split button`, not
+    `splitButton`), Group, Visible and **⋯**. ID and Command are in the **Columns** menu.
+  - **Sorting** works on every column; rows start in the order the tab shows them.
+  - **Rows are selected** with a click or Enter, as everywhere else (no radio buttons); the row's
+    menu is the button menu (**⋯**, right-click, Shift+F10).
+  - **Modern commands** are a collapsible section below the grid, with columns that truncate
+    instead of scrolling sideways.
+  - **Menus no longer select what they're opened on,** in the List and on the group cards: in a
+    narrow window that opened Properties, which took the focus and closed the menu.
+- **The Solution tab is one tree (#194, step 5).** Buttons, Commands, Rules and Templates are
+  branches with a count, searched together; a branch with matches opens. Each row shows the part of
+  its id that tells it apart (e.g. `ExactlyOneSelected`, not `EnableRule`), with the whole id as its
+  description, and how much it's used (`used 3×`, Enable / Display). A branch lists 100 rows at a
+  time (**Show n more**), so the 498 commands of a table open at once. Choosing a command or rule
+  opens its editor; a button is selected, and its menu (right-click, Shift+F10 or ⋯) has **Go to
+  button** and **Add to** each group of the open tab, which adds your copy of it there. **+** makes a
+  new command or rule.
+- **Two rail buttons below 1200 px (#194).** **Structure** and **Solution** each open the left pane
+  as a drawer on that tab.
+- **Groups can be moved within their tab (#194).** Like tabs (#163), a group your customizations add,
+  or a new one, gets a Sequence between its new neighbours and the publish writes it. Two other
+  groups can't change places, so Move left / Move right are off there and say why. In the Structure
+  tree they read **Move up / Move down**.
+- **A moved button is placed in Sequence order (#194).** Dropping a button before another now
+  places it among the destination group's buttons in Sequence order, the order Unified Interface
+  shows, not the order the ribbon XML happened to list them in.
+
+### 🔧 Fixed
+
+- **Compare's XML diff is coloured (#195).** With a table open and a change pending, Compare
+  showed most of the XML without syntax colours: the editor painted before the colours were
+  ready and didn't repaint. It now repaints when they arrive.
+
 ## [0.8.0] - 2026-11-01
 
 Publish correctness and load performance. Tables open faster, and built-in buttons show captions
@@ -679,6 +1318,18 @@ in the desktop app and the VS Code extension. 0.5.x stays available for PPTB ver
   - **Simpler tooling** — removed husky + commitlint (git hooks), release-it, the old Dependabot
     config (replaced, see above), coverage, the bundle analyzer and unused testing-library packages (12 dev dependencies
     in total).
+
+## [0.5.2] - 2026-07-17
+
+Republished 0.5.1 (same commit, `274eb2a`); no changes.
+
+## [0.5.1] - 2026-07-17
+
+Published to npm before the repository had tags or CI.
+
+- **Monaco works inside PPTB.** Its language workers are bundled with the tool, same-origin,
+  instead of being fetched, which PPTB's content security policy blocks (`e8aaf9c`).
+- **npm packaging metadata** for the ToolBox (`274eb2a`).
 
 ## [0.5.0] - 2026-07-16
 

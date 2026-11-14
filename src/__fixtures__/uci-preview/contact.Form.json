@@ -1,0 +1,185 @@
+{
+	"source": {
+		"org": "CRM279420 (org382cc706), Dataverse 9.2.26092.168",
+		"app": "Sales Hub (msdynce_saleshub)",
+		"recorded": "2026-10-29",
+		"page": "contact main form (Contact): existing record, new record, and an inactive record (read-only, 'This record's status: Inactive'), ribbondebug=true",
+		"notes": "Items are in rendered order. A '|split' or '|flyout' suffix gives the rendered kind (no suffix: plain button). On a form the bar's aria-label is 'Commands'. Mscrm.HomepageGrid.contact.MBPF.ConvertTo (Process) is a HomepageGrid id that renders on the form bar. At 820 px, items clipped off the bar were also laid out in the bar; only the overflow position is kept."
+	},
+	"entity": "contact",
+	"location": "Form",
+	"labels": {
+		"Mscrm.Form.contact.Save": "Save (CTRL+S)",
+		"Mscrm.Form.contact.SaveAndClose": "Save & Close",
+		"Mscrm.Form.contact.NewRecord": "New",
+		"Mscrm.Form.contact.ViewOrgChart": "Open org chart",
+		"Mscrm.Form.contact.Deactivate": "Deactivate",
+		"Mscrm.Form.contact.Activate": "Activate",
+		"Mscrm.Form.contact.AddConnection": "Connect",
+		"Mscrm.Form.contact.AddToList": "Add to Marketing List",
+		"Mscrm.Form.contact.Assign": "Assign",
+		"Mscrm.Form.contact.Delete": "Delete",
+		"Mscrm.Form.contact.RefreshModernButton": "Refresh",
+		"AccessChecker.OpenDialog.contact.Button": "Check Access",
+		"msdyn.Form.contact.SequencesMulti.Button": "Sequences",
+		"Mscrm.HomepageGrid.contact.MBPF.ConvertTo": "Process",
+		"Mscrm.Form.contact.FollowButton": "Follow",
+		"Mscrm.Form.contact.Flows.RefreshCommandBar": "Run Flow",
+		"Mscrm.Form.contact.WordTemplate": "Word Templates",
+		"Mscrm.Form.contact.Reports": "Run Report",
+		"CommandChecker": "Command checker"
+	},
+	"states": {
+		"existing.w1920": {
+			"visible": [
+				"Mscrm.Form.contact.Save",
+				"Mscrm.Form.contact.SaveAndClose",
+				"Mscrm.Form.contact.NewRecord",
+				"Mscrm.Form.contact.ViewOrgChart",
+				"Mscrm.Form.contact.Deactivate",
+				"Mscrm.Form.contact.AddConnection|split",
+				"Mscrm.Form.contact.AddToList",
+				"Mscrm.Form.contact.Assign",
+				"Mscrm.Form.contact.Delete",
+				"Mscrm.Form.contact.RefreshModernButton",
+				"AccessChecker.OpenDialog.contact.Button",
+				"msdyn.Form.contact.SequencesMulti.Button|split"
+			],
+			"overflow": [
+				"Mscrm.HomepageGrid.contact.MBPF.ConvertTo|flyout",
+				"Mscrm.Form.contact.FollowButton",
+				"Mscrm.Form.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.Form.contact.WordTemplate|flyout",
+				"Mscrm.Form.contact.Reports|flyout",
+				"CommandChecker"
+			]
+		},
+		"existing.w1280": {
+			"visible": [
+				"Mscrm.Form.contact.Save",
+				"Mscrm.Form.contact.SaveAndClose",
+				"Mscrm.Form.contact.NewRecord",
+				"Mscrm.Form.contact.ViewOrgChart",
+				"Mscrm.Form.contact.Deactivate",
+				"Mscrm.Form.contact.AddConnection|split"
+			],
+			"overflow": [
+				"Mscrm.Form.contact.AddToList",
+				"Mscrm.Form.contact.Assign",
+				"Mscrm.Form.contact.Delete",
+				"Mscrm.Form.contact.RefreshModernButton",
+				"AccessChecker.OpenDialog.contact.Button",
+				"msdyn.Form.contact.SequencesMulti.Button|split",
+				"Mscrm.HomepageGrid.contact.MBPF.ConvertTo|flyout",
+				"Mscrm.Form.contact.FollowButton",
+				"Mscrm.Form.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.Form.contact.WordTemplate|flyout",
+				"Mscrm.Form.contact.Reports|flyout",
+				"CommandChecker"
+			]
+		},
+		"existing.w820": {
+			"visible": ["Mscrm.Form.contact.Save", "Mscrm.Form.contact.SaveAndClose", "Mscrm.Form.contact.NewRecord"],
+			"overflow": [
+				"Mscrm.Form.contact.ViewOrgChart",
+				"Mscrm.Form.contact.Deactivate",
+				"Mscrm.Form.contact.AddConnection|split",
+				"Mscrm.Form.contact.AddToList",
+				"Mscrm.Form.contact.Assign",
+				"Mscrm.Form.contact.Delete",
+				"Mscrm.Form.contact.RefreshModernButton",
+				"AccessChecker.OpenDialog.contact.Button",
+				"msdyn.Form.contact.SequencesMulti.Button|split",
+				"Mscrm.HomepageGrid.contact.MBPF.ConvertTo|flyout",
+				"Mscrm.Form.contact.FollowButton",
+				"Mscrm.Form.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.Form.contact.WordTemplate|flyout",
+				"Mscrm.Form.contact.Reports|flyout",
+				"CommandChecker"
+			]
+		},
+		"new.w1920": {
+			"visible": [
+				"Mscrm.Form.contact.Save",
+				"Mscrm.Form.contact.SaveAndClose",
+				"Mscrm.Form.contact.NewRecord",
+				"Mscrm.Form.contact.Flows.RefreshCommandBar|flyout",
+				"CommandChecker"
+			],
+			"overflow": []
+		},
+		"new.w1280": {
+			"visible": [
+				"Mscrm.Form.contact.Save",
+				"Mscrm.Form.contact.SaveAndClose",
+				"Mscrm.Form.contact.NewRecord",
+				"Mscrm.Form.contact.Flows.RefreshCommandBar|flyout",
+				"CommandChecker"
+			],
+			"overflow": []
+		},
+		"new.w820": {
+			"visible": [
+				"Mscrm.Form.contact.Save",
+				"Mscrm.Form.contact.SaveAndClose",
+				"Mscrm.Form.contact.NewRecord",
+				"Mscrm.Form.contact.Flows.RefreshCommandBar|flyout",
+				"CommandChecker"
+			],
+			"overflow": []
+		},
+		"inactive.w1920": {
+			"visible": [
+				"Mscrm.Form.contact.NewRecord",
+				"Mscrm.Form.contact.Activate",
+				"Mscrm.Form.contact.ViewOrgChart",
+				"Mscrm.Form.contact.AddConnection|split",
+				"Mscrm.Form.contact.Assign",
+				"Mscrm.Form.contact.Delete",
+				"Mscrm.Form.contact.RefreshModernButton",
+				"AccessChecker.OpenDialog.contact.Button",
+				"Mscrm.HomepageGrid.contact.MBPF.ConvertTo|flyout",
+				"Mscrm.Form.contact.FollowButton",
+				"Mscrm.Form.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.Form.contact.WordTemplate|flyout"
+			],
+			"overflow": ["Mscrm.Form.contact.Reports|flyout", "CommandChecker"]
+		},
+		"inactive.w1280": {
+			"visible": [
+				"Mscrm.Form.contact.NewRecord",
+				"Mscrm.Form.contact.Activate",
+				"Mscrm.Form.contact.ViewOrgChart",
+				"Mscrm.Form.contact.AddConnection|split",
+				"Mscrm.Form.contact.Assign",
+				"Mscrm.Form.contact.Delete",
+				"Mscrm.Form.contact.RefreshModernButton"
+			],
+			"overflow": [
+				"AccessChecker.OpenDialog.contact.Button",
+				"Mscrm.HomepageGrid.contact.MBPF.ConvertTo|flyout",
+				"Mscrm.Form.contact.FollowButton",
+				"Mscrm.Form.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.Form.contact.WordTemplate|flyout",
+				"Mscrm.Form.contact.Reports|flyout",
+				"CommandChecker"
+			]
+		},
+		"inactive.w820": {
+			"visible": ["Mscrm.Form.contact.NewRecord", "Mscrm.Form.contact.Activate", "Mscrm.Form.contact.ViewOrgChart"],
+			"overflow": [
+				"Mscrm.Form.contact.AddConnection|split",
+				"Mscrm.Form.contact.Assign",
+				"Mscrm.Form.contact.Delete",
+				"Mscrm.Form.contact.RefreshModernButton",
+				"AccessChecker.OpenDialog.contact.Button",
+				"Mscrm.HomepageGrid.contact.MBPF.ConvertTo|flyout",
+				"Mscrm.Form.contact.FollowButton",
+				"Mscrm.Form.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.Form.contact.WordTemplate|flyout",
+				"Mscrm.Form.contact.Reports|flyout",
+				"CommandChecker"
+			]
+		}
+	}
+}

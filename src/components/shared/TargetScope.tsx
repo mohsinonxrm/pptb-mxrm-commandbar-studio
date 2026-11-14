@@ -127,7 +127,7 @@ export function TargetScope({
 							<Text weight="semibold">{connection.name}</Text>
 							{connection.environment && (
 								<Badge
-									size="small"
+									size="medium"
 									appearance={isProduction ? "filled" : "tint"}
 									color={isProduction ? "warning" : "informative"}
 								>

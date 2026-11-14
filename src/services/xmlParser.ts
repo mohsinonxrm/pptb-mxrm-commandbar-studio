@@ -122,7 +122,8 @@ export function parseRibbonXml(
 				}
 				// Menu section titles, like labels: the raw token stays in `attributes`.
 				for (const section of button.menu?.sections ?? []) {
-					if (section.title) section.title = resolveDisplayLabel(section.title, locLabels);
+					if (section.title)
+						section.title = resolveDisplayLabel(section.title, locLabels);
 				}
 			}
 		}
@@ -176,7 +177,8 @@ function parseTabs(doc: Document): RibbonTab[] {
 			const groupId = groupEl.getAttribute("Id") ?? "";
 			if (!groupId) return;
 			// Raw token like the tab's Title (`$LocLabels:…` is resolved for display).
-			const groupLabel = groupEl.getAttribute("Title") ?? groupEl.getAttribute("Label") ?? groupId;
+			const groupLabel =
+				groupEl.getAttribute("Title") ?? groupEl.getAttribute("Label") ?? groupId;
 			const groupSeq = parseInt(groupEl.getAttribute("Sequence") ?? "0", 10);
 			const template = groupEl.getAttribute("Template") ?? "";
 
@@ -184,11 +186,9 @@ function parseTabs(doc: Document): RibbonTab[] {
 			// SplitButton `<Menu>` belong to that control's menu (#27), not to the
 			// group (a descendant selector flattened them into it).
 			const buttons: RibbonButton[] = [];
-			groupEl
-				.querySelectorAll(":scope > Controls > *")
-				.forEach((btnEl) => {
-					if (KIND_BY_CONTROL_TAG[btnEl.tagName]) parseButtonElement(btnEl, buttons);
-				});
+			groupEl.querySelectorAll(":scope > Controls > *").forEach((btnEl) => {
+				if (KIND_BY_CONTROL_TAG[btnEl.tagName]) parseButtonElement(btnEl, buttons);
+			});
 
 			groups.push({
 				id: groupId,
@@ -283,9 +283,7 @@ function applyTabDisplayRules(doc: Document, tabs: RibbonTab[]): void {
 					kind: "EntityRule",
 					entityName: step.getAttribute("EntityName") ?? undefined,
 					appliesTo: (step.getAttribute("AppliesTo") ?? undefined) as
-						| "PrimaryEntity"
-						| "SelectedEntity"
-						| undefined,
+						"PrimaryEntity" | "SelectedEntity" | undefined,
 					context: (step.getAttribute("Context") ?? undefined) as
 						| "Form"
 						| "HomePageGrid"
@@ -350,7 +348,14 @@ function parseButtonElement(el: Element, out: RibbonButton[]) {
  * Controls CBS models inside a menu section (#27). The other controls a menu
  * section allows (ToggleButton, ColorPicker, InsertTable) are kept as raw XML.
  */
-const CONTROL_TAGS = new Set(["Button", "FlyoutAnchor", "SplitButton", "TextBox", "ComboBox", "CheckBox"]);
+const CONTROL_TAGS = new Set([
+	"Button",
+	"FlyoutAnchor",
+	"SplitButton",
+	"TextBox",
+	"ComboBox",
+	"CheckBox",
+]);
 
 function attributesOf(el: Element): Record<string, string> {
 	return Object.fromEntries(Array.from(el.attributes).map((a) => [a.name, a.value]));
@@ -376,7 +381,8 @@ function parseMenu(el: Element): RibbonMenu | undefined {
 		const controls: RibbonButton[] = [];
 		const rawControls: NonNullable<RibbonMenuSection["rawControls"]> = [];
 		elementChildren(controlsEl).forEach((c, index) => {
-			if (CONTROL_TAGS.has(c.tagName) && c.getAttribute("Id")) parseButtonElement(c, controls);
+			if (CONTROL_TAGS.has(c.tagName) && c.getAttribute("Id"))
+				parseButtonElement(c, controls);
 			else rawControls.push({ index, xml: xmlSerializer().serializeToString(c) });
 		});
 		const sectionAttributes = attributesOf(sectionEl);
@@ -392,10 +398,18 @@ function parseMenu(el: Element): RibbonMenu | undefined {
 			// A Gallery (or an empty section) instead of <Controls>.
 			...(controlsEl
 				? {}
-				: { rawContent: elementChildren(sectionEl).map((c) => xmlSerializer().serializeToString(c)).join("") }),
+				: {
+						rawContent: elementChildren(sectionEl)
+							.map((c) => xmlSerializer().serializeToString(c))
+							.join(""),
+					}),
 		});
 	}
-	return { id: menuEl.getAttribute("Id") ?? `${el.getAttribute("Id")}.Menu`, sections, attributes };
+	return {
+		id: menuEl.getAttribute("Id") ?? `${el.getAttribute("Id")}.Menu`,
+		sections,
+		attributes,
+	};
 }
 
 function normalizeFluentIconName(iconName?: string): string | undefined {
@@ -455,7 +469,9 @@ class LosslessVerifier {
 			const generated = batch.map((p) => p.generate());
 			let roots: Element[] | null = null;
 			try {
-				const wrapper = parseXmlElement(`<v>${generated.map((g) => `<i>${g}</i>`).join("")}</v>`);
+				const wrapper = parseXmlElement(
+					`<v>${generated.map((g) => `<i>${g}</i>`).join("")}</v>`,
+				);
 				roots = elementChildren(wrapper).map((i) => elementChildren(i)[0]);
 			} catch {
 				roots = null; // a malformed item: fall back to checking one by one
@@ -487,10 +503,19 @@ function parseCommands(doc: Document, verifier: LosslessVerifier): CommandDefini
 			elementChildren(section(container)).forEach((r, index) => {
 				const rid = r.getAttribute("Id");
 				// Only a plain `<EnableRule Id/>` / `<DisplayRule Id/>` is modelled.
-				if (r.tagName === tag && rid && r.attributes.length === 1 && elementChildren(r).length === 0) {
+				if (
+					r.tagName === tag &&
+					rid &&
+					r.attributes.length === 1 &&
+					elementChildren(r).length === 0
+				) {
 					ids.push(rid);
 				} else {
-					rawRuleRefs.push({ container, index, xml: xmlSerializer().serializeToString(r) });
+					rawRuleRefs.push({
+						container,
+						index,
+						xml: xmlSerializer().serializeToString(r),
+					});
 				}
 			});
 			return ids;
@@ -761,7 +786,12 @@ function parseRuleStep(el: Element, verifier: LosslessVerifier): RuleStep | null
 		case "FormTypeRule":
 			return { kind: "FormTypeRule", type: reqStr(el, "Type"), ...std };
 		case "ValueRule":
-			return { kind: "ValueRule", field: reqStr(el, "Field"), value: reqStr(el, "Value"), ...std };
+			return {
+				kind: "ValueRule",
+				field: reqStr(el, "Field"),
+				value: reqStr(el, "Value"),
+				...std,
+			};
 		case "SkuRule":
 			return { kind: "SkuRule", sku: reqStr(el, "Sku"), ...std };
 		case "HideForTabletExperienceRule":

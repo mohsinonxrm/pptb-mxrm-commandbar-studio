@@ -104,7 +104,12 @@ export async function findRunningSolutionOperations(
 			`msdyn_solutionhistories?$select=msdyn_name,msdyn_operation,msdyn_status,msdyn_starttime` +
 				`&$orderby=msdyn_starttime desc&$top=25`,
 		)) as {
-			value?: Array<{ msdyn_name?: string; msdyn_operation?: number; msdyn_status?: number; msdyn_starttime?: string }>;
+			value?: Array<{
+				msdyn_name?: string;
+				msdyn_operation?: number;
+				msdyn_status?: number;
+				msdyn_starttime?: string;
+			}>;
 		};
 		return (res.value ?? [])
 			.filter(
@@ -116,7 +121,8 @@ export async function findRunningSolutionOperations(
 					(!r.msdyn_starttime || Date.parse(r.msdyn_starttime) >= since),
 			)
 			.map((r) => ({
-				operation: OPERATION_NAMES[r.msdyn_operation ?? -1] ?? `operation ${r.msdyn_operation}`,
+				operation:
+					OPERATION_NAMES[r.msdyn_operation ?? -1] ?? `operation ${r.msdyn_operation}`,
 				name: r.msdyn_name ?? "",
 				startedOn: r.msdyn_starttime ?? "",
 			}));
@@ -136,7 +142,9 @@ export interface BusyWaitOptions {
 
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const describe = (ops: RunningOperation[]) =>
-	ops.map((o) => (o.name && o.name !== o.operation ? `${o.operation} (${o.name})` : o.operation)).join(", ");
+	ops
+		.map((o) => (o.name && o.name !== o.operation ? `${o.operation} (${o.name})` : o.operation))
+		.join(", ");
 
 /** Waits until no other solution operation runs (polls every 15 s), up to `timeoutMs`. */
 export async function waitForEnvironmentIdle(options: BusyWaitOptions = {}): Promise<void> {
@@ -162,7 +170,11 @@ export async function waitForEnvironmentIdle(options: BusyWaitOptions = {}): Pro
  * because another solution operation is running, up to `timeoutMs`. Any other
  * error is rethrown at once.
  */
-export async function withBusyRetry<T>(what: string, fn: () => Promise<T>, options: BusyWaitOptions = {}): Promise<T> {
+export async function withBusyRetry<T>(
+	what: string,
+	fn: () => Promise<T>,
+	options: BusyWaitOptions = {},
+): Promise<T> {
 	const sleep = options.sleep ?? defaultSleep;
 	const now = options.now ?? Date.now;
 	const deadline = now() + (options.timeoutMs ?? 10 * 60_000);

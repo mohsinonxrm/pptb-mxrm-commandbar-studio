@@ -2,22 +2,26 @@ import React, { useEffect, useState } from "react";
 import {
 	makeStyles,
 	tokens,
-	DrawerBody,
-	DrawerHeader,
-	DrawerHeaderTitle,
-	OverlayDrawer,
 	Button,
-	Badge,
+	Caption1,
 	Text,
-	Divider,
-	MessageBar,
-	MessageBarBody,
+	InfoLabel,
+	Menu,
+	MenuItem,
+	MenuList,
+	MenuPopover,
+	MenuTrigger,
 	Popover,
 	PopoverSurface,
 	PopoverTrigger,
-	Input,
 } from "@fluentui/react-components";
-import { AddRegular, DismissRegular } from "@fluentui/react-icons";
+import {
+	AddRegular,
+	ArrowDownRegular,
+	ArrowUpRegular,
+	MoreVerticalRegular,
+	ReOrderDotsVerticalRegular,
+} from "@fluentui/react-icons";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import type { RuleStep, EnableRule, DisplayRule } from "@/types/ribbon";
@@ -26,45 +30,37 @@ import RuleStepPicker from "@/components/shared/RuleStepPicker";
 import { summarizeRule } from "@/utils/ruleEngine";
 import { useStableKeys } from "@/hooks/useStableKeys";
 import { DndContext, type DragEndEvent, closestCenter } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import {
+	SortableContext,
+	useSortable,
+	verticalListSortingStrategy,
+	arrayMove,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
 const useStyles = makeStyles({
-	drawer: {
-		width: "560px",
-		maxWidth: "90vw",
-	},
+	// The editor drawer's body scrolls and pads it (#186).
 	body: {
 		display: "flex",
 		flexDirection: "column",
-		gap: tokens.spacingVerticalS,
-		padding: tokens.spacingVerticalM,
-		overflowY: "auto",
-	},
-	header: {
-		display: "flex",
-		alignItems: "center",
-		gap: tokens.spacingHorizontalS,
+		gap: tokens.spacingVerticalM,
+		minWidth: 0,
 	},
 	stepsList: {
 		display: "flex",
 		flexDirection: "column",
-		gap: tokens.spacingVerticalXS,
+		gap: tokens.spacingVerticalS,
 		listStyle: "none",
 		padding: 0,
 		margin: 0,
 	},
+	muted: { color: tokens.colorNeutralForeground3 },
 	summary: {
 		padding: tokens.spacingVerticalS,
 		backgroundColor: tokens.colorNeutralBackground3,
 		borderRadius: tokens.borderRadiusMedium,
-		fontStyle: "italic",
 		color: tokens.colorNeutralForeground2,
 		fontSize: tokens.fontSizeBase200,
-	},
-	addRow: {
-		display: "flex",
-		gap: tokens.spacingHorizontalS,
 	},
 	pickerPopover: {
 		maxHeight: "60vh",
@@ -72,55 +68,39 @@ const useStyles = makeStyles({
 		minWidth: "320px",
 		padding: tokens.spacingVerticalM,
 	},
-	usedBy: {
-		color: tokens.colorNeutralForeground3,
-		fontSize: tokens.fontSizeBase200,
-	},
-	ruleIdRow: {
-		display: "flex",
-		alignItems: "flex-end",
-		gap: tokens.spacingHorizontalS,
-	},
-	ruleIdInput: {
-		fontFamily: tokens.fontFamilyMonospace,
-	},
-	error: {
-		color: tokens.colorPaletteRedForeground1,
-		fontSize: tokens.fontSizeBase100,
-	},
-	sortableItem: {
-		listStyle: "none",
-	},
 	sortableInner: {
 		display: "flex",
 		alignItems: "flex-start",
-		gap: tokens.spacingHorizontalS,
+		gap: tokens.spacingHorizontalXS,
+		minWidth: 0,
 	},
 	dragHandle: {
-		marginTop: tokens.spacingVerticalS,
+		marginTop: tokens.spacingVerticalXS,
 		cursor: "grab",
+		touchAction: "none",
 	},
+	stepBody: { flex: 1, minWidth: 0 },
 });
 
 const NO_STEPS: RuleStep[] = [];
 
+/**
+ * A rule as a view of the editor drawer (#186): its steps in order, each one
+ * a card with a drag handle and Move up / Move down. The header (RuleHeader)
+ * shows the id, Rename and the commands that use it.
+ */
 export const RuleEditorPanel: React.FC = () => {
 	const styles = useStyles();
 	const ruleEditorOpen = useUIStore((s) => s.ruleEditorOpen);
 	const ruleEditorId = useUIStore((s) => s.ruleEditorId);
 	const ruleEditorKind = useUIStore((s) => s.ruleEditorKind);
 	const closeRuleEditor = useUIStore((s) => s.closeRuleEditor);
-	const openRuleEditor = useUIStore((s) => s.openRuleEditor);
 	const enableRules = useRibbonStore((s) => s.enableRules);
 	const displayRules = useRibbonStore((s) => s.displayRules);
-	const commands = useRibbonStore((s) => s.commands);
 	const upsertEnableRule = useRibbonStore((s) => s.upsertEnableRule);
 	const upsertDisplayRule = useRibbonStore((s) => s.upsertDisplayRule);
-	const renameEnableRuleId = useRibbonStore((s) => s.renameEnableRuleId);
-	const renameDisplayRuleId = useRibbonStore((s) => s.renameDisplayRuleId);
 
 	const [pickerOpen, setPickerOpen] = useState(false);
-	const [draftRuleId, setDraftRuleId] = useState("");
 
 	const isEnable = ruleEditorKind === "enable";
 
@@ -128,201 +108,161 @@ export const RuleEditorPanel: React.FC = () => {
 		? enableRules.find((r) => r.id === ruleEditorId)
 		: displayRules.find((r) => r.id === ruleEditorId);
 
+	// The rule went away while it was shown (an undo of the step that added it):
+	// back to the view below instead of an empty drawer (#186).
 	useEffect(() => {
-		if (activeRule) setDraftRuleId(activeRule.id);
-	}, [activeRule]);
+		if (ruleEditorOpen && ruleEditorId && !activeRule) closeRuleEditor();
+	}, [ruleEditorOpen, ruleEditorId, activeRule, closeRuleEditor]);
 
 	// Steps have no id: keys that stay with a step when another one is removed
 	// or moved, so its inputs and local state don't jump to a neighbour (#22).
 	// Steps changed from elsewhere (undo / redo) get new keys.
-	const stepKeys = useStableKeys(`${ruleEditorKind}:${activeRule?.id ?? ""}`, activeRule?.steps ?? NO_STEPS);
+	const stepKeys = useStableKeys(
+		`${ruleEditorKind}:${activeRule?.id ?? ""}`,
+		activeRule?.steps ?? NO_STEPS,
+	);
 	const sortableIds = stepKeys.keys;
-
-	const usedBy = commands.filter((c) =>
-		isEnable
-			? c.enableRules.includes(ruleEditorId ?? "")
-			: c.displayRules.includes(ruleEditorId ?? ""),
-	).length;
-
-	const handleStepChange = (index: number, updated: RuleStep) => {
-		if (!activeRule) return;
-		const newSteps = [...activeRule.steps];
-		newSteps[index] = updated;
-		stepKeys.update();
-		if (isEnable) {
-			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
-		} else {
-			upsertDisplayRule({ ...(activeRule as DisplayRule), steps: newSteps });
-		}
-	};
-
-	const handleStepRemove = (index: number) => {
-		if (!activeRule) return;
-		const newSteps = activeRule.steps.filter((_, i) => i !== index);
-		stepKeys.remove(index);
-		if (isEnable) {
-			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
-		} else {
-			upsertDisplayRule({ ...(activeRule as DisplayRule), steps: newSteps });
-		}
-	};
-
-	const handleAddStep = (step: RuleStep) => {
-		if (!activeRule) return;
-		const newSteps = [...activeRule.steps, step];
-		stepKeys.add();
-		if (isEnable) {
-			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
-		} else {
-			upsertDisplayRule({ ...(activeRule as DisplayRule), steps: newSteps });
-		}
-		setPickerOpen(false);
-	};
-
-	const handleDragEnd = (event: DragEndEvent) => {
-		if (!activeRule || !event.over || event.active.id === event.over.id) return;
-		const oldIndex = sortableIds.indexOf(String(event.active.id));
-		const newIndex = sortableIds.indexOf(String(event.over.id));
-		if (oldIndex < 0 || newIndex < 0) return;
-
-		const newSteps = arrayMove(activeRule.steps, oldIndex, newIndex);
-		stepKeys.move(oldIndex, newIndex);
-		if (isEnable) {
-			upsertEnableRule({ ...(activeRule as EnableRule), steps: newSteps });
-		} else {
-			upsertDisplayRule({ ...(activeRule as DisplayRule), steps: newSteps });
-		}
-	};
 
 	if (!activeRule) return null;
 
-	const summary = summarizeRule(activeRule.steps);
-	const idTaken = (isEnable ? enableRules : displayRules).some(
-		(r) => r.id === draftRuleId.trim() && r.id !== activeRule.id,
-	);
-	const idError = !draftRuleId.trim()
-		? "Rule ID is required."
-		: /\s/.test(draftRuleId)
-			? "Rule ID cannot contain whitespace."
-			: idTaken
-				? "A rule with this ID already exists."
-				: "";
+	const setSteps = (steps: RuleStep[]) => {
+		if (isEnable) upsertEnableRule({ ...(activeRule as EnableRule), steps });
+		else upsertDisplayRule({ ...(activeRule as DisplayRule), steps });
+	};
+
+	const handleStepChange = (index: number, updated: RuleStep) => {
+		const newSteps = [...activeRule.steps];
+		newSteps[index] = updated;
+		stepKeys.update();
+		setSteps(newSteps);
+	};
+
+	const handleStepRemove = (index: number) => {
+		stepKeys.remove(index);
+		setSteps(activeRule.steps.filter((_, i) => i !== index));
+	};
+
+	const handleAddStep = (step: RuleStep) => {
+		stepKeys.add();
+		setSteps([...activeRule.steps, step]);
+		setPickerOpen(false);
+	};
+
+	const moveStep = (from: number, to: number) => {
+		if (from === to || from < 0 || to < 0 || to >= activeRule.steps.length) return;
+		stepKeys.move(from, to);
+		setSteps(arrayMove(activeRule.steps, from, to));
+	};
+
+	const handleDragEnd = (event: DragEndEvent) => {
+		if (!event.over) return;
+		moveStep(
+			sortableIds.indexOf(String(event.active.id)),
+			sortableIds.indexOf(String(event.over.id)),
+		);
+	};
+
+	const count = activeRule.steps.length;
+	const container = isEnable ? "enable" : "display";
 
 	return (
-		<OverlayDrawer
-			position="end"
-			open={ruleEditorOpen}
-			onOpenChange={() => closeRuleEditor()}
-			className={styles.drawer}
-		>
-			<DrawerHeader>
-				<DrawerHeaderTitle
-					action={
-						<Button
-							appearance="subtle"
-							icon={<DismissRegular />}
-							onClick={closeRuleEditor}
-							aria-label="Close rule editor"
-						/>
-					}
-				>
-					<div className={styles.header}>
-						<Badge appearance="filled" color={isEnable ? "success" : "informative"} size="small">
-							{isEnable ? "Enable" : "Display"}
-						</Badge>
-						<Text size={400} weight="semibold" style={{ fontFamily: tokens.fontFamilyMonospace }}>
-							{activeRule.id}
-						</Text>
-					</div>
-				</DrawerHeaderTitle>
-			</DrawerHeader>
+		<div className={styles.body}>
+			{isEnable ? (
+				<InfoLabel info="Enable rules take fewer kinds of step than display rules; Add step only offers the ones they take.">
+					Passes when every step below is true.
+				</InfoLabel>
+			) : (
+				<Text>Passes when every step below is true.</Text>
+			)}
 
-			<DrawerBody className={styles.body}>
-				<Text className={styles.usedBy}>Used by {usedBy} command(s)</Text>
-				<div className={styles.ruleIdRow}>
-					<Input
-						className={styles.ruleIdInput}
-						value={draftRuleId}
-						onChange={(_, d) => setDraftRuleId(d.value)}
-						aria-label="Rule ID"
-					/>
-					<Button
-						appearance="secondary"
-						size="small"
-						disabled={!draftRuleId.trim() || !!idError || draftRuleId === activeRule.id}
-						onClick={() => {
-							const nextId = draftRuleId.trim();
-							const success = isEnable
-								? renameEnableRuleId(activeRule.id, nextId)
-								: renameDisplayRuleId(activeRule.id, nextId);
-							if (success) {
-								openRuleEditor(nextId, isEnable ? "enable" : "display");
-							}
-						}}
-					>
-						Apply ID change
-					</Button>
-				</div>
-				{idError && <Text className={styles.error}>{idError}</Text>}
-
-				{isEnable && (
-					<MessageBar intent="warning">
-						<MessageBarBody>
-							Enable rules have a restricted set of allowed step types. Display-only rule kinds are
-							disabled.
-						</MessageBarBody>
-					</MessageBar>
-				)}
-
-				<Divider>Steps (ALL must pass)</Divider>
-
+			{count > 0 ? (
 				<DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
 					<SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
-						<ol className={styles.stepsList} role="list" aria-label="Rule steps">
+						<ol className={styles.stepsList} aria-label="Rule steps">
 							{activeRule.steps.map((step, i) => (
 								<SortableRuleStep
 									key={sortableIds[i]}
 									id={sortableIds[i]}
-									styles={styles}
+									draggable={count > 1}
 								>
 									<RuleStepEditor
 										step={step}
+										number={i + 1}
+										menu={
+											count > 1 && (
+												<Menu>
+													<MenuTrigger disableButtonEnhancement>
+														<Button
+															appearance="subtle"
+															size="small"
+															icon={<MoreVerticalRegular />}
+															aria-label={`More for step ${i + 1}`}
+														/>
+													</MenuTrigger>
+													<MenuPopover>
+														<MenuList>
+															<MenuItem
+																icon={<ArrowUpRegular />}
+																disabled={i === 0}
+																onClick={() => moveStep(i, i - 1)}
+															>
+																Move up
+															</MenuItem>
+															<MenuItem
+																icon={<ArrowDownRegular />}
+																disabled={i === count - 1}
+																onClick={() => moveStep(i, i + 1)}
+															>
+																Move down
+															</MenuItem>
+														</MenuList>
+													</MenuPopover>
+												</Menu>
+											)
+										}
 										onChange={(updated) => handleStepChange(i, updated)}
 										onRemove={() => handleStepRemove(i)}
-										container={isEnable ? "enable" : "display"}
+										container={container}
 									/>
 								</SortableRuleStep>
 							))}
-					{activeRule.steps.length === 0 && (
-						<Text italic style={{ color: tokens.colorNeutralForeground3 }}>
-							No steps yet. A rule needs at least one step: add one before you publish, or remove the rule from its commands.
-						</Text>
-					)}
 						</ol>
 					</SortableContext>
 				</DndContext>
+			) : (
+				<Text className={styles.muted}>
+					No steps yet. A rule needs at least one step: add one before you publish, or
+					remove the rule from its commands.
+				</Text>
+			)}
 
-				<Popover open={pickerOpen} onOpenChange={(_, d) => setPickerOpen(d.open)}>
+			<div>
+				{/* Opens from the button's start: centred, it ran out of the drawer (#229). */}
+				<Popover
+					open={pickerOpen}
+					onOpenChange={(_, d) => setPickerOpen(d.open)}
+					positioning="below-start"
+				>
 					<PopoverTrigger>
-						<Button
-							icon={<AddRegular />}
-							appearance="secondary"
-							onClick={() => setPickerOpen(true)}
-						>
+						<Button icon={<AddRegular />} onClick={() => setPickerOpen(true)}>
 							Add step
 						</Button>
 					</PopoverTrigger>
 					<PopoverSurface className={styles.pickerPopover}>
-						<RuleStepPicker onSelect={handleAddStep} container={isEnable ? "enable" : "display"} />
+						<RuleStepPicker onSelect={handleAddStep} container={container} />
 					</PopoverSurface>
 				</Popover>
+			</div>
 
-				<Divider>Plain-English summary</Divider>
-				<div className={styles.summary} role="note" aria-label="Rule summary">
-					{summary}
-				</div>
-			</DrawerBody>
-		</OverlayDrawer>
+			{count > 0 && (
+				<>
+					<Caption1 className={styles.muted}>In words</Caption1>
+					<div className={styles.summary} role="note" aria-label="Rule summary">
+						{summarizeRule(activeRule.steps)}
+					</div>
+				</>
+			)}
+		</div>
 	);
 };
 
@@ -330,36 +270,33 @@ export default RuleEditorPanel;
 
 function SortableRuleStep({
 	id,
+	draggable,
 	children,
-	styles,
 }: {
 	id: string;
+	draggable: boolean;
 	children: React.ReactNode;
-	styles: ReturnType<typeof useStyles>;
 }) {
-	const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition } = useSortable({
-		id,
-	});
+	const styles = useStyles();
+	const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition } =
+		useSortable({ id, disabled: !draggable });
 
 	return (
-		<li
-			ref={setNodeRef}
-			className={styles.sortableItem}
-			style={{ transform: CSS.Transform.toString(transform), transition }}
-		>
+		<li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}>
 			<div className={styles.sortableInner}>
-				<Button
-					ref={setActivatorNodeRef}
-					appearance="subtle"
-					size="small"
-					className={styles.dragHandle}
-					{...attributes}
-					{...listeners}
-					aria-label="Drag to reorder step"
-				>
-					Drag
-				</Button>
-				<div style={{ flex: 1 }}>{children}</div>
+				{draggable && (
+					<Button
+						ref={setActivatorNodeRef}
+						appearance="subtle"
+						size="small"
+						className={styles.dragHandle}
+						icon={<ReOrderDotsVerticalRegular />}
+						{...attributes}
+						{...listeners}
+						aria-label="Drag to reorder step"
+					/>
+				)}
+				<div className={styles.stepBody}>{children}</div>
 			</div>
 		</li>
 	);

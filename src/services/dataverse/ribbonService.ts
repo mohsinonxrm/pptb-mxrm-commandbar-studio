@@ -1,7 +1,13 @@
 import { decompressRibbonZip } from "@/utils/decompressRibbonZip";
 import { parseRibbonXml } from "@/services/xmlParser";
 import { canonicalXml } from "@/services/ribbonXmlCanonical";
-import type { LocLabel, RibbonDefinition, RibbonLocation, RibbonTab, ScalingDefinition } from "@/types/ribbon";
+import type {
+	LocLabel,
+	RibbonDefinition,
+	RibbonLocation,
+	RibbonTab,
+	ScalingDefinition,
+} from "@/types/ribbon";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import { useSessionStore } from "@/store/sessionStore";
 import {
@@ -66,7 +72,8 @@ function locationsFromTabDisplayRules(tab: RibbonTab): EntityRibbonLocation[] {
 			if (rule.kind !== "EntityRule") continue;
 			if (rule.context === "Form") found.add("Form");
 			if (rule.context === "HomePageGrid") found.add("HomepageGrid");
-			if (rule.context === "SubGridStandard" || rule.context === "SubGridAssociated") found.add("SubGrid");
+			if (rule.context === "SubGridStandard" || rule.context === "SubGridAssociated")
+				found.add("SubGrid");
 		}
 	// One location per tab (the model keeps a tab in one place), chosen the same
 	// way whatever the rule order: home grid, then form, then sub-grid.
@@ -118,7 +125,9 @@ export function splitTabsByLocation(
 	// chosen around it — #66 review).
 	const make = (location: EntityRibbonLocation): RibbonDefinition => {
 		const scaling = Object.fromEntries(
-			buckets[location].filter((t) => scalingByTab[t.id]).map((t) => [t.id, scalingByTab[t.id]] as const),
+			buckets[location]
+				.filter((t) => scalingByTab[t.id])
+				.map((t) => [t.id, scalingByTab[t.id]] as const),
 		);
 		return {
 			location,
@@ -176,21 +185,30 @@ export async function fetchEntityRibbonAllLocations(
 	useRuntimeLogStore
 		.getState()
 		.logInfo("dataverse", `RetrieveEntityRibbon(${entityLogicalName}, All)`);
-	const result = (await dataverseAPI.queryData(retrieveEntityRibbonQuery(entityLogicalName))) as unknown as {
+	const result = (await dataverseAPI.queryData(
+		retrieveEntityRibbonQuery(entityLogicalName),
+	)) as unknown as {
 		CompressedEntityXml?: string;
 	};
 
 	if (typeof result?.CompressedEntityXml !== "string" || !result.CompressedEntityXml) {
-		throw new Error(`Dataverse returned no ribbon for ${entityLogicalName} (RetrieveEntityRibbon had no CompressedEntityXml).`);
+		throw new Error(
+			`Dataverse returned no ribbon for ${entityLogicalName} (RetrieveEntityRibbon had no CompressedEntityXml).`,
+		);
 	}
 	const xml = await decompressRibbonZip(result.CompressedEntityXml);
 	// Parse once with a neutral location; we'll bucket the tabs ourselves below.
 	const parsed = parseRibbonXml(xml, "HomepageGrid", entityLogicalName, layerLocLabels);
-	const ribbons = splitTabsByLocation(parsed.ribbon.tabs, entityLogicalName, parsed.ribbon.scalingByTab);
+	const ribbons = splitTabsByLocation(
+		parsed.ribbon.tabs,
+		entityLogicalName,
+		parsed.ribbon.scalingByTab,
+	);
 	// Template layouts go with every location, for the pre-publish check (#35);
 	// scaling went with its tab's location above (#66).
 	if (parsed.ribbon.templateLayouts) {
-		for (const def of Object.values(ribbons)) def.templateLayouts = parsed.ribbon.templateLayouts;
+		for (const def of Object.values(ribbons))
+			def.templateLayouts = parsed.ribbon.templateLayouts;
 	}
 
 	useRuntimeLogStore
@@ -243,7 +261,11 @@ export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
 	const environment = useSessionStore.getState().connectionUrl;
 	const cached = applicationRibbonCache;
 	let xml: string;
-	if (cached && cached.environment === environment && Date.now() - cached.at < APPLICATION_RIBBON_CACHE_MS) {
+	if (
+		cached &&
+		cached.environment === environment &&
+		Date.now() - cached.at < APPLICATION_RIBBON_CACHE_MS
+	) {
 		xml = cached.xml;
 		logs.logInfo("dataverse", "RetrieveApplicationRibbon (reused from this session)");
 	} else {
@@ -254,9 +276,12 @@ export async function fetchApplicationRibbon(layerLocLabels: LocLabel[] = []) {
 			operationType: "function",
 		});
 
-		const compressed = (result as { CompressedApplicationRibbonXml?: unknown } | undefined)?.CompressedApplicationRibbonXml;
+		const compressed = (result as { CompressedApplicationRibbonXml?: unknown } | undefined)
+			?.CompressedApplicationRibbonXml;
 		if (typeof compressed !== "string" || !compressed) {
-			throw new Error("Dataverse returned no application ribbon (RetrieveApplicationRibbon had no CompressedApplicationRibbonXml).");
+			throw new Error(
+				"Dataverse returned no application ribbon (RetrieveApplicationRibbon had no CompressedApplicationRibbonXml).",
+			);
 		}
 		xml = await decompressRibbonZip(compressed);
 		if (generation === cacheGeneration && Date.now() >= keepReadsAfter) {
@@ -289,11 +314,13 @@ export function reconcileWithLayer(
 	alsoCommandIds: readonly string[] = [],
 ): { added: string[]; replaced: string[] } {
 	const out = { added: [] as string[], replaced: [] as string[] };
-	if (layer.commandDefinitions.size + layer.enableRules.size + layer.displayRules.size === 0) return out;
+	if (layer.commandDefinitions.size + layer.enableRules.size + layer.displayRules.size === 0)
+		return out;
 	const fromLayer = definitionsFromParts(layer);
 	// Raw XML kept for unmodelled actions / rules is compared canonically: the
 	// merged ribbon and the layer rows can format the same element differently.
-	const same = (a: unknown, b: unknown) => JSON.stringify(a, canonicalRaw) === JSON.stringify(b, canonicalRaw);
+	const same = (a: unknown, b: unknown) =>
+		JSON.stringify(a, canonicalRaw) === JSON.stringify(b, canonicalRaw);
 	const refresh = <T extends { id: string }>(list: T[], layerItems: T[]) => {
 		const byId = new Map(layerItems.map((x) => [x.id, x]));
 		for (let i = 0; i < list.length; i++) {
@@ -316,7 +343,11 @@ export function reconcileWithLayer(
 		for (const tab of def.tabs)
 			for (const group of tab.groups)
 				for (const button of groupControls(group))
-					if (button.commandId && !known.has(button.commandId) && layer.commandDefinitions.has(button.commandId))
+					if (
+						button.commandId &&
+						!known.has(button.commandId) &&
+						layer.commandDefinitions.has(button.commandId)
+					)
 						missing.add(button.commandId);
 	const added = fromLayer.commands.filter((c) => missing.has(c.id));
 	data.commands.push(...added);
@@ -360,7 +391,10 @@ function canonicalRaw(_key: string, value: unknown): unknown {
  * redefine: the merged table ribbon also carries application-ribbon commands
  * and rules, and for those the application layer's copy is the current one.
  */
-export function applicationOnlyParts(app: RibbonDiffParts, entity: RibbonDiffParts | null): RibbonDiffParts {
+export function applicationOnlyParts(
+	app: RibbonDiffParts,
+	entity: RibbonDiffParts | null,
+): RibbonDiffParts {
 	const without = (m: Map<string, string>, own?: Map<string, string>) =>
 		new Map([...m].filter(([id]) => !own?.has(id)));
 	return {
@@ -376,7 +410,11 @@ export function applicationOnlyParts(app: RibbonDiffParts, entity: RibbonDiffPar
  * (the parser resolves 1033), so what the canvas shows is what an edit
  * replaces (#50).
  */
-function resolveLabelsIn(defs: RibbonDefinition[], locLabels: LocLabel[], languageCode: number): void {
+function resolveLabelsIn(
+	defs: RibbonDefinition[],
+	locLabels: LocLabel[],
+	languageCode: number,
+): void {
 	if (languageCode === 1033) return;
 	for (const def of defs)
 		for (const tab of def.tabs)
@@ -384,17 +422,21 @@ function resolveLabelsIn(defs: RibbonDefinition[], locLabels: LocLabel[], langua
 				for (const button of groupControls(group)) {
 					for (const section of button.menu?.sections ?? []) {
 						const token = section.attributes?.["Title"];
-						if (token?.startsWith("$LocLabels:")) section.title = resolveDisplayLabel(token, locLabels, languageCode);
+						if (token?.startsWith("$LocLabels:"))
+							section.title = resolveDisplayLabel(token, locLabels, languageCode);
 					}
 					const src = button.source;
 					if (!src) continue;
-					const pairs: Array<[string | undefined, "label" | "tooltipTitle" | "tooltipBody"]> = [
+					const pairs: Array<
+						[string | undefined, "label" | "tooltipTitle" | "tooltipBody"]
+					> = [
 						[src.labelToken, "label"],
 						[src.tooltipTitleToken, "tooltipTitle"],
 						[src.tooltipBodyToken, "tooltipBody"],
 					];
 					for (const [token, field] of pairs) {
-						if (token?.startsWith("$LocLabels:")) button[field] = resolveDisplayLabel(token, locLabels, languageCode);
+						if (token?.startsWith("$LocLabels:"))
+							button[field] = resolveDisplayLabel(token, locLabels, languageCode);
 					}
 				}
 }
@@ -420,18 +462,28 @@ export function addLayerTabs(
 ): string[] {
 	const known = new Set(Object.values(ribbons).flatMap((d) => d?.tabs.map((t) => t.id) ?? []));
 	const hidden = new Set(hideActionsOf(layer).map((h) => h.location));
-	const subGridLocation = entityLogicalName ? `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs._children` : null;
+	const subGridLocation = entityLogicalName
+		? `Mscrm.SubGrid.${entityLogicalName}.ContextualTabs._children`
+		: null;
 	const tabsXml: { xml: string; subGrid: boolean }[] = [];
 	for (const xml of foldIntoOwnContainers(layer.customActions).values()) {
 		const ca = new DOMParser().parseFromString(xml, "application/xml").documentElement;
 		if (ca.tagName !== "CustomAction") continue;
 		// `{!EntityLogicalName}` resolved: RetrieveEntityRibbon resolves it (#84 review).
-		const location = resolveEntityToken(ca.getAttribute("Location") ?? "", entityLogicalName ?? undefined);
+		const location = resolveEntityToken(
+			ca.getAttribute("Location") ?? "",
+			entityLogicalName ?? undefined,
+		);
 		if (location !== "Mscrm.Tabs._children" && location !== subGridLocation) continue;
-		const tab = Array.from(ca.getElementsByTagName("CommandUIDefinition")[0]?.children ?? [])[0];
+		const tab = Array.from(
+			ca.getElementsByTagName("CommandUIDefinition")[0]?.children ?? [],
+		)[0];
 		const id = tab?.tagName === "Tab" ? tab.getAttribute("Id") : null;
 		if (!id || known.has(resolveEntityToken(id, entityLogicalName ?? undefined))) continue;
-		tabsXml.push({ xml: new XMLSerializer().serializeToString(tab), subGrid: location === subGridLocation });
+		tabsXml.push({
+			xml: new XMLSerializer().serializeToString(tab),
+			subGrid: location === subGridLocation,
+		});
 	}
 	if (tabsXml.length === 0) return [];
 
@@ -439,7 +491,12 @@ export function addLayerTabs(
 		`<RibbonDefinitions><RibbonDefinition><UI><Ribbon><Tabs>${tabsXml.map((t) => t.xml).join("")}</Tabs></Ribbon></UI>` +
 		`<RuleDefinitions><TabDisplayRules>${[...layer.tabDisplayRules.values()].join("")}</TabDisplayRules></RuleDefinitions>` +
 		`</RibbonDefinition></RibbonDefinitions>`;
-	const parsed = parseRibbonXml(doc, entityLogicalName ? "HomepageGrid" : "Application", entityLogicalName ?? "{!EntityLogicalName}", locLabels);
+	const parsed = parseRibbonXml(
+		doc,
+		entityLogicalName ? "HomepageGrid" : "Application",
+		entityLogicalName ?? "{!EntityLogicalName}",
+		locLabels,
+	);
 	// What the layer hides — tabs, groups, controls — isn't shown, as in
 	// RetrieveEntityRibbon (#66 review m2).
 	parsed.ribbon.tabs = parsed.ribbon.tabs.filter((t) => !hidden.has(t.id));
@@ -448,12 +505,19 @@ export function addLayerTabs(
 		for (const group of tab.groups) {
 			group.buttons = group.buttons.filter((b) => !hidden.has(b.id));
 			// Hidden menu items too (#27).
-			for (const item of groupControls(group)) if (hidden.has(item.id)) removeMenuItem(group, item.id);
+			for (const item of groupControls(group))
+				if (hidden.has(item.id)) removeMenuItem(group, item.id);
 		}
 	}
 
 	const subGridIds = new Set(
-		tabsXml.filter((t) => t.subGrid).map((t) => new DOMParser().parseFromString(t.xml, "application/xml").documentElement.getAttribute("Id")),
+		tabsXml
+			.filter((t) => t.subGrid)
+			.map((t) =>
+				new DOMParser()
+					.parseFromString(t.xml, "application/xml")
+					.documentElement.getAttribute("Id"),
+			),
 	);
 	const place = (tab: RibbonTab): RibbonLocation => {
 		if (!entityLogicalName) return "Application";
@@ -461,7 +525,10 @@ export function addLayerTabs(
 		return locationFromTabDisplayRules(tab) ?? "HomepageGrid";
 	};
 	for (const tab of parsed.ribbon.tabs) {
-		const also = entityLogicalName && !subGridIds.has(tab.id) ? locationsFromTabDisplayRules(tab).slice(1) : [];
+		const also =
+			entityLogicalName && !subGridIds.has(tab.id)
+				? locationsFromTabDisplayRules(tab).slice(1)
+				: [];
 		if (also.length > 0) {
 			useRuntimeLogStore
 				.getState()
@@ -515,8 +582,12 @@ export async function fetchRibbonWorkspace(
 		return null;
 	};
 	const [entityLayer, appLayer, baseLanguageCode] = await Promise.all([
-		fetchUnmanagedRibbonParts(entityLogicalName).catch(unreadable(`the ${entityLogicalName} table's customizations`)),
-		fetchUnmanagedRibbonParts(null).catch(unreadable("the application ribbon's customizations")),
+		fetchUnmanagedRibbonParts(entityLogicalName).catch(
+			unreadable(`the ${entityLogicalName} table's customizations`),
+		),
+		fetchUnmanagedRibbonParts(null).catch(
+			unreadable("the application ribbon's customizations"),
+		),
 		// Unknown, not 1033 (#106): labels show in English, and a publish reads it again.
 		fetchOrganizationLanguageCode().catch((err: unknown) => {
 			logs.logWarn(
@@ -534,24 +605,40 @@ export async function fetchRibbonWorkspace(
 		fetchApplicationRibbon(appLabels),
 	]);
 	if (entityLayer) {
-		const tabs = addLayerTabs(entity.ribbons, entityLayer, entityLogicalName, [...entityLabels, ...appLabels]);
-		if (tabs.length > 0) logs.logInfo("ribbon", `Loaded tab(s) ${tabs.join(", ")} from the table's unmanaged layer.`);
+		const tabs = addLayerTabs(entity.ribbons, entityLayer, entityLogicalName, [
+			...entityLabels,
+			...appLabels,
+		]);
+		if (tabs.length > 0)
+			logs.logInfo(
+				"ribbon",
+				`Loaded tab(s) ${tabs.join(", ")} from the table's unmanaged layer.`,
+			);
 		const own = ownControlIds(entityLayer);
 		for (const def of Object.values(entity.ribbons)) applyLayerOwnership(def, own);
 		logReconciled(
 			"RetrieveEntityRibbon",
-			reconcileWithLayer(Object.values(entity.ribbons), entity, entityLayer, [OPEN_RECORD_ITEM_COMMAND_ID]),
+			reconcileWithLayer(Object.values(entity.ribbons), entity, entityLayer, [
+				OPEN_RECORD_ITEM_COMMAND_ID,
+			]),
 		);
 	}
 	if (appLayer) {
 		addLayerTabs({ Application: application.ribbon }, appLayer, null, appLabels);
 		applyLayerOwnership(application.ribbon, ownControlIds(appLayer));
-		logReconciled("RetrieveApplicationRibbon", reconcileWithLayer([application.ribbon], application, appLayer));
+		logReconciled(
+			"RetrieveApplicationRibbon",
+			reconcileWithLayer([application.ribbon], application, appLayer),
+		);
 		// The table's merged ribbon repeats application-ribbon definitions (they're
 		// merged first below, so they must be current there too).
 		logReconciled(
 			"RetrieveEntityRibbon",
-			reconcileWithLayer(Object.values(entity.ribbons), entity, applicationOnlyParts(appLayer, entityLayer)),
+			reconcileWithLayer(
+				Object.values(entity.ribbons),
+				entity,
+				applicationOnlyParts(appLayer, entityLayer),
+			),
 		);
 	}
 
@@ -559,7 +646,11 @@ export async function fetchRibbonWorkspace(
 	// For showing labels only: a publish reads the base language itself (#106).
 	const displayLanguage = baseLanguageCode ?? 1033;
 	onStep?.("Matching labels and ownership…");
-	resolveLabelsIn([...Object.values(entity.ribbons), application.ribbon], locLabels, displayLanguage);
+	resolveLabelsIn(
+		[...Object.values(entity.ribbons), application.ribbon],
+		locLabels,
+		displayLanguage,
+	);
 
 	// The table's CustomActions the ribbon doesn't return anywhere (#64), listed
 	// so they can be deleted. Not the application ribbon's: its CustomActions

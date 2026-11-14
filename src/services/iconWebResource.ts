@@ -106,10 +106,14 @@ export async function ensureFluentIconWebResource(
 	const result: FluentIconWebResource = { name, id: saved.id, created: saved.created };
 	if (!published.has(saved.id)) {
 		try {
-			await withBusyRetry(`Publishing icon web resource ${name}`, () => publish(saved.id, deps.guard), {
-				timeoutMs: PUBLISH_BUSY_TIMEOUT_MS,
-				...deps.busy,
-			});
+			await withBusyRetry(
+				`Publishing icon web resource ${name}`,
+				() => publish(saved.id, deps.guard),
+				{
+					timeoutMs: PUBLISH_BUSY_TIMEOUT_MS,
+					...deps.busy,
+				},
+			);
 			published.add(saved.id);
 		} catch (err) {
 			result.publishError = err instanceof Error ? err.message : String(err);

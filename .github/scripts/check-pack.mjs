@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Validates `npm pack --dry-run --json` output: required files are present,
-// dev-only/analysis files are absent, and the package stays under a size budget.
+// Validates `npm pack [--dry-run] --json` output (CI dry-runs it; release.yml checks the real pack):
+// required files are present, dev-only/analysis files are absent, and the package stays under a size budget.
 //
 // Usage: npm pack --dry-run --json --silent > pack.json && node .github/scripts/check-pack.mjs pack.json
 import { readFileSync, appendFileSync } from "node:fs";

@@ -1,31 +1,40 @@
 import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { makeStyles, tokens } from "@fluentui/react-components";
-import { TopBar } from "./TopBar";
-import { SubHeader } from "./SubHeader";
-import { useUIStore } from "@/store/uiStore";
+import { Button, OverlayDrawer, Tooltip, makeStyles, tokens } from "@fluentui/react-components";
+import {
+	BoxRegular,
+	PanelRightExpandRegular,
+	TextBulletListTreeRegular,
+} from "@fluentui/react-icons";
+import { TOP_BAR_HEIGHT, TopBar } from "./TopBar";
+import { ShellMessages } from "./ShellMessages";
+import { useUIStore, type LeftPaneTab } from "@/store/uiStore";
+import { PropertiesHostContext } from "@/components/properties-pane/propertiesHost";
+import { useSelectionStore } from "@/store/selectionStore";
+import { useSessionStore } from "@/store/sessionStore";
+import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { ResizableHandle } from "@/components/shared/ResizableHandle";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
-import { dragPaneWidths, fitPaneWidths } from "@/utils/paneWidths";
+import {
+	MAX_LEFT,
+	MAX_RIGHT,
+	MIN_LEFT,
+	MIN_RIGHT,
+	dragPaneWidths,
+	fitPaneWidths,
+} from "@/utils/paneWidths";
 
 // Lazy-loaded panels and modals
-const XmlDrawer = lazy(() => import("@/components/panels/XmlDrawer"));
-const CommandEditorPanel = lazy(() => import("@/components/panels/CommandEditorPanel"));
-const RuleEditorPanel = lazy(() => import("@/components/panels/RuleEditorPanel"));
+// The command and rule editors are views of one drawer (#186).
+const EditorDrawer = lazy(() => import("@/components/panels/EditorDrawer"));
 const BulkPublishModal = lazy(() => import("@/components/modals/BulkPublishModal"));
 const NewButtonModal = lazy(() => import("@/components/modals/NewButtonModal"));
 const NewGroupModal = lazy(() => import("@/components/modals/NewGroupModal"));
 const NewTabModal = lazy(() => import("@/components/modals/NewTabModal"));
 const ImportXmlModal = lazy(() => import("@/components/modals/ImportXmlModal"));
 const CommandPalette = lazy(() => import("@/components/command-palette/CommandPalette"));
-const LocalizationEditor = lazy(() => import("@/components/modals/LocalizationEditor"));
 const IconPickerModal = lazy(() => import("@/components/modals/IconPickerModal"));
-const TabDisplayRulesPanel = lazy(() => import("@/components/panels/TabDisplayRulesPanel"));
-const ScalingEditorPanel = lazy(() => import("@/components/panels/ScalingEditorPanel"));
-const ConflictDrawer = lazy(() => import("@/components/panels/ConflictDrawer"));
 const WebResourceBrowser = lazy(() => import("@/components/panels/WebResourceBrowser"));
-const UrlComposerModal = lazy(() => import("@/components/panels/UrlComposerModal"));
-const DiffViewer = lazy(() => import("@/components/panels/DiffViewer"));
 const HideInsteadOfDeleteModal = lazy(() => import("@/components/modals/HideInsteadOfDeleteModal"));
 
 const useStyles = makeStyles({
@@ -57,7 +66,42 @@ const useStyles = makeStyles({
 	bottomPanel: {
 		flexShrink: 0,
 	},
+	/** Below NARROW_WIDTH the side panes become a rail and overlay drawers (#179). */
+	rail: {
+		width: "48px",
+		flexShrink: 0,
+		display: "flex",
+		flexDirection: "column",
+		alignItems: "center",
+		paddingTop: tokens.spacingVerticalS,
+		borderRight: `1px solid ${tokens.colorNeutralStroke2}`,
+		backgroundColor: tokens.colorNeutralBackground2,
+	},
+	drawerBody: {
+		position: "relative",
+		width: "100%",
+		height: "100%",
+		overflow: "hidden",
+	},
+	// Properties opens below the top bar: over it, it hid Publish, Search and
+	// the tools while you edited (#229).
+	// The bar is TOP_BAR_HEIGHT plus its 1px bottom border, which stays in view.
+	belowTopBar: {
+		top: `${TOP_BAR_HEIGHT + 1}px`,
+		height: `calc(100vh - ${TOP_BAR_HEIGHT + 1}px)`,
+	},
 });
+
+const LEFT_TABS: { value: LeftPaneTab; label: string; icon: React.ReactElement }[] = [
+	{ value: "structure", label: "Structure", icon: <TextBulletListTreeRegular /> },
+	{ value: "solution", label: "Solution", icon: <BoxRegular /> },
+];
+
+/** Below this window width the side panes stop taking canvas width (#179). */
+const NARROW_WIDTH = 1200;
+/** The bottom panel's height limits, in px. */
+const BOTTOM_MIN = 120;
+const BOTTOM_MAX = 520;
 
 function useWindowWidth(): number {
 	const [width, setWidth] = useState(() => window.innerWidth);
@@ -88,32 +132,87 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const setBottomPanelHeight = useUIStore((s) => s.setBottomPanelHeight);
 	const announcement = useUIStore((s) => s.announcement);
 	const windowWidth = useWindowWidth();
-	const fitted = fitPaneWidths(windowWidth, leftPaneWidth, rightPaneMode === "docked" ? rightPaneWidth : 0);
+	const narrow = windowWidth < NARROW_WIDTH;
+	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
+	const selectedGroupId = useSelectionStore((s) => s.selectedGroupId);
+	const activeTable = useSessionStore((s) => s.activeEntity?.logicalName ?? null);
+	const [leftOpen, setLeftOpen] = useState(false);
+	const leftPaneTab = useUIStore((s) => s.leftPaneTab);
+	const setLeftPaneTab = useUIStore((s) => s.setLeftPaneTab);
+	const selectedModernId = useModernCommandStore((s) => s.selectedCommandId);
+	const [propsOpenState, setPropsOpen] = useState(false);
+	// Show orphans and similar actions ask for Properties (#179 review).
+	const propertiesRequested = useUIStore((s) => s.propertiesRequested);
+	const setPropertiesRequested = useUIStore((s) => s.setPropertiesRequested);
+	const propsOpen = propsOpenState || (narrow && propertiesRequested);
+	const closeProps = () => {
+		setPropsOpen(false);
+		setPropertiesRequested(false);
+	};
+	// In a narrow window, selecting something (a classic control or a modern
+	// command) opens Properties; clearing the selection doesn't close it.
+	// While the Structure drawer is open, a selection (opening a node's menu
+	// selects it) leaves Properties alone: it would take the focus and close the
+	// menu. Choosing a group or control there closes the drawer and opens
+	// Properties (#194). Opening a table closes the drawer as well (compared
+	// during render).
+	const selected = !!(selectedButtonId || selectedGroupId || selectedModernId);
+	const selectionKey = `${selectedGroupId ?? ""}|${selectedButtonId ?? ""}|${selectedModernId ?? ""}`;
+	const [seenSelection, setSeenSelection] = useState(selectionKey);
+	if (seenSelection !== selectionKey) {
+		setSeenSelection(selectionKey);
+		if (narrow && !leftOpen && selected) setPropsOpen(true);
+	}
+	// The drawers start closed whenever the window crosses the narrow width.
+	const [seenNarrow, setSeenNarrow] = useState(narrow);
+	if (seenNarrow !== narrow) {
+		setSeenNarrow(narrow);
+		setLeftOpen(false);
+		setPropsOpen(false);
+	}
+	const structureChoice = useUIStore((s) => s.structureChoice);
+	const [seenChoice, setSeenChoice] = useState(structureChoice);
+	if (seenChoice !== structureChoice) {
+		setSeenChoice(structureChoice);
+		setLeftOpen(false);
+		if (narrow && selected) setPropsOpen(true);
+	}
+	const [seenTable, setSeenTable] = useState(activeTable);
+	if (seenTable !== activeTable) {
+		setSeenTable(activeTable);
+		setLeftOpen(false);
+	}
+	const fitted = fitPaneWidths(
+		windowWidth,
+		leftPaneWidth,
+		rightPaneMode === "docked" ? rightPaneWidth : 0,
+	);
+	// The widest each side pane can be shown in this window: the handles' aria-valuemax (#23 review)
+	const maxShown = {
+		left: Math.max(fitted.left, fitPaneWidths(windowWidth, MAX_LEFT, fitted.right).left),
+		right: Math.max(fitted.right, fitPaneWidths(windowWidth, fitted.left, MAX_RIGHT).right),
+	};
 	const anyOverlayOpen = useUIStore(
 		(s) =>
-			s.xmlDrawerOpen ||
-			s.commandEditorOpen ||
-			s.ruleEditorOpen ||
+			s.editorStack.length > 0 ||
 			s.bulkPublishOpen ||
 			s.newButtonGroupId !== null ||
 			s.newGroupOpen ||
 			s.newTabOpen ||
 			s.importXmlOpen ||
 			s.commandPaletteOpen ||
-			s.localizationEditorOpen ||
 			s.iconPickerOpen ||
-			s.tabDisplayRulesOpen ||
-			s.scalingEditorOpen ||
-			s.conflictDrawerOpen ||
 			s.webResourceBrowserOpen ||
-			s.urlComposerOpen ||
-			s.diffViewerOpen ||
 			s.hideInsteadOfDelete !== null,
 	);
 	const focusReturnRef = useRef<HTMLElement | null>(null);
 	const wasOverlayOpenRef = useRef(false);
 
 	useKeyboardShortcuts();
+
+	useEffect(() => {
+		if (propertiesRequested && !narrow) setPropertiesRequested(false);
+	}, [propertiesRequested, narrow, setPropertiesRequested]);
 
 	useEffect(() => {
 		if (anyOverlayOpen && !wasOverlayOpenRef.current) {
@@ -147,7 +246,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const resizeBottom = useCallback(
 		(delta: number) => {
 			const next = bottomPanelHeight - delta;
-			setBottomPanelHeight(Math.max(120, Math.min(520, next)));
+			setBottomPanelHeight(Math.max(BOTTOM_MIN, Math.min(BOTTOM_MAX, next)));
 		},
 		[bottomPanelHeight, setBottomPanelHeight],
 	);
@@ -155,18 +254,100 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	return (
 		<div className={styles.root}>
 			<TopBar />
-			<SubHeader />
+			<ShellMessages />
 			<div className={styles.body}>
-				<div className={styles.leftPane} style={{ width: fitted.left }}>
-					<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
-				</div>
-				<ResizableHandle direction="vertical" onResize={resizeLeft} aria-label="Resize left pane" />
+				{narrow ? (
+					<nav className={styles.rail} aria-label="Side panes">
+						{/* The left pane's two tabs, each opening it as a drawer (#194). */}
+						{LEFT_TABS.map(({ value, label, icon }) => (
+							<Tooltip key={value} content={label} relationship="label">
+								<Button
+									appearance="subtle"
+									icon={icon}
+									aria-pressed={leftOpen && leftPaneTab === value}
+									onClick={() => {
+										setLeftPaneTab(value);
+										setLeftOpen(true);
+									}}
+								/>
+							</Tooltip>
+						))}
+						{rightPaneMode !== "hidden" && (
+							<Tooltip content="Properties" relationship="label">
+								<Button
+									appearance="subtle"
+									icon={<PanelRightExpandRegular />}
+									aria-pressed={propsOpen}
+									onClick={() => (propsOpen ? closeProps() : setPropsOpen(true))}
+								/>
+							</Tooltip>
+						)}
+					</nav>
+				) : (
+					<>
+						<div className={styles.leftPane} style={{ width: fitted.left }}>
+							<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
+						</div>
+						<ResizableHandle
+							direction="vertical"
+							onResize={resizeLeft}
+							value={fitted.left}
+							min={Math.min(MIN_LEFT, fitted.left)}
+							max={maxShown.left}
+							target="Left pane"
+							aria-label="Resize left pane"
+						/>
+					</>
+				)}
 				<ErrorBoundary label="Ribbon canvas">{children}</ErrorBoundary>
-				{rightPaneMode === "docked" && (
+				{narrow && (
+					<>
+						<OverlayDrawer
+							position="start"
+							size="small"
+							open={leftOpen}
+							onOpenChange={(_, d) => setLeftOpen(d.open)}
+							aria-label={leftPaneTab === "structure" ? "Structure" : "Solution"}
+						>
+							<div className={styles.drawerBody}>
+								<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
+							</div>
+						</OverlayDrawer>
+						{rightPaneMode !== "hidden" && (
+							// Non-modal: the canvas stays usable, so picking another button
+							// updates Properties instead of needing a close first.
+							<OverlayDrawer
+								position="end"
+								size="small"
+								modalType="non-modal"
+								className={styles.belowTopBar}
+								open={propsOpen}
+								onOpenChange={(_, d) =>
+									d.open ? setPropsOpen(true) : closeProps()
+								}
+								aria-label="Properties"
+							>
+								<div className={styles.drawerBody}>
+									{/* Properties' own header shows this close button (#184). */}
+									<PropertiesHostContext.Provider value={{ onClose: closeProps }}>
+										<ErrorBoundary label="Properties pane">
+											{rightPane}
+										</ErrorBoundary>
+									</PropertiesHostContext.Provider>
+								</div>
+							</OverlayDrawer>
+						)}
+					</>
+				)}
+				{!narrow && rightPaneMode === "docked" && (
 					<>
 						<ResizableHandle
 							direction="vertical"
 							onResize={resizeRight}
+							value={fitted.right}
+							min={Math.min(MIN_RIGHT, fitted.right)}
+							max={maxShown.right}
+							target="Properties pane"
 							aria-label="Resize right pane"
 						/>
 						<div className={styles.rightPane} style={{ width: fitted.right }}>
@@ -174,7 +355,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 						</div>
 					</>
 				)}
-				{rightPaneMode === "floating" && (
+				{!narrow && rightPaneMode === "floating" && (
 					<div
 						style={{
 							position: "absolute",
@@ -199,6 +380,10 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 				<ResizableHandle
 					direction="horizontal"
 					onResize={resizeBottom}
+					value={bottomPanelHeight}
+					min={BOTTOM_MIN}
+					max={BOTTOM_MAX}
+					target="Bottom panel"
 					aria-label="Resize bottom panel"
 				/>
 			)}
@@ -210,23 +395,15 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 			    the whole tool down (#89). */}
 			<ErrorBoundary label="Panels">
 				<Suspense fallback={null}>
-					<XmlDrawer />
-					<CommandEditorPanel />
-					<RuleEditorPanel />
+					<EditorDrawer />
 					<BulkPublishModal />
 					<NewButtonModal />
 					<NewGroupModal />
 					<NewTabModal />
 					<ImportXmlModal />
 					<CommandPalette />
-					<LocalizationEditor />
 					<IconPickerModal />
-					<TabDisplayRulesPanel />
-					<ScalingEditorPanel />
-					<ConflictDrawer />
 					<WebResourceBrowser />
-					<UrlComposerModal />
-					<DiffViewer />
 					<HideInsteadOfDeleteModal />
 				</Suspense>
 			</ErrorBoundary>

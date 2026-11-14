@@ -50,7 +50,9 @@ beforeEach(() => {
 		displayRules: [],
 		locLabels: [{ id: "L", titles: [{ languageCode: 1033, description: "One" }] }],
 	});
-	useRibbonStore.getState().upsertLocLabel({ id: "L", titles: [{ languageCode: 1033, description: "Two" }] });
+	useRibbonStore
+		.getState()
+		.upsertLocLabel({ id: "L", titles: [{ languageCode: 1033, description: "Two" }] });
 
 	container = document.createElement("div");
 	document.body.appendChild(container);
@@ -72,7 +74,7 @@ describe("undo / redo shortcuts", () => {
 	});
 
 	// Browsers report the upper-case letter with Shift or Caps Lock (#123).
-	it("Ctrl+Shift+Z redoes, as the browser reports it (key \"Z\")", () => {
+	it('Ctrl+Shift+Z redoes, as the browser reports it (key "Z")', () => {
 		press(document.body, "z");
 		expect(labelOf()).toBe("One");
 		press(document.body, "Z", true);
@@ -115,7 +117,13 @@ describe("undo / redo shortcuts", () => {
 		expect(useUIStore.getState().bulkPublishOpen).toBe(false);
 		act(() => {
 			document.body.dispatchEvent(
-				new KeyboardEvent("keydown", { key: "ż", code: "KeyZ", ctrlKey: true, altKey: true, bubbles: true }),
+				new KeyboardEvent("keydown", {
+					key: "ż",
+					code: "KeyZ",
+					ctrlKey: true,
+					altKey: true,
+					bubbles: true,
+				}),
 			);
 		});
 		expect(labelOf()).toBe("Two");

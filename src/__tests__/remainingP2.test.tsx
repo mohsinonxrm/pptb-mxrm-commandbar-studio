@@ -18,7 +18,6 @@ import { controlCommandIds } from "@/utils/controlKinds";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
 import { useSelectionStore } from "@/store/selectionStore";
-import { useUIStore } from "@/store/uiStore";
 import type {
 	RibbonButton,
 	RibbonDefinition,
@@ -276,7 +275,6 @@ describe("#150 the XML drawer's Download", () => {
 	afterEach(() => {
 		act(() => root.unmount());
 		container.remove();
-		useUIStore.setState({ xmlDrawerOpen: false });
 		delete (window as unknown as { toolboxAPI?: unknown }).toolboxAPI;
 	});
 
@@ -288,12 +286,11 @@ describe("#150 the XML drawer's Download", () => {
 		};
 		load([]);
 		useSelectionStore.getState().setLocation("HomepageGrid");
-		const { XmlDrawer } = await import("@/components/panels/XmlDrawer");
-		act(() => useUIStore.setState({ xmlDrawerOpen: true }));
+		const { XmlView } = await import("@/components/panels/XmlView");
 		await act(async () =>
 			root.render(
 				<FluentProvider theme={webLightTheme}>
-					<XmlDrawer />
+					<XmlView location="HomepageGrid" />
 				</FluentProvider>,
 			),
 		);

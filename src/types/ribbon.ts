@@ -308,156 +308,156 @@ export interface StandardRuleAttributes {
 // Where each kind may appear (enable / display / both) is in constants/ruleKinds.ts.
 export type AttributedRuleStep = StandardRuleAttributes &
 	(
-	| {
-			kind: "CommandClientTypeRule";
-			// "Modern"  = Unified Interface (web, tablets and phones): Mscrm.HideOnModern hides there (#152)
-			// "Refresh" = the legacy updated web client (pre-Unified Interface)
-			// "Legacy"  = Classic ribbon / Outlook list views
-			type: "Modern" | "Refresh" | "Legacy";
-	  }
-	| { kind: "CrmClientTypeRule"; type: "Web" | "Outlook" }
-	| { kind: "CrmOfflineAccessStateRule"; state: "Offline" | "Online" }
-	| {
-			kind: "CrmOutlookClientTypeRule";
-			type: "CrmForOutlook" | "CrmForOutlookOfflineAccess";
-	  }
-	| {
-			// display only
-			kind: "CrmOutlookClientVersionRule";
-			major: number;
-			minor?: number;
-			build?: number;
-			revision?: number;
-	  }
-	| {
-			kind: "CustomRule";
-			library: string;
-			functionName: string;
-			/** Child parameters passed to the function (RibbonTypes.xsd CustomRuleType → ParameterType, unnamed). */
-			params?: ActionParameter[];
-	  }
-	| {
-			// display only
-			kind: "DeviceTypeRule";
-			type: "None" | "Phone" | "Tablet" | "Web" | "Outlook" | "InteractionCentric";
-	  }
-	| {
-			// display only (RibbonTypes.xsd FeatureControlRuleType)
-			kind: "FeatureControlRule";
-			featureControlBit: string;
-			expectedValue: boolean;
-	  }
-	| {
-			// display only — privilegeDepth REQUIRED
-			kind: "EntityPrivilegeRule";
-			entityName?: string;
-			appliesTo?: "PrimaryEntity" | "SelectedEntity";
-			privilegeType:
-				| "Create"
-				| "Read"
-				| "Write"
-				| "Delete"
-				| "Assign"
-				| "Share"
-				| "Append"
-				| "AppendTo";
-			privilegeDepth: "None" | "Basic" | "Local" | "Deep" | "Global";
-	  }
-	| {
-			// display only — propertyValue REQUIRED
-			kind: "EntityPropertyRule";
-			entityName?: string;
-			appliesTo?: "PrimaryEntity" | "SelectedEntity";
-			propertyName: EntityProperty;
-			propertyValue: boolean;
-	  }
-	| {
-			kind: "EntityRule";
-			entityName?: string;
-			context?: string;
-			appliesTo?: "PrimaryEntity" | "SelectedEntity";
-	  }
-	| { kind: "FormEntityContextRule"; entityName: string }
-	| {
-			kind: "FormStateRule";
-			state: "Create" | "Existing" | "ReadOnly" | "Disabled" | "BulkEdit";
-	  }
-	| {
-			kind: "FormTypeRule";
-			type:
-				| "Main"
-				| "Preview"
-				| "AppointmentBook"
-				| "Dashboard"
-				| "Quick"
-				| "QuickCreate"
-				| "Card"
-				| "MainInteractionCentric";
-	  }
-	| { kind: "HideForTabletExperienceRule" }
-	| {
-			kind: "MiscellaneousPrivilegeRule";
-			privilegeName: string;
-			privilegeDepth?: "None" | "Basic" | "Local" | "Deep" | "Global";
-	  }
-	| {
-			// display only
-			kind: "OptionSetRule";
-			optionSet: string;
-			stateCode: string;
-			objectTypeCode: string;
-	  }
-	| {
-			kind: "OrganizationSettingRule";
-			setting:
-				| "IsSharepointEnabled"
-				| "IsSOPIntegrationEnabled"
-				| "IsFiscalCalendarDefined"
-				| "IsReadFormModeDefined"
-				| "IsBPFEntityCustomizationFeatureEnabled";
-	  }
-	| {
-			kind: "OutlookItemTrackingRule";
-			trackedInCrm: boolean;
-			appliesTo?: "PrimaryEntity";
-	  }
-	| { kind: "OutlookRenderTypeRule"; type: "Web" | "Outlook" }
-	| { kind: "OutlookVersionRule"; version: "2003" | "2007" | "2010" }
-	| { kind: "PageRule"; address: string }
-	| {
-			kind: "RecordPrivilegeRule";
-			privilegeType:
-				| "Create"
-				| "Read"
-				| "Write"
-				| "Delete"
-				| "Assign"
-				| "Share"
-				| "Append"
-				| "AppendTo";
-			appliesTo?: "PrimaryEntity";
-	  }
-	| { kind: "ReferencingAttributeRequiredRule" }
-	| {
-			// appliesTo REQUIRED = "SelectedEntity"
-			kind: "RelationshipTypeRule";
-			appliesTo: "SelectedEntity";
-			relationshipType?: "OneToMany" | "ManyToMany" | "NoRelationship";
-			allowCustomRelationship?: boolean;
-			allowSystemRelationship?: boolean;
-	  }
-	| {
-			kind: "SelectionCountRule";
-			minimum?: number;
-			maximum?: number;
-			appliesTo?: "PrimaryEntity" | "SelectedEntity";
-	  }
-	| { kind: "SkuRule"; sku: "OnPremise" | "Online" | "Spla" }
-	| {
-			kind: "ValueRule";
-			field: string;
-			value: string;
-	  }
+		| {
+				kind: "CommandClientTypeRule";
+				// "Modern"  = Unified Interface (web, tablets and phones): Mscrm.HideOnModern hides there (#152)
+				// "Refresh" = the legacy updated web client (pre-Unified Interface)
+				// "Legacy"  = Classic ribbon / Outlook list views
+				type: "Modern" | "Refresh" | "Legacy";
+		  }
+		| { kind: "CrmClientTypeRule"; type: "Web" | "Outlook" }
+		| { kind: "CrmOfflineAccessStateRule"; state: "Offline" | "Online" }
+		| {
+				kind: "CrmOutlookClientTypeRule";
+				type: "CrmForOutlook" | "CrmForOutlookOfflineAccess";
+		  }
+		| {
+				// display only
+				kind: "CrmOutlookClientVersionRule";
+				major: number;
+				minor?: number;
+				build?: number;
+				revision?: number;
+		  }
+		| {
+				kind: "CustomRule";
+				library: string;
+				functionName: string;
+				/** Child parameters passed to the function (RibbonTypes.xsd CustomRuleType → ParameterType, unnamed). */
+				params?: ActionParameter[];
+		  }
+		| {
+				// display only
+				kind: "DeviceTypeRule";
+				type: "None" | "Phone" | "Tablet" | "Web" | "Outlook" | "InteractionCentric";
+		  }
+		| {
+				// display only (RibbonTypes.xsd FeatureControlRuleType)
+				kind: "FeatureControlRule";
+				featureControlBit: string;
+				expectedValue: boolean;
+		  }
+		| {
+				// display only — privilegeDepth REQUIRED
+				kind: "EntityPrivilegeRule";
+				entityName?: string;
+				appliesTo?: "PrimaryEntity" | "SelectedEntity";
+				privilegeType:
+					| "Create"
+					| "Read"
+					| "Write"
+					| "Delete"
+					| "Assign"
+					| "Share"
+					| "Append"
+					| "AppendTo";
+				privilegeDepth: "None" | "Basic" | "Local" | "Deep" | "Global";
+		  }
+		| {
+				// display only — propertyValue REQUIRED
+				kind: "EntityPropertyRule";
+				entityName?: string;
+				appliesTo?: "PrimaryEntity" | "SelectedEntity";
+				propertyName: EntityProperty;
+				propertyValue: boolean;
+		  }
+		| {
+				kind: "EntityRule";
+				entityName?: string;
+				context?: string;
+				appliesTo?: "PrimaryEntity" | "SelectedEntity";
+		  }
+		| { kind: "FormEntityContextRule"; entityName: string }
+		| {
+				kind: "FormStateRule";
+				state: "Create" | "Existing" | "ReadOnly" | "Disabled" | "BulkEdit";
+		  }
+		| {
+				kind: "FormTypeRule";
+				type:
+					| "Main"
+					| "Preview"
+					| "AppointmentBook"
+					| "Dashboard"
+					| "Quick"
+					| "QuickCreate"
+					| "Card"
+					| "MainInteractionCentric";
+		  }
+		| { kind: "HideForTabletExperienceRule" }
+		| {
+				kind: "MiscellaneousPrivilegeRule";
+				privilegeName: string;
+				privilegeDepth?: "None" | "Basic" | "Local" | "Deep" | "Global";
+		  }
+		| {
+				// display only
+				kind: "OptionSetRule";
+				optionSet: string;
+				stateCode: string;
+				objectTypeCode: string;
+		  }
+		| {
+				kind: "OrganizationSettingRule";
+				setting:
+					| "IsSharepointEnabled"
+					| "IsSOPIntegrationEnabled"
+					| "IsFiscalCalendarDefined"
+					| "IsReadFormModeDefined"
+					| "IsBPFEntityCustomizationFeatureEnabled";
+		  }
+		| {
+				kind: "OutlookItemTrackingRule";
+				trackedInCrm: boolean;
+				appliesTo?: "PrimaryEntity";
+		  }
+		| { kind: "OutlookRenderTypeRule"; type: "Web" | "Outlook" }
+		| { kind: "OutlookVersionRule"; version: "2003" | "2007" | "2010" }
+		| { kind: "PageRule"; address: string }
+		| {
+				kind: "RecordPrivilegeRule";
+				privilegeType:
+					| "Create"
+					| "Read"
+					| "Write"
+					| "Delete"
+					| "Assign"
+					| "Share"
+					| "Append"
+					| "AppendTo";
+				appliesTo?: "PrimaryEntity";
+		  }
+		| { kind: "ReferencingAttributeRequiredRule" }
+		| {
+				// appliesTo REQUIRED = "SelectedEntity"
+				kind: "RelationshipTypeRule";
+				appliesTo: "SelectedEntity";
+				relationshipType?: "OneToMany" | "ManyToMany" | "NoRelationship";
+				allowCustomRelationship?: boolean;
+				allowSystemRelationship?: boolean;
+		  }
+		| {
+				kind: "SelectionCountRule";
+				minimum?: number;
+				maximum?: number;
+				appliesTo?: "PrimaryEntity" | "SelectedEntity";
+		  }
+		| { kind: "SkuRule"; sku: "OnPremise" | "Online" | "Spla" }
+		| {
+				kind: "ValueRule";
+				field: string;
+				value: string;
+		  }
 	);
 
 /**

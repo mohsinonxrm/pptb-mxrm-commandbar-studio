@@ -3,19 +3,29 @@
  * LocLabel, while the canvas, Properties and the publish use the button's own
  * text, which then overwrote it. The base row now reads and writes the
  * button's text; other languages stay the label's titles.
+ *
+ * #187: Translations is a view of the editor drawer that applies as you edit,
+ * with the same rules Save had.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
-import { LocalizationEditor } from "@/components/modals/LocalizationEditor";
+import { TranslationsView } from "@/components/panels/TranslationsView";
 import { generateRibbonDiffXml } from "@/services/xmlGenerator";
 import { useRibbonStore } from "@/store/ribbonStore";
-import { useUIStore } from "@/store/uiStore";
 import type { LocLabel, RibbonButton, RibbonDefinition, RibbonLocation } from "@/types/ribbon";
 
 vi.setConfig({ testTimeout: 30_000 });
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+// jsdom has no ResizeObserver; Fluent's MessageBar uses it for reflow.
+if (typeof window.ResizeObserver === "undefined") {
+	window.ResizeObserver = class {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof ResizeObserver;
+}
 
 const T = "account";
 const MAIN = `Mscrm.HomepageGrid.${T}.MainTab`;
@@ -83,7 +93,7 @@ const button = (id: string) =>
 		.getState()
 		.ribbons.HomepageGrid.tabs[0].groups[0].buttons.find((b) => b.id === id)!;
 
-describe("#157 the Translations dialog's base language is the button's own text", () => {
+describe("#157 Translations: the base language is the button's own text", () => {
 	let container: HTMLDivElement;
 	let root: Root;
 	beforeEach(() => {
@@ -94,35 +104,33 @@ describe("#157 the Translations dialog's base language is the button's own text"
 	afterEach(() => {
 		act(() => root.unmount());
 		container.remove();
-		useUIStore.setState({ localizationEditorOpen: false, localizationEditorButtonId: null });
 	});
 
 	function open(buttonId: string) {
-		act(() => useUIStore.getState().openLocalizationEditor(buttonId));
 		act(() =>
 			root.render(
 				<FluentProvider theme={webLightTheme}>
-					<LocalizationEditor />
+					<TranslationsView buttonId={buttonId} />
 				</FluentProvider>,
 			),
 		);
 	}
-	const baseLabelInput = () => document.body.querySelector<HTMLInputElement>("table input")!;
-	function type(input: HTMLInputElement, value: string) {
+	const input = (field: string, language = "English (United States)") =>
+		document.body.querySelector<HTMLInputElement>(
+			`input[aria-label="${field} (${language})"]`,
+		)!;
+	const baseLabelInput = () => input("Label");
+	function type(el: HTMLInputElement, value: string) {
 		act(() => {
 			Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
-				input,
+				el,
 				value,
 			);
-			input.dispatchEvent(new Event("input", { bubbles: true }));
+			el.dispatchEvent(new Event("input", { bubbles: true }));
 		});
 	}
-	const save = () =>
-		act(() =>
-			[...document.body.querySelectorAll("button")]
-				.find((b) => b.textContent === "Save translations")!
-				.click(),
-		);
+	// Live apply (#187): there's nothing to save.
+	const save = () => {};
 
 	it("a new button: the base row shows its text, and what's typed there is published", () => {
 		load([]);
@@ -203,7 +211,7 @@ describe("#157 the Translations dialog's base language is the button's own text"
 		expect(titles).toEqual({ "1033": "New", "1031": "Alt" });
 	});
 
-	it("saving without a change writes no label, so nothing blocks the publish (#157 review)", async () => {
+	it("opening a built-in button's translations writes nothing, and its text is read-only (#157 review)", async () => {
 		const { planScope } = await import("@/services/publishPlan");
 		const loaded: RibbonButton = {
 			id: "Mscrm.HomepageGrid.account.NewRecord",
@@ -228,7 +236,8 @@ describe("#157 the Translations dialog's base language is the button's own text"
 		load([loaded]);
 		const before = useRibbonStore.getState();
 		open(loaded.id);
-		save();
+		expect(baseLabelInput().readOnly).toBe(true);
+		expect(document.body.textContent).toContain("This button isn't yours");
 		const after = useRibbonStore.getState();
 		expect(after.locLabels).toEqual(before.locLabels);
 		expect(after.ribbons).toEqual(before.ribbons);
@@ -246,5 +255,85 @@ describe("#157 the Translations dialog's base language is the button's own text"
 			baselineLocLabels: [],
 		});
 		expect(plan.unsupported).toEqual([]);
+	});
+
+	it("another language is published with the base text; removing it takes it out", () => {
+		load([]);
+		act(() =>
+			useRibbonStore.getState().createButton({
+				location: "HomepageGrid",
+				tabId: MAIN,
+				groupId: GROUP,
+				button: {
+					id: "cbs.New",
+					label: "Foo",
+					kind: "button",
+					templateAlias: "o1",
+					commandId: "cbs.New.Command",
+					hidden: false,
+					oob: false,
+					custom: true,
+					managed: false,
+				},
+			}),
+		);
+		open("cbs.New");
+		// A language with no text yet stores nothing.
+		const combo = document.body.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+		type(combo, "1031");
+		act(() =>
+			[...document.body.querySelectorAll("button")]
+				.find((b) => b.textContent?.trim() === "Add")!
+				.click(),
+		);
+		expect(useRibbonStore.getState().locLabels).toEqual([]);
+		type(input("Label", "German"), "Neu");
+		expect(useRibbonStore.getState().locLabels).toEqual([
+			{
+				id: "cbs.New.LabelText",
+				titles: [
+					{ languageCode: 1033, description: "Foo" },
+					{ languageCode: 1031, description: "Neu" },
+				],
+			},
+		]);
+		// The base text keeps the label's base title in step.
+		type(baseLabelInput(), "Bar");
+		expect(useRibbonStore.getState().locLabels[0].titles[0].description).toBe("Bar");
+
+		const remove = document.body.querySelector<HTMLButtonElement>(
+			'section[aria-label="German (1031)"] button',
+		)!;
+		act(() => remove.click());
+		expect(useRibbonStore.getState().locLabels[0].titles).toEqual([
+			{ languageCode: 1033, description: "Bar" },
+		]);
+		expect(document.body.querySelector('section[aria-label="German (1031)"]')).toBeNull();
+	});
+
+	it("an empty base label isn't applied: the button keeps its label", () => {
+		load([]);
+		act(() =>
+			useRibbonStore.getState().createButton({
+				location: "HomepageGrid",
+				tabId: MAIN,
+				groupId: GROUP,
+				button: {
+					id: "cbs.New",
+					label: "Foo",
+					kind: "button",
+					templateAlias: "o1",
+					commandId: "cbs.New.Command",
+					hidden: false,
+					oob: false,
+					custom: true,
+					managed: false,
+				},
+			}),
+		);
+		open("cbs.New");
+		type(baseLabelInput(), "");
+		expect(button("cbs.New").label).toBe("Foo");
+		expect(document.body.textContent).toContain("A button needs a label.");
 	});
 });

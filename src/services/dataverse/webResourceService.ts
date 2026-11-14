@@ -391,10 +391,14 @@ export async function saveWebResource(
 	// someone ran Publish All. A publish that fails doesn't undo the save.
 	if ((result.created || result.updated) && options.publish !== false) {
 		try {
-			await withBusyRetry(`Publishing web resource ${name}`, () => publishWebResource(result.id, guard), {
-				timeoutMs: 2 * 60_000,
-				onProgress: (msg) => useRuntimeLogStore.getState().logInfo("webresource", msg),
-			});
+			await withBusyRetry(
+				`Publishing web resource ${name}`,
+				() => publishWebResource(result.id, guard),
+				{
+					timeoutMs: 2 * 60_000,
+					onProgress: (msg) => useRuntimeLogStore.getState().logInfo("webresource", msg),
+				},
+			);
 			result.published = true;
 		} catch (err) {
 			result.publishWarning =
@@ -441,7 +445,9 @@ export async function addExistingWebResourceToActiveSolution(
 	}
 	const active = useSessionStore.getState().activeSolution;
 	if (!active || active.isManaged) {
-		const why = active ? `the active solution ${active.uniqueName} is managed` : "no solution is selected";
+		const why = active
+			? `the active solution ${active.uniqueName} is managed`
+			: "no solution is selected";
 		const solutionWarning =
 			`Web resource ${name} was not added to any solution because ${why}. ` +
 			`Select an unmanaged solution and pick the icon again so it travels with your customizations.`;

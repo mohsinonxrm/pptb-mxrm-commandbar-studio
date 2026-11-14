@@ -16,7 +16,10 @@ describe("defaultTabId (#64)", () => {
 
 	it("falls back to the first tab Unified Interface shows, then the first tab", () => {
 		expect(
-			defaultTabId([tab("Mscrm.HomepageGrid.AllEntities.VisualizationTab"), tab("Mscrm.HomepageGrid.contact.View")]),
+			defaultTabId([
+				tab("Mscrm.HomepageGrid.AllEntities.VisualizationTab"),
+				tab("Mscrm.HomepageGrid.contact.View"),
+			]),
 		).toBe("Mscrm.HomepageGrid.contact.View");
 		expect(defaultTabId([tab("Mscrm.HomepageGrid.AllEntities.VisualizationTab")])).toBe(
 			"Mscrm.HomepageGrid.AllEntities.VisualizationTab",
@@ -25,7 +28,9 @@ describe("defaultTabId (#64)", () => {
 	});
 
 	it("flags the Charts / AllEntities tabs only", () => {
-		expect(isHiddenOnUnifiedInterface("Mscrm.HomepageGrid.AllEntities.VisualizationTab")).toBe(true);
+		expect(isHiddenOnUnifiedInterface("Mscrm.HomepageGrid.AllEntities.VisualizationTab")).toBe(
+			true,
+		);
 		expect(isHiddenOnUnifiedInterface("Mscrm.HomepageGrid.contact.MainTab")).toBe(false);
 		expect(isHiddenOnUnifiedInterface("Mscrm.Form.contact.MainTab")).toBe(false);
 	});

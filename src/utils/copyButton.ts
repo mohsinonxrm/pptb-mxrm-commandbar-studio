@@ -7,7 +7,9 @@ import type { RibbonButtonSource } from "@/types/ribbon";
  * out-of-the-box name like "Info" or a web resource), or the copy publishes
  * without its icon.
  */
-export function sourceForCopy(source: RibbonButtonSource | undefined): RibbonButtonSource | undefined {
+export function sourceForCopy(
+	source: RibbonButtonSource | undefined,
+): RibbonButtonSource | undefined {
 	if (!source?.modernImage) return undefined;
 	// The loaded image references come too: the generator treats a web-resource
 	// image that differs from the loaded one as newly picked, and would let it

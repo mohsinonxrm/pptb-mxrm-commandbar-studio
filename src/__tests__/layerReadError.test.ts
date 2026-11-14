@@ -161,7 +161,9 @@ describe("#4 the cache after a publish, and reads that overlap a clear", () => {
 			api.execute = async () => {
 				throw new Error("publish failed");
 			};
-			await expect(publishAllAsync(undefined, { pollIntervalMs: 1, timeoutMs: 5 })).rejects.toThrow();
+			await expect(
+				publishAllAsync(undefined, { pollIntervalMs: 1, timeoutMs: 5 }),
+			).rejects.toThrow();
 			api.execute = async () => {
 				calls++;
 				return appResponse;

@@ -93,13 +93,24 @@ const LAYER_ROWS = {
 		},
 	],
 	rules: [
-		{ ruleid: "rw.contact.Mine.Rule", ruletype: 1, ruledefinition: '<EnableRule Id="rw.contact.Mine.Rule"><CustomRule Library="$webresource:x.js" FunctionName="X.can" /></EnableRule>' },
-		{ ruleid: "rw.contact.Solo.Rule", ruletype: 1, ruledefinition: '<EnableRule Id="rw.contact.Solo.Rule"><CustomRule Library="$webresource:x.js" FunctionName="X.solo" /></EnableRule>' },
+		{
+			ruleid: "rw.contact.Mine.Rule",
+			ruletype: 1,
+			ruledefinition:
+				'<EnableRule Id="rw.contact.Mine.Rule"><CustomRule Library="$webresource:x.js" FunctionName="X.can" /></EnableRule>',
+		},
+		{
+			ruleid: "rw.contact.Solo.Rule",
+			ruletype: 1,
+			ruledefinition:
+				'<EnableRule Id="rw.contact.Solo.Rule"><CustomRule Library="$webresource:x.js" FunctionName="X.solo" /></EnableRule>',
+		},
 	],
 };
 
-const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v));
-const btn = (def: RibbonDefinition, id: string) => def.tabs[0].groups[0].buttons.find((b) => b.id === id)!;
+const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
+const btn = (def: RibbonDefinition, id: string) =>
+	def.tabs[0].groups[0].buttons.find((b) => b.id === id)!;
 
 function load() {
 	const parsed = parseRibbonXml(MERGED, "HomepageGrid", "contact");
@@ -132,7 +143,11 @@ async function build(current: RibbonDefinition, baseline: RibbonDefinition, pars
 		locLabels: parsed.locLabels,
 		plan: p,
 	});
-	return { ...result, plan: p, doc: new DOMParser().parseFromString(result.xml, "application/xml") };
+	return {
+		...result,
+		plan: p,
+		doc: new DOMParser().parseFromString(result.xml, "application/xml"),
+	};
 }
 
 beforeEach(() => {
@@ -150,7 +165,9 @@ describe("N4 — ownership comes from the unmanaged layer", () => {
 	it("deleting a managed button is reported as unsupported, not planned", () => {
 		const base = load().ribbon;
 		const cur = clone(base);
-		cur.tabs[0].groups[0].buttons = cur.tabs[0].groups[0].buttons.filter((b) => b.id !== "msdyn.contact.Book.Button");
+		cur.tabs[0].groups[0].buttons = cur.tabs[0].groups[0].buttons.filter(
+			(b) => b.id !== "msdyn.contact.Book.Button",
+		);
 		const p = plan(cur, base);
 		expect(p.deletedButtonIds).toEqual([]);
 		expect(p.unsupported.some((u) => u.includes("msdyn.contact.Book.Button"))).toBe(true);
@@ -163,8 +180,17 @@ describe("N4 — ownership comes from the unmanaged layer", () => {
 			buildMergedRibbonDiffXml({
 				entity: { logicalName: "contact" },
 				locations: [{ current: base.ribbon, baseline: base.ribbon }],
-				commands: [], enableRules: [], displayRules: [], locLabels: [],
-				plan: { editedCommandIds: [], editedEnableRuleIds: [], editedDisplayRuleIds: [], deletedButtonIds: ["msdyn.contact.Book.Button"], unhiddenButtonIds: [] },
+				commands: [],
+				enableRules: [],
+				displayRules: [],
+				locLabels: [],
+				plan: {
+					editedCommandIds: [],
+					editedEnableRuleIds: [],
+					editedDisplayRuleIds: [],
+					deletedButtonIds: ["msdyn.contact.Book.Button"],
+					unhiddenButtonIds: [],
+				},
 			}),
 		).rejects.toThrow(/Can't delete msdyn\.contact\.Book\.Button/);
 	});
@@ -176,7 +202,9 @@ describe("N2 — only edited / new commands and rules are written", () => {
 		const cur = clone(base);
 		btn(cur, "msdyn.contact.Book.Button").tooltipTitle = "Book an appointment";
 		const { doc } = await build(cur, base);
-		expect(doc.querySelector('CustomAction[Location="msdyn.contact.Book.Button"]')).not.toBeNull();
+		expect(
+			doc.querySelector('CustomAction[Location="msdyn.contact.Book.Button"]'),
+		).not.toBeNull();
 		expect(doc.querySelector('CommandDefinition[Id="msdyn.contact.Book.Command"]')).toBeNull();
 		expect(doc.querySelector('EnableRule[Id="msdyn.contact.CanBook"]')).toBeNull();
 	});
@@ -193,9 +221,16 @@ describe("N2 — only edited / new commands and rules are written", () => {
 			source: undefined,
 			sequence: 990,
 		} as RibbonButton);
-		parsed.commands.push({ id: "cbstest.contact.New.Command", enableRules: [], displayRules: [], actions: [] });
+		parsed.commands.push({
+			id: "cbstest.contact.New.Command",
+			enableRules: [],
+			displayRules: [],
+			actions: [],
+		});
 		const { doc } = await build(cur, base, parsed);
-		expect(doc.querySelector('CommandDefinition[Id="cbstest.contact.New.Command"]')).not.toBeNull();
+		expect(
+			doc.querySelector('CommandDefinition[Id="cbstest.contact.New.Command"]'),
+		).not.toBeNull();
 		expect(doc.querySelector('CommandDefinition[Id="msdyn.contact.Book.Command"]')).toBeNull();
 	});
 });
@@ -216,20 +251,34 @@ describe("N3 / N7 — edits keep menus and replace existing overrides", () => {
 		const cur = clone(base);
 		btn(cur, "Mscrm.HomepageGrid.contact.NewRecord").tooltipTitle = "Create";
 		const { doc } = await build(cur, base);
-		expect(doc.querySelectorAll('CustomAction[Location="Mscrm.HomepageGrid.contact.NewRecord"]')).toHaveLength(1);
+		expect(
+			doc.querySelectorAll('CustomAction[Location="Mscrm.HomepageGrid.contact.NewRecord"]'),
+		).toHaveLength(1);
 	});
 
 	it("empty new flyouts (#27) and edits of others' flyouts are reported as unsupported", () => {
 		const base = load().ribbon;
 		const cur = clone(base);
-		cur.tabs[0].groups[0].buttons.push({ ...btn(cur, "rw.contact.Mine.Button"), id: "cbstest.Fly", kind: "flyout", source: undefined } as RibbonButton);
+		cur.tabs[0].groups[0].buttons.push({
+			...btn(cur, "rw.contact.Mine.Button"),
+			id: "cbstest.Fly",
+			kind: "flyout",
+			source: undefined,
+		} as RibbonButton);
 		const managed = btn(base, "msdyn.contact.Book.Button");
 		managed.kind = "splitButton";
 		btn(cur, "msdyn.contact.Book.Button").kind = "splitButton";
 		btn(cur, "msdyn.contact.Book.Button").tooltipTitle = "x";
 		const p = plan(cur, base);
-		expect(p.unsupported.some((u) => u.includes("New flyout") && u.includes("no menu items"))).toBe(true);
-		expect(p.unsupported.some((u) => u.includes("msdyn.contact.Book.Button") && u.includes("flyout / split button"))).toBe(true);
+		expect(
+			p.unsupported.some((u) => u.includes("New flyout") && u.includes("no menu items")),
+		).toBe(true);
+		expect(
+			p.unsupported.some(
+				(u) =>
+					u.includes("msdyn.contact.Book.Button") && u.includes("flyout / split button"),
+			),
+		).toBe(true);
 	});
 });
 
@@ -241,7 +290,9 @@ describe("N6 / N9 / kind — silent drops are reported", () => {
 		btn(cur, "rw.contact.Mine.Button").icon = "add_20_regular";
 		btn(cur, "Mscrm.HomepageGrid.contact.NewRecord").kind = "splitButton";
 		parsed.commands = parsed.commands.map((c) =>
-			c.id === "rw.contact.Mine.Command" ? { ...c, actions: [{ kind: "powerFx", expression: "Notify(1)" } as never] } : c,
+			c.id === "rw.contact.Mine.Command"
+				? { ...c, actions: [{ kind: "powerFx", expression: "Notify(1)" } as never] }
+				: c,
 		);
 		const p = plan(cur, base, parsed);
 		expect(p.unsupported.some((u) => u.includes("icon"))).toBe(true);
@@ -264,7 +315,9 @@ describe("N11 — deletes are precise and leave no orphans", () => {
 			"rw.contact.Solo.CustomAction",
 			'<CustomAction Id="rw.contact.Solo.CustomAction" Location="X.Controls._children"><CommandUIDefinition><Button Id="rw.contact.Solo" Command="rw.contact.Solo.Command" LabelText="Solo" /></CommandUIDefinition></CustomAction>',
 		);
-		const merged = mergeScopeChanges(layer, delta, { deletedControlIds: ["rw.contact.Mine.Button", "rw.contact.Solo"] });
+		const merged = mergeScopeChanges(layer, delta, {
+			deletedControlIds: ["rw.contact.Mine.Button", "rw.contact.Solo"],
+		});
 		expect(merged.locLabels.has("rw.contact.Mine.Button.LabelText")).toBe(false);
 		expect(merged.locLabels.has("rw.contact.Mine.Button.All.LabelText")).toBe(true);
 		// rw.contact.Mine.Command is still used by the flyout's menu item.
@@ -299,10 +352,14 @@ describe("N5 — duplicates are new controls", () => {
 			locLabels: parsed.locLabels,
 		});
 		const tab = parsed.ribbon.tabs[0];
-		useRibbonStore.getState().duplicateButton("HomepageGrid", tab.id, tab.groups[0].id, "rw.contact.Mine.Button");
+		useRibbonStore
+			.getState()
+			.duplicateButton("HomepageGrid", tab.id, tab.groups[0].id, "rw.contact.Mine.Button");
 		const copy = useRibbonStore
 			.getState()
-			.ribbons.HomepageGrid.tabs[0].groups[0].buttons.find((b) => b.id.includes("rw.contact.Mine.Button_copy"))!;
+			.ribbons.HomepageGrid.tabs[0].groups[0].buttons.find((b) =>
+				b.id.includes("rw.contact.Mine.Button_copy"),
+			)!;
 		expect(copy.source).toBeUndefined();
 		expect(copy.origin).toBe("unmanaged");
 	});
@@ -311,14 +368,18 @@ describe("N5 — duplicates are new controls", () => {
 describe("N1 — every publish refreshes Unified Interface metadata", () => {
 	it("a command-only edit imports twice", async () => {
 		// The import replaces the layer, as in Dataverse: the second import checks it is what the first wrote (#102).
-		const execute = vi.fn(async (req: { operationName: string; parameters?: Record<string, string> }) => {
-			if (req.operationName !== "ImportSolution") return undefined;
-			const bin = atob(req.parameters!.CustomizationFile);
-			const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-			const cust = strFromU8(unzipSync(bytes)["customizations.xml"]);
-			layer = parseRibbonDiffParts(cust.match(/<RibbonDiffXml>[\s\S]*<\/RibbonDiffXml>/)![0]);
-			return undefined;
-		});
+		const execute = vi.fn(
+			async (req: { operationName: string; parameters?: Record<string, string> }) => {
+				if (req.operationName !== "ImportSolution") return undefined;
+				const bin = atob(req.parameters!.CustomizationFile);
+				const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+				const cust = strFromU8(unzipSync(bytes)["customizations.xml"]);
+				layer = parseRibbonDiffParts(
+					cust.match(/<RibbonDiffXml>[\s\S]*<\/RibbonDiffXml>/)![0],
+				);
+				return undefined;
+			},
+		);
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = Object.assign(
 			(window as unknown as { dataverseAPI?: object }).dataverseAPI ?? {},
 			{
@@ -328,7 +389,23 @@ describe("N1 — every publish refreshes Unified Interface metadata", () => {
 					data: '<importexportxml><entityRibbon id="Contact" processed="true"><result result="success" /></entityRibbon></importexportxml>',
 				})),
 				queryData: vi.fn(async (q: string) =>
-					q.startsWith("solutions") ? { value: [{ description: "CBS Live Test", publisherid: { description: "Test publisher", emailaddress: "pub@example.com", supportingwebsiteurl: "https://example.com", customizationoptionvalueprefix: 31337, address1_line1: "1 Test Street", address1_city: "Testville" } }] } : { value: [{ languagecode: 1033 }] },
+					q.startsWith("solutions")
+						? {
+								value: [
+									{
+										description: "CBS Live Test",
+										publisherid: {
+											description: "Test publisher",
+											emailaddress: "pub@example.com",
+											supportingwebsiteurl: "https://example.com",
+											customizationoptionvalueprefix: 31337,
+											address1_line1: "1 Test Street",
+											address1_city: "Testville",
+										},
+									},
+								],
+							}
+						: { value: [{ languagecode: 1033 }] },
 				),
 			},
 		);
@@ -338,7 +415,17 @@ describe("N1 — every publish refreshes Unified Interface metadata", () => {
 		const parsed = load();
 		parsed.commands = parsed.commands.map((c) =>
 			c.id === "rw.contact.Mine.Command"
-				? { ...c, actions: [{ kind: "javascript", library: "$webresource:x.js", functionName: "X.changed", params: [] }] }
+				? {
+						...c,
+						actions: [
+							{
+								kind: "javascript",
+								library: "$webresource:x.js",
+								functionName: "X.changed",
+								params: [],
+							},
+						],
+					}
 				: c,
 		);
 		await publishRibbon({
@@ -348,7 +435,13 @@ describe("N1 — every publish refreshes Unified Interface metadata", () => {
 			enableRules: parsed.enableRules,
 			displayRules: parsed.displayRules,
 			locLabels: parsed.locLabels,
-			plan: { editedCommandIds: ["rw.contact.Mine.Command"], editedEnableRuleIds: [], editedDisplayRuleIds: [], deletedButtonIds: [], unhiddenButtonIds: [] },
+			plan: {
+				editedCommandIds: ["rw.contact.Mine.Command"],
+				editedEnableRuleIds: [],
+				editedDisplayRuleIds: [],
+				deletedButtonIds: [],
+				unhiddenButtonIds: [],
+			},
 			solution: {
 				uniqueName: "CBSLiveTest",
 				friendlyName: "CBS Live Test",
@@ -359,6 +452,8 @@ describe("N1 — every publish refreshes Unified Interface metadata", () => {
 			} as never,
 			verifyDelayMs: 0,
 		});
-		expect(execute.mock.calls.filter(([req]) => req.operationName === "ImportSolution")).toHaveLength(2);
+		expect(
+			execute.mock.calls.filter(([req]) => req.operationName === "ImportSolution"),
+		).toHaveLength(2);
 	});
 });

@@ -327,14 +327,6 @@ export function classicIdCandidates(cmd: ModernCommand, entityLogicalName: strin
 	return out;
 }
 
-/** The most likely classic button id a migrated command was generated from (see classicIdCandidates). */
-export function classicIdForMigratedCommand(
-	cmd: ModernCommand,
-	entityLogicalName: string,
-): string | null {
-	return classicIdCandidates(cmd, entityLogicalName)[0] ?? null;
-}
-
 /** Lower-cased control id with `{!EntityLogicalName}` resolved, for exact matching. */
 function exactKey(id: string, entityLogicalName: string): string {
 	return id.replace(TEMPLATE_ENTITY, entityLogicalName).toLowerCase();
@@ -460,7 +452,11 @@ export function buildModernLocationModel(input: {
 	const controlIds = [...buttons, ...buttons.flatMap(menuControlsOf)].map((b) => b.id);
 	const byId = new Map(commands.map((c) => [c.id, c]));
 	const rawMatched = new Set(
-		[...findClassicOverrides(commands, controlIds, entityLogicalName, { includeDisabled: true }).values()]
+		[
+			...findClassicOverrides(commands, controlIds, entityLogicalName, {
+				includeDisabled: true,
+			}).values(),
+		]
 			.flat()
 			.map((o) => o.command.id),
 	);
@@ -474,12 +470,16 @@ export function buildModernLocationModel(input: {
 		// A section ("group" command) inside a migrated menu has no classic
 		// control of its own: look through it to the menu's command.
 		let parent = c.parentId ? byId.get(c.parentId) : undefined;
-		for (const hops = new Set<string>(); parent?.type === "group" && !rawMatched.has(parent.id) && !hops.has(parent.id); ) {
+		for (
+			const hops = new Set<string>();
+			parent?.type === "group" && !rawMatched.has(parent.id) && !hops.has(parent.id);
+		) {
 			hops.add(parent.id);
 			parent = parent.parentId ? byId.get(parent.parentId) : undefined;
 		}
 		const result =
-			rawMatched.has(c.id) && (!parent || (!seen.has(parent.id) && isMatched(parent, seen.add(c.id))));
+			rawMatched.has(c.id) &&
+			(!parent || (!seen.has(parent.id) && isMatched(parent, seen.add(c.id))));
 		effective.set(c.id, result);
 		return result;
 	};

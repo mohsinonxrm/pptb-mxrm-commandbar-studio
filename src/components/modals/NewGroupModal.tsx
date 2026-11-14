@@ -1,20 +1,13 @@
 import React, { useState } from "react";
-import {
-	Dialog,
-	DialogSurface,
-	DialogTitle,
-	DialogBody,
-	DialogContent,
-	DialogActions,
-	Button,
-	Field,
-	Input,
-	Select,
-	Text,
-} from "@fluentui/react-components";
+import { Button, Field, Input, Select } from "@fluentui/react-components";
+import { AppDialog } from "@/components/shared/AppDialog";
+import { PLATFORM_GROUP_TEMPLATES } from "@/services/xmlGenerator";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
+
+// The platform's templates, as Change template offers them (#187).
+const DEFAULT_TEMPLATE = "Mscrm.Templates.Flexible2";
 
 export const NewGroupModal: React.FC = () => {
 	const newGroupOpen = useUIStore((s) => s.newGroupOpen);
@@ -24,7 +17,7 @@ export const NewGroupModal: React.FC = () => {
 	const activeTabId = useSelectionStore((s) => s.tabId);
 
 	const [label, setLabel] = useState("New Group");
-	const [template, setTemplate] = useState("Flexible2");
+	const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
 
 	const handleCreate = () => {
 		if (!activeLocation || !activeTabId) return;
@@ -42,43 +35,46 @@ export const NewGroupModal: React.FC = () => {
 		});
 
 		setLabel("New Group");
-		setTemplate("Flexible2");
+		setTemplate(DEFAULT_TEMPLATE);
 		closeNewGroup();
 	};
 
 	return (
-		<Dialog open={newGroupOpen} onOpenChange={() => closeNewGroup()}>
-			<DialogSurface>
-				<DialogTitle>New group</DialogTitle>
-				<DialogBody>
-					<DialogContent>
-						<Field label="Label" required>
-							<Input value={label} onChange={(_, d) => setLabel(d.value)} autoFocus />
-						</Field>
-						<Field label="Group template">
-							<Select value={template} onChange={(_, d) => setTemplate(d.value)}>
-								<option value="Flexible2">Flexible2 (recommended)</option>
-								<option value="Flexible">Flexible</option>
-								<option value="Layout2">Layout2</option>
-								<option value="Layout3">Layout3</option>
-								<option value="Layout4">Layout4</option>
-							</Select>
-						</Field>
-						<Text size={200} style={{ display: "block", marginTop: "8px" }}>
-							The group template defines how buttons scale when the ribbon is resized.
-						</Text>
-					</DialogContent>
-					<DialogActions>
-						<Button appearance="secondary" onClick={closeNewGroup}>
-							Cancel
-						</Button>
-						<Button appearance="primary" onClick={handleCreate} disabled={!label.trim()}>
-							Create group
-						</Button>
-					</DialogActions>
-				</DialogBody>
-			</DialogSurface>
-		</Dialog>
+		<AppDialog
+			open={newGroupOpen}
+			onOpenChange={(o) => !o && closeNewGroup()}
+			size="small"
+			title="New group"
+			actions={
+				<>
+					<Button appearance="secondary" onClick={closeNewGroup}>
+						Cancel
+					</Button>
+					<Button appearance="primary" onClick={handleCreate} disabled={!label.trim()}>
+						Create group
+					</Button>
+				</>
+			}
+		>
+			<Field label="Label" required>
+				<Input value={label} onChange={(_, d) => setLabel(d.value)} data-autofocus />
+			</Field>
+			<Field
+				label="Group template"
+				hint={
+					"How the group's buttons shrink when the classic ribbon is narrow. Unified Interface ignores it."
+				}
+			>
+				<Select value={template} onChange={(_, d) => setTemplate(d.value)}>
+					{PLATFORM_GROUP_TEMPLATES.map((id) => (
+						<option key={id} value={id}>
+							{id.replace(/^Mscrm\.Templates\./, "")}
+							{id === DEFAULT_TEMPLATE ? " (recommended)" : ""}
+						</option>
+					))}
+				</Select>
+			</Field>
+		</AppDialog>
 	);
 };
 

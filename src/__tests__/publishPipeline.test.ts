@@ -81,7 +81,15 @@ function ribbonWithGroup(
 				label: "Tab",
 				sequence: 10,
 				tabDisplayRules: [],
-				groups: [{ id: groupId, label: "Group", sequence: 10, template: "Mscrm.Templates.Flexible2", buttons }],
+				groups: [
+					{
+						id: groupId,
+						label: "Group",
+						sequence: 10,
+						template: "Mscrm.Templates.Flexible2",
+						buttons,
+					},
+				],
 			},
 		],
 	};
@@ -103,19 +111,24 @@ const commands: CommandDefinition[] = [
 	},
 ];
 const enableRules: EnableRule[] = [
-	{ id: "cbs.account.OneSelected", steps: [{ kind: "SelectionCountRule", minimum: 1, appliesTo: "SelectedEntity" }] },
+	{
+		id: "cbs.account.OneSelected",
+		steps: [{ kind: "SelectionCountRule", minimum: 1, appliesTo: "SelectedEntity" }],
+	},
 ];
 
-function deltaFor(location: RibbonDefinition["location"], tabId: string, groupId: string, id: string) {
+function deltaFor(
+	location: RibbonDefinition["location"],
+	tabId: string,
+	groupId: string,
+	id: string,
+) {
 	const baseline = ribbonWithGroup(location, tabId, groupId, []);
 	const current = ribbonWithGroup(location, tabId, groupId, [button(id)]);
 	return generateRibbonDiffXml({
 		current,
 		baseline,
-		commands: [
-			...commands,
-			{ ...commands[0], id: id.replace(/\.Button$/, ".Command") },
-		],
+		commands: [...commands, { ...commands[0], id: id.replace(/\.Button$/, ".Command") }],
 		enableRules,
 		displayRules: [],
 		locLabels: [],
@@ -151,7 +164,12 @@ describe("ribbonDiffMerge", () => {
 		delta = mergeRibbonDiffParts(
 			delta,
 			parseRibbonDiffParts(
-				deltaFor("Form", "Mscrm.Form.account.MainTab", "Mscrm.Form.account.MainTab.Save", "cbs.account.Form.Hello.Button"),
+				deltaFor(
+					"Form",
+					"Mscrm.Form.account.MainTab",
+					"Mscrm.Form.account.MainTab.Save",
+					"cbs.account.Form.Hello.Button",
+				),
 			),
 		);
 		delta = mergeRibbonDiffParts(
@@ -170,7 +188,9 @@ describe("ribbonDiffMerge", () => {
 		const doc = new DOMParser().parseFromString(xml, "application/xml");
 		expect(doc.querySelector("parsererror")).toBeNull();
 
-		const caIds = Array.from(doc.querySelectorAll("CustomActions > CustomAction")).map((e) => e.getAttribute("Id"));
+		const caIds = Array.from(doc.querySelectorAll("CustomActions > CustomAction")).map((e) =>
+			e.getAttribute("Id"),
+		);
 		expect(caIds).toEqual(
 			expect.arrayContaining([
 				"rw.account.Existing.Button.CustomAction",
@@ -179,16 +199,36 @@ describe("ribbonDiffMerge", () => {
 				"cbs.account.SubGrid.Hello.Button.CustomAction",
 			]),
 		);
-		expect(doc.querySelector('HideCustomAction[HideActionId="cca.Mscrm.Form.account.Save.Hide"]')).not.toBeNull();
-		expect(doc.querySelector('CommandDefinition[Id="rw.account.Existing.Command"]')).not.toBeNull();
-		expect(doc.querySelector('CommandDefinition[Id="cbs.account.Form.Hello.Command"]')).not.toBeNull();
-		expect(doc.querySelector('RuleDefinitions > EnableRules > EnableRule[Id="rw.account.HasSelection"]')).not.toBeNull();
-		expect(doc.querySelector('RuleDefinitions > EnableRules > EnableRule[Id="cbs.account.OneSelected"]')).not.toBeNull();
-		expect(doc.querySelector('LocLabel[Id="rw.account.Existing.Button.LabelText"]')).not.toBeNull();
-		expect(doc.querySelector('LocLabel[Id="cbs.account.SubGrid.Hello.Button.LabelText"]')).not.toBeNull();
+		expect(
+			doc.querySelector('HideCustomAction[HideActionId="cca.Mscrm.Form.account.Save.Hide"]'),
+		).not.toBeNull();
+		expect(
+			doc.querySelector('CommandDefinition[Id="rw.account.Existing.Command"]'),
+		).not.toBeNull();
+		expect(
+			doc.querySelector('CommandDefinition[Id="cbs.account.Form.Hello.Command"]'),
+		).not.toBeNull();
+		expect(
+			doc.querySelector(
+				'RuleDefinitions > EnableRules > EnableRule[Id="rw.account.HasSelection"]',
+			),
+		).not.toBeNull();
+		expect(
+			doc.querySelector(
+				'RuleDefinitions > EnableRules > EnableRule[Id="cbs.account.OneSelected"]',
+			),
+		).not.toBeNull();
+		expect(
+			doc.querySelector('LocLabel[Id="rw.account.Existing.Button.LabelText"]'),
+		).not.toBeNull();
+		expect(
+			doc.querySelector('LocLabel[Id="cbs.account.SubGrid.Hello.Button.LabelText"]'),
+		).not.toBeNull();
 		// The shared rule is emitted once, not three times.
 		expect(doc.querySelectorAll('EnableRule[Id="cbs.account.OneSelected"]').length).toBe(1 + 3);
-		expect(doc.querySelectorAll('RuleDefinitions EnableRule[Id="cbs.account.OneSelected"]').length).toBe(1);
+		expect(
+			doc.querySelectorAll('RuleDefinitions EnableRule[Id="cbs.account.OneSelected"]').length,
+		).toBe(1);
 	});
 
 	it("lets the session's version of an element replace the stored one", () => {
@@ -197,7 +237,9 @@ describe("ribbonDiffMerge", () => {
 			`<RibbonDiffXml><CustomActions/><CommandDefinitions><CommandDefinition Id="rw.account.Existing.Command"><EnableRules/><DisplayRules/><Actions><Url Address="https://changed.example.com"/></Actions></CommandDefinition></CommandDefinitions></RibbonDiffXml>`,
 		);
 		const merged = mergeRibbonDiffParts(existing, delta);
-		expect(merged.commandDefinitions.get("rw.account.Existing.Command")).toContain("changed.example.com");
+		expect(merged.commandDefinitions.get("rw.account.Existing.Command")).toContain(
+			"changed.example.com",
+		);
 		expect(countRibbonDiffParts(merged)).toBe(countRibbonDiffParts(existing));
 	});
 
@@ -244,7 +286,8 @@ describe("verifyRibbonImport", () => {
 	});
 
 	it("verifies the application ribbon", () => {
-		const app = '<ribbons><ribbon LocalizedName="Application Ribbons" processed="true"><result result="success" /></ribbon></ribbons>';
+		const app =
+			'<ribbons><ribbon LocalizedName="Application Ribbons" processed="true"><result result="success" /></ribbon></ribbons>';
 		expect(verifyRibbonImport(app, { kind: "application" }).ok).toBe(true);
 		expect(verifyRibbonImport("<ribbons />", { kind: "application" }).ok).toBe(false);
 	});
@@ -277,10 +320,19 @@ describe("tab display rules (#40)", () => {
 			label: "Main",
 			sequence: 10,
 			commandId: "Mscrm.HomepageGrid.account.MainTab",
-			tabDisplayRules: [{ tabCommand: "Mscrm.HomepageGrid.account.MainTab", rules: [{ kind: "EntityRule" as const, entityName: "account" }] }],
+			tabDisplayRules: [
+				{
+					tabCommand: "Mscrm.HomepageGrid.account.MainTab",
+					rules: [{ kind: "EntityRule" as const, entityName: "account" }],
+				},
+			],
 			groups: [],
 		};
-		const def: RibbonDefinition = { location: "HomepageGrid", entityLogicalName: "account", tabs: [tab] };
+		const def: RibbonDefinition = {
+			location: "HomepageGrid",
+			entityLogicalName: "account",
+			tabs: [tab],
+		};
 		const xml = generateRibbonDiffXml({
 			current: def,
 			baseline: def,
@@ -300,7 +352,12 @@ describe("tab display rules (#40)", () => {
 			label: "New tab",
 			sequence: 10,
 			commandId: "cbs.account.NewTab.Command",
-			tabDisplayRules: [{ tabCommand: "cbs.account.NewTab.Command", rules: [{ kind: "EntityRule" as const, entityName: "account" }] }],
+			tabDisplayRules: [
+				{
+					tabCommand: "cbs.account.NewTab.Command",
+					rules: [{ kind: "EntityRule" as const, entityName: "account" }],
+				},
+			],
 			groups: [],
 		};
 		const xml = generateRibbonDiffXml({

@@ -39,7 +39,10 @@ function makeInput(
 
 /** The same tabs and groups without buttons: the buttons are new, the containers exist. */
 function shell(def: RibbonDefinition): RibbonDefinition {
-	return { ...def, tabs: def.tabs.map((t) => ({ ...t, groups: t.groups.map((g) => ({ ...g, buttons: [] })) })) };
+	return {
+		...def,
+		tabs: def.tabs.map((t) => ({ ...t, groups: t.groups.map((g) => ({ ...g, buttons: [] })) })),
+	};
 }
 
 // ── escapeXml ──────────────────────────────────────────────────────────────
@@ -111,7 +114,9 @@ describe("generateRibbonDiffXml — custom button", () => {
 
 		const xml = generateRibbonDiffXml(makeInput(current, shell(current)));
 
-		expect(xml).toContain('Location="Mscrm.HomepageGrid.account.MainTab.New.Controls._children"');
+		expect(xml).toContain(
+			'Location="Mscrm.HomepageGrid.account.MainTab.New.Controls._children"',
+		);
 		expect(xml).toContain('Id="Contoso.account.CreditCheck.Button"');
 	});
 
@@ -259,7 +264,13 @@ describe("generateRibbonDiffXml — icon attributes", () => {
 
 	it("emits ModernImage + Image attrs only for real $webresource refs", () => {
 		const xml = generateRibbonDiffXml(
-			makeInput(buttonWith("search", "$webresource:mxrm_/icons/search.svg", "$webresource:mxrm_/icons/search.svg")),
+			makeInput(
+				buttonWith(
+					"search",
+					"$webresource:mxrm_/icons/search.svg",
+					"$webresource:mxrm_/icons/search.svg",
+				),
+			),
 		);
 		expect(xml).toContain('ModernImage="$webresource:mxrm_/icons/search.svg"');
 		expect(xml).toContain('Image16by16="$webresource:mxrm_/icons/search.svg"');
@@ -421,7 +432,9 @@ describe("generateRibbonDiffXml — OOB override CustomAction", () => {
 		expect(xml).toContain("CustomAction");
 		// The override Location attribute points to the OOB button's ID
 		// (Microsoft documented pattern for "change definition of existing item").
-		expect(xml).toContain('Location="Mscrm.HomepageGrid.account.MainTab.New.Controls.NewRecord"');
+		expect(xml).toContain(
+			'Location="Mscrm.HomepageGrid.account.MainTab.New.Controls.NewRecord"',
+		);
 		// And carries the new icon (as a web-resource ModernImage) + command through.
 		expect(xml).toContain('ModernImage="$webresource:contoso_/icons/rocket.svg"');
 		expect(xml).toContain('Image32by32="$webresource:contoso_/icons/rocket.svg"');
@@ -547,13 +560,20 @@ describe("generateRibbonDiffXml — customization-scoped emission", () => {
 
 	const commands: CommandDefinition[] = [
 		// System command (OOB) — must NOT be re-emitted.
-		{ id: "Mscrm.SavePrimary", enableRules: ["Mscrm.CanSavePrimary"], displayRules: [], actions: [] },
+		{
+			id: "Mscrm.SavePrimary",
+			enableRules: ["Mscrm.CanSavePrimary"],
+			displayRules: [],
+			actions: [],
+		},
 		// Custom command — MUST be emitted.
 		{
 			id: "mxrm.account.MyButton.Command",
 			enableRules: [],
 			displayRules: [],
-			actions: [{ kind: "url", address: "https://example.com/x", passParams: false, params: [] }],
+			actions: [
+				{ kind: "url", address: "https://example.com/x", passParams: false, params: [] },
+			],
 		},
 	];
 
@@ -615,7 +635,9 @@ describe("generateRibbonDiffXml — customization-scoped emission", () => {
 				],
 			},
 		];
-		const xml = generateRibbonDiffXml(makeInput(current, baseline, commands, [], [], locLabels));
+		const xml = generateRibbonDiffXml(
+			makeInput(current, baseline, commands, [], [], locLabels),
+		);
 		expect(xml).toContain('description="My Button"'); // 1033 from button.label
 		expect(xml).toContain('languagecode="1036"');
 		expect(xml).toContain('description="Mon bouton"');
@@ -628,7 +650,9 @@ describe("generateRibbonDiffXml — customization-scoped emission", () => {
 		const current = ribbonWith([button({ ...oobButton, icon: "rocket_16_regular" })]);
 		const xml = generateRibbonDiffXml(makeInput(current, baseline, commands));
 		// Override CustomAction is emitted…
-		expect(xml).toContain('Id="Mscrm.Form.account.MainTab.Save.SavePrimary.Override.CustomAction"');
+		expect(xml).toContain(
+			'Id="Mscrm.Form.account.MainTab.Save.SavePrimary.Override.CustomAction"',
+		);
 		// …but the system command is referenced, never redefined.
 		expect(xml).not.toContain('<CommandDefinition Id="Mscrm.SavePrimary"');
 	});
@@ -647,7 +671,13 @@ describe("generateRibbonDiffXml — new groups and tabs", () => {
 			location: "Form",
 			entityLogicalName: "account",
 			tabs: [
-				{ id: "Mscrm.Form.account.MainTab", label: "Main", sequence: 10, tabDisplayRules: [], groups: [] },
+				{
+					id: "Mscrm.Form.account.MainTab",
+					label: "Main",
+					sequence: 10,
+					tabDisplayRules: [],
+					groups: [],
+				},
 			],
 		};
 		const current: RibbonDefinition = {
@@ -681,13 +711,21 @@ describe("generateRibbonDiffXml — new groups and tabs", () => {
 		// a separate {group}.Controls._children CustomAction was dropped by Dataverse.
 		expect(xml).not.toContain('Location="mxrm.account.MyGroup.Controls._children"');
 		const doc = new DOMParser().parseFromString(xml, "application/xml");
-		const groupEl = doc.querySelector('CustomAction > CommandUIDefinition > Group[Id="mxrm.account.MyGroup"]')!;
-		expect(groupEl.querySelector(':scope > Controls > Button')?.getAttribute("Id")).toBe("mxrm.account.NewBtn.Button");
+		const groupEl = doc.querySelector(
+			'CustomAction > CommandUIDefinition > Group[Id="mxrm.account.MyGroup"]',
+		)!;
+		expect(groupEl.querySelector(":scope > Controls > Button")?.getAttribute("Id")).toBe(
+			"mxrm.account.NewBtn.Button",
+		);
 		expectNoDanglingLocLabelRefs(xml);
 	});
 
 	it("emits a tab CustomAction at Mscrm.Tabs._children for a new tab", () => {
-		const baseline: RibbonDefinition = { location: "Form", entityLogicalName: "account", tabs: [] };
+		const baseline: RibbonDefinition = {
+			location: "Form",
+			entityLogicalName: "account",
+			tabs: [],
+		};
 		const current: RibbonDefinition = {
 			location: "Form",
 			entityLogicalName: "account",
@@ -838,7 +876,13 @@ describe("generateRibbonDiffXml — delta only", () => {
 
 	it("wraps an entity RibbonDiffXml under Entities/Entity with a <Name> child (#8)", () => {
 		const wrapped = buildCustomizationsXml({
-			entities: [{ schemaName: "Account", localizedName: "Account", ribbonDiffXml: "<RibbonDiffXml/>" }],
+			entities: [
+				{
+					schemaName: "Account",
+					localizedName: "Account",
+					ribbonDiffXml: "<RibbonDiffXml/>",
+				},
+			],
 		});
 		const doc = new DOMParser().parseFromString(wrapped, "application/xml");
 		expect(doc.querySelector("parsererror")).toBeNull();
@@ -881,7 +925,9 @@ describe("generateRibbonDiffXml — delta only", () => {
 			}),
 		);
 		const wrapped = buildCustomizationsXml({
-			entities: [{ schemaName: "Account", localizedName: "Account", ribbonDiffXml: fragment }],
+			entities: [
+				{ schemaName: "Account", localizedName: "Account", ribbonDiffXml: fragment },
+			],
 		});
 		const declarations = wrapped.match(/<\?xml/g) ?? [];
 		expect(declarations.length).toBe(1);

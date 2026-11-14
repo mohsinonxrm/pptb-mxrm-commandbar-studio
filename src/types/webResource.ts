@@ -1,16 +1,5 @@
 export type WebResourceType =
-	| "html"
-	| "css"
-	| "js"
-	| "xml"
-	| "png"
-	| "jpg"
-	| "gif"
-	| "xap"
-	| "xsl"
-	| "ico"
-	| "svg"
-	| "resx";
+	"html" | "css" | "js" | "xml" | "png" | "jpg" | "gif" | "xap" | "xsl" | "ico" | "svg" | "resx";
 
 export interface WebResource {
 	id: string;

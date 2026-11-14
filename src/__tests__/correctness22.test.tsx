@@ -49,7 +49,11 @@ const button = (id: string, extra: Partial<RibbonButton> = {}): RibbonButton => 
 	...extra,
 });
 
-const empty = (location: RibbonLocation): RibbonDefinition => ({ location, entityLogicalName: T, tabs: [] });
+const empty = (location: RibbonLocation): RibbonDefinition => ({
+	location,
+	entityLogicalName: T,
+	tabs: [],
+});
 
 function loadTable(buttons: RibbonButton[], locLabels: LocLabel[] = []) {
 	useRibbonStore.getState().loadWorkspace({
@@ -63,7 +67,15 @@ function loadTable(buttons: RibbonButton[], locLabels: LocLabel[] = []) {
 						label: "Main",
 						sequence: 10,
 						tabDisplayRules: [],
-						groups: [{ id: GROUP, label: "Management", sequence: 10, template: "Mscrm.Templates.Flexible2", buttons }],
+						groups: [
+							{
+								id: GROUP,
+								label: "Management",
+								sequence: 10,
+								template: "Mscrm.Templates.Flexible2",
+								buttons,
+							},
+						],
 					},
 				],
 			},
@@ -71,7 +83,12 @@ function loadTable(buttons: RibbonButton[], locLabels: LocLabel[] = []) {
 			Form: empty("Form"),
 			Application: empty("Application"),
 		},
-		commands: buttons.map((b) => ({ id: b.commandId, enableRules: [], displayRules: [], actions: [] })),
+		commands: buttons.map((b) => ({
+			id: b.commandId,
+			enableRules: [],
+			displayRules: [],
+			actions: [],
+		})),
 		enableRules: [],
 		displayRules: [{ id: "cbs.Rule", steps: [] }],
 		locLabels,
@@ -128,7 +145,17 @@ describe("#22 — Identity section translations match the button's own labels", 
 	it("shows only the button's own languages in the pane", () => {
 		const b = button("Foo.Button");
 		loadTable([b, button("Foo.Button2", { sequence: 20 })], labels);
-		act(() => root.render(<IdentitySection button={b} location="HomepageGrid" tabId={MAIN} groupId={GROUP} />));
+		act(() =>
+			root.render(
+				<IdentitySection
+					part="appearance"
+					button={b}
+					location="HomepageGrid"
+					tabId={MAIN}
+					groupId={GROUP}
+				/>,
+			),
+		);
 		const chips = container.textContent ?? "";
 		expect(chips).toContain("en-US");
 		expect(chips).not.toContain("1031");
@@ -137,7 +164,13 @@ describe("#22 — Identity section translations match the button's own labels", 
 
 describe("#22 — switching solution resets table-scoped state", () => {
 	const solution = (id: string): Solution =>
-		({ id, uniqueName: id, friendlyName: id, version: "1.0.0.0", publisherPrefix: "cbs" }) as Solution;
+		({
+			id,
+			uniqueName: id,
+			friendlyName: id,
+			version: "1.0.0.0",
+			publisherPrefix: "cbs",
+		}) as Solution;
 	const entity = { logicalName: T, metadataId: "m1" } as EntityMetadata;
 
 	beforeEach(() => {
@@ -147,7 +180,9 @@ describe("#22 — switching solution resets table-scoped state", () => {
 		useSessionStore.getState().setActiveEntity(entity);
 		useSessionStore.getState().setSolutionEntityIds(["m1"]);
 		loadTable([button("cbs.One")]);
-		useRibbonStore.getState().setButtonProp("HomepageGrid", MAIN, GROUP, "cbs.One", { label: "Edited" });
+		useRibbonStore
+			.getState()
+			.setButtonProp("HomepageGrid", MAIN, GROUP, "cbs.One", { label: "Edited" });
 		useSelectionStore.getState().selectButtonInContext("HomepageGrid", MAIN, GROUP, "cbs.One");
 	});
 
@@ -172,7 +207,9 @@ describe("#22 — switching solution resets table-scoped state", () => {
 		useSessionStore.getState().setActiveSolution(solution("A"));
 		expect(useSessionStore.getState().activeEntity).toBe(entity);
 		expect(useSessionStore.getState().entities).toEqual([entity]);
-		expect(useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[0].buttons[0].label).toBe("Edited");
+		expect(
+			useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[0].buttons[0].label,
+		).toBe("Edited");
 		expect(useSelectionStore.getState().selectedButtonId).toBe("cbs.One");
 	});
 });
@@ -197,9 +234,13 @@ describe("#22 — rule steps keep their React keys", () => {
 		openRule();
 		const [, second, third] = items();
 		expect(items()).toHaveLength(3);
-		const remove = document.querySelector<HTMLButtonElement>('button[aria-label="Remove FormStateRule step"]')!;
+		const remove = document.querySelector<HTMLButtonElement>(
+			'button[aria-label="Remove Form state step"]',
+		)!;
 		act(() => remove.click());
-		expect(useRibbonStore.getState().displayRules.find((r) => r.id === "cbs.Rule")?.steps).toHaveLength(2);
+		expect(
+			useRibbonStore.getState().displayRules.find((r) => r.id === "cbs.Rule")?.steps,
+		).toHaveLength(2);
 		// With index keys React reused the first two <li>s for the remaining
 		// steps (and dropped the last), so each step's inputs moved up one.
 		expect(items()).toEqual([second, third]);
@@ -289,7 +330,9 @@ describe("#22 review — the Command Editor after an undo", () => {
 		});
 		expect(useUIStore.getState().commandEditorOpen).toBe(true);
 		act(() => useRibbonStore.getState().undo());
-		expect(useRibbonStore.getState().commands.some((c) => c.id === "Mscrm.OpenRecordItem")).toBe(false);
+		expect(
+			useRibbonStore.getState().commands.some((c) => c.id === "Mscrm.OpenRecordItem"),
+		).toBe(false);
 		expect(useUIStore.getState().commandEditorOpen).toBe(false);
 		// A redo doesn't pop the editor up again.
 		act(() => useRibbonStore.getState().redo());
@@ -300,23 +343,39 @@ describe("#22 review — the Command Editor after an undo", () => {
 describe("#22 — the Command Editor's action cards keep their keys", () => {
 	it("removing an action leaves the next card's elements with it", () => {
 		loadTable([button("cbs.One")]);
-		const command = useRibbonStore.getState().commands.find((c) => c.id === button("cbs.One").commandId)!;
+		const command = useRibbonStore
+			.getState()
+			.commands.find((c) => c.id === button("cbs.One").commandId)!;
 		act(() =>
 			useRibbonStore.getState().upsertCommand({
 				...command,
 				actions: [
-					{ kind: "javascript", library: "$webresource:cbs_/a.js", functionName: "cbs.first", params: [] },
-					{ kind: "javascript", library: "$webresource:cbs_/b.js", functionName: "cbs.second", params: [] },
+					{
+						kind: "javascript",
+						library: "$webresource:cbs_/a.js",
+						functionName: "cbs.first",
+						params: [],
+					},
+					{
+						kind: "javascript",
+						library: "$webresource:cbs_/b.js",
+						functionName: "cbs.second",
+						params: [],
+					},
 				],
 			}),
 		);
 		act(() => root.render(<CommandEditorPanel />));
 		act(() => useUIStore.getState().openCommandEditor(command.id));
 		const input = (value: string) =>
-			[...document.querySelectorAll<HTMLInputElement>("input")].find((i) => i.value === value);
+			[...document.querySelectorAll<HTMLInputElement>("input")].find(
+				(i) => i.value === value,
+			);
 		const second = input("cbs.second")!;
 		expect(second).toBeDefined();
-		const remove = [...document.querySelectorAll<HTMLButtonElement>('button[aria-label="Remove action"]')][0];
+		const remove = [
+			...document.querySelectorAll<HTMLButtonElement>('button[aria-label="Remove action"]'),
+		][0];
 		act(() => remove.click());
 		expect(input("cbs.first")).toBeUndefined();
 		// The same element: an index key would have re-used the first card's.

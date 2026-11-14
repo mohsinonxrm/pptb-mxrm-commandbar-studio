@@ -3,6 +3,7 @@ import {
 	Badge,
 	Button,
 	MessageBar,
+	MessageBarActions,
 	MessageBarBody,
 	Text,
 	makeStyles,
@@ -47,14 +48,17 @@ function whereText(info: CommandProvenanceInfo): string {
 
 /**
  * The command's provenance badge with its Customise / Uncustomise actions.
- * `compact` shows the badge and the action button only (properties pane).
+ * `compact` shows the badge and the action button only (properties pane);
+ * `hideBadge` leaves the badge to a header that already shows one (#186).
  */
 export function CommandProvenanceBar({
 	commandId,
 	compact = false,
+	hideBadge = false,
 }: {
 	commandId: string;
 	compact?: boolean;
+	hideBadge?: boolean;
 }) {
 	const styles = useStyles();
 	const info = useCommandProvenance(commandId);
@@ -68,9 +72,11 @@ export function CommandProvenanceBar({
 	});
 	// The action waiting for the user to confirm dropping their edits (#18:
 	// window.confirm doesn't work in PPTB).
-	const [pending, setPending] = useState<{ what: string; confirmLabel: string; run: () => void } | null>(
-		null,
-	);
+	const [pending, setPending] = useState<{
+		what: string;
+		confirmLabel: string;
+		run: () => void;
+	} | null>(null);
 	if (!info) return null;
 
 	// Uncustomise and Discard drop this session's edits of the command: confirm first.
@@ -137,7 +143,7 @@ export function CommandProvenanceBar({
 		<Badge
 			appearance={provenance === "oob" ? "outline" : "filled"}
 			color={BADGE_COLOR[provenance]}
-			size="small"
+			size="medium"
 		>
 			{COMMAND_PROVENANCE_LABEL[provenance]}
 		</Badge>
@@ -155,9 +161,8 @@ export function CommandProvenanceBar({
 
 	const message: Record<CommandProvenance, string> = {
 		oob:
-			"Defined out of the box or by another solution. Customise it to copy the command — its actions, " +
-			`parameters and rule references — into ${whereText(info)}, where you can change it without touching ` +
-			"its buttons. Editing it customises it too.",
+			"Out of the box or from another solution, so it's read-only. Customise it to copy it — actions, " +
+			`parameters and rules — into ${whereText(info)} and change it there; its buttons keep using it.`,
 		customising:
 			`On publish, this command is copied into ${whereText(info)} and replaces the original there. ` +
 			"Rules keep their ids; a rule you edit is written to the layer as well.",
@@ -172,23 +177,30 @@ export function CommandProvenanceBar({
 			"Your layer's copy of this command was removed, so the original applies. What is shown here is the " +
 			"removed copy: reload the table to load the original before changing or customising it again.",
 	};
+	// Your own command needs no notice: its badge says it (#181).
+	if (provenance === "custom")
+		return hideBadge ? null : <div className={styles.row}>{badge}</div>;
+	// The action sits in the bar's own actions area (#189), the confirm outside it.
 	return (
-		<MessageBar
-			intent={
-				provenance === "uncustomising" || provenance === "reloadRequired"
-					? "warning"
-					: "info"
-			}
-		>
-			<MessageBarBody>
-				<div className={styles.row}>
-					{badge}
-					<Text size={200}>{message[provenance]}</Text>
-					{action}
-				</div>
-				{confirmDialog}
-			</MessageBarBody>
-		</MessageBar>
+		<>
+			<MessageBar
+				layout="multiline"
+				intent={
+					provenance === "uncustomising" || provenance === "reloadRequired"
+						? "warning"
+						: "info"
+				}
+			>
+				<MessageBarBody>
+					<div className={styles.row}>
+						{!hideBadge && badge}
+						<Text size={200}>{message[provenance]}</Text>
+					</div>
+				</MessageBarBody>
+				{action && <MessageBarActions>{action}</MessageBarActions>}
+			</MessageBar>
+			{confirmDialog}
+		</>
 	);
 }
 

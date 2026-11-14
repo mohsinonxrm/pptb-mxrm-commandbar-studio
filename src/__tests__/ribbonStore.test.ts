@@ -202,14 +202,14 @@ describe("undo and redo", () => {
 			useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[0].buttons.length;
 
 		deleteButton("HomepageGrid", "Tab1", "Group1", "Button1");
-		expect(useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[0].buttons.length).toBe(
-			buttonCountBefore - 1,
-		);
+		expect(
+			useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[0].buttons.length,
+		).toBe(buttonCountBefore - 1);
 
 		undo();
-		expect(useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[0].buttons.length).toBe(
-			buttonCountBefore,
-		);
+		expect(
+			useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[0].buttons.length,
+		).toBe(buttonCountBefore);
 	});
 
 	it("redo re-applies an undone mutation", () => {
@@ -221,9 +221,9 @@ describe("undo and redo", () => {
 		undo();
 		redo();
 
-		expect(useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[0].buttons.length).toBe(
-			buttonCountBefore - 1,
-		);
+		expect(
+			useRibbonStore.getState().ribbons.HomepageGrid.tabs[0].groups[0].buttons.length,
+		).toBe(buttonCountBefore - 1);
 	});
 
 	it("undo does nothing when past stack is empty", () => {

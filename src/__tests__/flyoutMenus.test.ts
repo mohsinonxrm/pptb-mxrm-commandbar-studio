@@ -118,7 +118,9 @@ describe("#27 parse — menus stay inside their flyout / split button", () => {
 		expect(top).not.toContain(`${SEND}.View`);
 		// Every top-level control is a direct child of a group's <Controls> — the
 		// ToggleButton too, which is shown read-only since #42.
-		const direct = Array.from(doc(OOB).querySelectorAll("Group > Controls > *")).map((e) => e.getAttribute("Id"));
+		const direct = Array.from(doc(OOB).querySelectorAll("Group > Controls > *")).map((e) =>
+			e.getAttribute("Id"),
+		);
 		expect(
 			ribbon.tabs.flatMap((t) => t.groups.flatMap((g) => g.buttons.map((b) => b.id))),
 		).toEqual(direct);

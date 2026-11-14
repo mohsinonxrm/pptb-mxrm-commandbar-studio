@@ -1,20 +1,11 @@
-import {
-	makeStyles,
-	tokens,
-	FluentProvider,
-	webLightTheme,
-	webDarkTheme,
-	Tab,
-	TabList,
-} from "@fluentui/react-components";
+import { FluentProvider, webLightTheme, webDarkTheme } from "@fluentui/react-components";
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/shell/Layout";
 
 import { RibbonCanvas } from "@/components/ribbon-canvas/RibbonCanvas";
 import { PropertiesPane } from "@/components/properties-pane/PropertiesPane";
 import { BottomPanel } from "@/components/bottom-panel/BottomPanel";
-import { TablesPane } from "@/components/left-pane/TablesPane";
-import { SolutionElementsPane } from "@/components/left-pane/SolutionElementsPane";
+import { LeftPane } from "@/components/left-pane/LeftPane";
 import { useSessionStore } from "@/store/sessionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useUIStore } from "@/store/uiStore";
@@ -25,8 +16,14 @@ import {
 	fetchSolutionRibbonComponentIds,
 } from "@/services/dataverse/solutionService";
 import { fetchEntitiesByMetadataIds } from "@/services/dataverse/entityService";
-import { fetchRibbonWorkspace, invalidateApplicationRibbonCache } from "@/services/dataverse/ribbonService";
-import { fetchManagedLocLabels, fetchRibbonProvenance } from "@/services/dataverse/ribbonProvenanceService";
+import {
+	fetchRibbonWorkspace,
+	invalidateApplicationRibbonCache,
+} from "@/services/dataverse/ribbonService";
+import {
+	fetchManagedLocLabels,
+	fetchRibbonProvenance,
+} from "@/services/dataverse/ribbonProvenanceService";
 import { useLabelTextStore } from "@/store/labelTextStore";
 import { applyProvenanceToRibbons, type ButtonProvenance } from "@/utils/ribbonProvenance";
 import { defaultTabId, isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
@@ -34,8 +31,6 @@ import type { ConflictEntry } from "@/types/ribbon";
 import { fetchCurrentUser } from "@/services/dataverse/userService";
 import { useRibbonPersistence } from "@/hooks/useRibbonPersistence";
 import { useDraftStore, draftKeyFor } from "@/store/draftStore";
-import { DraftSaveWarning } from "@/components/shell/DraftSaveWarning";
-import { ConnectionChangedNotice } from "@/components/shell/ConnectionChangedNotice";
 import { DraftRestoreDialog } from "@/components/modals/DraftRestoreDialog";
 import { UnsavedChangesDialog } from "@/components/modals/UnsavedChangesDialog";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
@@ -43,45 +38,6 @@ import { groupControls } from "@/utils/ribbonMenu";
 import { annotateRecentPublish } from "@/services/layerOrphans";
 import { recentPublishOf } from "@/utils/recentPublish";
 import { useModernCommandsLoader } from "@/hooks/useModernCommands";
-
-const useStyles = makeStyles({
-	leftPaneTabs: {
-		display: "flex",
-		flexDirection: "column",
-		height: "100%",
-		overflow: "hidden",
-	},
-	tabList: {
-		flexShrink: 0,
-		borderBottom: `1px solid ${tokens.colorNeutralStroke2}`,
-	},
-	tabContent: {
-		flex: 1,
-		overflow: "hidden",
-	},
-});
-
-function LeftPane() {
-	const styles = useStyles();
-	const [tab, setTab] = useState<"tables" | "elements">("tables");
-
-	return (
-		<div className={styles.leftPaneTabs}>
-			<TabList
-				className={styles.tabList}
-				selectedValue={tab}
-				onTabSelect={(_, d) => setTab(d.value as "tables" | "elements")}
-				size="small"
-			>
-				<Tab value="tables">Tables</Tab>
-				<Tab value="elements">Solution</Tab>
-			</TabList>
-			<div className={styles.tabContent}>
-				{tab === "tables" ? <TablesPane /> : <SolutionElementsPane />}
-			</div>
-		</div>
-	);
-}
 
 export function App() {
 	const setSolutions = useSessionStore((s) => s.setSolutions);
@@ -129,7 +85,10 @@ export function App() {
 			.then((sols) => {
 				if (cancelled) return;
 				setSolutions(sols);
-				logInfo("runtime", `Loaded ${sols.length} solution(s). Pick one to load its tables.`);
+				logInfo(
+					"runtime",
+					`Loaded ${sols.length} solution(s). Pick one to load its tables.`,
+				);
 			})
 			.catch((error) => {
 				if (cancelled) return;
@@ -211,7 +170,13 @@ export function App() {
 		return () => {
 			cancelled = true;
 		};
-	}, [activeSolution, setEntities, setSolutionEntityIds, setSolutionRibbonComponentIds, logError]);
+	}, [
+		activeSolution,
+		setEntities,
+		setSolutionEntityIds,
+		setSolutionRibbonComponentIds,
+		logError,
+	]);
 
 	// ----- When the user picks an entity (inside an active solution),
 	// load the ribbon workspace.
@@ -264,9 +229,9 @@ export function App() {
 
 				// Build ConflictEntry records for buttons whose provenance resolved
 				// to "managed" — i.e. they belong to a managed solution layer.
-				// The ConflictBanner uses these to surface a warning without any
-				// additional API calls. The ConflictDrawer then fetches live layer
-				// detail on demand.
+				// The Properties notices (ButtonNotices) use these to surface a warning without any
+				// additional API calls. Dataverse layers ribbon customisations per
+				// table, not per button, so there is no per-button layer list (#186).
 				const conflictEntries: ConflictEntry[] = [];
 				const seenButtonIds = new Set<string>();
 				for (const ribbon of Object.values(workspace.ribbons)) {
@@ -281,7 +246,8 @@ export function App() {
 										solutions: [
 											{
 												solutionId: "",
-												solutionName: btn.solutionName ?? "Managed Solution",
+												solutionName:
+													btn.solutionName ?? "Managed Solution",
 												publisher: btn.publisherName ?? "",
 												managed: true,
 												wins: true,
@@ -313,7 +279,10 @@ export function App() {
 					orphans: {
 						entity: annotateRecentPublish(
 							workspace.orphans ?? [],
-							recentPublishOf(useSessionStore.getState().connectionUrl, activeEntity.logicalName),
+							recentPublishOf(
+								useSessionStore.getState().connectionUrl,
+								activeEntity.logicalName,
+							),
 						),
 					},
 				});
@@ -323,12 +292,14 @@ export function App() {
 				// here would re-fire this whole effect (and the RetrieveEntityRibbon
 				// + RetrieveApplicationRibbon network calls) every time the user
 				// clicks a tab or switches between Home/Sub/Form/Application.
-				const { location: currentLocation, tabId: currentTabId } = useSelectionStore.getState();
+				const { location: currentLocation, tabId: currentTabId } =
+					useSelectionStore.getState();
 				const tabsForLocation = workspace.ribbons[currentLocation]?.tabs ?? [];
 				// A tab shared by every table (the Charts / AllEntities tabs) "still
 				// exists" after switching tables; land on the new table's main tab.
 				const tabStillExists =
-					tabsForLocation.some((t) => t.id === currentTabId) && !isHiddenOnUnifiedInterface(currentTabId);
+					tabsForLocation.some((t) => t.id === currentTabId) &&
+					!isHiddenOnUnifiedInterface(currentTabId);
 				if (!tabStillExists) {
 					const firstTabId = defaultTabId(tabsForLocation);
 					if (firstTabId) setTabId(firstTabId);
@@ -339,7 +310,8 @@ export function App() {
 				useDraftStore.getState().workspaceLoaded(draftKey);
 
 				setLayerReadError(workspace.layerReadError ?? null);
-				if (workspace.layerReadError) logWarn("ribbon", `Unmanaged layer not read: ${workspace.layerReadError}`);
+				if (workspace.layerReadError)
+					logWarn("ribbon", `Unmanaged layer not read: ${workspace.layerReadError}`);
 				setRibbonLoadState("idle");
 				logInfo("ribbon", `Ribbon workspace loaded for ${activeEntity.logicalName}.`);
 			})
@@ -348,13 +320,24 @@ export function App() {
 				const message = error instanceof Error ? error.message : "Failed to load ribbon";
 				setRibbonLoadState("error");
 				setRibbonLoadError(message);
-				logError("ribbon", `Ribbon load failed for ${activeEntity.logicalName}: ${message}`);
+				logError(
+					"ribbon",
+					`Ribbon load failed for ${activeEntity.logicalName}: ${message}`,
+				);
 			});
 
 		return () => {
 			cancelled = true;
 		};
-	}, [activeEntity?.logicalName, loadWorkspace, reloadVersion, setTabId, logInfo, logWarn, logError]);
+	}, [
+		activeEntity?.logicalName,
+		loadWorkspace,
+		reloadVersion,
+		setTabId,
+		logInfo,
+		logWarn,
+		logError,
+	]);
 
 	function handleRetryRibbonLoad() {
 		// Read everything again, the application ribbon too (#4).
@@ -364,9 +347,11 @@ export function App() {
 
 	return (
 		<FluentProvider theme={themeMode === "dark" ? webDarkTheme : webLightTheme}>
-			<Layout leftPane={<LeftPane />} rightPane={<PropertiesPane />} bottomPanel={<BottomPanel />}>
-				<DraftSaveWarning />
-				<ConnectionChangedNotice />
+			<Layout
+				leftPane={<LeftPane />}
+				rightPane={<PropertiesPane />}
+				bottomPanel={<BottomPanel />}
+			>
 				<RibbonCanvas
 					isLoadingRibbon={ribbonLoadState === "loading"}
 					loadingTable={activeEntity?.displayName ?? activeEntity?.logicalName}
@@ -374,6 +359,9 @@ export function App() {
 					ribbonLoadError={ribbonLoadError}
 					layerReadError={layerReadError}
 					onRetryRibbonLoad={handleRetryRibbonLoad}
+					emptyState={
+						!activeSolution ? "noSolution" : !activeEntity ? "noTable" : undefined
+					}
 				/>
 			</Layout>
 			<DraftRestoreDialog />

@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { arrayMove } from "@dnd-kit/sortable";
 
 let lastKey = 0;
-const mint = (scope: string, count: number) => Array.from({ length: count }, () => `${scope}#${++lastKey}`);
+const mint = (scope: string, count: number) =>
+	Array.from({ length: count }, () => `${scope}#${++lastKey}`);
 
 export interface StableKeys {
 	/** One key per item, in list order. */
@@ -51,7 +52,8 @@ export function useStableKeys<T>(scope: string, items: readonly T[]): StableKeys
 	// The render after our own change: remember the list it produced (or keep
 	// the old one when the change didn't take), so a later list from elsewhere
 	// is recognised — adjusting state while rendering, as React documents.
-	if (tracked?.pending) setTracked({ ...tracked, items: ours ? items : tracked.items, pending: false });
+	if (tracked?.pending)
+		setTracked({ ...tracked, items: ours ? items : tracked.items, pending: false });
 	const keys = ours ? tracked.keys : fresh;
 	const next = (k: string[]) => setTracked({ scope, items, pending: true, keys: k });
 	return {

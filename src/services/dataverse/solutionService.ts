@@ -81,13 +81,6 @@ export async function fetchSolutions(): Promise<Solution[]> {
 	return mapped;
 }
 
-export async function fetchPublisherPrefix(solutionId: string): Promise<string> {
-	const dataverseAPI = getDataverseAPI();
-	// Singular logical name — PPTB pluralizes internally.
-	const result = await dataverseAPI.retrieve("solution", solutionId, ["publisherid"]);
-	return (result.publisherid as { customizationprefix: string })?.customizationprefix ?? "new";
-}
-
 /**
  * Returns the set of entity MetadataIds that are components of the given solution.
  * Used to filter the table picker so the user only sees tables that belong to the

@@ -2,8 +2,8 @@
 const MIN_CANVAS_SHARE = 0.4;
 export const MIN_LEFT = 160;
 export const MIN_RIGHT = 200;
-const MAX_LEFT = 500;
-const MAX_RIGHT = 600;
+export const MAX_LEFT = 500;
+export const MAX_RIGHT = 600;
 
 /**
  * The side panes' widths for a window `width` wide: as set, unless they'd

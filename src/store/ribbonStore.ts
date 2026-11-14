@@ -16,7 +16,11 @@ import type {
 	ScalingDefinition,
 	RibbonMenuSection,
 } from "@/types/ribbon";
-import { layerSnapshotFromParts, locLabelsFromParts, type LayerSnapshot } from "@/services/dataverse/ribbonLayerService";
+import {
+	layerSnapshotFromParts,
+	locLabelsFromParts,
+	type LayerSnapshot,
+} from "@/services/dataverse/ribbonLayerService";
 import {
 	applyPublishedLayer,
 	ownContainerIds as ownContainerIdsOf,
@@ -224,6 +228,15 @@ export interface RibbonStore extends RibbonStoreState {
 	 * outer one.
 	 */
 	batch(fn: () => void): void;
+	/**
+	 * Starts an edit session (#186): until endEditSession, every change joins
+	 * one history entry, however far apart, so one Undo reverts the whole
+	 * session (an editor drawer, from opening to Done). An Undo during the
+	 * session reverts what it changed so far; the next change starts its entry
+	 * again. Starting a session ends the one that was open.
+	 */
+	beginEditSession(): void;
+	endEditSession(): void;
 
 	// Mutations
 	/**
@@ -246,7 +259,13 @@ export interface RibbonStore extends RibbonStoreState {
 	 */
 	addMenuItem(ctx: NewMenuItemContext): void;
 	/** Adds a section to the menu of `parentId` (#27). */
-	addMenuSection(location: RibbonLocation, tabId: string, groupId: string, parentId: string, title?: string): void;
+	addMenuSection(
+		location: RibbonLocation,
+		tabId: string,
+		groupId: string,
+		parentId: string,
+		title?: string,
+	): void;
 	setMenuSectionProp(
 		location: RibbonLocation,
 		tabId: string,
@@ -256,8 +275,19 @@ export interface RibbonStore extends RibbonStoreState {
 		patch: Partial<Pick<RibbonMenuSection, "title" | "displayMode" | "sequence">>,
 	): void;
 	/** Removes a menu section together with its items (#27). */
-	deleteMenuSection(location: RibbonLocation, tabId: string, groupId: string, parentId: string, sectionId: string): void;
-	duplicateButton(location: RibbonLocation, tabId: string, groupId: string, buttonId: string): void;
+	deleteMenuSection(
+		location: RibbonLocation,
+		tabId: string,
+		groupId: string,
+		parentId: string,
+		sectionId: string,
+	): void;
+	duplicateButton(
+		location: RibbonLocation,
+		tabId: string,
+		groupId: string,
+		buttonId: string,
+	): void;
 	createButton(ctx: NewButtonContext): void;
 	createGroup(ctx: NewGroupContext): void;
 	renameGroup(location: RibbonLocation, tabId: string, groupId: string, newLabel: string): void;
@@ -273,6 +303,13 @@ export interface RibbonStore extends RibbonStoreState {
 	renameTab(location: RibbonLocation, tabId: string, newLabel: string): void;
 	deleteTab(location: RibbonLocation, tabId: string): void;
 	reorderTabs(location: RibbonLocation, tabIds: string[]): void;
+	/**
+	 * Moves a group one place left (-1) or right (1) in its tab (#194). Like a
+	 * tab (#163), a new group or one your customizations add is renumbered to
+	 * sit between its neighbours; when neither it nor the group it passes can
+	 * be, nothing moves (see canMoveGroup).
+	 */
+	moveGroup(location: RibbonLocation, tabId: string, groupId: string, by: -1 | 1): void;
 	setTabDisplayRules(location: RibbonLocation, tabId: string, rules: TabDisplayRule[]): void;
 	setScaling(location: RibbonLocation, tabId: string, scaling: ScalingDefinition): void;
 	hideOobButton(location: RibbonLocation, tabId: string, groupId: string, buttonId: string): void;
@@ -356,14 +393,20 @@ export interface RibbonStore extends RibbonStoreState {
 	 * each scope was imported as: its scaling Sequences and label tokens are taken
 	 * into the model first (#66 review B1, m4).
 	 */
-	markPublished(locations?: RibbonLocation[], published?: Partial<Record<LayerScope, RibbonDiffParts>>): void;
+	markPublished(
+		locations?: RibbonLocation[],
+		published?: Partial<Record<LayerScope, RibbonDiffParts>>,
+	): void;
 	setConflicts(entries: ConflictEntry[]): void;
 	/**
 	 * Applies an imported RibbonDiffXml (ribbonDiffImport.ts) as ONE session
 	 * change. The baseline is left alone, so what was imported publishes (#30).
 	 */
 	applyImport(
-		next: Pick<RibbonStoreState, "ribbons" | "commands" | "enableRules" | "displayRules" | "locLabels">,
+		next: Pick<
+			RibbonStoreState,
+			"ribbons" | "commands" | "enableRules" | "displayRules" | "locLabels"
+		>,
 		summary: string,
 	): void;
 
@@ -471,6 +514,45 @@ let openBatch: { snapshot: WorkspaceSnapshot; meta: HistoryMeta | null } | null 
 /** Edits of the same thing closer together than this are one undo step (typing). */
 const COALESCE_MS = 1000;
 
+/** The open edit session's history key (#186), if any: its changes make one entry. */
+let openSession: string | null = null;
+let sessions = 0;
+
+/**
+ * The history after a change: a new entry, or the last one extended when the
+ * change continues it — the same edit within COALESCE_MS, or anything in the
+ * open edit session. `snapshot` is the workspace before the change.
+ */
+function historyAfter(
+	state: RibbonStoreState,
+	meta: HistoryMeta,
+	snapshot: () => WorkspaceSnapshot,
+	coalesceKey?: string,
+): Pick<RibbonStoreState, "past" | "future" | "mutationsSincePublish"> {
+	const key = openSession ?? coalesceKey;
+	const last = state.past[state.past.length - 1];
+	if (
+		key &&
+		last?.coalesceKey === key &&
+		state.future.length === 0 &&
+		(openSession !== null || Date.parse(meta.ts) - Date.parse(last.ts) < COALESCE_MS)
+	) {
+		return {
+			past: [...state.past.slice(0, -1), { ...last, ...meta }],
+			future: [],
+			// Still counted, so the workspace is saved as the user types.
+			mutationsSincePublish: state.mutationsSincePublish + 1,
+		};
+	}
+	return {
+		past: [...state.past, { ...meta, coalesceKey: key, snapshot: snapshot() }].slice(
+			-MAX_HISTORY,
+		),
+		future: [],
+		mutationsSincePublish: state.mutationsSincePublish + 1,
+	};
+}
+
 /**
  * Applies a workspace change as one undo step: every user action goes through
  * here, so undo / redo always restore the canvas and the definitions together.
@@ -487,27 +569,7 @@ function record(
 		if (!openBatch.meta) openBatch.meta = meta;
 		return change;
 	}
-	const last = state.past[state.past.length - 1];
-	if (
-		coalesceKey &&
-		last?.coalesceKey === coalesceKey &&
-		state.future.length === 0 &&
-		Date.parse(meta.ts) - Date.parse(last.ts) < COALESCE_MS
-	) {
-		return {
-			...change,
-			past: [...state.past.slice(0, -1), { ...last, ...meta }],
-			// Still counted, so the workspace is saved as the user types.
-			mutationsSincePublish: state.mutationsSincePublish + 1,
-		};
-	}
-	const entry: HistoryEntry = { ...meta, coalesceKey, snapshot: workspaceOf(state) };
-	return {
-		...change,
-		past: [...state.past, entry].slice(-MAX_HISTORY),
-		future: [],
-		mutationsSincePublish: state.mutationsSincePublish + 1,
-	};
+	return { ...change, ...historyAfter(state, meta, () => workspaceOf(state), coalesceKey) };
 }
 
 function commitMutation(
@@ -529,9 +591,12 @@ export function hasPendingChanges(state: RibbonStoreState): boolean {
 	const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 	return (
 		state.pendingUnhides.entity.length + state.pendingUnhides.application.length > 0 ||
-		state.pendingOrphanDeletes.entity.length + state.pendingOrphanDeletes.application.length > 0 ||
+		state.pendingOrphanDeletes.entity.length + state.pendingOrphanDeletes.application.length >
+			0 ||
 		state.customisedCommandIds.length > 0 ||
-		state.uncustomisedCommandIds.entity.length + state.uncustomisedCommandIds.application.length > 0 ||
+		state.uncustomisedCommandIds.entity.length +
+			state.uncustomisedCommandIds.application.length >
+			0 ||
 		!same(state.ribbons, state.baseline) ||
 		!same(state.commands, state.baselineCommands) ||
 		!same(state.enableRules, state.baselineEnableRules) ||
@@ -571,6 +636,76 @@ export function sequenceBetween(current: number, prev?: number, next?: number): 
 }
 
 /**
+ * Gives tabs or groups in their new order Sequences that publish that order
+ * (#163): the ones `canRenumber` allows are renumbered between their
+ * neighbours. One with no free value between neighbours that can't be
+ * renumbered goes where its Sequence publishes it instead.
+ */
+export function resequenceOrder<T extends { sequence: number }>(
+	ordered: T[],
+	canRenumber: (item: T) => boolean,
+): void {
+	for (let i = 1; i < ordered.length; i++) {
+		if (ordered[i].sequence > ordered[i - 1].sequence) continue;
+		if (canRenumber(ordered[i])) resequenceAround(ordered, i, canRenumber);
+		else if (canRenumber(ordered[i - 1])) resequenceAround(ordered, i - 1, canRenumber);
+	}
+	for (const item of ordered.filter(canRenumber)) {
+		const at = ordered.indexOf(item);
+		const fits =
+			(ordered[at - 1]?.sequence ?? -Infinity) < item.sequence &&
+			item.sequence < (ordered[at + 1]?.sequence ?? Infinity);
+		if (fits) continue;
+		ordered.splice(at, 1);
+		const to = ordered.findIndex((t) => t.sequence > item.sequence);
+		ordered.splice(to < 0 ? ordered.length : to, 0, item);
+	}
+}
+
+/**
+ * Items in Sequence order, which is the order Dataverse shows tabs' groups and
+ * groups' controls in (#194). The load keeps the XML's order, and a new group
+ * is added last whatever its Sequence, so the arrays can differ from it.
+ */
+export function bySequence<T extends { sequence: number }>(items: readonly T[]): T[] {
+	return [...items].sort((a, b) => a.sequence - b.sequence);
+}
+
+/** A group whose Sequence a publish can change: new, or one your customizations add (#194). */
+function groupRenumberable(
+	state: Pick<RibbonStoreState, "baseline" | "layers">,
+	location: RibbonLocation,
+): (group: RibbonGroup) => boolean {
+	const loaded = new Set(
+		state.baseline[location]?.tabs.flatMap((t) => t.groups.map((g) => g.id)) ?? [],
+	);
+	const own = new Set(ownContainerIds(state, location) ?? []);
+	return (g) => !loaded.has(g.id) || own.has(g.id);
+}
+
+/**
+ * Whether a group can move one place left (-1) or right (1) and the publish
+ * keep that order (#194): there is a place there, and the group or the one it
+ * passes can be renumbered.
+ */
+export function canMoveGroup(
+	state: Pick<RibbonStoreState, "ribbons" | "baseline" | "layers">,
+	location: RibbonLocation,
+	tabId: string,
+	groupId: string,
+	by: -1 | 1,
+): boolean {
+	const groups = bySequence(
+		state.ribbons[location].tabs.find((t) => t.id === tabId)?.groups ?? [],
+	);
+	const from = groups.findIndex((g) => g.id === groupId);
+	const other = groups[from + by];
+	if (from < 0 || !other) return false;
+	const canRenumber = groupRenumberable(state, location);
+	return canRenumber(groups[from]) || canRenumber(other);
+}
+
+/**
  * Gives the button at `at` a sequence that keeps `buttons` in display order
  * when there is no free value between its neighbours (#57 review). Only the
  * buttons `canRenumber` allows (the moved one, your own, new ones) change; the
@@ -600,7 +735,8 @@ export function resequenceAround<T extends { sequence: number }>(
 				b.sequence =
 					hi === Infinity
 						? prev + 10
-						: prev + Math.max(1, Math.min(10, Math.floor((hi - prev) / (remaining + 2))));
+						: prev +
+							Math.max(1, Math.min(10, Math.floor((hi - prev) / (remaining + 2))));
 			}
 			prev = b.sequence;
 		}
@@ -618,7 +754,11 @@ export function resequenceAround<T extends { sequence: number }>(
  * took its original's Sequence + 5, which could collide with another copy or
  * pass its next neighbour.
  */
-function placeBetween<T extends { sequence: number }>(list: T[], at: number, canRenumber: (t: T) => boolean): void {
+function placeBetween<T extends { sequence: number }>(
+	list: T[],
+	at: number,
+	canRenumber: (t: T) => boolean,
+): void {
 	const item = list[at];
 	const seq = sequenceBetween(item.sequence, list[at - 1]?.sequence, list[at + 1]?.sequence);
 	if (seq !== undefined) {
@@ -628,7 +768,9 @@ function placeBetween<T extends { sequence: number }>(list: T[], at: number, can
 	resequenceAround(list, at, canRenumber);
 	// No room between neighbours that can't be renumbered (out-of-the-box ones
 	// one apart): it goes where its Sequence publishes it, not where it was put.
-	const fits = (list[at - 1]?.sequence ?? -Infinity) < item.sequence && item.sequence < (list[at + 1]?.sequence ?? Infinity);
+	const fits =
+		(list[at - 1]?.sequence ?? -Infinity) < item.sequence &&
+		item.sequence < (list[at + 1]?.sequence ?? Infinity);
 	if (!fits) {
 		list.splice(at, 1);
 		const to = list.findIndex((t) => t.sequence > item.sequence);
@@ -664,7 +806,9 @@ function controlAt(
 	groupId: string,
 	id: string,
 ): { group: RibbonGroup; button: RibbonButton } | undefined {
-	const group = ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId);
+	const group = ribbons[location].tabs
+		.find((t) => t.id === tabId)
+		?.groups.find((g) => g.id === groupId);
 	const button = findGroupControl(group, id);
 	return group && button ? { group, button } : undefined;
 }
@@ -678,7 +822,9 @@ export function isLoadedControl(
 	location: RibbonLocation,
 	id: string,
 ): boolean {
-	return (state.baseline[location]?.tabs ?? []).some((t) => t.groups.some((g) => groupControls(g).some((b) => b.id === id)));
+	return (state.baseline[location]?.tabs ?? []).some((t) =>
+		t.groups.some((g) => groupControls(g).some((b) => b.id === id)),
+	);
 }
 
 function isReadOnlyGlobalOobButton(
@@ -699,7 +845,11 @@ function isReadOnlyGlobalOobButton(
  * yours (your own can be changed and moved directly) and isn't a menu (menus
  * can't be published yet, #27).
  */
-export function canCustomiseButton(location: RibbonLocation, tabId: string, button: RibbonButton): boolean {
+export function canCustomiseButton(
+	location: RibbonLocation,
+	tabId: string,
+	button: RibbonButton,
+): boolean {
 	return (
 		button.origin !== "unmanaged" &&
 		!button.hidden &&
@@ -712,7 +862,11 @@ export function canCustomiseButton(location: RibbonLocation, tabId: string, butt
 }
 
 /** The button with this id as loaded (baseline) at the location, if it was. */
-function loadedButton(state: RibbonStoreState, location: RibbonLocation, id: string): RibbonButton | undefined {
+function loadedButton(
+	state: RibbonStoreState,
+	location: RibbonLocation,
+	id: string,
+): RibbonButton | undefined {
 	for (const t of state.baseline[location].tabs)
 		for (const g of t.groups) {
 			const b = g.buttons.find((x) => x.id === id);
@@ -723,10 +877,15 @@ function loadedButton(state: RibbonStoreState, location: RibbonLocation, id: str
 
 /** A drop that leaves the button where it is (on itself, or just before its next neighbour). */
 function isMoveInPlace(group: RibbonGroup, src: DragSource, dst: DragTarget): boolean {
-	if (src.location !== dst.location || src.tabId !== dst.tabId || src.groupId !== dst.groupId) return false;
-	const idx = group.buttons.findIndex((b) => b.id === src.buttonId);
-	const next = group.buttons[idx + 1]?.id;
-	return dst.beforeButtonId ? dst.beforeButtonId === src.buttonId || dst.beforeButtonId === next : next === undefined;
+	if (src.location !== dst.location || src.tabId !== dst.tabId || src.groupId !== dst.groupId)
+		return false;
+	// In Sequence order, where moveButton places it (#194 review).
+	const buttons = bySequence(group.buttons);
+	const idx = buttons.findIndex((b) => b.id === src.buttonId);
+	const next = buttons[idx + 1]?.id;
+	return dst.beforeButtonId
+		? dst.beforeButtonId === src.buttonId || dst.beforeButtonId === next
+		: next === undefined;
 }
 
 const LOC_LABEL_TOKEN = /^\$LocLabels:/;
@@ -746,10 +905,15 @@ export const loadedLabelIdsOf = (s: { locLabels: readonly LocLabel[]; labelsUnkn
  * solution's labels, whose text isn't loaded (#137): the generator gives the
  * copy a label of its own once its text is edited.
  */
-function copySource(source: RibbonButton["source"], loadedLabelIds?: ReadonlySet<string>): RibbonButton["source"] {
+function copySource(
+	source: RibbonButton["source"],
+	loadedLabelIds?: ReadonlySet<string>,
+): RibbonButton["source"] {
 	if (!source) return undefined;
 	const keep = (token?: string) =>
-		token && (!LOC_LABEL_TOKEN.test(token) || isOtherSolutionLabel(token, loadedLabelIds)) ? token : undefined;
+		token && (!LOC_LABEL_TOKEN.test(token) || isOtherSolutionLabel(token, loadedLabelIds))
+			? token
+			: undefined;
 	const attributes: Record<string, string> = {};
 	for (const [k, v] of Object.entries(source.attributes)) {
 		if (k !== "Id" && !LOC_LABEL_TOKEN.test(v)) attributes[k] = v;
@@ -763,7 +927,10 @@ function copySource(source: RibbonButton["source"], loadedLabelIds?: ReadonlySet
 	};
 }
 
-const withoutCommand = (lists: Record<LayerScope, string[]>, commandId: string): Record<LayerScope, string[]> => ({
+const withoutCommand = (
+	lists: Record<LayerScope, string[]>,
+	commandId: string,
+): Record<LayerScope, string[]> => ({
 	entity: lists.entity.filter((id) => id !== commandId),
 	application: lists.application.filter((id) => id !== commandId),
 });
@@ -772,7 +939,8 @@ const withoutCommand = (lists: Record<LayerScope, string[]>, commandId: string):
 function loadedCommands(state: RibbonStoreState, commandId: string): CommandDefinition[] {
 	const loaded = state.baselineCommands.find((c) => c.id === commandId);
 	const current = state.commands.find((c) => c.id === commandId);
-	if (!loaded || !current || JSON.stringify(loaded) === JSON.stringify(current)) return state.commands;
+	if (!loaded || !current || JSON.stringify(loaded) === JSON.stringify(current))
+		return state.commands;
 	return state.commands.map((c) => (c.id === commandId ? JSON.parse(JSON.stringify(loaded)) : c));
 }
 
@@ -876,17 +1044,41 @@ export const useRibbonStore = create<RibbonStore>()(
 				// An un-hide of a hide the layer no longer has would publish nothing.
 				const stillHidden = (scope: LayerScope) => {
 					const snap = state.layers[scope];
-					return snap ? copy.pendingUnhides[scope].filter((id) => snap.hides.some((h) => h.location === id)) : copy.pendingUnhides[scope];
+					return snap
+						? copy.pendingUnhides[scope].filter((id) =>
+								snap.hides.some((h) => h.location === id),
+							)
+						: copy.pendingUnhides[scope];
 				};
-				const change = { ...copy, pendingUnhides: { entity: stillHidden("entity"), application: stillHidden("application") } };
+				const change = {
+					...copy,
+					pendingUnhides: {
+						entity: stillHidden("entity"),
+						application: stillHidden("application"),
+					},
+				};
 				// Nothing to restore (the server has it all): not a change.
-				if (JSON.stringify(workspaceOf({ ...state, ...change })) === JSON.stringify(workspaceOf(state))) return state;
-				return record(state, change, historyMeta("restored", "unsaved changes", detail, "history"));
+				if (
+					JSON.stringify(workspaceOf({ ...state, ...change })) ===
+					JSON.stringify(workspaceOf(state))
+				)
+					return state;
+				return record(
+					state,
+					change,
+					historyMeta("restored", "unsaved changes", detail, "history"),
+				);
 			});
 		},
 
 		resetWorkspace() {
-			get().loadWorkspace({ ribbons: EMPTY_RIBBONS, commands: [], displayRules: [], enableRules: [], locLabels: [] });
+			get().loadWorkspace({
+				ribbons: EMPTY_RIBBONS,
+				commands: [],
+				displayRules: [],
+				enableRules: [],
+				locLabels: [],
+			});
 		},
 
 		undo() {
@@ -943,14 +1135,16 @@ export const useRibbonStore = create<RibbonStore>()(
 			} finally {
 				const { snapshot, meta } = openBatch;
 				openBatch = null;
-				if (meta) {
-					set((state) => ({
-						past: [...state.past, { ...meta, snapshot }].slice(-MAX_HISTORY),
-						future: [],
-						mutationsSincePublish: state.mutationsSincePublish + 1,
-					}));
-				}
+				if (meta) set((state) => historyAfter(state, meta, () => snapshot));
 			}
+		},
+
+		beginEditSession() {
+			openSession = `session:${++sessions}`;
+		},
+
+		endEditSession() {
+			openSession = null;
 		},
 
 		moveButton(src, dst) {
@@ -972,10 +1166,17 @@ export const useRibbonStore = create<RibbonStore>()(
 			// sets it on load).
 			const loadedOrigin = loadedButton(state, src.location, original.id)?.origin;
 			const notYours = loadedOrigin !== undefined && loadedOrigin !== "unmanaged";
-			if (notYours && !original.menu && !isMenuKind(original.kind) && !isReadOnlyGlobalOobButton(src.location, src.tabId, original)) {
+			if (
+				notYours &&
+				!original.menu &&
+				!isMenuKind(original.kind) &&
+				!isReadOnlyGlobalOobButton(src.location, src.tabId, original)
+			) {
 				if (isMoveInPlace(srcGroup, src, dst)) return null;
 				const refuse = (why: string) => {
-					useRuntimeLogStore.getState().logWarn("ribbon", `Can't move ${original.id}: ${why}`);
+					useRuntimeLogStore
+						.getState()
+						.logWarn("ribbon", `Can't move ${original.id}: ${why}`);
 					return null;
 				};
 				// Already customised (or hidden otherwise): its copy is what moves.
@@ -983,12 +1184,20 @@ export const useRibbonStore = create<RibbonStore>()(
 				// A copy belongs in the same ribbon as the original: the table's
 				// commands and rules aren't in the application ribbon, nor the reverse.
 				if ((src.location === "Application") !== (dst.location === "Application"))
-					return refuse("it isn't yours, and a copy can't move between the table's ribbon and the application ribbon.");
+					return refuse(
+						"it isn't yours, and a copy can't move between the table's ribbon and the application ribbon.",
+					);
 				const prefix = sessionIdPrefix();
 				let moved: string | null = null;
 				let copied = false;
 				get().batch(() => {
-					const copyId = get().customiseButton(src.location, src.tabId, src.groupId, src.buttonId, prefix);
+					const copyId = get().customiseButton(
+						src.location,
+						src.tabId,
+						src.groupId,
+						src.buttonId,
+						prefix,
+					);
 					if (!copyId) return;
 					copied = true;
 					moved = get().moveButton({ ...src, buttonId: copyId }, dst);
@@ -1002,7 +1211,10 @@ export const useRibbonStore = create<RibbonStore>()(
 				// Copied but not moved (can't happen with the destination checked
 				// above): don't leave the copy and the hide behind.
 				if (copied && !moved) get().undo();
-				if (!copied) return refuse("it isn't yours and can't be copied (e.g. it has an override of its command); undo the override, then move it.");
+				if (!copied)
+					return refuse(
+						"it isn't yours and can't be copied (e.g. it has an override of its command); undo the override, then move it.",
+					);
 				return moved;
 			}
 			// Read-only global buttons don't move (and don't make an empty history entry).
@@ -1017,7 +1229,13 @@ export const useRibbonStore = create<RibbonStore>()(
 						if (!srcGroup) return;
 						const btnIdx = srcGroup.buttons.findIndex((b) => b.id === src.buttonId);
 						if (btnIdx === -1) return;
-						if (isReadOnlyGlobalOobButton(src.location, src.tabId, srcGroup.buttons[btnIdx]))
+						if (
+							isReadOnlyGlobalOobButton(
+								src.location,
+								src.tabId,
+								srcGroup.buttons[btnIdx],
+							)
+						)
 							return;
 						// Resolve the destination before taking the button out of its
 						// group: a missing destination must not lose the button.
@@ -1028,6 +1246,10 @@ export const useRibbonStore = create<RibbonStore>()(
 						const dstGroup = dstTab?.groups.find((g) => g.id === dst.groupId);
 						if (!dstGroup) return;
 						const [button] = srcGroup.buttons.splice(btnIdx, 1);
+						// Placed among the destination's controls in Sequence order, the
+						// order Unified Interface (and the Structure tree and group cards)
+						// show; the load keeps the XML's order, which can differ (#194).
+						dstGroup.buttons.sort((a, b) => a.sequence - b.sequence);
 						const insertIdx = dst.beforeButtonId
 							? dstGroup.buttons.findIndex((b) => b.id === dst.beforeButtonId)
 							: dstGroup.buttons.length;
@@ -1045,7 +1267,9 @@ export const useRibbonStore = create<RibbonStore>()(
 							// buttons CBS can re-sequence — your own (the layer adds
 							// them) and ones created this session.
 							const own = new Set(
-								state.layers[dst.location === "Application" ? "application" : "entity"]?.controlIds ?? [],
+								state.layers[
+									dst.location === "Application" ? "application" : "entity"
+								]?.controlIds ?? [],
 							);
 							const loaded = new Set(
 								state.baseline[dst.location].tabs.flatMap((t) =>
@@ -1090,14 +1314,21 @@ export const useRibbonStore = create<RibbonStore>()(
 						patch.kind === undefined ||
 						patch.kind === at.button.kind ||
 						(!isLoadedControl(state, location, buttonId) &&
-							(at.group.buttons.includes(at.button) || MENU_ITEM_KINDS.includes(patch.kind)))
+							(at.group.buttons.includes(at.button) ||
+								MENU_ITEM_KINDS.includes(patch.kind)))
 					);
 				};
 				if (Object.keys(patch).length === 1 && !kindAllowed(state.ribbons)) return {};
 				return commitMutation(
 					state,
 					(ribbons) => {
-						const button = controlAt(ribbons, location, tabId, groupId, buttonId)?.button;
+						const button = controlAt(
+							ribbons,
+							location,
+							tabId,
+							groupId,
+							buttonId,
+						)?.button;
 						if (!button) return;
 						if (isReadOnlyGlobalOobButton(location, tabId, button)) return;
 						const before = button.kind;
@@ -1105,7 +1336,8 @@ export const useRibbonStore = create<RibbonStore>()(
 						Object.assign(button, patch);
 						if (!allowed) button.kind = before;
 						// A button turned into a flyout / split button gets an (empty) menu.
-						if (isMenuKind(button.kind) && !button.menu) button.menu = newMenu(button.id);
+						if (isMenuKind(button.kind) && !button.menu)
+							button.menu = newMenu(button.id);
 					},
 					{
 						ts: new Date().toISOString(),
@@ -1145,7 +1377,8 @@ export const useRibbonStore = create<RibbonStore>()(
 						const { group, button } = found;
 						if (isReadOnlyGlobalOobButton(location, tabId, button)) return;
 						// A menu item leaves its menu section (#27).
-						if (!removeMenuItem(group, buttonId)) group.buttons = group.buttons.filter((b) => b.id !== buttonId);
+						if (!removeMenuItem(group, buttonId))
+							group.buttons = group.buttons.filter((b) => b.id !== buttonId);
 					},
 					{
 						ts: new Date().toISOString(),
@@ -1166,11 +1399,20 @@ export const useRibbonStore = create<RibbonStore>()(
 				commitMutation(
 					state,
 					(ribbons) => {
-						const parent = controlAt(ribbons, location, tabId, groupId, parentId)?.button;
+						const parent = controlAt(
+							ribbons,
+							location,
+							tabId,
+							groupId,
+							parentId,
+						)?.button;
 						if (!parent || isReadOnlyGlobalOobButton(location, tabId, parent)) return;
 						parent.menu = parent.menu ?? newMenu(parent.id);
-						if (parent.menu.sections.length === 0) parent.menu.sections.push(newMenuSection(parent.id, []));
-						const section = parent.menu.sections.find((s) => s.id === sectionId) ?? parent.menu.sections[0];
+						if (parent.menu.sections.length === 0)
+							parent.menu.sections.push(newMenuSection(parent.id, []));
+						const section =
+							parent.menu.sections.find((s) => s.id === sectionId) ??
+							parent.menu.sections[0];
 						const last = section.controls[section.controls.length - 1]?.sequence ?? 0;
 						section.controls.push({
 							...item,
@@ -1204,10 +1446,18 @@ export const useRibbonStore = create<RibbonStore>()(
 				commitMutation(
 					state,
 					(ribbons) => {
-						const parent = controlAt(ribbons, location, tabId, groupId, parentId)?.button;
+						const parent = controlAt(
+							ribbons,
+							location,
+							tabId,
+							groupId,
+							parentId,
+						)?.button;
 						if (!parent || isReadOnlyGlobalOobButton(location, tabId, parent)) return;
 						parent.menu = parent.menu ?? { id: `${parent.id}.Menu`, sections: [] };
-						parent.menu.sections.push(newMenuSection(parent.id, parent.menu.sections, title));
+						parent.menu.sections.push(
+							newMenuSection(parent.id, parent.menu.sections, title),
+						);
 					},
 					{
 						ts: new Date().toISOString(),
@@ -1228,9 +1478,20 @@ export const useRibbonStore = create<RibbonStore>()(
 				commitMutation(
 					state,
 					(ribbons) => {
-						const parent = controlAt(ribbons, location, tabId, groupId, parentId)?.button;
+						const parent = controlAt(
+							ribbons,
+							location,
+							tabId,
+							groupId,
+							parentId,
+						)?.button;
 						const section = parent?.menu?.sections.find((s) => s.id === sectionId);
-						if (!parent || !section || isReadOnlyGlobalOobButton(location, tabId, parent)) return;
+						if (
+							!parent ||
+							!section ||
+							isReadOnlyGlobalOobButton(location, tabId, parent)
+						)
+							return;
 						Object.assign(section, patch);
 					},
 					{
@@ -1252,9 +1513,18 @@ export const useRibbonStore = create<RibbonStore>()(
 				commitMutation(
 					state,
 					(ribbons) => {
-						const parent = controlAt(ribbons, location, tabId, groupId, parentId)?.button;
-						if (!parent?.menu || isReadOnlyGlobalOobButton(location, tabId, parent)) return;
-						parent.menu.sections = parent.menu.sections.filter((s) => s.id !== sectionId);
+						const parent = controlAt(
+							ribbons,
+							location,
+							tabId,
+							groupId,
+							parentId,
+						)?.button;
+						if (!parent?.menu || isReadOnlyGlobalOobButton(location, tabId, parent))
+							return;
+						parent.menu.sections = parent.menu.sections.filter(
+							(s) => s.id !== sectionId,
+						);
 					},
 					{
 						ts: new Date().toISOString(),
@@ -1286,13 +1556,21 @@ export const useRibbonStore = create<RibbonStore>()(
 							// the copy keeps it as it is (#86).
 							const loadedLabelIds = loadedLabelIdsOf(state);
 							const platformLabel =
-								isPlatformText(btn.source?.labelToken) || isOtherSolutionLabel(btn.source?.labelToken, loadedLabelIds);
+								isPlatformText(btn.source?.labelToken) ||
+								isOtherSolutionLabel(btn.source?.labelToken, loadedLabelIds);
 							const copy: RibbonButton = {
-								...copyControl(btn, `${prefixedId(btn.id, sessionIdPrefix())}_copy_${Date.now()}`, loadedLabelIds),
+								...copyControl(
+									btn,
+									`${prefixedId(btn.id, sessionIdPrefix())}_copy_${Date.now()}`,
+									loadedLabelIds,
+								),
 								// A read-only kind is copied as loaded (#42), and a platform text
 								// (`$Resources:`) or another solution's label (#137) can't take a
 								// " (copy)" suffix (#86): both keep their label.
-								label: isReadOnlyControlKind(btn.kind) || platformLabel ? btn.label : `${btn.label} (copy)`,
+								label:
+									isReadOnlyControlKind(btn.kind) || platformLabel
+										? btn.label
+										: `${btn.label} (copy)`,
 								sequence: btn.sequence,
 							};
 							const place = menuItemPlace(group, buttonId);
@@ -1302,9 +1580,15 @@ export const useRibbonStore = create<RibbonStore>()(
 							// Right after the original, before its next neighbour (#164).
 							const own = new Set(scopeLayer(state, location)?.controlIds ?? []);
 							const loaded = new Set(
-								(state.baseline[location]?.tabs ?? []).flatMap((t) => t.groups.flatMap(groupControls)).map((b) => b.id),
+								(state.baseline[location]?.tabs ?? [])
+									.flatMap((t) => t.groups.flatMap(groupControls))
+									.map((b) => b.id),
 							);
-							placeBetween(list, idx + 1, (b) => b === copy || own.has(b.id) || !loaded.has(b.id));
+							placeBetween(
+								list,
+								idx + 1,
+								(b) => b === copy || own.has(b.id) || !loaded.has(b.id),
+							);
 						}
 					},
 					{
@@ -1334,7 +1618,9 @@ export const useRibbonStore = create<RibbonStore>()(
 							const used = new Set(group.buttons.map((b) => b.sequence));
 							const after = Math.max(0, ...group.buttons.map((b) => b.sequence)) + 10;
 							const sequence =
-								button.sequence !== undefined && !used.has(button.sequence) ? button.sequence : after;
+								button.sequence !== undefined && !used.has(button.sequence)
+									? button.sequence
+									: after;
 							const newBtn: RibbonButton = {
 								...button,
 								id: button.id ?? `new_${Date.now()}`,
@@ -1349,7 +1635,8 @@ export const useRibbonStore = create<RibbonStore>()(
 								managed: false,
 								origin: "unmanaged",
 							};
-							if (isMenuKind(newBtn.kind) && !newBtn.menu) newBtn.menu = newMenu(newBtn.id);
+							if (isMenuKind(newBtn.kind) && !newBtn.menu)
+								newBtn.menu = newMenu(newBtn.id);
 							group.buttons.push(newBtn);
 						}
 					},
@@ -1377,14 +1664,21 @@ export const useRibbonStore = create<RibbonStore>()(
 							// Same id scheme as new buttons and tabs:
 							// {prefix}.{table}.{Location}.{Label}.Group, unique in the workspace.
 							const ribbon = ribbons[location];
-							const table = location === "Application" ? "global" : ribbon.entityLogicalName;
+							const table =
+								location === "Application" ? "global" : ribbon.entityLogicalName;
 							const newGroup: RibbonGroup = {
 								id:
 									group.id ??
-									generateRibbonId(table, `${location}.${group.label ?? "New Group"}`, "Group", workspaceIds(state, ribbons)),
+									generateRibbonId(
+										table,
+										`${location}.${group.label ?? "New Group"}`,
+										"Group",
+										workspaceIds(state, ribbons),
+									),
 								label: group.label ?? "New Group",
 								sequence:
-									group.sequence !== undefined && !tab.groups.some((g) => g.sequence === group.sequence)
+									group.sequence !== undefined &&
+									!tab.groups.some((g) => g.sequence === group.sequence)
 										? group.sequence
 										: Math.max(0, ...tab.groups.map((g) => g.sequence)) + 10,
 								template: group.template ?? "Flexible2",
@@ -1450,14 +1744,16 @@ export const useRibbonStore = create<RibbonStore>()(
 						// the token as its label.
 						const imported = grp.source?.titleToken;
 						const title =
-							imported !== undefined && resolveDisplayLabel(imported, state.locLabels, lang) === grp.label
+							imported !== undefined &&
+							resolveDisplayLabel(imported, state.locLabels, lang) === grp.label
 								? imported
 								: grp.label;
 						// A platform text (`$Resources:`) or another solution's label (#137)
 						// can't take a " (copy)" suffix — the copy took the key itself as its
 						// literal title ("Ribbon.HomepageGrid.MainTab.Management (copy)"). Like
 						// a copied button (#86), it keeps the token, so it shows the same text.
-						const keepTitle = isPlatformText(title) || isOtherSolutionLabel(title, loadedLabelIds);
+						const keepTitle =
+							isPlatformText(title) || isOtherSolutionLabel(title, loadedLabelIds);
 						const copy: RibbonGroup = {
 							...JSON.parse(JSON.stringify(grp)),
 							id: `${prefixedId(grp.id, prefix)}${stamp}`,
@@ -1471,7 +1767,13 @@ export const useRibbonStore = create<RibbonStore>()(
 							source: keepTitle ? { titleToken: title, attributes: {} } : undefined,
 							description: undefined,
 							sequence: grp.sequence,
-							buttons: grp.buttons.map((b) => copyControl(b, `${prefixedId(b.id, prefix)}${stamp}`, loadedLabelIds)),
+							buttons: grp.buttons.map((b) =>
+								copyControl(
+									b,
+									`${prefixedId(b.id, prefix)}${stamp}`,
+									loadedLabelIds,
+								),
+							),
 						};
 						const idx = tab.groups.findIndex((g) => g.id === groupId);
 						tab.groups.splice(idx + 1, 0, copy);
@@ -1479,9 +1781,15 @@ export const useRibbonStore = create<RibbonStore>()(
 						// copy and new groups are renumbered: a loaded group's Sequence change
 						// wouldn't publish.
 						const loadedGroups = new Set(
-							(state.baseline[location]?.tabs ?? []).flatMap((t) => t.groups.map((g) => g.id)),
+							(state.baseline[location]?.tabs ?? []).flatMap((t) =>
+								t.groups.map((g) => g.id),
+							),
 						);
-						placeBetween(tab.groups, idx + 1, (g) => g === copy || !loadedGroups.has(g.id));
+						placeBetween(
+							tab.groups,
+							idx + 1,
+							(g) => g === copy || !loadedGroups.has(g.id),
+						);
 						if (keepTitle) keptTitle = { copyId: copy.id, title };
 					},
 					{
@@ -1535,8 +1843,17 @@ export const useRibbonStore = create<RibbonStore>()(
 		deleteGroup(location, tabId, groupId) {
 			// Only your own group, holding only your own controls (#17 review).
 			const current = get();
-			const group = current.ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId);
-			if (group && !canDeleteGroup(group, current.baseline[location], ownContainerIds(current, location))) {
+			const group = current.ribbons[location].tabs
+				.find((t) => t.id === tabId)
+				?.groups.find((g) => g.id === groupId);
+			if (
+				group &&
+				!canDeleteGroup(
+					group,
+					current.baseline[location],
+					ownContainerIds(current, location),
+				)
+			) {
 				useRuntimeLogStore
 					.getState()
 					.logWarn(
@@ -1575,10 +1892,16 @@ export const useRibbonStore = create<RibbonStore>()(
 					state,
 					(ribbons) => {
 						const ribbon = ribbons[location];
-						const table = location === "Application" ? "global" : ribbon.entityLogicalName;
+						const table =
+							location === "Application" ? "global" : ribbon.entityLogicalName;
 						const id =
 							tabDef.id ??
-							generateRibbonId(table, `${location}.${tabDef.label ?? "New Tab"}`, "Tab", workspaceIds(state, ribbons));
+							generateRibbonId(
+								table,
+								`${location}.${tabDef.label ?? "New Tab"}`,
+								"Tab",
+								workspaceIds(state, ribbons),
+							);
 						// A tab is shown only where a TabDisplayRule bound to its Command
 						// allows it (#58), so a new table tab starts with the rule for the
 						// location it was added to; the user can change it in Tab rules.
@@ -1588,13 +1911,18 @@ export const useRibbonStore = create<RibbonStore>()(
 							label: tabDef.label ?? "New Tab",
 							// After the location's last tab, never sharing a sequence (#66 review t4).
 							sequence:
-								tabDef.sequence !== undefined && !ribbon.tabs.some((t) => t.sequence === tabDef.sequence)
+								tabDef.sequence !== undefined &&
+								!ribbon.tabs.some((t) => t.sequence === tabDef.sequence)
 									? tabDef.sequence
 									: Math.max(0, ...ribbon.tabs.map((t) => t.sequence)) + 10,
 							commandId,
 							tabDisplayRules: tabDef.tabDisplayRules?.length
 								? tabDef.tabDisplayRules
-								: defaultTabDisplayRules(location, ribbon.entityLogicalName, commandId),
+								: defaultTabDisplayRules(
+										location,
+										ribbon.entityLogicalName,
+										commandId,
+									),
 							groups: [],
 						};
 						ribbon.tabs.push(newTab);
@@ -1639,7 +1967,10 @@ export const useRibbonStore = create<RibbonStore>()(
 			// Only your own tab, holding only your own groups and controls (#17 review).
 			const current = get();
 			const tab = current.ribbons[location].tabs.find((t) => t.id === tabId);
-			if (tab && !canDeleteTab(tab, current.baseline[location], ownContainerIds(current, location))) {
+			if (
+				tab &&
+				!canDeleteTab(tab, current.baseline[location], ownContainerIds(current, location))
+			) {
 				useRuntimeLogStore
 					.getState()
 					.logWarn(
@@ -1652,7 +1983,9 @@ export const useRibbonStore = create<RibbonStore>()(
 				commitMutation(
 					state,
 					(ribbons) => {
-						ribbons[location].tabs = ribbons[location].tabs.filter((t) => t.id !== tabId);
+						ribbons[location].tabs = ribbons[location].tabs.filter(
+							(t) => t.id !== tabId,
+						);
 					},
 					{
 						ts: new Date().toISOString(),
@@ -1682,26 +2015,11 @@ export const useRibbonStore = create<RibbonStore>()(
 						// tab got none, so the publish had nothing to publish. A new tab,
 						// or one your customizations add, is renumbered to sit between its
 						// neighbours; another solution's can't be, and the publish says so.
-						const loaded = new Set(state.baseline[location]?.tabs.map((t) => t.id) ?? []);
+						const loaded = new Set(
+							state.baseline[location]?.tabs.map((t) => t.id) ?? [],
+						);
 						const own = new Set(ownContainerIds(state, location) ?? []);
-						const canRenumber = (t: RibbonTab) => !loaded.has(t.id) || own.has(t.id);
-						for (let i = 1; i < ordered.length; i++) {
-							if (ordered[i].sequence > ordered[i - 1].sequence) continue;
-							if (canRenumber(ordered[i])) resequenceAround(ordered, i, canRenumber);
-							else if (canRenumber(ordered[i - 1])) resequenceAround(ordered, i - 1, canRenumber);
-						}
-						// No free value between neighbours that can't be renumbered: such a tab
-						// goes where its Sequence publishes it, not where it was dropped.
-						for (const tab of ordered.filter(canRenumber)) {
-							const at = ordered.indexOf(tab);
-							const fits =
-								(ordered[at - 1]?.sequence ?? -Infinity) < tab.sequence &&
-								tab.sequence < (ordered[at + 1]?.sequence ?? Infinity);
-							if (fits) continue;
-							ordered.splice(at, 1);
-							const to = ordered.findIndex((t) => t.sequence > tab.sequence);
-							ordered.splice(to < 0 ? ordered.length : to, 0, tab);
-						}
+						resequenceOrder(ordered, (t) => !loaded.has(t.id) || own.has(t.id));
 					},
 					{
 						ts: new Date().toISOString(),
@@ -1710,6 +2028,42 @@ export const useRibbonStore = create<RibbonStore>()(
 						op: "reordered",
 						target: "Tabs",
 						detail: location,
+						icon: "arrow_sort",
+						color: "info",
+					},
+				),
+			);
+		},
+
+		moveGroup(location, tabId, groupId, by) {
+			const state = get();
+			if (!canMoveGroup(state, location, tabId, groupId, by)) return;
+			const label =
+				state.ribbons[location].tabs
+					.find((t) => t.id === tabId)
+					?.groups.find((g) => g.id === groupId)?.label ?? groupId;
+			set((s) =>
+				commitMutation(
+					s,
+					(ribbons) => {
+						const tab = ribbons[location].tabs.find((t) => t.id === tabId);
+						if (!tab) return;
+						// Moved among the groups as shown: in Sequence order.
+						tab.groups.sort((a, b) => a.sequence - b.sequence);
+						const from = tab.groups.findIndex((g) => g.id === groupId);
+						const [group] = tab.groups.splice(from, 1);
+						tab.groups.splice(from + by, 0, group);
+						// As for tabs (#163): the Sequence orders groups in Dataverse.
+						const canRenumber = groupRenumberable(s, location);
+						resequenceOrder(tab.groups, canRenumber);
+					},
+					{
+						ts: new Date().toISOString(),
+						userId: "",
+						userName: "You",
+						op: "reordered",
+						target: label,
+						detail: by < 0 ? "Moved left" : "Moved right",
 						icon: "arrow_sort",
 						color: "info",
 					},
@@ -1846,8 +2200,11 @@ export const useRibbonStore = create<RibbonStore>()(
 			];
 			for (const [token, labelId] of texts) {
 				if (!token || !LOC_LABEL_TOKEN.test(token)) continue;
-				const original = state.locLabels.find((l) => l.id === token.replace(LOC_LABEL_TOKEN, ""));
-				if (original) labels.push({ id: labelId, titles: original.titles.map((t) => ({ ...t })) });
+				const original = state.locLabels.find(
+					(l) => l.id === token.replace(LOC_LABEL_TOKEN, ""),
+				);
+				if (original)
+					labels.push({ id: labelId, titles: original.titles.map((t) => ({ ...t })) });
 				else if (isOtherSolutionLabel(token, loadedLabelIds)) shared.push(token);
 			}
 			if (shared.length > 0) {
@@ -1862,7 +2219,9 @@ export const useRibbonStore = create<RibbonStore>()(
 			const labelIds = new Set(labels.map((l) => l.id));
 			set((s) => {
 				const ribbons = cloneRibbons(s.ribbons);
-				const group = ribbons[location].tabs.find((t) => t.id === tabId)?.groups.find((g) => g.id === groupId);
+				const group = ribbons[location].tabs
+					.find((t) => t.id === tabId)
+					?.groups.find((g) => g.id === groupId);
 				const idx = group?.buttons.findIndex((b) => b.id === buttonId) ?? -1;
 				if (!group || idx < 0) return {};
 				const original = group.buttons[idx];
@@ -1882,7 +2241,8 @@ export const useRibbonStore = create<RibbonStore>()(
 				// Sequence when one is free before the next button, else the
 				// original's — the original is hidden, so they never show together).
 				const next = group.buttons[idx + 1]?.sequence;
-				if (next === undefined || original.sequence + 1 < next) copy.sequence = original.sequence + 1;
+				if (next === undefined || original.sequence + 1 < next)
+					copy.sequence = original.sequence + 1;
 				original.hidden = true;
 				group.buttons.splice(idx + 1, 0, copy);
 				// The copy, the hidden original and the copy's labels are one undo step (#34).
@@ -1890,7 +2250,14 @@ export const useRibbonStore = create<RibbonStore>()(
 					s,
 					{
 						ribbons,
-						...(labels.length > 0 ? { locLabels: [...s.locLabels.filter((l) => !labelIds.has(l.id)), ...labels] } : {}),
+						...(labels.length > 0
+							? {
+									locLabels: [
+										...s.locLabels.filter((l) => !labelIds.has(l.id)),
+										...labels,
+									],
+								}
+							: {}),
 					},
 					historyMeta(
 						"customised",
@@ -1912,10 +2279,18 @@ export const useRibbonStore = create<RibbonStore>()(
 				record(
 					s,
 					{
-						customisedCommandIds: [...s.customisedCommandIds.filter((id) => id !== commandId), commandId],
+						customisedCommandIds: [
+							...s.customisedCommandIds.filter((id) => id !== commandId),
+							commandId,
+						],
 						uncustomisedCommandIds: withoutCommand(s.uncustomisedCommandIds, commandId),
 					},
-					historyMeta("customised", commandId, "command copied to your layer on publish", "code"),
+					historyMeta(
+						"customised",
+						commandId,
+						"command copied to your layer on publish",
+						"code",
+					),
 				),
 			);
 			return true;
@@ -1927,10 +2302,15 @@ export const useRibbonStore = create<RibbonStore>()(
 					s,
 					{
 						commands: loadedCommands(s, commandId),
-						customisedCommandIds: s.customisedCommandIds.filter((id) => id !== commandId),
+						customisedCommandIds: s.customisedCommandIds.filter(
+							(id) => id !== commandId,
+						),
 						uncustomisedCommandIds: {
 							...withoutCommand(s.uncustomisedCommandIds, commandId),
-							[scope]: [...s.uncustomisedCommandIds[scope].filter((id) => id !== commandId), commandId],
+							[scope]: [
+								...s.uncustomisedCommandIds[scope].filter((id) => id !== commandId),
+								commandId,
+							],
 						},
 					},
 					historyMeta(
@@ -1957,7 +2337,9 @@ export const useRibbonStore = create<RibbonStore>()(
 					s,
 					{
 						commands,
-						customisedCommandIds: s.customisedCommandIds.filter((id) => id !== commandId),
+						customisedCommandIds: s.customisedCommandIds.filter(
+							(id) => id !== commandId,
+						),
 						uncustomisedCommandIds: withoutCommand(s.uncustomisedCommandIds, commandId),
 					},
 					historyMeta("discarded", commandId, "command changes", "arrow_undo"),
@@ -1976,7 +2358,13 @@ export const useRibbonStore = create<RibbonStore>()(
 				if (!at) return false;
 				const taken = workspaceIds(state, state.ribbons);
 				for (const c of state.commands) taken.add(c.id);
-				const { id } = newButtonIds(idPrefix, ribbon.entityLogicalName, location, "OpenRecordItem", taken);
+				const { id } = newButtonIds(
+					idPrefix,
+					ribbon.entityLogicalName,
+					location,
+					"OpenRecordItem",
+					taken,
+				);
 				get().batch(() => {
 					get().createButton({
 						location,
@@ -2008,17 +2396,33 @@ export const useRibbonStore = create<RibbonStore>()(
 			get().batch(() => {
 				// Only the carriers the switch created: a button of your own that
 				// uses the command stays (#22 review).
-				for (const c of carriers) get().deleteButton(location, c.tabId, c.groupId, c.button.id);
+				for (const c of carriers)
+					get().deleteButton(location, c.tabId, c.groupId, c.button.id);
 				const s = get();
-				const inUse = Object.values(s.ribbons).some((r) => openRecordCommandUsers(r).length > 0);
+				const inUse = Object.values(s.ribbons).some(
+					(r) => openRecordCommandUsers(r).length > 0,
+				);
 				// A command the layer defines stays in the session: the publish
 				// removes it from the layer together with the last button using it.
-				if (!inUse && !s.baselineCommands.some((c) => c.id === OPEN_RECORD_ITEM_COMMAND_ID)) {
+				if (
+					!inUse &&
+					!s.baselineCommands.some((c) => c.id === OPEN_RECORD_ITEM_COMMAND_ID)
+				) {
 					set((st) =>
 						record(
 							st,
-							{ commands: st.commands.filter((c) => c.id !== OPEN_RECORD_ITEM_COMMAND_ID) },
-							historyMeta("removed", OPEN_RECORD_ITEM_COMMAND_ID, "grid open override", "delete", "danger"),
+							{
+								commands: st.commands.filter(
+									(c) => c.id !== OPEN_RECORD_ITEM_COMMAND_ID,
+								),
+							},
+							historyMeta(
+								"removed",
+								OPEN_RECORD_ITEM_COMMAND_ID,
+								"grid open override",
+								"delete",
+								"danger",
+							),
 						),
 					);
 				}
@@ -2027,10 +2431,13 @@ export const useRibbonStore = create<RibbonStore>()(
 		},
 
 		hideWithDisplayRules(buttonCommandId) {
-			const cmd = buttonCommandId ? get().commands.find((c) => c.id === buttonCommandId) : undefined;
+			const cmd = buttonCommandId
+				? get().commands.find((c) => c.id === buttonCommandId)
+				: undefined;
 			if (!cmd) return false;
 			const displayRules = [...cmd.displayRules];
-			for (const id of HIDE_DISPLAY_RULES) if (!displayRules.includes(id)) displayRules.push(id);
+			for (const id of HIDE_DISPLAY_RULES)
+				if (!displayRules.includes(id)) displayRules.push(id);
 			set((state) => {
 				const commands = upsertById(state.commands, { ...cmd, displayRules });
 				if (!commands) return state;
@@ -2074,7 +2481,12 @@ export const useRibbonStore = create<RibbonStore>()(
 									button.commandId = newId;
 								}
 								// A control written verbatim (#42) names the command in its XML.
-								if (button.source?.xml) button.source.xml = renameCommandInXml(button.source.xml, oldId, newId);
+								if (button.source?.xml)
+									button.source.xml = renameCommandInXml(
+										button.source.xml,
+										oldId,
+										newId,
+									);
 							}
 						}
 					}
@@ -2231,7 +2643,13 @@ export const useRibbonStore = create<RibbonStore>()(
 					state,
 					{ pendingOrphanDeletes: { ...state.pendingOrphanDeletes, [scope]: ids } },
 					deleted
-						? historyMeta("deleted", orphanId, "not on the canvas — removed on publish", "delete", "danger")
+						? historyMeta(
+								"deleted",
+								orphanId,
+								"not on the canvas — removed on publish",
+								"delete",
+								"danger",
+							)
 						: historyMeta("kept", orphanId, "not on the canvas", "arrow_undo"),
 				);
 			});
@@ -2253,13 +2671,21 @@ export const useRibbonStore = create<RibbonStore>()(
 					...list.filter((l) => !from.some((x) => x.id === l.id)),
 					...from,
 				];
-				for (const [scope, parts] of Object.entries(publishedLayers ?? {}) as [LayerScope, RibbonDiffParts][]) {
-					const locs: RibbonLocation[] = scope === "entity" ? ENTITY_LOCATIONS : ["Application"];
-					for (const loc of locs) if (published.includes(loc)) applyPublishedLayer(current[loc], parts);
+				for (const [scope, parts] of Object.entries(publishedLayers ?? {}) as [
+					LayerScope,
+					RibbonDiffParts,
+				][]) {
+					const locs: RibbonLocation[] =
+						scope === "entity" ? ENTITY_LOCATIONS : ["Application"];
+					for (const loc of locs)
+						if (published.includes(loc)) applyPublishedLayer(current[loc], parts);
 					// The layer's labels as published are both current and baseline.
 					const fromLayer = locLabelsFromParts(parts);
 					locLabels = withLabels(locLabels, fromLayer);
-					baselineLocLabels = withLabels(baselineLocLabels, JSON.parse(JSON.stringify(fromLayer)));
+					baselineLocLabels = withLabels(
+						baselineLocLabels,
+						JSON.parse(JSON.stringify(fromLayer)),
+					);
 				}
 				for (const loc of published) baseline[loc] = cloneRibbons(current)[loc];
 				const everything = all.every((loc) => published.includes(loc));
@@ -2277,14 +2703,19 @@ export const useRibbonStore = create<RibbonStore>()(
 					const parts = publishedLayers?.[scope];
 					if (!done || !parts) continue;
 					const snap = layers[scope];
-					const union = (ids: string[], add: Set<string>) => [...new Set([...ids, ...add])];
+					const union = (ids: string[], add: Set<string>) => [
+						...new Set([...ids, ...add]),
+					];
 					layers[scope] = snap
 						? {
 								...snap,
 								containerIds: union(snap.containerIds, ownContainerIdsOf(parts)),
 								controlIds: union(snap.controlIds, ownControlIds(parts)),
 								// …and its labels: a published tab / group can be renamed (#33).
-								locLabelIds: union(snap.locLabelIds, new Set(parts.locLabels.keys())),
+								locLabelIds: union(
+									snap.locLabelIds,
+									new Set(parts.locLabels.keys()),
+								),
 							}
 						: layerSnapshotFromParts(parts);
 				}
@@ -2292,7 +2723,12 @@ export const useRibbonStore = create<RibbonStore>()(
 					if (!done || pendingUnhides[scope].length === 0) continue;
 					const snap = layers[scope];
 					if (snap) {
-						layers[scope] = { ...snap, hides: snap.hides.filter((h) => !pendingUnhides[scope].includes(h.location)) };
+						layers[scope] = {
+							...snap,
+							hides: snap.hides.filter(
+								(h) => !pendingUnhides[scope].includes(h.location),
+							),
+						};
 					}
 					unhidden[scope] = pendingUnhides[scope];
 					pendingUnhides[scope] = [];
@@ -2300,10 +2736,15 @@ export const useRibbonStore = create<RibbonStore>()(
 				// Deleted orphans of published scopes are gone from the layer (#64).
 				const orphans = { ...state.orphans };
 				const pendingOrphanDeletes = { ...state.pendingOrphanDeletes };
-				const orphansDeleted: Record<LayerScope, string[]> = { entity: [], application: [] };
+				const orphansDeleted: Record<LayerScope, string[]> = {
+					entity: [],
+					application: [],
+				};
 				for (const [scope, done] of scopes) {
 					if (!done || pendingOrphanDeletes[scope].length === 0) continue;
-					orphans[scope] = orphans[scope].filter((o) => !pendingOrphanDeletes[scope].includes(o.id));
+					orphans[scope] = orphans[scope].filter(
+						(o) => !pendingOrphanDeletes[scope].includes(o.id),
+					);
 					orphansDeleted[scope] = pendingOrphanDeletes[scope];
 					pendingOrphanDeletes[scope] = [];
 				}
@@ -2315,7 +2756,8 @@ export const useRibbonStore = create<RibbonStore>()(
 				for (const [scope, done] of scopes) {
 					if (!done) continue;
 					for (const id of uncustomisedCommandIds[scope]) {
-						if (!reloadRequiredCommandIds.includes(id)) reloadRequiredCommandIds.push(id);
+						if (!reloadRequiredCommandIds.includes(id))
+							reloadRequiredCommandIds.push(id);
 					}
 					uncustomised[scope] = uncustomisedCommandIds[scope];
 					uncustomisedCommandIds[scope] = [];
@@ -2323,7 +2765,10 @@ export const useRibbonStore = create<RibbonStore>()(
 				// The layer no longer hides the published un-hides, nor has the
 				// published uncustomised commands or deleted orphans, so undo must
 				// not bring them back as pending (#34 review, #31, #64).
-				const without = (lists: Record<LayerScope, string[]>, done: Record<LayerScope, string[]>) => ({
+				const without = (
+					lists: Record<LayerScope, string[]>,
+					done: Record<LayerScope, string[]>,
+				) => ({
 					entity: lists.entity.filter((id) => !done.entity.includes(id)),
 					application: lists.application.filter((id) => !done.application.includes(id)),
 				});
@@ -2333,16 +2778,27 @@ export const useRibbonStore = create<RibbonStore>()(
 						...e.snapshot,
 						pendingUnhides: without(e.snapshot.pendingUnhides, unhidden),
 						// Entries recorded before #64 have no orphan deletes.
-						pendingOrphanDeletes: without(e.snapshot.pendingOrphanDeletes ?? NO_UNHIDES, orphansDeleted),
-						uncustomisedCommandIds: without(e.snapshot.uncustomisedCommandIds, uncustomised),
+						pendingOrphanDeletes: without(
+							e.snapshot.pendingOrphanDeletes ?? NO_UNHIDES,
+							orphansDeleted,
+						),
+						uncustomisedCommandIds: without(
+							e.snapshot.uncustomisedCommandIds,
+							uncustomised,
+						),
 					},
 				});
 				const anyPublished =
-					[unhidden, uncustomised, orphansDeleted].reduce((n, l) => n + l.entity.length + l.application.length, 0) > 0;
+					[unhidden, uncustomised, orphansDeleted].reduce(
+						(n, l) => n + l.entity.length + l.application.length,
+						0,
+					) > 0;
 				// Typing after a publish starts a new undo step.
 				const past = state.past.map((e, i) => {
 					const kept = anyPublished ? dropPublished(e) : e;
-					return i === state.past.length - 1 && kept.coalesceKey ? { ...kept, coalesceKey: undefined } : kept;
+					return i === state.past.length - 1 && kept.coalesceKey
+						? { ...kept, coalesceKey: undefined }
+						: kept;
 				});
 				const next = {
 					ribbons: current,
@@ -2358,7 +2814,9 @@ export const useRibbonStore = create<RibbonStore>()(
 						? {
 								baselineCommands: JSON.parse(JSON.stringify(state.commands)),
 								baselineEnableRules: JSON.parse(JSON.stringify(state.enableRules)),
-								baselineDisplayRules: JSON.parse(JSON.stringify(state.displayRules)),
+								baselineDisplayRules: JSON.parse(
+									JSON.stringify(state.displayRules),
+								),
 								baselineLocLabels: JSON.parse(JSON.stringify(locLabels)),
 								customisedCommandIds: [],
 							}
