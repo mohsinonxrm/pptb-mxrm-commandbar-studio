@@ -34,6 +34,7 @@ import {
 	isReadOnlyControlKind,
 } from "@/utils/controlKinds";
 import { isOwnControl } from "@/utils/ribbonProvenance";
+import { GLOBAL_NEW_GROUP_ID, GLOBAL_TAB_ID, GLOBAL_TAB_NOTE } from "@/utils/globalTab";
 import { OPEN_RECORD_ITEM_COMMAND_ID, openRecordCommandProblem } from "@/utils/openRecordItem";
 
 /**
@@ -765,6 +766,27 @@ export function planScope(input: PlanInput): ScopePlan {
 					`Translations for "${button.label}" (${button.id}) — its text isn't a translatable label yet; change the text in the properties pane first, then add translations`,
 				);
 			}
+		}
+	}
+
+	// The global command bar shows your buttons only in its New group (#166): anything this
+	// publish adds to, or moves into, another GlobalTab group publishes but doesn't show there.
+	for (const { current, baseline } of input.locations) {
+		if (current.location !== "Application") continue;
+		const tab = current.tabs.find((t) => t.id === GLOBAL_TAB_ID);
+		if (!tab) continue;
+		const before = baseline.tabs.find((t) => t.id === GLOBAL_TAB_ID);
+		const loadedGroups = new Set(before?.groups.map((g) => g.id) ?? []);
+		const loadedIn = new Map<string, string>();
+		for (const g of before?.groups ?? [])
+			for (const b of groupControls(g)) loadedIn.set(b.id, g.id);
+		for (const g of tab.groups) {
+			if (g.id === GLOBAL_NEW_GROUP_ID) continue;
+			if (!loadedGroups.has(g.id))
+				warnings.push(`New group "${g.label}" (${g.id}) on GlobalTab: ${GLOBAL_TAB_NOTE}`);
+			for (const b of groupControls(g))
+				if (loadedIn.get(b.id) !== g.id)
+					warnings.push(`"${b.label}" (${b.id}) in ${g.id}: ${GLOBAL_TAB_NOTE}`);
 		}
 	}
 

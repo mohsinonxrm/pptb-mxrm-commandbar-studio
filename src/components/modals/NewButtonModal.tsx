@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { Button, Field, Input, Select } from "@fluentui/react-components";
+import {
+	Button,
+	Field,
+	Input,
+	MessageBar,
+	MessageBarBody,
+	Select,
+} from "@fluentui/react-components";
 import { AppDialog } from "@/components/shared/AppDialog";
 import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
@@ -9,6 +16,7 @@ import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import type { RibbonButton } from "@/types/ribbon";
 import { groupControls } from "@/utils/ribbonMenu";
 import { newButtonIds } from "@/utils/idGenerator";
+import { newButtonBlockedReason } from "@/utils/globalTab";
 
 export const NewButtonModal: React.FC = () => {
 	const newButtonGroupId = useUIStore((s) => s.newButtonGroupId);
@@ -117,6 +125,21 @@ export const NewButtonModal: React.FC = () => {
 		closeNewButton();
 	};
 
+	// The command palette and the Modern bar open this for any group (#166). The tab the
+	// button goes in, as handleCreate resolves it.
+	const groupTabId = useRibbonStore((s) =>
+		newButtonGroupId && activeLocation
+			? s.ribbons[activeLocation].tabs.find((t) =>
+					t.groups.some((g) => g.id === newButtonGroupId),
+				)?.id
+			: undefined,
+	);
+	const blockedTabId = groupTabId ?? selectedTabId;
+	const blocked =
+		newButtonGroupId && activeLocation && blockedTabId
+			? newButtonBlockedReason(activeLocation, blockedTabId, newButtonGroupId)
+			: undefined;
+
 	return (
 		<AppDialog
 			open={isOpen}
@@ -128,12 +151,21 @@ export const NewButtonModal: React.FC = () => {
 					<Button appearance="secondary" onClick={closeNewButton}>
 						Cancel
 					</Button>
-					<Button appearance="primary" onClick={handleCreate} disabled={!label.trim()}>
+					<Button
+						appearance="primary"
+						onClick={handleCreate}
+						disabled={!label.trim() || !!blocked}
+					>
 						Create button
 					</Button>
 				</>
 			}
 		>
+			{blocked && (
+				<MessageBar intent="warning">
+					<MessageBarBody>{blocked}</MessageBarBody>
+				</MessageBar>
+			)}
 			<Field
 				label="Label"
 				required

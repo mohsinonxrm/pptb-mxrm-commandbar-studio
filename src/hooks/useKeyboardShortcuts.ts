@@ -4,6 +4,7 @@ import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { findGroupControl, menuItemPlace } from "@/utils/ribbonMenu";
 import { canDeleteControl } from "@/utils/ribbonProvenance";
+import { newButtonBlockedReason } from "@/utils/globalTab";
 
 /**
  * Focus in a text field, a select or the code editor: keys edit the field
@@ -160,6 +161,16 @@ export function useKeyboardShortcuts() {
 					activeLocation
 				) {
 					e.preventDefault();
+					// Not in a global command bar group that wouldn't show the copy (#166)
+					const blocked = newButtonBlockedReason(
+						activeLocation,
+						selectedTabId,
+						selectedGroupId,
+					);
+					if (blocked) {
+						announce(blocked);
+						return;
+					}
 					duplicateButton(
 						activeLocation,
 						selectedTabId,
