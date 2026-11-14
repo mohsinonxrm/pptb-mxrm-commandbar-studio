@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ⚡ Performance
+
+- **Typing in a field no longer copies every ribbon (#111).** Each edit, keystrokes included,
+  copied all four ribbons (main grid, sub-grid, form and application) before changing one of them.
+  Now it copies only the ribbon it changes; the others are shared with the step before. On a large
+  entity that's about a quarter of the copying per keystroke.
 ### ✨ Added
 
 - **Translate tab and group titles (#136).** A tab's or group's menu (in Structure, and a group's
