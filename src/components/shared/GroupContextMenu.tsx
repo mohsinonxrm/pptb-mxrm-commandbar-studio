@@ -15,6 +15,7 @@ import {
 	CopyRegular,
 	DeleteRegular,
 	RenameRegular,
+	TranslateRegular,
 } from "@fluentui/react-icons";
 import { RenameGroupDialog } from "@/components/modals/RenameGroupDialog";
 import { ChangeGroupTemplateDialog } from "@/components/modals/ChangeGroupTemplateDialog";
@@ -95,6 +96,7 @@ export function GroupContextMenu({
 	const moveGroup = useRibbonStore((s) => s.moveGroup);
 	const ribbons = useRibbonStore((s) => s.ribbons);
 	const openNewButton = useUIStore((s) => s.openNewButton);
+	const openTitleTranslations = useUIStore((s) => s.openTitleTranslations);
 	// The dialogs outlive the menu (#18: window.prompt / confirm don't work in PPTB).
 	const [renaming, setRenaming] = useState<RibbonGroup | null>(null);
 	const [retemplating, setRetemplating] = useState<RibbonGroup | null>(null);
@@ -167,6 +169,23 @@ export function GroupContextMenu({
 									Rename…
 								</MenuItem>
 							)}
+							{/* Translations of the title, where it's yours (#136) */}
+							<MenuItem
+								icon={<TranslateRegular />}
+								disabled={
+									!canRenameContainer(
+										"group",
+										group.id,
+										baseline[location],
+										scopeLayer({ layers }, location),
+									)
+								}
+								onClick={run(() =>
+									openTitleTranslations(location, "group", tab.id, group.id),
+								)}
+							>
+								Translate title…
+							</MenuItem>
 							<MenuItem
 								icon={<CopyRegular />}
 								disabled={!!newGroupBlockedReason(location, tab.id)}

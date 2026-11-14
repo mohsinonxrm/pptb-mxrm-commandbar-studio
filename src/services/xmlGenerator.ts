@@ -971,7 +971,14 @@ function containerTitle(
 		);
 		if (title) return title;
 	}
-	sink({ id: titleId, titles: [{ languageCode: lang, description: container.label }] });
+	// Every language the session's label has (#136), the base one from the title itself.
+	const others = (storeLocLabels.find((l) => l.id === titleId)?.titles ?? []).filter(
+		(t) => t.languageCode !== lang,
+	);
+	sink({
+		id: titleId,
+		titles: [{ languageCode: lang, description: container.label }, ...others],
+	});
 	return locLabelRef(titleId);
 }
 
