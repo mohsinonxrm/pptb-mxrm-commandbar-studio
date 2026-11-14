@@ -38,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PrimaryEntityTypeCode and SelectedEntityTypeCode read "(deprecated)", and picking one warns to
   use the …TypeName value instead. A loaded value the list doesn't have, or one a URL can't take,
   now shows as itself; before, the picker showed PrimaryControl while keeping the real value.
+- **A failed import says why (#107).** When the import itself fails with a fault that doesn't
+  give the reason (a generic server error, a timeout), Publish now reads the import job and adds
+  its own failure, for example "Dataverse couldn't import the solution (0x80048033): …". When an
+  import succeeds but no ribbon was applied, the job's failure is shown, if it has one, instead of
+  "no entityRibbon result". Quotes, apostrophes and ampersands in Dataverse's text are decoded.
 - **Built-in buttons and groups no longer show raw keys (#201).** A button whose label is a
   one-word resource key showed the key: the account grid's **OpenAllRecordsViewImageButtonText**
   now reads "Open All Records View". A tab or group without a title showed its whole id

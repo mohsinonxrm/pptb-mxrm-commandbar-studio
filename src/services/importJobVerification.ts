@@ -16,9 +16,43 @@ export interface RibbonImportVerification {
 	message: string;
 }
 
+/** The XML entities an attribute value can carry, decoded (an errortext quotes ids). */
+const NAMED: Record<string, string> = { quot: '"', apos: "'", lt: "<", gt: ">", amp: "&" };
+function decode(value: string): string {
+	// One pass, so "&#38;amp;" stays "&amp;"; a reference that isn't a character stays as it is.
+	return value.replace(
+		/&(?:#x([0-9a-f]+)|#(\d+)|(quot|apos|lt|gt|amp));/gi,
+		(whole, hex?: string, dec?: string, name?: string) => {
+			if (name) return NAMED[name.toLowerCase()];
+			const code = hex ? parseInt(hex, 16) : Number(dec);
+			try {
+				return String.fromCodePoint(code);
+			} catch {
+				return whole;
+			}
+		},
+	);
+}
+
 function attr(tag: string, name: string): string | null {
 	const m = tag.match(new RegExp(`\\s${name}="([^"]*)"`));
-	return m ? m[1] : null;
+	return m ? decode(m[1]) : null;
+}
+
+/**
+ * Why the whole import failed, if it did (#107): the first failed `<result>` anywhere in the
+ * job — the solution, a component or a ribbon — so a solution-level failure (publisher, missing
+ * dependency, schema) is shown instead of "no ribbon result".
+ */
+export function importJobFailure(data: string | null | undefined): string | null {
+	if (!data) return null;
+	const failure = (data.match(/<result\s[^>]*>/g) ?? []).find(
+		(r) => attr(r, "result") === "failure",
+	);
+	if (!failure) return null;
+	const code = attr(failure, "errorcode");
+	const text = attr(failure, "errortext") || "no reason given";
+	return `Dataverse couldn't import the solution${code ? ` (${code})` : ""}: ${text}`;
 }
 
 /** Returns the `<result …>` start tags directly inside the element that starts at `openTag`. */
@@ -55,7 +89,9 @@ export function verifyRibbonImport(
 		if (i === -1) {
 			return {
 				ok: false,
-				message: "Import completed, but Dataverse did not process the application ribbon.",
+				message:
+					importJobFailure(data) ??
+					"Import completed, but Dataverse did not process the application ribbon.",
 			};
 		}
 		return (
@@ -85,7 +121,8 @@ export function verifyRibbonImport(
 	return {
 		ok: false,
 		message:
+			importJobFailure(data) ??
 			`Import completed, but Dataverse did not apply a ribbon for ${target.names.join(" / ")} ` +
-			`(no entityRibbon result in the import job). Nothing was changed.`,
+				`(no entityRibbon result in the import job). Nothing was changed.`,
 	};
 }
