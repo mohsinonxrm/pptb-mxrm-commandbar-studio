@@ -88,8 +88,8 @@ async function startImport(
 			ImportJobId: importJobId,
 			OverwriteUnmanagedCustomizations: true,
 			PublishWorkflows: false,
-			// Not nullable in the action's metadata; nothing to override.
-			ComponentParameters: [],
+			// No ComponentParameters: verified live, an empty list fails the request with
+			// 0x80040216 ("Custom state is not set for entity type crmbaseentity").
 		},
 	})) as { AsyncOperationId?: string; ImportJobKey?: string } | null | undefined;
 	const asyncOperationId = response?.AsyncOperationId;
@@ -129,6 +129,8 @@ export class PublishCancelledError extends Error {
 	constructor(
 		message: string,
 		readonly importJobId?: string,
+		/** An import was running and Dataverse didn't say it ended: it may still finish. */
+		readonly mayStillFinish = false,
 	) {
 		super(message);
 		this.name = "PublishCancelledError";
@@ -137,9 +139,18 @@ export class PublishCancelledError extends Error {
 
 /** The publish was cancelled: the error or one of its causes is a PublishCancelledError. */
 export function isPublishCancelled(err: unknown): boolean {
+	return cancelledError(err) !== null;
+}
+
+/** A cancel that left an import running, whose outcome isn't known (#107). */
+export function cancelMayStillFinish(err: unknown): boolean {
+	return cancelledError(err)?.mayStillFinish === true;
+}
+
+function cancelledError(err: unknown): (Error & { mayStillFinish?: boolean }) | null {
 	for (let e = err, i = 0; e instanceof Error && i < 5; e = e.cause, i++)
-		if (e.name === "PublishCancelledError") return true;
-	return false;
+		if (e.name === "PublishCancelledError") return e;
+	return null;
 }
 
 /** The import job a publish error is about, for View import log (#107): on the error or a cause. */
@@ -157,13 +168,28 @@ function withImportJob(err: unknown, importJobId: string): unknown {
 	return err;
 }
 
-/** The import job's `data` XML: what View import log shows (#107). `null` when it has none. */
+/** A read that failed because the record doesn't exist (0x80040217). */
+function isNotFound(err: unknown): boolean {
+	const text = err instanceof Error ? err.message : String(err);
+	return /0x80040217|does not exist|not found/i.test(text);
+}
+
+/**
+ * The import job's `data` XML: what View import log shows (#107). `null` when there is none:
+ * the job has no data yet, or doesn't exist (verified live: a solution file Dataverse rejects
+ * outright, an invalid zip say, creates no import job).
+ */
 export async function fetchImportJobLog(importJobId: string): Promise<string | null> {
-	const job = (await withCheckTimeout(
-		dataverseAPI.retrieve("importjob", importJobId, ["data"]) as Promise<unknown>,
-		30_000,
-	)) as { data?: string | null } | null;
-	return job?.data || null;
+	try {
+		const job = (await withCheckTimeout(
+			dataverseAPI.retrieve("importjob", importJobId, ["data"]) as Promise<unknown>,
+			30_000,
+		)) as { data?: string | null } | null;
+		return job?.data || null;
+	} catch (err) {
+		if (isNotFound(err)) return null;
+		throw err;
+	}
 }
 
 /** Waits `ms`, or rejects with `cancelled()` as soon as `signal` aborts. Leaves no timer behind. */
@@ -224,26 +250,49 @@ function readAsyncOperation(
 	});
 }
 
-/** The system job's own words for why it failed: its friendly message, and the message when it adds to it. */
+/**
+ * The system job's own words for why it failed (#107). Verified live: `friendlymessage` is the
+ * clean text ("The solution file is invalid. …"), while `message` repeats it as
+ * "Exception type: …\r\nMessage: …" followed by a stack trace. So the friendly message, or else
+ * the message's own text without the exception type and the stack.
+ */
 function asyncOperationReason(op: AsyncOperationState): string {
-	const friendly = op.friendlymessage?.trim() ?? "";
-	let message = op.message?.trim() ?? "";
-	if (message.length > 500) message = `${message.slice(0, 500)}…`;
-	if (friendly && message && !friendly.includes(message) && !message.includes(friendly))
-		return `${friendly} (${message})`;
-	return friendly || message || `status ${op.statuscode ?? "unknown"}`;
+	const friendly = op.friendlymessage?.trim();
+	if (friendly) return friendly;
+	const lines = (op.message ?? "")
+		.replace(/^\s*Exception type:[^\r\n]*\r?\n/i, "")
+		.replace(/^\s*Message:\s*/i, "")
+		.split(/\r?\n/);
+	const end = lines.findIndex(
+		(l, i) =>
+			i > 0 &&
+			/^\s*(at\s|Stack ?Trace|Server stack trace|Inner ?Exception|Detail:|-{2,})/i.test(l),
+	);
+	let text = (end === -1 ? lines : lines.slice(0, end)).join(" ").replace(/\s+/g, " ").trim();
+	if (text.length > 500) text = `${text.slice(0, 500)}…`;
+	return text || `status ${op.statuscode ?? "unknown"}`;
 }
 
 /**
  * Best-effort cancel of the import's system job (#107), then its state as read afterwards
- * (`null` when it can't be read). Dataverse may refuse to cancel a platform job, or finish the
- * import first: the caller says what the state shows, never more.
+ * (`null` when it can't be read). A job that already completed isn't touched. Dataverse may
+ * refuse to cancel a platform job, or finish the import first: the caller says what the state
+ * shows, never more.
  */
 async function cancelAsyncImport(
 	asyncOperationId: string,
 	guard: WriteGuard,
 ): Promise<AsyncOperationState | null> {
 	const logs = useRuntimeLogStore.getState();
+	const read = async () => {
+		try {
+			return await readAsyncOperation(asyncOperationId, undefined, () => new Error(), 10_000);
+		} catch {
+			return null;
+		}
+	};
+	const before = await read();
+	if (before?.statecode === ASYNC_COMPLETED) return before;
 	try {
 		await guard("Cancelling the import");
 		await withCheckTimeout(
@@ -263,11 +312,7 @@ async function cancelAsyncImport(
 			`Dataverse didn't cancel the import (system job ${asyncOperationId}): ${err instanceof Error ? err.message : String(err)}`,
 		);
 	}
-	try {
-		return await readAsyncOperation(asyncOperationId, undefined, () => new Error(), 10_000);
-	} catch {
-		return null;
-	}
+	return read();
 }
 
 interface AsyncImportWait {
@@ -297,6 +342,7 @@ async function waitForAsyncImport(wait: AsyncImportWait): Promise<void> {
 		const reason = asyncOperationReason(op);
 		// Another solution operation was running: withBusyRetry waits for it and tries again.
 		if (isEnvironmentBusyError(reason)) return new Error(reason);
+		if (isEnvironmentBusyError(op.message ?? "")) return new Error(op.message ?? "");
 		return withImportJob(
 			await withImportJobReason(new Error(`${prefix}: ${reason}`), importJobId),
 			importJobId,
@@ -370,8 +416,9 @@ async function waitForAsyncImport(wait: AsyncImportWait): Promise<void> {
 	// Cancelled by the user: stop waiting, and try to stop Dataverse too.
 	logs.logWarn("publish", "Publish cancelled: asking Dataverse to cancel the import.");
 	const after = await cancelAsyncImport(asyncOperationId, wait.guard);
+	const mayStillFinish = after?.statecode !== ASYNC_COMPLETED;
 	const state =
-		after?.statecode !== ASYNC_COMPLETED
+		mayStillFinish || !after
 			? "Command Bar Studio stopped waiting, but Dataverse may still finish the import: check " +
 				`Solutions › History for import job ${importJobId} before you publish again.`
 			: after.statuscode === ASYNC_CANCELED
@@ -379,7 +426,11 @@ async function waitForAsyncImport(wait: AsyncImportWait): Promise<void> {
 				: after.statuscode === ASYNC_SUCCEEDED
 					? "The import had already finished, so your changes are imported but not published."
 					: `The import had already failed: ${asyncOperationReason(after)}`;
-	throw new PublishCancelledError(`You cancelled the publish. ${state}`, importJobId);
+	throw new PublishCancelledError(
+		`You cancelled the publish. ${state}`,
+		importJobId,
+		mayStillFinish,
+	);
 }
 
 /**
@@ -527,6 +578,8 @@ export interface PublishVerification {
 	/** Elements this publish changed whose published content differs from what was imported. */
 	differing: string[];
 	message: string;
+	/** The import job of a refresh import that didn't complete, for View import log (#107). */
+	importJobId?: string;
 }
 
 export interface PublishRibbonResult {
@@ -1600,20 +1653,28 @@ async function publishRibbonUnguarded(
 							`entity's ribbon is published again. Reload the entity to see the other change.`,
 					};
 					logs.logWarn("publish", verification.message);
-				} else if (isPublishCancelled(err))
-					throw new PublishCancelledError(
-						`Your changes were imported and published, but you cancelled the second import, which ` +
-							`refreshes Unified Interface's command-bar metadata (${err instanceof Error ? err.message : String(err)}). ` +
-							`New or changed buttons may not appear in the app until you publish again.`,
-						importJobIdOf(err),
-					);
-				else
-					throw new Error(
-						`Your changes were imported and published, but refreshing Unified Interface's command-bar ` +
-							`metadata failed (${err instanceof Error ? err.message : String(err)}). New or changed buttons ` +
-							`may not appear in the app until you publish again.`,
-						{ cause: err },
-					);
+				} else {
+					// Your changes are imported and published either way (#107 review): a cancelled or
+					// failed refresh is a warning, not a failed publish, so they aren't left pending.
+					const why = err instanceof Error ? err.message : String(err);
+					verification = {
+						ok: false,
+						missing: [],
+						unexpected: [],
+						differing: [],
+						importJobId: importJobIdOf(err),
+						message:
+							(isPublishCancelled(err)
+								? `Your changes were imported and published, but you cancelled the second import, ` +
+									`which refreshes Unified Interface's command-bar metadata (${why}).`
+								: `Your changes were imported and published, but refreshing Unified Interface's ` +
+									`command-bar metadata failed (${why}).`) +
+							` New or changed buttons may not appear in the app until ` +
+							`${isApplication ? "the application ribbon" : "the entity's ribbon"} is published ` +
+							`again, or for up to about 25 minutes.`,
+					};
+					logs.logWarn("publish", verification.message);
+				}
 			}
 		}
 		if (!verification) {

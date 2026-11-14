@@ -88,8 +88,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ribbons import, **Cancel** stops the publish: Command Bar Studio stops waiting, asks Dataverse to
   cancel the import, and says what happened. Dataverse may refuse or finish the import anyway, and
   the message says so. What didn't finish isn't marked published, so those changes stay to
-  publish. An import that takes more than 10 minutes is stopped the same way. After a failed or cancelled import,
-  **View import log** shows the import job's log read-only in the publish dialog.
+  publish. An import that takes more than 10 minutes is stopped the same way. The second import,
+  which only refreshes Unified Interface's command-bar metadata, runs after your changes are
+  published: cancelling it, or it failing, no longer fails the publish. Your changes count as
+  published, with a warning that the app may not show them until the next publish, or for up to
+  about 25 minutes. After a failed or cancelled import, **View import log** shows the import job's
+  log read-only in the publish dialog; when Dataverse rejected the solution file outright, it says
+  there is no log.
 - **Adding a language by typing it no longer adds two (#136).** Typing an LCID such as 1036 in
   **Add a language** and pressing Enter added French and the first language in the list (German);
   the list now narrows to what's typed.

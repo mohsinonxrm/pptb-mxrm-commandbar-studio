@@ -48,6 +48,7 @@ import { withCloseGuard } from "@/utils/pptbRuntime";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import {
 	checkBeforePublish,
+	cancelMayStillFinish,
 	fetchImportJobLog,
 	importJobIdOf,
 	isPublishCancelled,
@@ -140,7 +141,14 @@ const STATUS_COLOR: Record<PublishStatus, BadgeProps["color"]> = {
 };
 
 /** A scope that didn't publish: why, and the import job behind it (#107). */
-type ScopeError = { scope: string; message: string; importJobId?: string; cancelled?: boolean };
+type ScopeError = {
+	scope: string;
+	message: string;
+	importJobId?: string;
+	cancelled?: boolean;
+	/** Cancelled while an import ran that Dataverse didn't say ended: it may still finish. */
+	mayStillFinish?: boolean;
+};
 
 const CHANGE_BADGE: Record<
 	PublishChangeKind,
@@ -532,6 +540,10 @@ export const BulkPublishModal: React.FC = () => {
 			// The layers as imported: the store takes their scaling / labels (#66 review).
 			const importedLayers: { entity?: RibbonDiffParts; application?: RibbonDiffParts } = {};
 			const errors: ScopeError[] = [];
+			// Once cancelling, the progress line keeps saying so while a step that can't stop ends.
+			const progress = (msg: string) => {
+				if (!signal.aborted) setProgressMessage(msg);
+			};
 			// A scope that didn't publish (#107): cancelled or failed, with its import job.
 			const failScope = (scope: string, err: unknown, what: string) => {
 				hadError = true;
@@ -541,6 +553,7 @@ export const BulkPublishModal: React.FC = () => {
 					message: fmt(err),
 					importJobId: importJobIdOf(err),
 					cancelled,
+					mayStillFinish: cancelMayStillFinish(err),
 				});
 				if (cancelled) logs.logWarn("publish", `${what} cancelled: ${fmt(err)}`);
 				else logs.logError("publish", `${what} failed: ${fmt(err)}`);
@@ -608,7 +621,7 @@ export const BulkPublishModal: React.FC = () => {
 							})),
 							plan: entityPlan,
 						},
-						(msg) => setProgressMessage(msg),
+						progress,
 					);
 					published.push(...ENTITY_LOCATIONS);
 					importedLayers.entity = result.parts;
@@ -641,7 +654,7 @@ export const BulkPublishModal: React.FC = () => {
 							ribbonCustomizationIds: solutionRibbonComponentIds ?? [],
 							plan: appPlan,
 						},
-						(msg) => setProgressMessage(msg),
+						progress,
 					);
 					published.push("Application");
 					importedLayers.application = result.parts;
@@ -660,7 +673,7 @@ export const BulkPublishModal: React.FC = () => {
 				skipCancelled("Publish all customizations");
 			} else if (!hadError && publishStrategy === "allAsync") {
 				try {
-					await publishAllAsync((msg) => setProgressMessage(msg), { guard });
+					await publishAllAsync(progress, { guard });
 				} catch (err) {
 					hadError = true;
 					errors.push({ scope: "Publish all customizations", message: fmt(err) });
@@ -926,8 +939,9 @@ export const BulkPublishModal: React.FC = () => {
 					) : importLog.xml === null ? (
 						<MessageBar intent="info" layout="multiline">
 							<MessageBarBody>
-								The import job has no log yet. Dataverse writes it as the import
-								runs.
+								There&apos;s no import log for this import. Dataverse writes one
+								once it starts importing the solution; a solution file it rejects
+								outright has none.
 							</MessageBarBody>
 						</MessageBar>
 					) : (
@@ -1239,8 +1253,9 @@ export const BulkPublishModal: React.FC = () => {
 						<MessageBar intent="warning" layout="multiline">
 							<MessageBarBody>
 								<MessageBarTitle>Publish cancelled</MessageBarTitle>
-								An import that was already running may still finish in Dataverse.
-								Check Solutions › History before you publish again.
+								{cancelledScopes.some((e) => e.mayStillFinish)
+									? "An import that was already running may still finish in Dataverse. Check Solutions › History before you publish again."
+									: "What didn't publish stays to publish."}
 								<ScopeErrorList
 									errors={cancelledScopes}
 									onViewLog={openImportLog}
@@ -1290,10 +1305,28 @@ export const BulkPublishModal: React.FC = () => {
 							<MessageBarBody>
 								<strong>{v.scope}:</strong> {v.result.message}
 							</MessageBarBody>
+							{v.result.importJobId && (
+								<MessageBarActions>
+									<Button
+										size="small"
+										icon={<DocumentSearchRegular />}
+										onClick={() =>
+											openImportLog({
+												scope: v.scope,
+												message: v.result.message,
+												importJobId: v.result.importJobId,
+											})
+										}
+									>
+										View import log
+									</Button>
+								</MessageBarActions>
+							)}
 						</MessageBar>
 					))}
 
-					{(publishing || done) && (
+					{/* After a failed or cancelled run too, so each scope's outcome stays visible. */}
+					{(publishing || done || errorMessages.length > 0) && runScopes.length > 0 && (
 						<div className={styles.progressList}>
 							{runScopes.map((scope) => {
 								const status = statusMap[scope] ?? "pending";
@@ -1314,7 +1347,7 @@ export const BulkPublishModal: React.FC = () => {
 									</div>
 								);
 							})}
-							{progressMessage && !done && (
+							{progressMessage && publishing && (
 								<Text className={styles.timing}>{progressMessage}</Text>
 							)}
 						</div>
