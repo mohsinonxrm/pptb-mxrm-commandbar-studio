@@ -546,11 +546,12 @@ function ButtonRow({ button, groupId, text, locked, selected, onSelect, onMenu }
 					/>
 					<RibbonButtonIcon button={button} size={16} />
 					<span className={mergeClasses(styles.label, styles.ellipsis)}>{text}</span>
-					{button.hidden ? (
+					{button.hidden && (
 						<Badge size="medium" appearance="outline" color="subtle">
 							Hidden
 						</Badge>
-					) : unrendered ? (
+					)}
+					{!button.hidden && unrendered && (
 						// #37: Unified Interface draws it as an empty, zero-size item.
 						<Badge
 							size="medium"
@@ -560,11 +561,12 @@ function ButtonRow({ button, groupId, text, locked, selected, onSelect, onMenu }
 						>
 							Not rendered
 						</Badge>
-					) : yours ? (
+					)}
+					{!button.hidden && yours && (
 						<Badge size="medium" appearance="tint" color="brand">
 							Yours
 						</Badge>
-					) : null}
+					)}
 					<Text size={200} className={styles.muted}>
 						{button.sequence}
 					</Text>

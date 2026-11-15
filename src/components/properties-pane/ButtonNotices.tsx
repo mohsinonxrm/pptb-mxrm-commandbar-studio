@@ -31,9 +31,18 @@ interface ButtonNoticesProps {
 	tabId: string;
 	groupId: string;
 	overrides: ClassicModernOverride[];
+	/** A menu item: the "not rendered" notice is for group controls only, as checked live (#37). */
+	inMenu?: boolean;
 }
 
-export function ButtonNotices({ button, location, tabId, groupId, overrides }: ButtonNoticesProps) {
+export function ButtonNotices({
+	button,
+	location,
+	tabId,
+	groupId,
+	overrides,
+	inMenu,
+}: ButtonNoticesProps) {
 	const styles = useStyles();
 	const customizeOobButton = useRibbonStore((s) => s.customizeOobButton);
 	const customiseButton = useRibbonStore((s) => s.customiseButton);
@@ -100,7 +109,7 @@ export function ButtonNotices({ button, location, tabId, groupId, overrides }: B
 	}
 
 	// A control Unified Interface doesn't draw (#37): valid XML nobody sees.
-	if (isUnrenderedInUci(button.kind)) {
+	if (isUnrenderedInUci(button.kind) && !inMenu) {
 		messages.push({
 			id: "uci-unrendered",
 			intent: "warning",

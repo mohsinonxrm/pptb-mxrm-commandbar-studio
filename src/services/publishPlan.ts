@@ -367,7 +367,7 @@ export function planScope(input: PlanInput): ScopePlan {
 			// Only an item this publish writes: a loaded one is left as it is (#154).
 			if (emitted && menu && !MENU_ITEM_KINDS.includes(button.kind ?? "button")) {
 				unsupported.push(
-					`Menu item "${button.label}" (${button.id}) is a ${CONTROL_TAG_BY_KIND[button.kind] ?? button.kind} — a menu can hold buttons and flyouts only; change its Kind`,
+					`Menu item "${button.label}" (${button.id}) is a ${CONTROL_TAG_BY_KIND[button.kind] ?? button.kind} — a menu can hold buttons and flyouts only; ${isReadOnlyControlKind(button.kind) ? "delete it" : "change its Kind"}`,
 				);
 			}
 			for (const id of [

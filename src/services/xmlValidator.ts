@@ -1105,7 +1105,7 @@ export function validatePublishRibbonDiff(
 	const unrenderedProblem = (control: Element, key: string) => {
 		if (!UNRENDERED_IN_UCI_TAGS.has(control.tagName)) return;
 		const id = control.getAttribute("Id") ?? "";
-		if (unrendered.has(id)) return;
+		if (id && unrendered.has(id)) return;
 		unrendered.add(id);
 		add(
 			"uci-unrendered",
@@ -1119,7 +1119,10 @@ export function validatePublishRibbonDiff(
 		if (el.tagName !== "CustomAction" || !isChanged(key)) continue;
 		const definition = childElements(el).find((c) => c.tagName === "CommandUIDefinition");
 		if (!definition) continue;
-		if (/\.Controls\._children$/.test(el.getAttribute("Location") ?? ""))
+		// Into a group's Controls only: a menu section's `….Controls._children` isn't a group (the
+		// live check was on group controls). Without the loaded groups, every target counts.
+		const into = /^(.+)\.Controls\._children$/.exec(el.getAttribute("Location") ?? "")?.[1];
+		if (into && (!context.groupTemplates || groupTemplates.has(into)))
 			for (const control of childElements(definition)) unrenderedProblem(control, key);
 		for (const group of Array.from(definition.getElementsByTagName("Group"))) {
 			const controls = childElements(group).find((c) => c.tagName === "Controls");

@@ -1,8 +1,18 @@
 import { useState } from "react";
 import { useDisplayText } from "@/hooks/useDisplayText";
-import { Button, Caption1, makeStyles, Text, tokens } from "@fluentui/react-components";
+import {
+	Button,
+	Caption1,
+	makeStyles,
+	MessageBar,
+	MessageBarActions,
+	MessageBarBody,
+	Text,
+	tokens,
+} from "@fluentui/react-components";
 import { EyeOffRegular, EyeRegular, LockClosedRegular } from "@fluentui/react-icons";
-import { useRibbonStore } from "@/store/ribbonStore";
+import { loadedControlOf, useRibbonStore } from "@/store/ribbonStore";
+import { hasOobOverrideChanges } from "@/services/xmlGenerator";
 import { HideOobWarningModal } from "@/components/modals/HideOobWarningModal";
 import { CONTROL_KIND_LABELS, CONTROL_TAG_BY_KIND } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
@@ -65,6 +75,23 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 	const hideOobButton = useRibbonStore((s) => s.hideOobButton);
 	const hideWithDisplayRules = useRibbonStore((s) => s.hideWithDisplayRules);
 	const [hideWarning, setHideWarning] = useState(false);
+	// Edited before CBS showed this kind read-only (a TextBox, ComboBox or CheckBox in a draft
+	// from before #37): the publish can't write those edits, so offer to take them back.
+	const loaded = useRibbonStore((s) => loadedControlOf(s, location, button.id));
+	const edited = !!loaded && hasOobOverrideChanges(loaded, button);
+	const undoEdits = () =>
+		loaded &&
+		setButtonProp(location, tabId, groupId, button.id, {
+			label: loaded.label,
+			icon: loaded.icon,
+			image16: loaded.image16,
+			image32: loaded.image32,
+			tooltipTitle: loaded.tooltipTitle,
+			tooltipBody: loaded.tooltipBody,
+			commandId: loaded.commandId,
+			templateAlias: loaded.templateAlias,
+			source: loaded.source,
+		});
 	// As on the canvas: an out-of-the-box global command bar control can't be
 	// changed, and hiding another out-of-the-box control asks first.
 	const globalOob =
@@ -86,11 +113,32 @@ export function ReadOnlyControlSection({ button, location, tabId, groupId }: Pro
 					Shown read-only
 				</Text>
 			</div>
-			<Caption1>
-				Command Bar Studio shows this &lt;{CONTROL_TAG_BY_KIND[button.kind]}&gt; but
-				doesn&apos;t edit it. You can hide it, and move or delete it when your
-				customizations add it; its XML is published as it was loaded.
-			</Caption1>
+			{button.source?.xml ? (
+				<Caption1>
+					Command Bar Studio shows this &lt;{CONTROL_TAG_BY_KIND[button.kind]}&gt; but
+					doesn&apos;t edit it. You can hide it, and move or delete it when your
+					customizations add it; its XML is published as it was loaded.
+				</Caption1>
+			) : (
+				<Caption1>
+					This &lt;{CONTROL_TAG_BY_KIND[button.kind]}&gt; was made in Command Bar Studio
+					before it showed this kind read-only, and is published from its properties. You
+					can hide it, or delete it and add a button instead.
+				</Caption1>
+			)}
+			{edited && (
+				<MessageBar intent="warning">
+					<MessageBarBody>
+						This control was edited before Command Bar Studio showed it read-only, and
+						those edits can&apos;t be published.
+					</MessageBarBody>
+					<MessageBarActions>
+						<Button size="small" onClick={undoEdits}>
+							Undo those edits
+						</Button>
+					</MessageBarActions>
+				</MessageBar>
+			)}
 			{field(
 				"Label",
 				captionOf(button.label, locLabels, undefined, button.source?.labelToken),

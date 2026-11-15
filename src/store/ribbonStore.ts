@@ -863,6 +863,20 @@ export function isLoadedControl(
 	);
 }
 
+/** The control as loaded (or published this session) at the location, menu items included. */
+export function loadedControlOf(
+	state: Pick<RibbonStoreState, "baseline">,
+	location: RibbonLocation,
+	id: string,
+): RibbonButton | undefined {
+	for (const t of state.baseline[location]?.tabs ?? [])
+		for (const g of t.groups) {
+			const b = groupControls(g).find((x) => x.id === id);
+			if (b) return b;
+		}
+	return undefined;
+}
+
 /** Logs why an add or move to the global command bar was refused (#166); true when it was. */
 function refusedOnGlobalTab(what: string, reason: string | undefined): boolean {
 	if (!reason) return false;
