@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 Changed
+
+- **Requires Power Platform ToolBox 1.2.8 or later (#292).** `features.minAPI` is 1.2.8, and the
+  tool builds against `@pptb/types` 1.2.8: the minimum FetchXML Studio and Dataverse Request Studio
+  are moving to as well. Users on PPTB 1.2.7 need to update PPTB (1.2.8 was released 2026-11-11).
+  What 1.2.8 brings: a single Dataverse response can be up to 128 MB instead of 16 MB (1.2.7 applied
+  the `$batch` limit to every response), so a large ribbon or import job log no longer fails to
+  load; and connection events carry less, which CBS only uses as a signal to read the connection
+  again. Because the minimum PPTB rises, 0.10.x keeps critical and security fixes for 30 days after
+  the next minor ships (SECURITY.md).
+
 ### 🏗️ Technical
 
 - **minimatch 11 for the lint toolchain.** `typescript-eslint` pulled in minimatch 10.2.6, which has

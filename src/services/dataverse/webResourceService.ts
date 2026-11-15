@@ -140,8 +140,8 @@ export interface UpsertWebResourceResult {
 /**
  * Adds a web resource to an unmanaged solution. Idempotent: adding a component
  * that is already in the solution succeeds. Uses AddSolutionComponent rather
- * than the `MSCRM.SolutionUniqueName` header because PPTB 1.2.7 asks the user
- * to consent to custom request headers.
+ * than the `MSCRM.SolutionUniqueName` header because PPTB (1.2.7 and later)
+ * asks the user to consent to custom request headers.
  */
 export async function addWebResourceToSolution(
 	api: DataverseAPI.API,

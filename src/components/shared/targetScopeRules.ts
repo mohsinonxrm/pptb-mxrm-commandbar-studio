@@ -7,7 +7,7 @@
  * and the scope. https://docs.powerplatformtoolbox.com/policies/marketplace
  */
 
-/** PPTB connection environment types: "Dev" | "Test" | "UAT" | "Production" (@pptb/types 1.2.7). */
+/** PPTB connection environment types: "Dev" | "Test" | "UAT" | "Production" (@pptb/types 1.2.8). */
 export const isProductionEnvironment = (environment: string | undefined | null): boolean =>
 	environment?.trim().toLowerCase() === "production";
 

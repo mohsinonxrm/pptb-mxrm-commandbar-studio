@@ -9,6 +9,11 @@
  * data), so it isn't a "my connection changed" signal on its own: the tool's
  * connection is read again and compared by identity (id + URL). Same approach
  * as FetchXML Studio #66.
+ *
+ * Since PPTB 1.2.8 the events carry only allowlisted connection metadata (id,
+ * name, url, environment, ...; an update may carry only `isActive` or
+ * `tokenRefreshed`). That changes nothing here: the watcher reads only the
+ * event name and then asks the host for the connection.
  */
 
 export type HostConnection = ToolBoxAPI.Connection;
@@ -31,8 +36,8 @@ function connectionsApi(): Partial<ToolBoxAPI.ConnectionsAPI> | undefined {
 }
 
 /**
- * The tool's primary connection: slot 0 on PPTB 1.2.7+, the active connection
- * when the host has no slots or slot 0 has nothing. Start-up, the watcher and
+ * The tool's primary connection: slot 0 (PPTB 1.2.7 and later), or the active
+ * connection when slot 0 has nothing or the host has no slots. Start-up, the watcher and
  * the write guard all read it this way, so they agree.
  */
 export async function getPrimaryConnection(): Promise<HostConnection | null> {
