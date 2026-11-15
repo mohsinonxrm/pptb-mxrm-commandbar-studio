@@ -3,7 +3,8 @@
  * dev harness (`npm run dev:harness`). Never shipped.
  *
  * Request shaping mirrors the PPTB desktop host
- * (PowerPlatformToolBox/desktop-app v1.2.7, src/main/managers/dataverseManager.ts):
+ * (PowerPlatformToolBox/desktop-app v1.2.7 and v1.2.8, src/main/managers/dataverseManager.ts;
+ * 1.2.8 changed only the response size limits and their messages):
  *  - entity-set names come from the same naive pluralization (getEntitySetName)
  *  - execute() builds bound/unbound URLs and function parameter aliases the same way
  *    (formatFunctionParameter, including unquoted `Microsoft.Dynamics.CRM.X'Y'` enums)

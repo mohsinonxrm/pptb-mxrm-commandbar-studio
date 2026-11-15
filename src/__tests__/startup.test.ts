@@ -36,7 +36,7 @@ describe("connectToHost (#89)", () => {
 	it("explains a missing host or an older host without the connection API", async () => {
 		await expect(connectToHost({})).rejects.toThrow(/opened from Power Platform ToolBox/);
 		await expect(connectToHost(host({ connections: {} }))).rejects.toThrow(
-			/Update Power Platform ToolBox .* to 1\.2\.7 or later/,
+			/Update Power Platform ToolBox .* to 1\.2\.8 or later/,
 		);
 	});
 
@@ -75,7 +75,7 @@ describe("renderStartupError (#89)", () => {
 		const alert = root.querySelector('[role="alert"]')!;
 		expect(alert.textContent).toContain("Command Bar Studio couldn't start");
 		expect(alert.textContent).toContain("boom");
-		expect(alert.textContent).toContain("1.2.7 or later");
+		expect(alert.textContent).toContain("1.2.8 or later");
 		expect(alert.textContent).toContain(
 			"Close the Command Bar Studio tab and open the tool again.",
 		);

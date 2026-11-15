@@ -8,7 +8,7 @@ Request Studio.
 ## Prerequisites
 
 - **Node.js 22 or later** (`engines` in `package.json`; CI uses Node 24) and npm.
-- **Power Platform ToolBox 1.2.7 or later** to run the tool for real (`minAPI` 1.2.7), in
+- **Power Platform ToolBox 1.2.8 or later** to run the tool for real (`minAPI` 1.2.8), in
   the desktop app or the VS Code extension.
 - For the dev harness: the **Azure CLI** (`az login`) and a Dataverse **development** org.
 
@@ -111,7 +111,7 @@ publish → verify in the app), screenshots, or Playwright-style automation.
   `dev/harness/pptbStub.ts` first, which installs stand-ins for `window.toolboxAPI` and
   `window.dataverseAPI`, and then loads `/src/main.tsx` unchanged.
 - The `dataverseAPI` stub (`dev/harness/dataverseStub.ts`) shapes requests the same way
-  PPTB's host does (desktop-app v1.2.7, `dataverseManager.ts`):
+  PPTB's host does (desktop-app v1.2.7 and v1.2.8, `dataverseManager.ts`):
   - entity-set pluralization for `retrieve` / `create` / `update`
   - `execute()` URLs and function parameter aliases, with enum literals such as
     `Microsoft.Dynamics.CRM.RibbonLocationFilters'All'` passed unquoted

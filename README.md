@@ -6,8 +6,8 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 [Power Platform ToolBox](https://www.powerplatformtoolbox.com/).
 
 ![Version](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/version.svg)
-![Power Platform ToolBox 1.2.7 or later](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/pptb.svg)
-![@pptb/types 1.2.7](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/pptb-types.svg)
+![Power Platform ToolBox 1.2.8 or later](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/pptb.svg)
+![@pptb/types 1.2.8](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/pptb-types.svg)
 ![React 18](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/react.svg)
 ![TypeScript 5.8](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/typescript.svg)
 ![Fluent UI v9](https://raw.githubusercontent.com/mohsinonxrm/pptb-mxrm-commandbar-studio/refs/heads/main/assets/badges/fluent-ui.svg)
@@ -202,7 +202,7 @@ Properties opens as a drawer when you select something, so the canvas keeps the 
 
 Command Bar Studio runs **inside [Power Platform ToolBox](https://www.powerplatformtoolbox.com/)**. It requires the PPTB host to be available — authentication and Dataverse connectivity are provided by the host.
 
-1. Install Power Platform ToolBox **1.2.7 or later**
+1. Install Power Platform ToolBox **1.2.8 or later**
 2. Connect to a Dataverse environment
 3. Open Command Bar Studio from the tool list
 4. Pick an unmanaged solution from the TopBar
@@ -213,7 +213,7 @@ Icons you pick or upload, and scripts you save, are created as web resources and
 added to the selected solution. A Fluent icon is uploaded as an SVG web resource named
 `<prefix>_/icons/cbs/<icon>.svg` (`<icon>.filled.svg` for the filled variant).
 
-If you turn on Dataverse impersonation for the tool in PPTB 1.2.7, web resources,
+If you turn on Dataverse impersonation for the tool in PPTB (1.2.7 and later), web resources,
 the solution import and the publish run as the impersonated user.
 
 ---
@@ -287,7 +287,7 @@ CBS runs in two modes:
 | **@fluentui-contrib/react-data-grid-react-window** | 1.4 | Virtualized entity list + web resource browser |
 | **Zustand** | 5 | Global state (ribbons, selection, UI, session) |
 | **fflate** | 0.8 | ZIP compression for solution package + ribbon XML decompression |
-| **@pptb/types** | 1.2.7 | Power Platform ToolBox host API types (`window.dataverseAPI`, `window.toolboxAPI`) |
+| **@pptb/types** | 1.2.8 | Power Platform ToolBox host API types (`window.dataverseAPI`, `window.toolboxAPI`) |
 | **Vitest** | 5 | Test runner (`npm test`) |
 
 ---
