@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🏗️ Technical
+
+- **minimatch 11 for the lint toolchain.** `typescript-eslint` pulled in minimatch 10.2.6, which has
+  a moderate denial-of-service advisory
+  ([GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249)) fixed in 11.0.1. Even
+  the latest `typescript-eslint` asks for minimatch 10, so an npm `overrides` entry gives
+  `@typescript-eslint/typescript-estree` minimatch 11 (11.0.8). It's a development dependency only:
+  the published package doesn't include it, and `npm audit` now reports no vulnerabilities at all.
+
 ## [0.10.0-beta.1] - 2026-11-14
 
 The first beta of 0.10.0 (npm `beta`): editor and publish correctness, and performance.
