@@ -17,17 +17,29 @@ export interface DataValue {
 	value: string;
 }
 
+/** Text `encodeURIComponent` can encode: a lone surrogate (half an emoji, pasted) becomes U+FFFD. */
+function wellFormed(text: string): string {
+	return text.replace(
+		/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+		"\uFFFD",
+	);
+}
+
 /** The `data` StringParameter's value for these rows; rows without a name are left out. */
 export function encodeDataValues(rows: readonly DataValue[]): string {
 	const pairs = rows
 		.filter((r) => r.name.trim())
-		.map((r) => `${encodeURIComponent(r.name.trim())}=${encodeURIComponent(r.value)}`);
+		.map(
+			(r) =>
+				`${encodeURIComponent(wellFormed(r.name.trim()))}=${encodeURIComponent(wellFormed(r.value))}`,
+		);
 	return pairs.length ? encodeURIComponent(pairs.join("&")) : "";
 }
 
 /**
- * The rows a `data` value holds, or null when it isn't one the helper wrote (a plain value, or
- * text that doesn't decode). An empty value is no rows.
+ * The rows a `data` value holds, or null when it isn't one the helper wrote: a plain value, text
+ * that doesn't decode, or a value encoded some other way (a URL, Microsoft's sample format) that
+ * the helper would rewrite differently. An empty value is no rows.
  */
 export function decodeDataValues(value: string): DataValue[] | null {
 	if (!value) return [];
@@ -53,21 +65,26 @@ export function decodeDataValues(value: string): DataValue[] | null {
 			return null;
 		}
 	}
-	return rows;
+	// Only a value the helper writes exactly the same way is its own.
+	return encodeDataValues(rows) === value ? rows : null;
 }
 
-/** The action's `data` parameter, if it has one (names are matched case-insensitively). */
+/**
+ * The action's `data` parameter, if it has one. The name must be exactly `data`, as the
+ * parameter list's check (#160) requires: another spelling is flagged there, not claimed here.
+ */
 export function findDataParameter(params: readonly ActionParameter[]): {
 	index: number;
 	param: ActionParameter;
 } | null {
-	const index = params.findIndex((p) => p.name?.trim().toLowerCase() === "data");
+	const index = params.findIndex((p) => p.name === "data");
 	return index < 0 ? null : { index, param: params[index] };
 }
 
 /**
  * The parameters with the `data` StringParameter set to `rows`: added at the end when there was
- * none, updated in place, or removed when no row has a name.
+ * none and a row has a name, updated in place (empty while every row is still unnamed, so it
+ * keeps its place), or removed when the helper has no rows.
  */
 export function withDataValues(
 	params: readonly ActionParameter[],
@@ -77,15 +94,19 @@ export function withDataValues(
 	const found = findDataParameter(params);
 	if (!found)
 		return value ? [...params, { kind: "StringParameter", name: "data", value }] : [...params];
-	if (!value) return params.filter((_, i) => i !== found.index);
+	if (rows.length === 0) return params.filter((_, i) => i !== found.index);
 	return params.map((p, i) =>
-		i === found.index ? { kind: "StringParameter", name: p.name ?? "data", value } : p,
+		i === found.index ? { kind: "StringParameter", name: "data", value } : p,
 	);
 }
 
 /** Page code that reads the values back, for the web resource's script. */
-export const DATA_PAGE_SNIPPET = `// Values Command Bar Studio packed into the web resource's data parameter.
+export function dataPageSnippet(name = "first"): string {
+	return `// Values Command Bar Studio packed into the web resource's data parameter.
 const raw = new URLSearchParams(location.search).get("data") ?? "";
-// Still encoded once (no "=" yet) when the address wasn't encoded again on the way.
+// No "=" yet: the ribbon encoded the address once more, so decode once more.
 const values = new URLSearchParams(raw.includes("=") ? raw : decodeURIComponent(raw));
-const first = values.get("first"); // one value by name`;
+const value = values.get(${JSON.stringify(name)}); // one value by name`;
+}
+
+export const DATA_PAGE_SNIPPET = dataPageSnippet();

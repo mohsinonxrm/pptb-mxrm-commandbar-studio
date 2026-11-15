@@ -9,8 +9,10 @@ import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { DataValuesHelper } from "@/components/shared/DataValuesHelper";
 import {
 	DATA_PAGE_SNIPPET,
+	dataPageSnippet,
 	decodeDataValues,
 	encodeDataValues,
+	findDataParameter,
 	withDataValues,
 	type DataValue,
 } from "@/utils/dataParameter";
@@ -99,9 +101,49 @@ describe("#275 the action's data parameter", () => {
 		expect(withDataValues([named], [])).toEqual([named]);
 	});
 
-	it("keeps the parameter's own spelling of the name", () => {
-		const params: ActionParameter[] = [{ kind: "StringParameter", name: "Data", value: "" }];
-		expect(withDataValues(params, ROWS)[0]).toMatchObject({ name: "Data" });
+	it("only a parameter named exactly data is used, as the list's check requires (#160)", () => {
+		const params: ActionParameter[] = [{ kind: "StringParameter", name: "Data", value: "x" }];
+		expect(findDataParameter(params)).toBeNull();
+		expect(withDataValues(params, ROWS).map((p) => p.name)).toEqual(["Data", "data"]);
+	});
+
+	it("keeps its place, empty, while every row is still unnamed", () => {
+		const params = withDataValues([named], ROWS);
+		const unnamed = withDataValues(params, [{ name: "", value: "First Value" }]);
+		expect(unnamed).toEqual([named, { kind: "StringParameter", name: "data", value: "" }]);
+	});
+});
+
+describe("#275 review: values the helper didn't write, and odd text", () => {
+	it("isn't claimed when it's encoded some other way", () => {
+		expect(decodeDataValues("https%3A%2F%2Fx.com%2F%3Fa%3D1")).toBeNull();
+		expect(decodeDataValues("%7B%22a%22%3D1%7D")).toBeNull();
+		// Microsoft's sample format: pairs encoded once.
+		expect(decodeDataValues("first%3DFirst%20Value%26second%3DSecond%20Value")).toBeNull();
+	});
+
+	it("+, #, emoji and empty values come back on the page both ways", () => {
+		const rows = [
+			{ name: "plus", value: "a+b" },
+			{ name: "hash", value: "#frag" },
+			{ name: "emoji", value: "\u{1F600} \u65E5\u672C" },
+			{ name: "my name", value: "" },
+		];
+		const value = encodeDataValues(rows);
+		expect(value).not.toMatch(/[+#=&]/);
+		for (const search of [`?data=${encodeURIComponent(value)}`, `?data=${value}`]) {
+			const values = readOnPage(search);
+			for (const r of rows) expect(values.get(r.name)).toBe(r.value);
+		}
+	});
+
+	it("half an emoji doesn't break encoding", () => {
+		expect(() => encodeDataValues([{ name: "x", value: "\uD83D" }])).not.toThrow();
+	});
+
+	it("the page code names the first value", () => {
+		expect(dataPageSnippet("ticket")).toContain('values.get("ticket")');
+		expect(dataPageSnippet("ticket")).toContain("the ribbon encoded the address once more");
 	});
 });
 
@@ -157,6 +199,13 @@ describe("#275 the helper", () => {
 		expect(container.textContent).toContain("already holds a value of its own");
 		render([{ kind: "StringParameter", name: "data", value: "plain" }]);
 		expect(container.textContent).toContain("already holds a value of its own");
+	});
+
+	it("drops its rows when the data parameter is removed in the list", () => {
+		render([{ kind: "StringParameter", name: "data", value: encodeDataValues(ROWS) }]);
+		expect(inputs()).toHaveLength(4);
+		render([]);
+		expect(inputs()).toEqual([]);
 	});
 
 	it("says a context value can't go in data", () => {

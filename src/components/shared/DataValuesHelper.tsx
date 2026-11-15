@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
 	Button,
 	Caption1,
@@ -13,7 +13,7 @@ import {
 import { AddRegular, CopyRegular, DeleteRegular } from "@fluentui/react-icons";
 import type { ActionParameter } from "@/types/ribbon";
 import {
-	DATA_PAGE_SNIPPET,
+	dataPageSnippet,
 	decodeDataValues,
 	encodeDataValues,
 	findDataParameter,
@@ -59,13 +59,18 @@ export function DataValuesHelper({ params, onChange, readOnly }: Props) {
 	const stored = found?.param.kind === "StringParameter" ? found.param.value : "";
 	const decoded = found?.param.kind === "StringParameter" ? decodeDataValues(stored) : null;
 	const [rows, setRows] = useState<DataValue[]>(decoded ?? []);
-	const [copied, setCopied] = useState(false);
+	const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+	const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+	const labelId = useId();
+	useEffect(() => () => clearTimeout(timer.current), []);
 
-	// Follow a change made elsewhere (the parameter list, an undo); a row still being named stays.
+	// Follow a change made elsewhere (the parameter list): the value changed, or the parameter
+	// was removed or renamed. A row still being named (it encodes to nothing) stays.
+	const next = decoded ?? (found ? null : []);
 	useEffect(() => {
-		if (decoded && encodeDataValues(rows) !== stored) setRows(decoded);
+		if (next && encodeDataValues(rows) !== stored) setRows(next);
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- only when the stored value changes
-	}, [stored]);
+	}, [stored, !!found]);
 
 	// `data` is a context value or a number, or holds text the helper didn't write.
 	if (found && (found.param.kind !== "StringParameter" || decoded === null)) {
@@ -86,19 +91,23 @@ export function DataValuesHelper({ params, onChange, readOnly }: Props) {
 		onChange(withDataValues(params, next));
 	};
 
+	const snippet = dataPageSnippet(rows.find((r) => r.name.trim())?.name.trim());
 	const copy = async () => {
+		clearTimeout(timer.current);
 		try {
-			await navigator.clipboard.writeText(DATA_PAGE_SNIPPET);
-			setCopied(true);
-			setTimeout(() => setCopied(false), 2000);
+			await navigator.clipboard.writeText(snippet);
+			setCopyState("copied");
 		} catch {
-			// No clipboard access: the code is shown above to copy by hand.
+			setCopyState("failed");
 		}
+		timer.current = setTimeout(() => setCopyState("idle"), 3000);
 	};
 
 	return (
-		<div className={styles.root}>
-			<Label weight="semibold">Values for data</Label>
+		<div className={styles.root} role="group" aria-labelledby={labelId}>
+			<Label id={labelId} weight="semibold">
+				Values for data
+			</Label>
 			<Caption1 className={styles.muted}>
 				A web resource reads only a few query string names, so put values of your own here:
 				Command Bar Studio packs them into the one data parameter.
@@ -151,12 +160,22 @@ export function DataValuesHelper({ params, onChange, readOnly }: Props) {
 			</MessageBar>
 			{rows.some((r) => r.name.trim()) && (
 				<>
-					<Text size={200}>Read them in the web resource:</Text>
-					<pre className={styles.snippet}>{DATA_PAGE_SNIPPET}</pre>
+					<Text size={200}>
+						Read them in the web resource with this code. A reader written for
+						Microsoft&apos;s data parameter sample doesn&apos;t read this format.
+					</Text>
+					<pre className={styles.snippet}>{snippet}</pre>
 					<div className={styles.actions}>
 						<Button size="small" icon={<CopyRegular />} onClick={() => void copy()}>
-							{copied ? "Copied" : "Copy code"}
+							Copy code
 						</Button>
+						<Text size={200} aria-live="polite" className={styles.muted}>
+							{copyState === "copied"
+								? "Copied"
+								: copyState === "failed"
+									? "Couldn't copy: select the code and copy it"
+									: ""}
+						</Text>
 					</div>
 				</>
 			)}

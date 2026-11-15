@@ -16,8 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `$webresource:` address, **Values for data** takes name / value rows and packs them into one
   `data` StringParameter (each pair URL-encoded, then the whole string once more), and unpacks them
   when the action opens. It shows the page code that reads them back, with **Copy code**; that code
-  works whether or not the ribbon encodes the value again. It says a context value such as the
-  record's id can't go in `data`, and leaves alone a `data` parameter it didn't write.
+  works whether or not the ribbon encodes the value again, but a reader written for Microsoft's data
+  parameter sample doesn't read this format. It says a context value such as the record's id can't
+  go in `data`, and leaves alone a `data` parameter it didn't write.
 
 ### 🏗️ Technical
 
