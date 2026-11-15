@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Changed
 
+- **Controls Unified Interface doesn't draw are marked (#37).** A Label, ToggleButton, DropDown,
+  CheckBox, Spinner, ComboBox or TextBox is valid RibbonXML and imports fine, but Unified Interface
+  shows it as an empty, zero-size item that nobody can see or click (checked live, on group
+  controls). In a group, these controls now carry a **Not rendered** badge on the group cards and
+  the Modern command bar, Properties says why, and "How users see it" leaves them out. The publish
+  dialog warns (it never blocks) when a publish adds or changes one in a group: a copy, a move, or a
+  new group from Import XML. TextBox, ComboBox and CheckBox join the controls CBS shows read-only
+  (#42): they're published as loaded, Properties no longer offers them as a kind for a new control,
+  and Import XML no longer adds or overrides them on their own. A draft that edited one before this
+  version can't publish those edits; Properties offers **Undo those edits**.
 - **Requires Power Platform ToolBox 1.2.8 or later (#292).** `features.minAPI` is 1.2.8, and the
   tool builds against `@pptb/types` 1.2.8: the minimum FetchXML Studio and Dataverse Request Studio
   are moving to as well. Users on PPTB 1.2.7 need to update PPTB (1.2.8 was released 2026-11-11).

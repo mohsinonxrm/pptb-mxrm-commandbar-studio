@@ -18,6 +18,7 @@ import { isHiddenOnUnifiedInterface } from "@/utils/defaultTab";
 import { MAX_LOC_LABEL_ID_LENGTH } from "@/utils/locLabelRef";
 import { OPEN_RECORD_ITEM_COMMAND_ID, isOpenRecordCarrier } from "@/utils/openRecordItem";
 import { schemaProblems } from "@/services/ribbonSchemaChecks";
+import { UNRENDERED_IN_UCI_TAGS } from "@/utils/controlKinds";
 
 /** The display-rule pair "Hide with display rules" adds (ribbonStore.HIDE_DISPLAY_RULES): never both true. */
 const HIDE_DISPLAY_RULE_IDS = ["Mscrm.HideOnModern", "Mscrm.ShowOnlyOnModern"] as const;
@@ -378,6 +379,8 @@ export type PublishCheckCode =
 	| "label-id-length"
 	| "open-record-hidden"
 	| "schema"
+	/** A control Unified Interface doesn't draw (#37): always a warning. */
+	| "uci-unrendered"
 	/** Microsoft's 2017 ribbon schema (#126): always a warning. */
 	| "xsd";
 
@@ -1092,6 +1095,39 @@ export function validatePublishRibbonDiff(
 			const controls = childElements(group).find((c) => c.tagName === "Controls");
 			for (const control of controls ? childElements(controls) : [])
 				aliasProblem(control, group.getAttribute("Id") ?? "", key);
+		}
+	}
+
+	// A control Unified Interface doesn't draw (#37): a Label, ToggleButton, DropDown, CheckBox,
+	// Spinner, ComboBox or TextBox imports fine but shows as an empty, zero-size item. Only
+	// for what this publish adds or changes, and only a warning: the XML is valid.
+	const unrendered = new Set<string>();
+	const unrenderedProblem = (control: Element, key: string) => {
+		if (!UNRENDERED_IN_UCI_TAGS.has(control.tagName)) return;
+		const id = control.getAttribute("Id") ?? "";
+		if (id && unrendered.has(id)) return;
+		unrendered.add(id);
+		add(
+			"uci-unrendered",
+			key,
+			`${control.tagName} ${id}: Unified Interface doesn't draw a ${control.tagName}. It shows an empty, zero-size item, so users can't see or click it; use a Button, FlyoutAnchor or SplitButton instead, or hide it`,
+			id,
+			true,
+		);
+	};
+	for (const { key, el } of customActions) {
+		if (el.tagName !== "CustomAction" || !isChanged(key)) continue;
+		const definition = childElements(el).find((c) => c.tagName === "CommandUIDefinition");
+		if (!definition) continue;
+		// Into a group's Controls only: a menu section's `….Controls._children` isn't a group (the
+		// live check was on group controls). Without the loaded groups, every target counts.
+		const into = /^(.+)\.Controls\._children$/.exec(el.getAttribute("Location") ?? "")?.[1];
+		if (into && (!context.groupTemplates || groupTemplates.has(into)))
+			for (const control of childElements(definition)) unrenderedProblem(control, key);
+		for (const group of Array.from(definition.getElementsByTagName("Group"))) {
+			const controls = childElements(group).find((c) => c.tagName === "Controls");
+			for (const control of controls ? childElements(controls) : [])
+				unrenderedProblem(control, key);
 		}
 	}
 

@@ -367,7 +367,7 @@ export function planScope(input: PlanInput): ScopePlan {
 			// Only an item this publish writes: a loaded one is left as it is (#154).
 			if (emitted && menu && !MENU_ITEM_KINDS.includes(button.kind ?? "button")) {
 				unsupported.push(
-					`Menu item "${button.label}" (${button.id}) is a ${CONTROL_TAG_BY_KIND[button.kind] ?? button.kind} — a menu can hold buttons and flyouts only; change its Kind`,
+					`Menu item "${button.label}" (${button.id}) is a ${CONTROL_TAG_BY_KIND[button.kind] ?? button.kind} — a menu can hold buttons and flyouts only; ${isReadOnlyControlKind(button.kind) ? "delete it" : "change its Kind"}`,
 				);
 			}
 			for (const id of [
@@ -429,9 +429,11 @@ export function planScope(input: PlanInput): ScopePlan {
 					`Editing the <${CONTROL_TAG_BY_KIND[c.button.kind]}> "${c.button.label}" (${id}) — CBS shows it read-only; it can be hidden, or moved and deleted when it's your own`,
 				);
 			}
-			// Any control with a <Menu> (a ComboBox too): an override would drop it.
+			// Any control with a <Menu>: an override would drop it. A read-only kind
+			// (a ComboBox since #37) is already reported above and written verbatim.
 			if (
 				edited &&
+				!isReadOnlyControlKind(c.button.kind) &&
 				(isMenuKind(c.button.kind) || !!c.button.menu) &&
 				b.button.origin !== "unmanaged"
 			) {

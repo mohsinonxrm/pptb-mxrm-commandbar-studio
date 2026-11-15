@@ -27,6 +27,8 @@ export const KIND_BY_CONTROL_TAG: Record<string, RibbonButtonKind> = Object.from
  * Kinds CBS shows but doesn't edit (#42): they are drawn on the canvas, can be
  * hidden / unhidden, and moved or deleted when your customizations add them;
  * their element is kept as loaded (`source.xml`) and written back verbatim.
+ * TextBox, ComboBox and CheckBox joined them with #37: Unified Interface
+ * doesn't draw them, so there's nothing to author.
  */
 export const READ_ONLY_CONTROL_KINDS: ReadonlySet<RibbonButtonKind> = new Set<RibbonButtonKind>([
 	"toggleButton",
@@ -35,7 +37,40 @@ export const READ_ONLY_CONTROL_KINDS: ReadonlySet<RibbonButtonKind> = new Set<Ri
 	"mruSplitButton",
 	"spinner",
 	"galleryButton",
+	"textBox",
+	"comboBox",
+	"checkBox",
 ]);
+
+/**
+ * Controls Unified Interface doesn't draw (#37). They're valid RibbonXML and
+ * import fine, but the command bar renders each as an empty, zero-size menu
+ * item, so nobody can see or click it. Checked live on 2026-10-28 (Dataverse
+ * 9.2.26092, Sales Hub, the contact main grid, with Command Checker): see #37.
+ * MRUSplitButton and GalleryButton weren't part of that check.
+ */
+export const UNRENDERED_IN_UCI_KINDS: ReadonlySet<RibbonButtonKind> = new Set<RibbonButtonKind>([
+	"label",
+	"toggleButton",
+	"dropDown",
+	"checkBox",
+	"spinner",
+	"comboBox",
+	"textBox",
+]);
+
+export function isUnrenderedInUci(kind: string | undefined): boolean {
+	return !!kind && UNRENDERED_IN_UCI_KINDS.has(kind as RibbonButtonKind);
+}
+
+/** The element names of the controls Unified Interface doesn't draw (#37). */
+export const UNRENDERED_IN_UCI_TAGS: ReadonlySet<string> = new Set(
+	[...UNRENDERED_IN_UCI_KINDS].map((kind) => CONTROL_TAG_BY_KIND[kind]),
+);
+
+/** What a "Not rendered in Unified Interface" mark means (#37). */
+export const UNRENDERED_IN_UCI_NOTE =
+	"Unified Interface doesn't draw this kind of control: it shows an empty, zero-size item, so users can't see or click it.";
 
 export function isReadOnlyControlKind(kind: string | undefined): boolean {
 	return !!kind && READ_ONLY_CONTROL_KINDS.has(kind as RibbonButtonKind);

@@ -1,4 +1,5 @@
 import { bySequence } from "@/store/ribbonStore";
+import { isUnrenderedInUci } from "@/utils/controlKinds";
 import { placeModernCommands } from "@/services/modernCommands";
 import type { RibbonButton, RibbonTab } from "@/types/ribbon";
 import type {
@@ -22,7 +23,8 @@ export type UsersBarItem =
 /**
  * The tab's commands as the Unified Interface command bar lists them, before
  * any rule is applied (#194): groups and their buttons in Sequence order,
- * without the buttons your layer or a modern command hides, a button a
+ * without the buttons your layer or a modern command hides or the controls
+ * Unified Interface doesn't draw (#37: a Label, ToggleButton, …), a button a
  * migrated modern command replaces shown as that command, and the visible
  * modern commands placed among them by Sequence. Display and enable rules
  * aren't evaluated: Simulate mode (#191) does that.
@@ -38,8 +40,12 @@ export function usersBar(
 		bySequence(g.buttons).map((b) => {
 			const o = overrides.get(b.id) ?? [];
 			// With every app's commands shown, an app's hide doesn't hide it for all (review).
-			const hidden = b.hidden || (o.length > 0 && o.every((x) => x.effect === "hidden"));
 			const replacedBy = o.find((x) => x.effect === "replaced")?.command;
+			// A control Unified Interface doesn't draw shows as nothing, unless a modern command replaces it (#37).
+			const hidden =
+				b.hidden ||
+				(o.length > 0 && o.every((x) => x.effect === "hidden")) ||
+				(isUnrenderedInUci(b.kind) && !replacedBy);
 			const item = {
 				kind: "classic" as const,
 				id: b.id,

@@ -135,7 +135,7 @@ export function UsersBar({ tab, location }: { tab: RibbonTab; location: RibbonLo
 				</Badge>
 				<InfoLabel
 					size="small"
-					info="The tab's commands in the order Unified Interface lists them, without the ones hidden by your customizations or replaced by a modern command. Display and enable rules aren't evaluated, so some of these may not show, or be disabled, for users. What doesn't fit goes into the ⋮ menu."
+					info="The tab's commands in the order Unified Interface lists them, without the ones hidden by your customizations or replaced by a modern command, and without controls Unified Interface doesn't draw (labels, toggle buttons, drop-downs, check boxes, spinners, combo boxes and text boxes). Display and enable rules aren't evaluated, so some of these may not show, or be disabled, for users. What doesn't fit goes into the ⋮ menu."
 					infoButton={{ "aria-label": "About this preview" }}
 				/>
 			</div>

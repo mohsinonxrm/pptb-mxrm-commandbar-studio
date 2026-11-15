@@ -31,9 +31,10 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 - Context menus on buttons and groups — hide/show, duplicate, move, rename, delete, override OOB
 - A copy (duplicate, customise button) keeps the labels another solution defines, so it shows the same text; edit its text to give it labels of its own. A duplicated group with a platform or another solution's title keeps it: rename the copy before publishing if it should read differently
 - If your unmanaged ribbon customizations can't be read when an entity loads, a warning says so (labels may show as ids, ownership is unknown), with **Retry**
+- Controls Unified Interface doesn't draw (Label, ToggleButton, DropDown, CheckBox, Spinner, ComboBox, TextBox) are marked **Not rendered**: they import fine but show as an empty, zero-size item. They're shown read-only, left out of "How users see it", and the publish dialog warns when a publish adds or changes one
 
 ### 📋 Properties Pane
-- Identity: label, translations (multi-LCID), tooltip, icon picker, image16/32, kind (for new controls; a menu item is a button or a flyout), sequence, template alias
+- Identity: label, translations (multi-LCID), tooltip, icon picker, image16/32, kind (for new controls: a button, flyout or split button; a menu item is a button or a flyout), sequence, template alias
 - Translations edit the labels a button publishes to; another solution's label, shared with every control that uses it, is read-only there
 - Command binding with action summary chips
 - Display rules + Enable rules pill lists with inline add/remove

@@ -6,7 +6,11 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useModernAppNames } from "@/hooks/useModernCommands";
 import { describeOverride } from "@/services/modernCommands";
-import { isReadOnlyControlKind } from "@/utils/controlKinds";
+import {
+	isReadOnlyControlKind,
+	isUnrenderedInUci,
+	UNRENDERED_IN_UCI_NOTE,
+} from "@/utils/controlKinds";
 import type { ClassicModernOverride } from "@/types/modernCommand";
 import type { ConflictEntry, RibbonButton, RibbonLocation } from "@/types/ribbon";
 
@@ -27,9 +31,18 @@ interface ButtonNoticesProps {
 	tabId: string;
 	groupId: string;
 	overrides: ClassicModernOverride[];
+	/** A menu item: the "not rendered" notice is for group controls only, as checked live (#37). */
+	inMenu?: boolean;
 }
 
-export function ButtonNotices({ button, location, tabId, groupId, overrides }: ButtonNoticesProps) {
+export function ButtonNotices({
+	button,
+	location,
+	tabId,
+	groupId,
+	overrides,
+	inMenu,
+}: ButtonNoticesProps) {
 	const styles = useStyles();
 	const customizeOobButton = useRibbonStore((s) => s.customizeOobButton);
 	const customiseButton = useRibbonStore((s) => s.customiseButton);
@@ -92,6 +105,17 @@ export function ButtonNotices({ button, location, tabId, groupId, overrides }: B
 			body,
 			dismissible: false,
 			actions,
+		});
+	}
+
+	// A control Unified Interface doesn't draw (#37): valid XML nobody sees.
+	if (isUnrenderedInUci(button.kind) && !inMenu) {
+		messages.push({
+			id: "uci-unrendered",
+			intent: "warning",
+			title: "Not rendered in Unified Interface",
+			body: `${UNRENDERED_IN_UCI_NOTE} Hide it (or delete it, if it's your own), and use a button, flyout or split button instead.`,
+			dismissible: false,
 		});
 	}
 
