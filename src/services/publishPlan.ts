@@ -429,9 +429,11 @@ export function planScope(input: PlanInput): ScopePlan {
 					`Editing the <${CONTROL_TAG_BY_KIND[c.button.kind]}> "${c.button.label}" (${id}) — CBS shows it read-only; it can be hidden, or moved and deleted when it's your own`,
 				);
 			}
-			// Any control with a <Menu> (a ComboBox too): an override would drop it.
+			// Any control with a <Menu>: an override would drop it. A read-only kind
+			// (a ComboBox since #37) is already reported above and written verbatim.
 			if (
 				edited &&
+				!isReadOnlyControlKind(c.button.kind) &&
 				(isMenuKind(c.button.kind) || !!c.button.menu) &&
 				b.button.origin !== "unmanaged"
 			) {

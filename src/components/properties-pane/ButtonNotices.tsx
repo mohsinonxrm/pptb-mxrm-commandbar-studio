@@ -6,7 +6,11 @@ import { useSelectionStore } from "@/store/selectionStore";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useModernAppNames } from "@/hooks/useModernCommands";
 import { describeOverride } from "@/services/modernCommands";
-import { isReadOnlyControlKind } from "@/utils/controlKinds";
+import {
+	isReadOnlyControlKind,
+	isUnrenderedInUci,
+	UNRENDERED_IN_UCI_NOTE,
+} from "@/utils/controlKinds";
 import type { ClassicModernOverride } from "@/types/modernCommand";
 import type { ConflictEntry, RibbonButton, RibbonLocation } from "@/types/ribbon";
 
@@ -92,6 +96,17 @@ export function ButtonNotices({ button, location, tabId, groupId, overrides }: B
 			body,
 			dismissible: false,
 			actions,
+		});
+	}
+
+	// A control Unified Interface doesn't draw (#37): valid XML nobody sees.
+	if (isUnrenderedInUci(button.kind)) {
+		messages.push({
+			id: "uci-unrendered",
+			intent: "warning",
+			title: "Not rendered in Unified Interface",
+			body: `${UNRENDERED_IN_UCI_NOTE} Hide it (or delete it, if it's your own), and use a button, flyout or split button instead.`,
+			dismissible: false,
 		});
 	}
 

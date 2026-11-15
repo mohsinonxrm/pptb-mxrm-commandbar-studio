@@ -37,7 +37,12 @@ import { useDisplayText } from "@/hooks/useDisplayText";
 import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import { ButtonContextMenu, type ButtonMenuTarget } from "@/components/shared/ButtonContextMenu";
 import { GroupContextMenu, type GroupMenuTarget } from "@/components/shared/GroupContextMenu";
-import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds";
+import {
+	CONTROL_KIND_LABELS,
+	isReadOnlyControlKind,
+	isUnrenderedInUci,
+	UNRENDERED_IN_UCI_NOTE,
+} from "@/utils/controlKinds";
 import { isGlobalOobReadOnly } from "@/utils/ribbonProvenance";
 import { dropPlace, type DropSpot } from "@/utils/groupCards";
 import type { RibbonButton, RibbonGroup, RibbonLocation, RibbonTab } from "@/types/ribbon";
@@ -500,7 +505,8 @@ function ButtonRow({ button, groupId, text, locked, selected, onSelect, onMenu }
 	});
 	const yours = button.custom && !button.managed;
 	const kind = isReadOnlyControlKind(button.kind) ? CONTROL_KIND_LABELS[button.kind] : undefined;
-	const name = `${text}${kind ? ` (${kind}, read-only)` : ""}${button.hidden ? ", hidden" : ""}${yours ? ", yours" : ""}, Sequence ${button.sequence}`;
+	const unrendered = isUnrenderedInUci(button.kind);
+	const name = `${text}${kind ? ` (${kind}, read-only)` : ""}${unrendered ? ", not rendered in Unified Interface" : ""}${button.hidden ? ", hidden" : ""}${yours ? ", yours" : ""}, Sequence ${button.sequence}`;
 	return (
 		<div role="listitem" style={{ opacity: isDragging ? 0.4 : 1 }}>
 			<Tooltip content={`${text} (${button.id})`} relationship="description">
@@ -543,6 +549,16 @@ function ButtonRow({ button, groupId, text, locked, selected, onSelect, onMenu }
 					{button.hidden ? (
 						<Badge size="medium" appearance="outline" color="subtle">
 							Hidden
+						</Badge>
+					) : unrendered ? (
+						// #37: Unified Interface draws it as an empty, zero-size item.
+						<Badge
+							size="medium"
+							appearance="tint"
+							color="warning"
+							title={UNRENDERED_IN_UCI_NOTE}
+						>
+							Not rendered
 						</Badge>
 					) : yours ? (
 						<Badge size="medium" appearance="tint" color="brand">

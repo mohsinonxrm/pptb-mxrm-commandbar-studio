@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🔧 Changed
+
+- **Controls Unified Interface doesn't draw are marked (#37).** A Label, ToggleButton, DropDown,
+  CheckBox, Spinner, ComboBox or TextBox is valid RibbonXML and imports fine, but Unified Interface
+  shows it as an empty, zero-size item that nobody can see or click (checked live). These controls
+  now carry a **Not rendered** badge on the group cards and the Modern command bar, Properties says
+  why, and "How users see it" leaves them out. The publish dialog warns (it never blocks) when a
+  publish adds or changes one (a copy, a move, or a new group from Import XML). TextBox, ComboBox
+  and CheckBox join the controls CBS shows read-only (#42): they're published as loaded, and
+  Properties no longer offers them as a kind for a new control.
+
 ### 🏗️ Technical
 
 - **minimatch 11 for the lint toolchain.** `typescript-eslint` pulled in minimatch 10.2.6, which has

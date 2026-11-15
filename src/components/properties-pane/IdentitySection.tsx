@@ -30,14 +30,8 @@ import { CONTROL_KIND_LABELS } from "@/utils/controlKinds";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
 import { idCaption } from "@/utils/displayText";
 
-const BUTTON_KINDS: RibbonButton["kind"][] = [
-	"button",
-	"flyout",
-	"splitButton",
-	"textBox",
-	"comboBox",
-	"checkBox",
-];
+// TextBox, ComboBox and CheckBox aren't offered: Unified Interface doesn't draw them (#37).
+const BUTTON_KINDS: RibbonButton["kind"][] = ["button", "flyout", "splitButton"];
 
 const useStyles = makeStyles({
 	root: {

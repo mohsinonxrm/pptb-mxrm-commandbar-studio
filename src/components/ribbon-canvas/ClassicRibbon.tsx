@@ -28,7 +28,11 @@ import { useUIStore } from "@/store/uiStore";
 import { ButtonContextMenu, type ButtonMenuTarget } from "@/components/shared/ButtonContextMenu";
 import { GroupContextMenu, type GroupMenuTarget } from "@/components/shared/GroupContextMenu";
 import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
-import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds";
+import {
+	CONTROL_KIND_LABELS,
+	isReadOnlyControlKind,
+	isUnrenderedInUci,
+} from "@/utils/controlKinds";
 import type { RibbonButton, RibbonGroup, RibbonTab, RibbonLocation } from "@/types/ribbon";
 import { idCaption } from "@/utils/displayText";
 import { newButtonBlockedReason, newGroupBlockedReason } from "@/utils/globalTab";
@@ -614,7 +618,9 @@ const RibbonButtonTile = React.memo(function RibbonButtonTile({
 	const readOnlyKind = isReadOnlyControlKind(button.kind)
 		? CONTROL_KIND_LABELS[button.kind]
 		: undefined;
-	const kindNote = readOnlyKind ? ` (${readOnlyKind}, read-only)` : "";
+	const kindNote = readOnlyKind
+		? ` (${readOnlyKind}, read-only${isUnrenderedInUci(button.kind) ? ", not rendered in Unified Interface" : ""})`
+		: "";
 
 	const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
 		id: button.id,
