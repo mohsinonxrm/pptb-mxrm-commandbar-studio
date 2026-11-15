@@ -43,7 +43,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 
 ### ⚡ Command Editor
 - JavaScript function: library (with Browse… to Web Resource Browser), function name, positional CrmParameter editor
-- URL action: address, PassParams, WinMode, named CrmParameters with querystring key
+- URL action: address, PassParams, WinMode, named CrmParameters with querystring key; for a web resource, **Values for data** packs name / value pairs into its one `data` parameter and shows the page code that reads them back
 - Power Fx and Custom API actions belong to modern commands (`appaction`), not the classic ribbon: they aren't offered, and an existing one shows as not supported ([#28](https://github.com/mohsinonxrm/pptb-mxrm-commandbar-studio/issues/28))
 - Enable rules + Display rules binding
 - References tab showing exact buttons + tab/group breadcrumb

@@ -43,6 +43,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import type { CommandDefinition, RibbonAction } from "@/types/ribbon";
 import CrmParameterEditor from "@/components/shared/CrmParameterEditor";
+import { DataValuesHelper } from "@/components/shared/DataValuesHelper";
 import { RuleTag } from "@/components/shared/RuleTag";
 import { generateRuleId } from "@/utils/idGenerator";
 import { webResourceBrowserCallbackRegistry } from "@/utils/webResourceBrowserCallback";
@@ -561,6 +562,14 @@ export const CommandEditorPanel: React.FC = () => {
 						urlMode={true}
 						allowedNames={isWebResource ? WEB_RESOURCE_URL_PARAMETERS : undefined}
 					/>
+					{/* #275: several values of your own, packed into the one data parameter. */}
+					{isWebResource && (
+						<DataValuesHelper
+							params={action.params}
+							readOnly={readOnly}
+							onChange={(p) => updateAction(index, { ...action, params: p })}
+						/>
+					)}
 				</fieldset>
 			);
 		}
