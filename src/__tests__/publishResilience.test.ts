@@ -286,10 +286,14 @@ function fakeEnvironment(
 			if (busyImports-- > 0) throw new Error(BUSY_IMPORT);
 			server = parseRibbonDiffParts(ribbonDiffOf(zip));
 		}),
-		getImportJobStatus: vi.fn(async () => ({ progress: 100 })),
-		retrieve: vi.fn(async () => ({
-			data: `<importexportxml><entityRibbon id="${T}" processed="true"><result result="success" /></entityRibbon></importexportxml>`,
-		})),
+		// ImportSolutionAsync (#107): the system job has succeeded by the first read.
+		retrieve: vi.fn(async (entity: string) =>
+			entity === "asyncoperation"
+				? { statecode: 3, statuscode: 30 }
+				: {
+						data: `<importexportxml><entityRibbon id="${T}" processed="true"><result result="success" /></entityRibbon></importexportxml>`,
+					},
+		),
 		publishXml: vi.fn(async () => {
 			calls.push("publish");
 			publishes++;
@@ -298,8 +302,13 @@ function fakeEnvironment(
 		}),
 		execute: vi.fn(
 			async (req: { operationName: string; parameters?: Record<string, string> }) => {
-				if (req.operationName === "ImportSolution")
-					return api.importSolution(req.parameters!.CustomizationFile);
+				if (req.operationName === "ImportSolutionAsync") {
+					await api.importSolution(req.parameters!.CustomizationFile);
+					return {
+						AsyncOperationId: crypto.randomUUID(),
+						ImportJobKey: req.parameters!.ImportJobId,
+					};
+				}
 				if (req.operationName === "PublishXml") return api.publishXml();
 				if (req.operationName === "RetrieveApplicationRibbon") {
 					let b = "";
@@ -411,7 +420,7 @@ describe("publishRibbon in a busy environment (#46)", () => {
 		const requests = env.execute.mock.calls.map(
 			([req]) => req as { operationName: string; parameters?: Record<string, unknown> },
 		);
-		const imports = requests.filter((r) => r.operationName === "ImportSolution");
+		const imports = requests.filter((r) => r.operationName === "ImportSolutionAsync");
 		expect(imports).toHaveLength(2);
 		for (const r of imports) {
 			// The job CBS polls and verifies: a host that drops ImportJobId can't lose it.
@@ -750,7 +759,7 @@ describe("the solution manifest keeps the solution's and publisher's details (#1
 		await publishUnhide(env);
 		const imports = env.execute.mock.calls
 			.map(([req]) => req as { operationName: string; parameters?: Record<string, string> })
-			.filter((r) => r.operationName === "ImportSolution");
+			.filter((r) => r.operationName === "ImportSolutionAsync");
 		expect(imports.length).toBeGreaterThan(0);
 		const doc = manifestOf(imports[0].parameters!.CustomizationFile);
 		const manifest = doc.querySelector("SolutionManifest")!;
@@ -805,7 +814,7 @@ describe("the solution manifest keeps the solution's and publisher's details (#1
 		await publishUnhide(env);
 		const req = env.execute.mock.calls
 			.map(([r]) => r as { operationName: string; parameters?: Record<string, string> })
-			.find((r) => r.operationName === "ImportSolution")!;
+			.find((r) => r.operationName === "ImportSolutionAsync")!;
 		const doc = manifestOf(req.parameters!.CustomizationFile);
 		expect(doc.querySelector("parsererror")).toBeNull();
 		expect(

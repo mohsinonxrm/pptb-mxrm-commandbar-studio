@@ -118,7 +118,7 @@ publish → verify in the app), screenshots, or Playwright-style automation.
   - `deploySolution` → `ImportSolution`
   - `publishCustomizations` → `PublishXml` / `PublishAllXml`
 
-  (CBS itself sends ImportSolution / PublishXml through `execute()` and RetrieveEntityRibbon
+  (CBS itself sends ImportSolutionAsync / PublishXml through `execute()` and RetrieveEntityRibbon
   through `queryData()`, so the requests are the same in the desktop app and the VS Code
   extension, whose helpers differ.)
   - `getImportJobStatus` → `importjobs(id)`
