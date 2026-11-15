@@ -10,7 +10,7 @@ export const THEME_TIMEOUT_MS = 5_000;
 /** Longest wait for the host's active connection. */
 export const CONNECTION_TIMEOUT_MS = 30_000;
 /** The PPTB version the tool is built for (package.json `features.minAPI`). */
-export const MIN_PPTB_VERSION = "1.2.7";
+export const MIN_PPTB_VERSION = "1.2.8";
 
 export interface StartupHost {
 	toolboxAPI?: Partial<ToolBoxAPI.API>;

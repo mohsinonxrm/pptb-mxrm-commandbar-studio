@@ -28,7 +28,7 @@ async function callHost(call: () => Promise<boolean> | undefined): Promise<void>
 			new Promise((resolve) => (timer = setTimeout(resolve, HOST_TIMEOUT_MS))),
 		]);
 	} catch {
-		// Older host or a failed call: the work goes ahead unguarded.
+		// A failed call: the work goes ahead unguarded.
 	} finally {
 		clearTimeout(timer);
 	}
