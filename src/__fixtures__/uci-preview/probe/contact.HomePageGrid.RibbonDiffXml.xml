@@ -1,0 +1,77 @@
+<!--
+  The #192 probe: imported into contact's unmanaged layer in CBSLiveTest on CRM279420, 2026-11-15
+  (ImportSolution then PublishXml, twice), recorded in contact.HomePageGrid.probe.json, then
+  removed again with an empty RibbonDiffXml. Checks where the merge puts a CustomAction's control,
+  group and MaxSize, and that a HideCustomAction removes a command.
+-->
+<RibbonDiffXml>
+  <CustomActions>
+    <CustomAction Id="cbstest.P192.Seq22.CustomAction" Location="Mscrm.HomepageGrid.contact.MainTab.ExportData.Controls._children" Sequence="22">
+      <CommandUIDefinition>
+        <Button Id="cbstest.P192.Seq22" Command="cbstest.P192.Cmd" Sequence="22" LabelText="Seq22" ToolTipTitle="cbstest.P192.Seq22" TemplateAlias="o2" ModernImage="Add" />
+      </CommandUIDefinition>
+    </CustomAction>
+    <CustomAction Id="cbstest.P192.Seq45.CustomAction" Location="Mscrm.HomepageGrid.contact.MainTab.ExportData.Controls._children" Sequence="45">
+      <CommandUIDefinition>
+        <Button Id="cbstest.P192.Seq45" Command="cbstest.P192.Cmd" Sequence="45" LabelText="Seq45" ToolTipTitle="cbstest.P192.Seq45" TemplateAlias="o3" ModernImage="Add" />
+      </CommandUIDefinition>
+    </CustomAction>
+    <CustomAction Id="cbstest.P192.Seq1000.CustomAction" Location="Mscrm.HomepageGrid.contact.MainTab.ExportData.Controls._children" Sequence="1000">
+      <CommandUIDefinition>
+        <Button Id="cbstest.P192.Seq1000" Command="cbstest.P192.Cmd" Sequence="1000" LabelText="Seq1000" ToolTipTitle="cbstest.P192.Seq1000" TemplateAlias="o3" ModernImage="Add" />
+      </CommandUIDefinition>
+    </CustomAction>
+    <CustomAction Id="cbstest.P192.AnySel1010.CustomAction" Location="Mscrm.HomepageGrid.contact.MainTab.ExportData.Controls._children" Sequence="1010">
+      <CommandUIDefinition>
+        <Button Id="cbstest.P192.AnySel1010" Command="cbstest.P192.CmdAny" Sequence="1010" LabelText="AnySel1010" ToolTipTitle="cbstest.P192.AnySel1010" TemplateAlias="o3" ModernImage="Add" />
+      </CommandUIDefinition>
+    </CustomAction>
+    <CustomAction Id="cbstest.P192.Mgmt26.CustomAction" Location="Mscrm.HomepageGrid.contact.MainTab.Management.Controls._children" Sequence="26">
+      <CommandUIDefinition>
+        <Button Id="cbstest.P192.Mgmt26" Command="cbstest.P192.Cmd" Sequence="26" LabelText="Mgmt26" ToolTipTitle="cbstest.P192.Mgmt26" TemplateAlias="o1" ModernImage="Add" />
+      </CommandUIDefinition>
+    </CustomAction>
+    <CustomAction Id="cbstest.P192.Group.CustomAction" Location="Mscrm.HomepageGrid.contact.MainTab.Groups._children" Sequence="45">
+      <CommandUIDefinition>
+        <Group Id="cbstest.P192.Group" Command="Mscrm.Enabled" Sequence="45" Title="P192 Group" Template="Mscrm.Templates.Flexible">
+          <Controls Id="cbstest.P192.Group.Controls">
+            <Button Id="cbstest.P192.InGroup" Command="cbstest.P192.Cmd" Sequence="10" LabelText="InGroup" ToolTipTitle="cbstest.P192.InGroup" TemplateAlias="o1" ModernImage="Add" />
+          </Controls>
+        </Group>
+      </CommandUIDefinition>
+    </CustomAction>
+    <CustomAction Id="cbstest.P192.Group.MaxSize.CustomAction" Location="Mscrm.HomepageGrid.contact.MainTab.Scaling._children" Sequence="65">
+      <CommandUIDefinition>
+        <MaxSize Id="cbstest.P192.Group.MaxSize" GroupId="cbstest.P192.Group" Sequence="65" Size="Large" />
+      </CommandUIDefinition>
+    </CustomAction>
+    <HideCustomAction HideActionId="cbstest.P192.HideQuickCampaign" Location="Mscrm.HomepageGrid.contact.QuickCampaign" />
+  </CustomActions>
+  <Templates>
+    <RibbonTemplates Id="Mscrm.Templates" />
+  </Templates>
+  <CommandDefinitions>
+    <CommandDefinition Id="cbstest.P192.Cmd">
+      <EnableRules />
+      <DisplayRules />
+      <Actions>
+        <Url Address="https://example.com/p192" />
+      </Actions>
+    </CommandDefinition>
+    <CommandDefinition Id="cbstest.P192.CmdAny">
+      <EnableRules>
+        <EnableRule Id="Mscrm.AnySelection" />
+      </EnableRules>
+      <DisplayRules />
+      <Actions>
+        <Url Address="https://example.com/p192" />
+      </Actions>
+    </CommandDefinition>
+  </CommandDefinitions>
+  <RuleDefinitions>
+    <TabDisplayRules />
+    <DisplayRules />
+    <EnableRules />
+  </RuleDefinitions>
+  <LocLabels />
+</RibbonDiffXml>

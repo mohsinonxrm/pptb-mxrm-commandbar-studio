@@ -16,6 +16,19 @@
 `cbstest_ribbontest` isn't in any app on this org, so contact (a test entity) and account were
 recorded instead.
 
+**The merged ribbon behind them** is in `ribbon/contact.All.xml` and `ribbon/account.All.xml`:
+RetrieveEntityRibbon with the `All` filter, saved 2026-11-15 with the unmanaged layer empty. Use
+`All`, as CBS does: on contact's main grid, the `HomepageGrid` filter leaves out Merge's
+CommandDefinition and returns New's with other display rules. Since the 2026-10-29 recording,
+Microsoft has added `Mscrm.QuickCampaignModernizationDisabled` to Quick Campaign's display rules.
+The other commands recorded on contact's main grid (the fixture with rules) are unchanged.
+
+**The probe** (`contact.HomePageGrid.probe.json`, 2026-11-15) records your own commands on
+contact's main grid: the RibbonDiffXml in `probe/contact.HomePageGrid.RibbonDiffXml.xml`, three
+JavaScript modern commands, RetrieveEntityRibbon's merged order and the bar with 0 and 1 rows
+selected. The probe was imported into CBSLiveTest and removed again afterwards. Both are checked
+by `src/__tests__/uciPreviewProbe192.test.ts`.
+
 ## How the bar is built
 
 1. **One flat bar.** The tabs and groups of the location's ribbon flatten into one list. No
@@ -29,10 +42,28 @@ recorded instead.
      preview model has to keep the merged document order.
    - **Several tabs** can contribute to one bar (e.g. `Related@120` → Quick Campaign comes after
      every `MainTab@100` command).
-3. **Migrated modern commands sort the same way.** Their `appaction.sequence` encodes the
+   - **Your own CustomActions (probe):** the merge puts an added control **before the first
+     existing sibling, in document order, whose Sequence is greater**, or at the end if none is.
+     It isn't a sort: in ExportData, a button at Sequence 22 goes before Run Report (30), not
+     after Import from Excel (21), and one at 45 goes before Export Selected (230). The bar then
+     shows the merged document order.
+   - The added group (`{tab}.Groups._children`) and MaxSize step (`{tab}.Scaling._children`)
+     land where the rule puts them. Those lists were already in Sequence order, though, so they
+     don't tell the rule apart from a sort.
+   - **Not recorded:** an added control with the same Sequence as an existing one. "Greater" is
+     inferred, not seen.
+3. **Modern commands go into the classic bar by their sequence.** `appaction.sequence` encodes a
    classic position: `1,000,000,000 + (tabSequence − 100) × 1,000,000 + groupSequence ×
    10,000 + controlSequence`. For example, `Mscrm.HomepageGrid.contact.NewRecord` is
    1,000,100,010 and `RefreshModernButton` is 1,000,110,017 (spike #206).
+   - **A new modern command** goes into the group its sequence names, **before the first
+     command there, in merged document order, whose Sequence is greater**: the merge's rule.
+     The probe's 1,000,500,100 (ExportData, 100) shows it. In ExportData, the first command with
+     a Sequence above 100 is Export Selected (230). It isn't shown with nothing selected, so the
+     modern command appears just before Import from Excel. 1,000,100,027 lands after the probe's
+     Mgmt26, and 1,000,500,023 after its Seq22.
+   - Seen live, not in the fixture: Command Checker lists them the same way, inside the classic
+     group (Modern27 under Management).
 4. **System items that aren't in the ribbon:**
    - **Main grid:** Focused view (`changeVisualization-…`) and Show Chart (`ShowChartPane`)
      come first.
@@ -74,6 +105,9 @@ recorded instead.
    - **Two rows:** the same minus Open org chart and Word Templates (both
      `SelectionCountExactlyOne`).
    - **Sub-grids and associated views:** two rows selected is one row minus Word Templates.
+   - **Your own commands (probe):** with a row selected, the probe's plain buttons and its new
+     modern commands (no rules of their own) all disappear. The one button whose command has
+     `Mscrm.AnySelection` stays, and also shows with nothing selected.
 8. **Row menus (quick actions):**
    - **Card-list sub-grid:** each row has its own ⋮ (nothing needs to be selected). It lists
      the selected-row commands that are **plain buttons**, in **reverse** bar order: Export to
@@ -95,6 +129,7 @@ recorded instead.
 |---|---|
 | Selection hides commands without a SelectionCountRule unless they use `Mscrm.AnySelection`; flyouts and split buttons are exempt (KB 4481268) | **Mostly holds.** New, Refresh and Visualize this view disappear on selection. Delete, Run Flow and Run Report (`AnySelection`) stay, and so does Quick Campaign (a flyout). **But** Excel Templates (a flyout) and Import from Excel (a split button) also disappear. Their enable rules (`ExportToExcel.ValidForXlsxExport`, `EnableImportForWeb`) are custom rules that may decide this, so treat "exempt" as "not hidden *by selection alone*". |
 | `Mscrm.HideOnModern` commands don't show, and Command Checker doesn't list them | **Confirmed** (Detect and Copy on contact's grid; live check 2026-10-28, see #192 and #36). |
+| A HideCustomAction removes a command | **Confirmed** (the probe hides Quick Campaign; it's gone with 0 or 1 rows selected). |
 | Not ribbon-defined: Create view, Help, See all records, Share, Show as, Show Chart, Open Dashboards | **Partly.** Show Chart, Open Dashboards and See all records were recorded as system items. Share **is** ribbon-defined here (`Mscrm.HomepageGrid.contact.Sharing`). Focused view is a system item too. |
 | Sub-grids show only Add, Show List and Delete; their names and icons can't be changed (Ribbons available) | **Not on this org.** The Contacts sub-grid offers the full `Mscrm.SubGrid.contact` set: Add New, Add Existing, Refresh, Quick Campaign, Run Flow, Run Report, Excel Templates, Export; with a selection, Edit, Activate, Deactivate, Delete, Merge, Assign, Share, Email a Link, Follow, Word Templates and Export Selected. Labels carry the entity name ("Add New Contact", "Delete Contact"). **Their names, icons and commands can be changed:** an override of `Mscrm.SubGrid.contact.AddNewStandard` changed its label, tooltip, `ModernImage` and command on the sub-grid (#167, 2026-10-29). |
 | Only a few commands show, the rest are in a flyout | **Confirmed**; the counts are in point 5 above. |
@@ -110,6 +145,13 @@ recorded instead.
   long time after a ribbon import or an `appaction` change: up to about 25 minutes, after
   Command Checker → Regenerate ribbon metadata plus a metadata version change. Before each
   recording, check the bar shows the expected state (#188, #192).
+  - **On 2026-11-15** the probe's classic changes showed at once after importing and publishing
+    twice, as CBS publishes. So did the two modern commands created before the first visit to
+    the app.
+  - A modern command created a minute after that visit took about 20 minutes to appear. In the
+    meantime, publishing the entity, publishing the app, re-importing and clearing the page's
+    IndexedDB and Cache Storage (a hard refresh too) didn't show it: the server serves what it
+    built.
 
 - **Sub-grid layout depends on its width:** in a narrow form column the sub-grid is a card
   list (hover an avatar to get its row checkbox; clicking the avatar opens the record). At
@@ -122,7 +164,6 @@ recorded instead.
 ## Not recorded
 
 - **Forms the user can't edit for security reasons** (as opposed to inactive records): the
-  test user is a System Administrator.
-- **Interleaving of new modern commands with classic ones:** a modern command at sequence
-  1,000,100,015 rendered between New (1,000,100,010) and Delete, but no classic-only position
-  was mapped beyond that (#206).
+  test user is a System Administrator, and a second licensed user would be needed. They're left
+  out on purpose: the inactive form already records the read-only bar, and privilege rules are
+  "can't simulate" in the preview anyway.
