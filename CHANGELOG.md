@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   copied all four ribbons (main grid, sub-grid, form and application) before changing one of them.
   Now it copies only the ribbon it changes; the others are shared with the step before. On a large
   entity that's about a quarter of the copying per keystroke.
+- **Checking for unpublished changes no longer writes out the whole workspace (#111).** After an
+  undo, a redo, a load or a publish, Command Bar Studio wrote the ribbons, commands, rules and
+  labels and their loaded versions out as text to see whether anything was left to publish. Now it
+  skips everything still as loaded and compares only what was edited. On a large entity an undo is
+  about ten times faster. An edit typed back to what was loaded still counts as no change.
+
 ### ✨ Added
 
 - **Translate tab and group titles (#136).** A tab's or group's menu (in Structure, and a group's
