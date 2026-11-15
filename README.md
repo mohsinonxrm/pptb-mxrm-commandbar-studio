@@ -97,6 +97,7 @@ reimagined with React 18, Fluent UI v9, and live Dataverse integration via
 ### 🔄 Publish Pipeline
 - Read → merge → write: reads the entity's existing unmanaged ribbon layer (CustomActions, commands, rules, labels) and merges your changes into it, so customizations made elsewhere (e.g. with Ribbon Workbench) are kept
 - Pre-publish validation — blocking errors stop the import; warnings are logged. It includes the schema rules the import enforces (empty rules, one-branch OrRules, function names, required values, numbers)
+- Microsoft's ribbon schema check (RibbonCore / RibbonTypes / RibbonWSS 9.0.0.2090) in the publish dialog — warnings only, never blocks: Dataverse accepts ribbon XML the 2017 schema doesn't describe
 - Solution ZIP packaging with `behavior=2` (shell-only) root component — does **not** pull in all entity subcomponents
 - Import → publish → re-import → publish, so Unified Interface picks up the change
 - Waits and retries while the environment is busy with another import, publish or ribbon-metadata job
@@ -318,6 +319,7 @@ src/
     xmlGenerator.ts      — RibbonDiffXml generator (all 30 rule kinds)
     xmlParser.ts         — Merged ribbon XML parser (all 30 rule kinds)
     xmlValidator.ts      — Pre-import validation with user-friendly messages
+    ribbonXsdCheck.ts    — Microsoft's ribbon schema check (xmllint WebAssembly; warnings only)
     publishPlan.ts       — What a publish changes per location (and what it can't)
     ribbonDiffMerge.ts   — Merges your changes into the existing unmanaged layer
     dataverse/

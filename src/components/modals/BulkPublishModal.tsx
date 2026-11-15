@@ -217,6 +217,10 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 /** How long the pre-publish check may hold Publish back (#35). */
 const PRECHECK_TIMEOUT_MS = 30_000;
+/** How long the schema check (#126) may run. It never holds Publish back. */
+const SCHEMA_CHECK_TIMEOUT_MS = 60_000;
+
+type CheckedXml = { scope: string; xml: string; entity: boolean; changedKeys: string[] };
 
 /**
  * Publishes the table being edited (all of its ribbon locations in one
@@ -338,7 +342,7 @@ export const BulkPublishModal: React.FC = () => {
 	// the XML view shows.
 	const [checkState, setCheckState] = useState<"idle" | "running" | "done" | "failed">("idle");
 	const [checkFindings, setCheckFindings] = useState<ScopeFinding[]>([]);
-	const [checkXml, setCheckXml] = useState<{ scope: string; xml: string }[]>([]);
+	const [checkXml, setCheckXml] = useState<CheckedXml[]>([]);
 	const [checkError, setCheckError] = useState("");
 	const canCheck =
 		bulkPublishOpen && !!activeSolution && unsupported.length === 0 && scopes.length > 0;
@@ -346,7 +350,7 @@ export const BulkPublishModal: React.FC = () => {
 	const solutionPrefix = activeSolution?.publisherPrefix || publisherPrefix;
 	const runChecks = React.useCallback(async (): Promise<{
 		findings: ScopeFinding[];
-		xml: { scope: string; xml: string }[];
+		xml: CheckedXml[];
 	}> => {
 		const common = {
 			commands,
@@ -364,7 +368,7 @@ export const BulkPublishModal: React.FC = () => {
 			lookupWebResources: (names: string[]) => loadWebResourceStatus(names, solutionId),
 		};
 		const out: ScopeFinding[] = [];
-		const xml: { scope: string; xml: string }[] = [];
+		const xml: CheckedXml[] = [];
 		if (activeEntity && entityPlan?.hasChanges) {
 			const result = await checkBeforePublish(
 				{
@@ -382,7 +386,12 @@ export const BulkPublishModal: React.FC = () => {
 				options,
 			);
 			out.push(...result.findings.map((f) => ({ ...f, scope: activeEntity.logicalName })));
-			xml.push({ scope: activeEntity.logicalName, xml: result.xml });
+			xml.push({
+				scope: activeEntity.logicalName,
+				xml: result.xml,
+				entity: true,
+				changedKeys: result.changedKeys,
+			});
 		}
 		if (includeApplicationRibbon) {
 			const result = await checkBeforePublish(
@@ -395,7 +404,12 @@ export const BulkPublishModal: React.FC = () => {
 				options,
 			);
 			out.push(...result.findings.map((f) => ({ ...f, scope: "Application ribbon" })));
-			xml.push({ scope: "Application ribbon", xml: result.xml });
+			xml.push({
+				scope: "Application ribbon",
+				xml: result.xml,
+				entity: false,
+				changedKeys: result.changedKeys,
+			});
 		}
 		return { findings: out, xml };
 	}, [
@@ -441,9 +455,65 @@ export const BulkPublishModal: React.FC = () => {
 			cancelled = true;
 		};
 	}, [canCheck, publishing, done, runChecks]);
+	// Microsoft's 2017 ribbon schema (#126), once the check above has built the
+	// XML. Its findings are warnings and it never holds Publish back: Dataverse
+	// accepts ribbon XML the schema doesn't describe. Loaded on first use (the
+	// validator is WebAssembly in a Web Worker); where the host allows no
+	// workers, the dialog says it couldn't run.
+	const [schemaState, setSchemaState] = useState<"idle" | "running" | "done" | "unavailable">(
+		"idle",
+	);
+	const [schemaFindings, setSchemaFindings] = useState<ScopeFinding[]>([]);
+	const [schemaError, setSchemaError] = useState("");
+	React.useEffect(() => {
+		if (checkState !== "done" || checkXml.length === 0) {
+			setSchemaState("idle");
+			setSchemaFindings([]);
+			return;
+		}
+		let cancelled = false;
+		setSchemaState("running");
+		setSchemaError("");
+		const run = async () => {
+			const { checkRibbonSchema } = await import("@/services/ribbonXsdCheck");
+			const out: ScopeFinding[] = [];
+			for (const x of checkXml) {
+				const found = await checkRibbonSchema({
+					xml: x.xml,
+					entity: x.entity,
+					changedKeys: x.changedKeys,
+				});
+				out.push(...found.map((f) => ({ ...f, scope: x.scope })));
+			}
+			return out;
+		};
+		withCheckTimeout(run(), SCHEMA_CHECK_TIMEOUT_MS)
+			.then((found) => {
+				if (cancelled) return;
+				setSchemaFindings(found);
+				setSchemaState("done");
+			})
+			.catch((err: unknown) => {
+				if (cancelled) return;
+				setSchemaFindings([]);
+				setSchemaError(err instanceof Error ? err.message : String(err));
+				setSchemaState("unavailable");
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [checkState, checkXml]);
+	const schemaNote =
+		schemaState === "running"
+			? "Checking against Microsoft's ribbon schema…"
+			: schemaState === "unavailable"
+				? `Microsoft's ribbon schema check couldn't run here (${schemaError}). It never blocks publishing.`
+				: "";
 	const checkErrors = checkFindings.filter((f) => f.severity === "error");
 	const checkWarnings = checkFindings.filter((f) => f.severity === "warning");
-	const showFindingScope = new Set(checkFindings.map((f) => f.scope)).size > 1;
+	// Two imports (the entity and the application ribbon): every finding says which.
+	const showFindingScope =
+		checkXml.length > 1 || new Set(checkFindings.map((f) => f.scope)).size > 1;
 	const checkBlocks = canCheck && (checkState === "running" || checkErrors.length > 0);
 
 	// One run at a time (#107): a second click, before the first re-render, starts nothing.
@@ -575,6 +645,17 @@ export const BulkPublishModal: React.FC = () => {
 			// The comment goes to the Console log with this publish (#109): it was collected and dropped.
 			if (publishComment.trim())
 				logs.logInfo("publish", `Publish comment: ${publishComment.trim()}`);
+			// Published anyway: the schema warnings go to the Console log with it (#126).
+			if (schemaState === "running")
+				logs.logInfo(
+					"publish",
+					"Microsoft's ribbon schema check hadn't finished when this publish started; its findings aren't logged.",
+				);
+			for (const f of schemaFindings)
+				logs.logWarn(
+					"publish",
+					`Microsoft's ribbon schema doesn't allow this (${f.scope}): ${f.message}`,
+				);
 			const common = {
 				commands,
 				enableRules,
@@ -750,7 +831,7 @@ export const BulkPublishModal: React.FC = () => {
 	const appRibbonPending = appPlan.hasChanges && !solutionSupportsAppRibbon;
 	const problems = unsupported.length + (canCheck ? checkErrors.length : 0);
 	const checkWarningCount = canCheck
-		? checkWarnings.length + (checkState === "failed" ? 1 : 0)
+		? checkWarnings.length + schemaFindings.length + (checkState === "failed" ? 1 : 0)
 		: 0;
 	// Problems open by themselves when there are any (#188).
 	React.useEffect(() => {
@@ -1126,6 +1207,22 @@ export const BulkPublishModal: React.FC = () => {
 											findings={checkWarnings}
 											showScope={showFindingScope}
 										/>
+										{schemaFindings.length > 0 && (
+											<>
+												<Text block weight="semibold">
+													Microsoft&apos;s ribbon schema
+												</Text>
+												<Text block>
+													Microsoft&apos;s schema from 2017 doesn&apos;t
+													allow these. Dataverse may still accept them; if
+													it rejects the import, Publish shows its error.
+												</Text>
+												<FindingList
+													findings={schemaFindings}
+													showScope={showFindingScope}
+												/>
+											</>
+										)}
 									</AccordionPanel>
 								</AccordionItem>
 							)}
@@ -1134,7 +1231,8 @@ export const BulkPublishModal: React.FC = () => {
 									Good to know ·{" "}
 									{warnings.length +
 										1 +
-										(appRibbonPending && scopes.length > 0 ? 1 : 0)}
+										(appRibbonPending && scopes.length > 0 ? 1 : 0) +
+										(schemaNote ? 1 : 0)}
 								</AccordionHeader>
 								<AccordionPanel>
 									<ul className={styles.list}>
@@ -1159,6 +1257,7 @@ export const BulkPublishModal: React.FC = () => {
 										{warnings.map((w) => (
 											<li key={w}>{w}</li>
 										))}
+										{schemaNote && <li>{schemaNote}</li>}
 									</ul>
 								</AccordionPanel>
 							</AccordionItem>

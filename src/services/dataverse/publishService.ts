@@ -1070,7 +1070,12 @@ export async function checkBeforePublish(
 	options: {
 		lookupWebResources?: (names: string[]) => Promise<Record<string, WebResourceStatus>>;
 	} = {},
-): Promise<{ findings: PublishFinding[]; xml: string }> {
+): Promise<{
+	findings: PublishFinding[];
+	xml: string;
+	/** `part:id` of what this publish adds or changes (the schema check marks the rest as published, #126). */
+	changedKeys: string[];
+}> {
 	const merged = await buildMergedRibbonDiffXml(input);
 	const context = publishValidationContext(input, merged);
 	const lookupFindings: PublishFinding[] = [];
@@ -1089,6 +1094,7 @@ export async function checkBeforePublish(
 	return {
 		findings: [...validatePublishRibbonDiff(merged.parts, context), ...lookupFindings],
 		xml: merged.xml,
+		changedKeys: merged.changedKeys,
 	};
 }
 

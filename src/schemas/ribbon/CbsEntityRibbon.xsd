@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Command Bar Studio (#126): a root element for an entity's RibbonDiffXml.
+  RibbonCore.xsd declares RibbonEntityDiffXmlType but no root element of that
+  type (its RibbonDiffXml root is the application ribbon's). CBS wraps an
+  entity's layer as <CbsEntityRibbon><RibbonDiffXml>…</RibbonDiffXml></CbsEntityRibbon>.
+-->
+<xs:schema id="CbsEntityRibbon" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+	<xs:include schemaLocation="RibbonCore.xsd" />
+	<xs:element name="CbsEntityRibbon">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="RibbonDiffXml" type="RibbonEntityDiffXmlType" />
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

@@ -81,6 +81,9 @@ export default defineConfig(({ command }) => ({
 		},
 	},
 	optimizeDeps: {
+		// xmllint-wasm (#126) finds its worker and .wasm next to itself
+		// (new URL(…, import.meta.url)); pre-bundling it into .vite/deps would break that.
+		exclude: ["xmllint-wasm"],
 		// Pre-bundle Monaco at dev-time so Vite doesn't lazily transform its
 		// deep internal imports (avoids CJS/ESM interop edge cases that surface
 		// as runtime "module not found" errors). Mirrors DRS / FetchXML Studio.
