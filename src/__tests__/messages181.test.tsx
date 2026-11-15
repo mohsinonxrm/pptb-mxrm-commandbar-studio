@@ -140,9 +140,12 @@ describe("#181 Properties notices", () => {
 	});
 
 	it("a read-only kind gets no Customise or override; a managed one names its solution", () => {
-		render(notices(button({ kind: "toggleButton" })));
+		// MRUSplitButton: read-only, but not one of the controls Unified Interface doesn't draw (#37).
+		render(notices(button({ kind: "mruSplitButton" })));
 		expect(bars()).toHaveLength(0);
-		render(notices(button({ kind: "toggleButton", origin: "managed", solutionName: "Sales" })));
+		render(
+			notices(button({ kind: "mruSplitButton", origin: "managed", solutionName: "Sales" })),
+		);
 		expect(bars()[0].textContent).toContain("From the managed solution Sales");
 		expect(byName("Create override")).toBeUndefined();
 		expect(byName("Customise button")).toBeUndefined();

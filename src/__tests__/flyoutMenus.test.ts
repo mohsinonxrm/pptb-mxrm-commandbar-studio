@@ -1267,7 +1267,7 @@ describe("#62 review — new hidden controls, copies, ComboBox menus", () => {
 		expect(validatePublishRibbonDiff(xml).filter((f) => f.code === "menu-missing")).toEqual([]);
 	});
 
-	it("t2: editing an out-of-the-box ComboBox with a menu is reported, not written without its menu", () => {
+	it("t2: editing an out-of-the-box ComboBox with a menu is reported, not written without its menu (read-only since #37)", () => {
 		const combo = (label: string) =>
 			newButton("Mscrm.Combo", {
 				kind: "comboBox",
@@ -1289,7 +1289,9 @@ describe("#62 review — new hidden controls, copies, ComboBox menus", () => {
 			});
 		const plan = planOf(ribbonWith([combo("Changed")]), ribbonWith([combo("Combo")]));
 		expect(plan.unsupported).toEqual([
-			expect.stringMatching(/^Editing the flyout \/ split button "Changed"/),
+			expect.stringMatching(
+				/^Editing the <ComboBox> "Changed" \(Mscrm\.Combo\) — CBS shows it read-only/,
+			),
 		]);
 	});
 });

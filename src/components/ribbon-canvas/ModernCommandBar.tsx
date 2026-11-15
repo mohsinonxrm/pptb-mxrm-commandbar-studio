@@ -19,7 +19,12 @@ import { useModernAppNames, useModernCanvas } from "@/hooks/useModernCommands";
 import { overrideNote } from "@/services/modernCommands";
 import { ModernCommandChip } from "./modern/ModernCommandChip";
 import { ClassicModernOverrideBadge } from "./modern/ClassicModernOverrideBadge";
-import { CONTROL_KIND_LABELS, isReadOnlyControlKind } from "@/utils/controlKinds";
+import {
+	CONTROL_KIND_LABELS,
+	isReadOnlyControlKind,
+	isUnrenderedInUci,
+	UNRENDERED_IN_UCI_NOTE,
+} from "@/utils/controlKinds";
 import { newButtonBlockedReason } from "@/utils/globalTab";
 
 const DRAG_MIME = "application/x-rw-btn";
@@ -176,7 +181,9 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 	// ToggleButton, Label, DropDown, …: shown, hidden / moved / deleted, never edited (#42).
 	const isReadOnlyKind = (button: RibbonButton) => isReadOnlyControlKind(button.kind);
 	const kindNote = (button: RibbonButton) =>
-		isReadOnlyKind(button) ? ` (${CONTROL_KIND_LABELS[button.kind]}, read-only)` : "";
+		isReadOnlyKind(button)
+			? ` (${CONTROL_KIND_LABELS[button.kind]}, read-only${isUnrenderedInUci(button.kind) ? ", not rendered in Unified Interface" : ""})`
+			: "";
 
 	// Flatten all buttons in group order. Unlike the old design, ALL buttons are
 	// rendered in a horizontally-scrollable lane — no truncation/overflow menu —
@@ -340,6 +347,18 @@ export function ModernCommandBar({ tab, location }: ModernCommandBarProps) {
 											color="informative"
 										>
 											{CONTROL_KIND_LABELS[button.kind]}
+										</Badge>
+									)}
+									{/* #37: Unified Interface draws it as an empty, zero-size item. */}
+									{isUnrenderedInUci(button.kind) && (
+										<Badge
+											style={{ flexShrink: 0 }}
+											size="medium"
+											appearance="tint"
+											color="warning"
+											title={UNRENDERED_IN_UCI_NOTE}
+										>
+											Not rendered
 										</Badge>
 									)}
 									{/* Flyout / split button: its menu opens under the bar when selected (#27). */}

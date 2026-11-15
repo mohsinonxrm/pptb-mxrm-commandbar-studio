@@ -94,6 +94,7 @@ export function PropertiesPane() {
 						tabId={tabId}
 						groupId={selectedGroupId!}
 						overrides={modernOverrides}
+						inMenu={!!place}
 					/>
 					{place && (
 						<Caption1 className={styles.place}>

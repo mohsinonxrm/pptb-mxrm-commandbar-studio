@@ -73,14 +73,10 @@ export interface RibbonDiffImportResult {
 
 const ENTITY_LOCATIONS: RibbonLocation[] = ["HomepageGrid", "SubGrid", "Form"];
 const LOCATIONS: RibbonLocation[] = [...ENTITY_LOCATIONS, "Application"];
-const CONTROL_TAGS = new Set([
-	"Button",
-	"FlyoutAnchor",
-	"SplitButton",
-	"TextBox",
-	"ComboBox",
-	"CheckBox",
-]);
+// The controls an import adds or overrides. TextBox, ComboBox and CheckBox are read-only
+// since #37 (Unified Interface doesn't draw them), like ToggleButton and the other #42 kinds.
+const CONTROL_TAGS = new Set(["Button", "FlyoutAnchor", "SplitButton"]);
+const readOnlyTag = (tag: string) => isReadOnlyControlKind(KIND_BY_CONTROL_TAG[tag]);
 const MENU_KINDS = new Set<RibbonButton["kind"]>(["flyout", "splitButton"]);
 const ENTITY_PREFIX = /^Mscrm\.(HomepageGrid|SubGrid|Form)\.([^.]+)\./;
 const CHILDREN = "._children";
@@ -660,6 +656,11 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 			if (parent.endsWith(".Controls") && CONTROL_TAGS.has(tag)) {
 				return addControl(ca, def, parent.slice(0, -".Controls".length), caSequence);
 			}
+			if (parent.endsWith(".Controls") && readOnlyTag(tag)) {
+				return notApplied.push(
+					`${def.getAttribute("Id") ?? caId}: adding a <${tag}> isn't supported — Command Bar Studio shows it read-only.`,
+				);
+			}
 			if (parent.endsWith(".Groups") && tag === "Group") {
 				return addGroup(ca, def, parent.slice(0, -".Groups".length), caSequence);
 			}
@@ -681,6 +682,11 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 				return;
 			}
 			return unknownLocation(`Override ${caId}`, location);
+		}
+		if (readOnlyTag(tag) && def.getAttribute("Id") === location) {
+			return notApplied.push(
+				`CustomAction ${caId}: overriding the <${tag}> ${location} isn't supported — Command Bar Studio shows it read-only.`,
+			);
 		}
 		if (findControl(location) || findGroup(location) || findTab(location)) {
 			return notApplied.push(
