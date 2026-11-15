@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0-beta.1] - 2026-11-14
+
+The first beta of 0.10.0 (npm `beta`): editor and publish correctness, and performance.
+- **Publish:** imports run in the background, with **Cancel** and **View import log**, and a
+  failed import says why (#107). The publish dialog also checks the XML against Microsoft's ribbon
+  schema, as warnings only (#126).
+- **Faster editing:** an edit copies only the ribbon it changes, and checking for unpublished
+  changes no longer writes out the whole workspace (#111).
+- **Compare with published** shows what Publish will import, moved tabs included (#216).
+- **Translate tab and group titles** (#136).
+- **Fixes:** global command bar locations (#166), sub-grid notes (#167), Microsoft's grid and
+  quick action rules (#162), scaling and template checks (#165), Open a URL with web resources
+  (#160), the context value picker (#161), and raw `$Resources:` keys (#201).
+- **The solution picker** is the scope chip FetchXML Studio and Dataverse Request Studio share
+  (#174, #264), and Command Bar Studio says "entity" throughout.
+
+It includes everything in 0.9.0. Requires Power Platform ToolBox 1.2.7 or later, as 0.9 does.
+
 ### ⚡ Performance
 
 - **Typing in a field no longer copies every ribbon (#111).** Each edit, keystrokes included,
@@ -56,9 +74,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   titled **Solution**, searches name, unique name and version, and ends with "Changes apply right
   away." and **Done**. On an environment where no solution is chosen yet, a first-run tip points at
   the chip; **Choose scope** opens it, and **Got it** dismisses the tip for that environment.
-
-### 🔧 Changed
-
 - **"Entity", not "table".** Command Bar Studio now says entity wherever it said table: the top
   bar's picker (**Choose entity**), the canvas, the Structure pane, dialogs, rule labels
   (**Entity**, **Entity privilege**, **Entity property**, **Form's entity**), the command palette
@@ -136,6 +151,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   window (default), Modal dialog and Modeless dialog, as Microsoft names them, and a new **Window
   settings** field sets WinParams, such as a dialog's size. The publish check also stops a bare
   `$webresource:` with no name.
+- **Microsoft's grid and quick action rules can be bound (#162).** Microsoft documents placing a
+  grid command with the enable rules `Mscrm.ShowOnGrid`, `Mscrm.ShowOnQuickAction` and
+  `Mscrm.ShowOnGridAndQuickAction`, but they live in the application ribbon, so an entity's rule
+  list didn't offer them. For a main grid command, the command editor's **Add an existing enable
+  rule** now lists them under Microsoft's grid rules, and so does the Properties pane's **Bind an
+  existing enable rule**. The publish check knows them. A bound rule that isn't in the loaded ribbon
+  no longer opens an editor that closes at once, there or in the bottom panel's Commands list: its
+  tag says why there's nothing to open. A display rule that a sub-grid button uses now warns about a
+  **Column value** step: Microsoft says Unified Interface doesn't check one there, so put it in an
+  enable rule.
+- **Scaling and layout checks (#165).** A new group whose template isn't one CBS lists now gets its
+  MaxSize from the template's largest layout as loaded; when nothing knows the template, the publish
+  dialog warns that the group gets none (every group needs one on the classic ribbon). The publish
+  check also warns when a control's **Template alias** isn't one its group's template has: the
+  classic ribbon doesn't lay it out (Unified Interface ignores templates). An unused helper that had
+  the MaxSize / Scale order backwards is gone. Scaling stays read-only until changes to it can be
+  published.
+- **Compare with published shows what Publish writes (#216).** Compare built both sides from the
+  generator alone, so changes only Publish's merge writes, such as a moved tab, showed +0 / −0.
+  Compare now reads your published customizations for the entity (and the application ribbon, when
+  it's published too) and compares them with the RibbonDiffXml Publish would import. When that can't
+  be built (no connection, a change Publish can't write yet, or no answer within 30 s), it compares
+  the generated XML as before and says why. Application ribbon changes Publish can't import yet (the
+  solution has no Application Ribbons) are left out, and Compare says so.
 
 ## [0.9.0] - 2026-11-14
 
@@ -178,30 +217,6 @@ are the full list. Requires Power Platform ToolBox 1.2.7 or later, as 0.8 does.
 - **0.8.x is end of life:** 0.8.0 is deprecated on npm and gets no support window, because
   0.9.0 needs the same PPTB (see `SECURITY.md`).
 - **0.9.0-beta.3 wasn't published to npm.** Its fixes ship in 0.9.0.
-- **Microsoft's grid and quick action rules can be bound (#162).** Microsoft documents placing a
-  grid command with the enable rules `Mscrm.ShowOnGrid`, `Mscrm.ShowOnQuickAction` and
-  `Mscrm.ShowOnGridAndQuickAction`, but they live in the application ribbon, so an entity's rule
-  list didn't offer them. For a main grid command, the command editor's **Add an existing enable
-  rule** now lists them under Microsoft's grid rules, and so does the Properties pane's **Bind an
-  existing enable rule**. The publish check knows them. A bound rule that isn't in the loaded
-  ribbon no longer opens an editor that closes at once, there or in the bottom panel's Commands
-  list: its tag says why there's nothing to open. A display rule that a
-  sub-grid button uses now warns about a **Column value** step: Microsoft says Unified Interface
-  doesn't check one there, so put it in an enable rule.
-- **Scaling and layout checks (#165).** A new group whose template isn't one CBS lists now gets its
-  MaxSize from the template's largest layout as loaded; when nothing knows the template, the publish
-  dialog warns that the group gets none (every group needs one on the classic ribbon). The publish
-  check also warns when a control's **Template alias** isn't one its group's template has: the
-  classic ribbon doesn't lay it out (Unified Interface ignores templates). An unused helper that
-  had the MaxSize / Scale order backwards is gone. Scaling stays read-only until changes to it can
-  be published.
-- **Compare with published shows what Publish writes (#216).** Compare built both sides from the
-  generator alone, so changes only Publish's merge writes, such as a moved tab, showed +0 / −0.
-  Compare now reads your published customizations for the entity (and the application ribbon, when
-  it's published too) and compares them with the RibbonDiffXml Publish would import. When that
-  can't be built (no connection, a change Publish can't write yet, or no answer within 30 s), it
-  compares the generated XML as before and says why. Application ribbon changes Publish can't
-  import yet (the solution has no Application Ribbons) are left out, and Compare says so.
 
 ## [0.9.0-beta.3] - 2026-11-12
 
