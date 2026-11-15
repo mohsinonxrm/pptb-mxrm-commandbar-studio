@@ -370,24 +370,28 @@ describe("N1 — every publish refreshes Unified Interface metadata", () => {
 		// The import replaces the layer, as in Dataverse: the second import checks it is what the first wrote (#102).
 		const execute = vi.fn(
 			async (req: { operationName: string; parameters?: Record<string, string> }) => {
-				if (req.operationName !== "ImportSolution") return undefined;
+				if (req.operationName !== "ImportSolutionAsync") return undefined;
 				const bin = atob(req.parameters!.CustomizationFile);
 				const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
 				const cust = strFromU8(unzipSync(bytes)["customizations.xml"]);
 				layer = parseRibbonDiffParts(
 					cust.match(/<RibbonDiffXml>[\s\S]*<\/RibbonDiffXml>/)![0],
 				);
-				return undefined;
+				return { AsyncOperationId: crypto.randomUUID() };
 			},
 		);
 		(window as unknown as { dataverseAPI: unknown }).dataverseAPI = Object.assign(
 			(window as unknown as { dataverseAPI?: object }).dataverseAPI ?? {},
 			{
 				execute,
-				getImportJobStatus: vi.fn(async () => ({ progress: 100 })),
-				retrieve: vi.fn(async () => ({
-					data: '<importexportxml><entityRibbon id="Contact" processed="true"><result result="success" /></entityRibbon></importexportxml>',
-				})),
+				// ImportSolutionAsync (#107): the system job has succeeded by the first read.
+				retrieve: vi.fn(async (entity: string) =>
+					entity === "asyncoperation"
+						? { statecode: 3, statuscode: 30 }
+						: {
+								data: '<importexportxml><entityRibbon id="Contact" processed="true"><result result="success" /></entityRibbon></importexportxml>',
+							},
+				),
 				queryData: vi.fn(async (q: string) =>
 					q.startsWith("solutions")
 						? {
@@ -453,7 +457,7 @@ describe("N1 — every publish refreshes Unified Interface metadata", () => {
 			verifyDelayMs: 0,
 		});
 		expect(
-			execute.mock.calls.filter(([req]) => req.operationName === "ImportSolution"),
+			execute.mock.calls.filter(([req]) => req.operationName === "ImportSolutionAsync"),
 		).toHaveLength(2);
 	});
 });
