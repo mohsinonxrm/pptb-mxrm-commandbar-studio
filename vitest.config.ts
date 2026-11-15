@@ -13,6 +13,8 @@ export default defineConfig({
 		// jsdom provides DOMParser / XMLSerializer for the ribbon XML tests.
 		environment: "jsdom",
 		globals: true,
+		// The store's shared state is frozen after every change: an in-place write throws (#111).
+		setupFiles: ["./src/__tests__/setup/freezeStore.ts"],
 		// `npm run test:coverage` (CI writes the totals to the run summary, #118). A report,
 		// not a gate: no thresholds.
 		coverage: {
