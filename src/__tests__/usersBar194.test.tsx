@@ -49,8 +49,21 @@ const button = (id: string, sequence: number, extra: Partial<RibbonButton> = {})
 		managed: false,
 		...extra,
 	}) as RibbonButton;
+/** A group as loaded from a merged ribbon: each button keeps its place (`source.position`, #191). */
 const group = (id: string, sequence: number, buttons: RibbonButton[]) =>
-	({ id, label: id, sequence, template: "Flexible2", buttons }) as RibbonGroup;
+	({
+		id,
+		label: id,
+		sequence,
+		template: "Flexible2",
+		buttons: buttons.map((b, index) => ({
+			...b,
+			source: {
+				attributes: { Id: b.id, Sequence: String(b.sequence) },
+				position: { groupId: id, index },
+			},
+		})),
+	}) as RibbonGroup;
 const modern = (
 	id: string,
 	sequence: number,
@@ -86,11 +99,27 @@ const TAB: RibbonTab = {
 };
 
 describe("#194 usersBar", () => {
-	it("lists groups and their buttons in Sequence order, without hidden ones", () => {
+	it("lists groups by Sequence and their buttons in the loaded order, not by Sequence, without hidden ones (#191)", () => {
 		expect(usersBar(TAB, [], new Map()).map((i) => i.id)).toEqual([
-			"x.New",
-			"x.Edit",
 			"x.Delete",
+			"x.Edit",
+			"x.New",
+			"x.Share",
+		]);
+	});
+
+	it("puts a button you added where publishing will: before the first with a greater Sequence (#191)", () => {
+		const now = {
+			...TAB,
+			groups: TAB.groups.map((g) =>
+				g.id === "G.Mgmt" ? { ...g, buttons: [...g.buttons, button("x.Added", 25)] } : g,
+			),
+		};
+		expect(usersBar(now, [], new Map(), { tabs: [now] }).map((i) => i.id)).toEqual([
+			"x.Added",
+			"x.Delete",
+			"x.Edit",
+			"x.New",
 			"x.Share",
 		]);
 	});
@@ -98,7 +127,8 @@ describe("#194 usersBar", () => {
 	it("places a modern command before a button, and keeps a button another app's command doesn't hide", () => {
 		const items = usersBar(
 			TAB,
-			[modern("m0", 5)],
+			// Tab 10, group G.Mgmt (10), control 5: before Delete (30), the group's first above 5.
+			[modern("m0", 910_100_005)],
 			new Map([
 				[
 					"x.Edit",
@@ -132,10 +162,10 @@ describe("#194 usersBar", () => {
 				],
 			]),
 		);
-		expect(items.map((i) => i.id)).toEqual(["modern:m0", "x.New", "x.Delete", "x.Share"]);
+		expect(items.map((i) => i.id)).toEqual(["modern:m0", "x.Delete", "x.New", "x.Share"]);
 	});
 
-	it("shows a migrated command in its button's place, leaves out hidden ones, places modern commands by Sequence", () => {
+	it("shows a migrated command in its button's place, leaves out hidden ones, places modern commands in their group", () => {
 		const migrated = { id: "mEdit", label: "Edit (modern)" } as ModernCommand;
 		const overrides = new Map<string, ClassicModernOverride[]>([
 			["x.Edit", [{ buttonId: "x.Edit", effect: "replaced", command: migrated }]],
@@ -147,21 +177,22 @@ describe("#194 usersBar", () => {
 		const items = usersBar(
 			TAB,
 			[
-				modern("m1", 25),
-				modern("m2", 5, { hidden: true }),
-				modern("m3", 5, { disabled: true }),
-				modern("m4", 99),
+				modern("m1", 910_100_025),
+				modern("m2", 910_100_005, { hidden: true }),
+				modern("m3", 910_100_005, { disabled: true }),
+				modern("m4", 910_100_099),
 			],
 			overrides,
 		);
 		expect(items.map((i) => i.id)).toEqual([
-			"x.New",
-			"x.Edit",
-			// Placed among all the buttons, the hidden Delete (30) too, as on the
-			// Modern command bar view: before the first with a higher Sequence.
+			// In its group, before the first button with a greater Sequence, the hidden
+			// Delete (30) too (#191).
 			"modern:m1",
-			"x.Share",
+			"x.Edit",
+			"x.New",
+			// Above every button of its group: at the group's end.
 			"modern:m4",
+			"x.Share",
 		]);
 		const edit = items.find((i) => i.id === "x.Edit");
 		expect(edit?.kind === "classic" && edit.replacedBy).toBe(migrated);
@@ -219,10 +250,11 @@ describe("#194 the How users see it strip", () => {
 		render();
 		const bar = container.querySelector('[role="toolbar"]')!;
 		expect(bar.getAttribute("aria-label")).toBe("Command bar preview: Account");
+		// Merged document order (#191).
 		expect([...bar.querySelectorAll("[data-users-bar]")].map((b) => b.textContent)).toEqual([
-			"New",
-			"Edit",
 			"Delete",
+			"Edit",
+			"New",
 			"Share",
 		]);
 		expect(container.textContent).toContain("Preview: rules not applied");

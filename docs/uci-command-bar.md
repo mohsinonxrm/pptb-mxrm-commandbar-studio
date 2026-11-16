@@ -29,13 +29,18 @@ JavaScript modern commands, RetrieveEntityRibbon's merged order and the bar with
 selected. The probe was imported into CBSLiveTest and removed again afterwards. Both are checked
 by `src/__tests__/uciPreviewProbe192.test.ts`.
 
+**Command Checker** (`commandChecker/2026-11-15.json`, 2026-11-15): for the main grids, contact's existing
+and new form, and the Contacts sub-grid and associated view on an account, each command's flags
+(shown, hidden, hidden by selection) and its rules with the True/False Command Checker listed. The
+preview model (below) is checked against it by `src/__tests__/uciPreviewModel191.test.ts`.
+
 ## How the bar is built
 
 1. **One flat bar.** The tabs and groups of the location's ribbon flatten into one list. No
    group or tab title shows anywhere (also checked live on #135).
 2. **Order:**
    - **Tab, then group, then control:** tabs sort by tab Sequence, then groups by group
-     Sequence.
+     Sequence (in every recording the merged groups were in Sequence order).
    - **Within a group:** controls appear **in the order RetrieveEntityRibbon returns them**,
      not by Sequence. In contact's ExportData group, `ImportDataFromExcel` (Sequence 21) comes
      after `ExportSelectedToExcel` (230) in the XML, and renders in that position. The
@@ -105,6 +110,15 @@ by `src/__tests__/uciPreviewProbe192.test.ts`.
    - **Two rows:** the same minus Open org chart and Word Templates (both
      `SelectionCountExactlyOne`).
    - **Sub-grids and associated views:** two rows selected is one row minus Word Templates.
+   - **The rule (Command Checker, 2026-11-15):** with rows selected, a command is "hidden by
+     selection" when its enable rules have no SelectionCountRule (at any depth; `Mscrm.AnySelection`
+     has one) **and** no item of its menu has one. It's not about the control's kind: Excel
+     Templates (a flyout filled when opened, no items of its own) and Import from Excel (a split
+     button whose items don't count the selection) are hidden by it; Email a Link (a split button
+     whose "Of Selected Items" counts it) and Quick Campaign (whose items do) aren't. Every item
+     Command Checker listed with a row selected (account and contact grids, sub-grid,
+     associated view) matches this. Command Checker says it too: such a command "is not an
+     item-level command: item-level commands have a SelectionCount rule".
    - **Your own commands (probe):** with a row selected, the probe's plain buttons and its new
      modern commands (no rules of their own) all disappear. The one button whose command has
      `Mscrm.AnySelection` stays, and also shows with nothing selected.
@@ -123,11 +137,70 @@ by `src/__tests__/uciPreviewProbe192.test.ts`.
    - Add to Marketing List and Sequences are hidden;
    - everything else keeps its place.
 
+## The preview model (#191, phase B)
+
+`src/services/uciPreview/` turns a location's ribbon into the bar above. Simulate mode (phase C)
+will draw it; "How users see it" already uses its order.
+
+- **Order (`bar.ts`):** tabs and groups by Sequence; controls in merged document order. When the
+  ribbon is parsed, each control records its group and its place there (`source.position`). A
+  control still in that group, with the Id and Sequence it was loaded with, keeps its place; any
+  other (new, moved, re-sequenced or copied) goes where the merge will put it (point 2). So
+  publishing, or the store sorting a group after a move, doesn't change the order. Modern commands go into the group their sequence names (point 3,
+  also below a tab Sequence of 100: a form's main tab is 10). The chart designer's contextual tab
+  (`…VisualizationTab`) is left out: Command Checker lists it under `Mscrm.ContextualCommandBar`.
+  System items lead and close the bar (point 4).
+- **Rules (`rules.ts`):** each step is evaluated for the page, the selection or form state and the
+  web client (Modern, Web, online, no Outlook, no legacy page), or it can't be simulated and says
+  why: custom JavaScript, the organization's features or settings, the record's data or access,
+  the sub-grid's relationship. Entity and miscellaneous privileges are assumed held only for a
+  System Administrator; a record's own privileges (`RecordPrivilegeRule`) never are, since an
+  inactive record denies Write even to an administrator. A rule that comes out False without
+  any assumption stays False. A rule no
+  ribbon defines is ignored: Word Templates shows on the grid although its
+  `Mscrm.IsFolderNotSelected` isn't defined. False wins an AND, true wins an OR, and an unknown
+  stays unknown when inverted.
+- **Recorded outcomes (`recordedRules.json`):** where CBS can't evaluate a rule, or assumed a
+  privilege, Command Checker's outcome for it on CRM279420 (2026-11-15, a System Administrator,
+  Sales Hub) stands in for that page and selection or form state, for any entity (a value that
+  differed between contact and account is kept per entity). A rule none of whose steps depends on
+  the page, selection or form state (features, settings, client type) uses a recording from any
+  page; one with entity or miscellaneous privileges too, from any state of the same page. It's generated from
+  `src/__fixtures__/uci-preview/commandChecker/2026-11-15.json`, which holds each command's rules as Command
+  Checker listed them. Only a group's own controls count: the items of a menu nobody opened list
+  values for another state (with a row selected, the Delete item under Delete lists
+  `Mscrm.SelectionCountAtLeastOne` as False). A rule two commands list differently in one context
+  is left out: Save, now a modern command, lists `Mscrm.CanSavePrimaryEntityType` as True and Save
+  as Complete lists it as False. Command Checker evaluates a command's rules until one is False
+  and lists the rest as "Skipped", so a hidden command's later rules are never recorded.
+- **Agreement:** on all ten captured pages, every rule CBS works out without a recording agrees
+  with Command Checker, command by command. The one that didn't,
+  `Mscrm.ShowOnInteractionCentricHideOnModern` (True only through `DeviceTypeRule
+  InteractionCentric`), made that device type "can't simulate".
+- **Another command:** Unified Interface runs a few controls through a command other than the
+  ribbon's: Show As (`ChangeDataSetControlButton`) through `Mscrm.Disabled`. CBS can't know that.
+- **Known gaps** (`KNOWN_GAPS` in the tests): on the recorded bars, the model can't decide Show As,
+  Quick Campaign with a row selected, and the Outlook mail app's form buttons, because no outcome
+  was recorded for a rule they need there. Apart from those, each bar comes out as recorded.
+- **Privileges aren't simply held by an administrator:** on the account grid, a System
+  Administrator with every privilege at Global depth gets `Mscrm.HomepageGrid.account.Relationship`
+  (privileges on relationship roles) as False, so Relationship never shows (checked by hand with
+  a row selected). The capture of that state missed the end of Command Checker's list, so no
+  recording corrects it: the model shows Relationship there (`KNOWN_WRONG` in the tests).
+- **Selection (`hiddenBySelection`):** point 7.
+- **Not recorded:** two rows selected and the inactive form (only one contact and one account
+  existed on 2026-11-15), so a custom rule there can't be simulated.
+- **Metadata cache:** on 2026-11-15, hours after the probe was removed (the server's ribbon had
+  none of it), Command Checker on the contact grid still listed the probe's buttons, and still
+  did after Regenerate ribbon metadata and publishing contact. Unified Interface's cached
+  command-bar metadata in that browser hadn't caught up; the tests skip ids the saved ribbon
+  doesn't have.
+
 ## Against the documented behaviour (#191, #192 review comments)
 
 | Documented | Recorded |
 |---|---|
-| Selection hides commands without a SelectionCountRule unless they use `Mscrm.AnySelection`; flyouts and split buttons are exempt (KB 4481268) | **Mostly holds.** New, Refresh and Visualize this view disappear on selection. Delete, Run Flow and Run Report (`AnySelection`) stay, and so does Quick Campaign (a flyout). **But** Excel Templates (a flyout) and Import from Excel (a split button) also disappear. Their enable rules (`ExportToExcel.ValidForXlsxExport`, `EnableImportForWeb`) are custom rules that may decide this, so treat "exempt" as "not hidden *by selection alone*". |
+| Selection hides commands without a SelectionCountRule unless they use `Mscrm.AnySelection`; flyouts and split buttons are exempt (KB 4481268) | **Holds, but the exemption is about menu items, not the control's kind.** New, Refresh and Visualize this view disappear on selection. Delete, Run Flow and Run Report (`AnySelection`) stay. A flyout or split button stays only when an item of its menu counts the selection (Quick Campaign, Email a Link); Excel Templates and Import from Excel don't have one and are "hidden by selection" in Command Checker (point 7). |
 | `Mscrm.HideOnModern` commands don't show, and Command Checker doesn't list them | **Confirmed** (Detect and Copy on contact's grid; live check 2026-10-28, see #192 and #36). |
 | A HideCustomAction removes a command | **Confirmed** (the probe hides Quick Campaign; it's gone with 0 or 1 rows selected). |
 | Not ribbon-defined: Create view, Help, See all records, Share, Show as, Show Chart, Open Dashboards | **Partly.** Show Chart, Open Dashboards and See all records were recorded as system items. Share **is** ribbon-defined here (`Mscrm.HomepageGrid.contact.Sharing`). Focused view is a system item too. |

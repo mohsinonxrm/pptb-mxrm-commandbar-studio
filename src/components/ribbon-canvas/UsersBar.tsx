@@ -32,8 +32,8 @@ import { idCaption } from "@/utils/displayText";
 
 /**
  * "How users see it" (#194): the tab's commands laid out as the Unified
- * Interface command bar shows them, before any rule is applied, above the
- * group cards. What doesn't fit goes into a ⋮ menu with its count, as in
+ * Interface command bar shows them, in the preview model's order (#191),
+ * before any rule is applied, above the group cards. What doesn't fit goes into a ⋮ menu with its count, as in
  * Unified Interface. Choosing a command selects it everywhere; the selected
  * one is kept in view. Simulate mode (#191) will evaluate the rules here.
  */
@@ -90,9 +90,10 @@ export function UsersBar({ tab, location }: { tab: RibbonTab; location: RibbonLo
 	const selectedModernId = useModernCommandStore((s) => s.selectedCommandId);
 	const selectCommand = useModernCommandStore((s) => s.selectCommand);
 	const modern = useModernCanvas(location, tab);
+	const locationTabs = useRibbonStore((s) => s.ribbons[location]?.tabs);
 	const arrowKeys = useArrowNavigationGroup({ axis: "horizontal", memorizeCurrent: true });
 
-	const items = usersBar(tab, modern.nodes, modern.overrides);
+	const items = usersBar(tab, modern.nodes, modern.overrides, { tabs: locationTabs });
 	const tabText = idCaption(
 		tab.id,
 		captionOf(tab.label, locLabels, lang, tab.source?.titleToken),
@@ -135,7 +136,7 @@ export function UsersBar({ tab, location }: { tab: RibbonTab; location: RibbonLo
 				</Badge>
 				<InfoLabel
 					size="small"
-					info="The tab's commands in the order Unified Interface lists them, without the ones hidden by your customizations or replaced by a modern command, and without controls Unified Interface doesn't draw (labels, toggle buttons, drop-downs, check boxes, spinners, combo boxes and text boxes). Display and enable rules aren't evaluated, so some of these may not show, or be disabled, for users. What doesn't fit goes into the ⋮ menu."
+					info="The tab's commands in the order Unified Interface lists them, with a button you added or moved where publishing puts it and each modern command in the group its order names. It leaves out the ones hidden by your customizations or replaced by a modern command, and controls Unified Interface doesn't draw (labels, toggle buttons, drop-downs, check boxes, spinners, combo boxes and text boxes). Display and enable rules aren't evaluated, so some of these may not show, or be disabled, for users. What doesn't fit goes into the ⋮ menu."
 					infoButton={{ "aria-label": "About this preview" }}
 				/>
 			</div>
