@@ -272,21 +272,34 @@ function modernVerdict(
 		};
 	if (command.visibility !== "classicRules" || command.classicRules.length === 0)
 		return { verdict: shown, countsSelection: false };
+	const idOf = (r: ModernCommand["classicRules"][number]) =>
+		classicRuleId(
+			r.uniqueName ?? r.name,
+			r.kind === "enable" ? rules.enableRules : rules.displayRules,
+		);
 	const synthetic: CommandDefinition = {
 		id: command.uniqueName,
 		actions: [],
-		enableRules: command.classicRules
-			.filter((r) => r.kind === "enable")
-			.map((r) => r.uniqueName ?? r.name),
-		displayRules: command.classicRules
-			.filter((r) => r.kind === "display")
-			.map((r) => r.uniqueName ?? r.name),
+		enableRules: command.classicRules.filter((r) => r.kind === "enable").map(idOf),
+		displayRules: command.classicRules.filter((r) => r.kind === "display").map(idOf),
 	};
 	const v = evaluateCommand(synthetic, rules, ctx);
 	return {
 		verdict: { outcome: v.outcome, rules: v.rules },
 		countsSelection: countsSelection(synthetic, rules),
 	};
+}
+
+/**
+ * The ribbon rule a migrated modern command's classic rule (`appactionrule`) stands for. Its
+ * unique name carries the solution's prefix and the rule's type:
+ * `msdyn_Mscrm.CheckBulkEditSupportForEntity!0` is `Mscrm.CheckBulkEditSupportForEntity` (seen on
+ * Sales Hub's migrated Edit, 2026-11-15). The name as given when no ribbon rule matches.
+ */
+export function classicRuleId(name: string, defined: ReadonlyMap<string, unknown>): string {
+	const bare = name.replace(/!\d+$/, "");
+	const unprefixed = bare.replace(/^[A-Za-z0-9]+_/, "");
+	return [name, bare, unprefixed].find((id) => defined.has(id)) ?? name;
 }
 
 /**

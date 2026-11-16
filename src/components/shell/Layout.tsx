@@ -137,6 +137,8 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	const selectedGroupId = useSelectionStore((s) => s.selectedGroupId);
 	const activeTable = useSessionStore((s) => s.activeEntity?.logicalName ?? null);
 	const [leftOpen, setLeftOpen] = useState(false);
+	// Simulate gives the page the width: no Structure or Solution pane (#191).
+	const simulate = useUIStore((s) => s.canvasMode === "simulate");
 	const leftPaneTab = useUIStore((s) => s.leftPaneTab);
 	const setLeftPaneTab = useUIStore((s) => s.setLeftPaneTab);
 	const selectedModernId = useModernCommandStore((s) => s.selectedCommandId);
@@ -184,7 +186,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 	}
 	const fitted = fitPaneWidths(
 		windowWidth,
-		leftPaneWidth,
+		simulate ? 0 : leftPaneWidth,
 		rightPaneMode === "docked" ? rightPaneWidth : 0,
 	);
 	// The widest each side pane can be shown in this window: the handles' aria-valuemax (#23 review)
@@ -259,7 +261,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 				{narrow ? (
 					<nav className={styles.rail} aria-label="Side panes">
 						{/* The left pane's two tabs, each opening it as a drawer (#194). */}
-						{LEFT_TABS.map(({ value, label, icon }) => (
+						{(simulate ? [] : LEFT_TABS).map(({ value, label, icon }) => (
 							<Tooltip key={value} content={label} relationship="label">
 								<Button
 									appearance="subtle"
@@ -283,7 +285,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 							</Tooltip>
 						)}
 					</nav>
-				) : (
+				) : simulate ? null : (
 					<>
 						<div className={styles.leftPane} style={{ width: fitted.left }}>
 							<ErrorBoundary label="Left pane">{leftPane}</ErrorBoundary>
@@ -305,7 +307,7 @@ export function Layout({ children, leftPane, rightPane, bottomPanel }: LayoutPro
 						<OverlayDrawer
 							position="start"
 							size="small"
-							open={leftOpen}
+							open={leftOpen && !simulate}
 							onOpenChange={(_, d) => setLeftOpen(d.open)}
 							aria-label={leftPaneTab === "structure" ? "Structure" : "Solution"}
 						>

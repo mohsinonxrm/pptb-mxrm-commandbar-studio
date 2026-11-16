@@ -8,6 +8,7 @@ import { useSessionStore } from "@/store/sessionStore";
 import { ClassicRibbon } from "./ClassicRibbon";
 import { GroupCards } from "./GroupCards";
 import { UsersBar } from "./UsersBar";
+import { SimulateCanvas } from "./SimulateCanvas";
 import { ModernCommandBar } from "./ModernCommandBar";
 import { RibbonListView } from "./RibbonListView";
 import { FlyoutMenuPanel } from "./FlyoutMenuPanel";
@@ -97,6 +98,7 @@ export function RibbonCanvas({
 	const connectionUrl = useSessionStore((s) => s.connectionUrl);
 	const clearSelection = useSelectionStore((s) => s.clearSelection);
 	const ribbonViewStyle = useUIStore((s) => s.ribbonViewStyle);
+	const canvasMode = useUIStore((s) => s.canvasMode);
 	const openNewGroup = useUIStore((s) => s.openNewGroup);
 	const setPropertiesRequested = useUIStore((s) => s.setPropertiesRequested);
 	// Retry of an unread layer replaces the canvas: unpublished changes are asked about first (#110).
@@ -203,6 +205,8 @@ export function RibbonCanvas({
 						error={ribbonLoadError}
 						onRetry={onRetryRibbonLoad}
 					/>
+				) : canvasMode === "simulate" ? (
+					<SimulateCanvas location={location} />
 				) : !currentTab ? (
 					<EmptyTab onAddGroup={openNewGroup} />
 				) : (

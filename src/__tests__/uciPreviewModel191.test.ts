@@ -11,6 +11,7 @@ import { parseRibbonXml } from "@/services/xmlParser";
 import { splitTabsByLocation } from "@/services/dataverse/ribbonService";
 import {
 	barOrder,
+	classicRuleId,
 	decodeModernSequence,
 	hiddenBySelection,
 	ribbonRules,
@@ -532,6 +533,57 @@ describe("#191 B2 bar order", () => {
 			"OpenEntityDashboard",
 		]);
 		expect(shown(1)).toEqual(["ShowChartPane", "Any", "OpenEntityDashboard"]);
+	});
+
+	it("evaluates a migrated modern command's classic rules by the ribbon rules they stand for", () => {
+		const defined = new Map([["Mscrm.CheckBulkEditSupportForEntity", {}]]);
+		expect(classicRuleId("msdyn_Mscrm.CheckBulkEditSupportForEntity!0", defined)).toBe(
+			"Mscrm.CheckBulkEditSupportForEntity",
+		);
+		expect(classicRuleId("Mscrm.CheckBulkEditSupportForEntity", defined)).toBe(
+			"Mscrm.CheckBulkEditSupportForEntity",
+		);
+		expect(classicRuleId("msdyn_Unknown!1", defined)).toBe("msdyn_Unknown!1");
+		// Sales Hub's Edit: replaced by a migrated command whose enable rule needs one row.
+		const rules: RibbonRules = {
+			commands: new Map([
+				["Cmd.Edit", { id: "Cmd.Edit", enableRules: [], displayRules: [], actions: [] }],
+			]),
+			enableRules: new Map([
+				[
+					"Mscrm.SelectionCountExactlyOne",
+					{
+						id: "Mscrm.SelectionCountExactlyOne",
+						steps: [{ kind: "SelectionCountRule", minimum: 1, maximum: 1 }],
+					},
+				],
+			]),
+			displayRules: new Map(),
+		};
+		const migrated = modern("mEdit", 1_000_100_010, {
+			origin: "migrated",
+			visibility: "classicRules",
+			classicRules: [
+				{
+					id: "r",
+					name: "x",
+					uniqueName: "msdyn_Mscrm.SelectionCountExactlyOne!0",
+					kind: "enable",
+				},
+			],
+		});
+		const t = [
+			tab("T", 100, [group("G", 10, [button("Edit", 10, { commandId: "Cmd.Edit" })])]),
+		];
+		const overrides = new Map([
+			["Edit", [{ buttonId: "Edit", effect: "replaced" as const, command: migrated }]],
+		]);
+		const outcome = (n: number) =>
+			simulateBar({ tabs: t, overrides }, rules, ctx({ selectedCount: n })).find(
+				(e) => e.id === "Edit",
+			)!.verdict.outcome;
+		expect(outcome(0)).toBe(false);
+		expect(outcome(1)).toBe(true);
 	});
 
 	it("doesn't show a control whose command isn't in the ribbon", () => {
