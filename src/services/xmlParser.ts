@@ -191,6 +191,10 @@ function parseTabs(doc: Document): RibbonTab[] {
 			groupEl.querySelectorAll(":scope > Controls > *").forEach((btnEl) => {
 				if (KIND_BY_CONTROL_TAG[btnEl.tagName]) parseButtonElement(btnEl, buttons);
 			});
+			// Their place in the merged ribbon, which Unified Interface keeps (#191).
+			buttons.forEach((b, index) => {
+				if (b.source) b.source.position = { groupId, index };
+			});
 
 			groups.push({
 				id: groupId,

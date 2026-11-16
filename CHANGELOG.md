@@ -22,6 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 Changed
 
+- **"How users see it" lists commands in Unified Interface's order (#191).** It used to sort each
+  group's buttons by Sequence. Unified Interface keeps the order of the merged ribbon instead: a
+  button you add goes before the first existing one with a greater Sequence, so a button at 22 on
+  contact's grid comes before Run Report (30), not after Import from Excel (21), which the ribbon
+  lists last. The strip now follows that order, puts a button you've added, moved or re-sequenced
+  where publishing will put it, and places each modern command in the classic group its order
+  names, as Unified Interface does. Rules still aren't applied there; Simulate mode will do that.
+
 - **Controls Unified Interface doesn't draw are marked (#37).** A Label, ToggleButton, DropDown,
   CheckBox, Spinner, ComboBox or TextBox is valid RibbonXML and imports fine, but Unified Interface
   shows it as an empty, zero-size item that nobody can see or click (checked live, on group
@@ -42,6 +50,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the next minor ships (SECURITY.md).
 
 ### 🏗️ Technical
+
+- **The Unified Interface preview model (#191, phase B).** A rule evaluator and a bar model that
+  Simulate mode will use, checked against what Dynamics 365 did:
+  - **Rules:** works out display and enable rules for a page (main grid, form, sub-grid,
+    associated view), a selection or form state, and the web client. Custom JavaScript,
+    organization features and settings and record values can't be simulated; for Microsoft's own
+    rules, the outcomes Command Checker reported on a test org (a System Administrator in Sales
+    Hub) stand in, marked as recorded.
+  - **Selection:** rows selected hide a command when neither its enable rules nor any item of its
+    menu count the selection, which matches Command Checker's "hidden by selection" on every item
+    checked.
+  - **Bar:** every tab of the location in the order above, plus the items Unified Interface adds
+    (Show Chart, Open Dashboards, …).
+  - **Tests:** on ten pages captured with Command Checker, every rule CBS works out agrees with it,
+    command by command, and the recorded bars of #192 come out as recorded, apart from a listed
+    handful it can't decide (no outcome was recorded for a rule they need) and one it gets wrong
+    (Relationship on the account grid).
+  Nothing else in the app changes yet.
 
 - **minimatch 11 for the lint toolchain.** `typescript-eslint` pulled in minimatch 10.2.6, which has
   a moderate denial-of-service advisory

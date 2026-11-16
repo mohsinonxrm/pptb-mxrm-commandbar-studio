@@ -115,6 +115,13 @@ export interface RibbonMenuSection {
 }
 
 export interface RibbonButtonSource {
+	/**
+	 * Where the merged ribbon (RetrieveEntityRibbon) had the control when it was loaded: its
+	 * group and its index among the group's controls. Unified Interface keeps that order (#191);
+	 * a control moved or re-sequenced since goes where the merge puts it. Absent for menu items
+	 * and controls not loaded from a merged ribbon.
+	 */
+	position?: { groupId: string; index: number };
 	labelToken?: string;
 	tooltipTitleToken?: string;
 	tooltipBodyToken?: string;

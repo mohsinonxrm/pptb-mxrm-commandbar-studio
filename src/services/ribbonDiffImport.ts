@@ -433,7 +433,12 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 				image32: incoming.image32,
 				commandId: incoming.commandId,
 				templateAlias: incoming.templateAlias || button.templateAlias,
-				source: structuredClone(incoming.source),
+				// Overriding keeps the control where the merged ribbon had it (#191), as an edit
+				// in CBS does: only a new Sequence moves it.
+				source: incoming.source && {
+					...structuredClone(incoming.source),
+					...(button.source?.position ? { position: button.source.position } : {}),
+				},
 			});
 			const sequence = incoming.source?.attributes["Sequence"]
 				? incoming.sequence
@@ -523,7 +528,10 @@ export function importRibbonDiffXml(input: RibbonDiffImportInput): RibbonDiffImp
 				groupEl.getAttribute("Sequence") === null
 					? (caSequence ?? parsedGroup.sequence)
 					: parsedGroup.sequence,
-			buttons: groupControls(groupEl, parsedGroup),
+			// New controls: none has a place in the merged ribbon yet (#191).
+			buttons: groupControls(groupEl, parsedGroup).map((b) =>
+				b.source?.position ? { ...b, source: { ...b.source, position: undefined } } : b,
+			),
 		};
 	};
 

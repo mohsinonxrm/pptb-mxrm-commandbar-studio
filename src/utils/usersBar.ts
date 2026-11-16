@@ -1,76 +1,42 @@
-import { bySequence } from "@/store/ribbonStore";
-import { isUnrenderedInUci } from "@/utils/controlKinds";
-import { placeModernCommands } from "@/services/modernCommands";
-import type { RibbonButton, RibbonTab } from "@/types/ribbon";
-import type {
-	ClassicModernOverride,
-	ModernCommand,
-	ModernCommandNode,
-} from "@/types/modernCommand";
+import { barOrder, type BarEntry } from "@/services/uciPreview/bar";
+import type { RibbonTab } from "@/types/ribbon";
+import type { ClassicModernOverride, ModernCommandNode } from "@/types/modernCommand";
 
 /** A command on the "How users see it" strip (#194): a ribbon button or a modern command. */
-export type UsersBarItem =
-	| {
-			kind: "classic";
-			id: string;
-			button: RibbonButton;
-			groupId: string;
-			/** The migrated modern command users see in the button's place (#32). */
-			replacedBy?: ModernCommand;
-	  }
-	| { kind: "modern"; id: string; command: ModernCommand };
+export type UsersBarItem = Exclude<BarEntry, { kind: "system" }>;
 
 /**
- * The tab's commands as the Unified Interface command bar lists them, before
- * any rule is applied (#194): groups and their buttons in Sequence order,
- * without the buttons your layer or a modern command hides or the controls
- * Unified Interface doesn't draw (#37: a Label, ToggleButton, …), a button a
- * migrated modern command replaces shown as that command, and the visible
- * modern commands placed among them by Sequence. Display and enable rules
- * aren't evaluated: Simulate mode (#191) does that.
+ * The tab's commands as the Unified Interface command bar lists them, before any rule is
+ * applied (#194), from the preview's bar model (#191, `services/uciPreview/bar.ts`):
+ * groups by Sequence and their buttons in merged document order, a button you added, moved or
+ * re-sequenced where the platform's merge will put it, the buttons your layer or a modern command hides and the
+ * controls Unified Interface doesn't draw (#37) left out, a button a migrated modern command
+ * replaces shown as that command, and each modern command in the group its sequence names.
+ * Display and enable rules aren't evaluated: Simulate mode (#191) does that.
  */
 export function usersBar(
 	tab: RibbonTab,
 	modern: readonly ModernCommandNode[],
 	overrides: ReadonlyMap<string, readonly ClassicModernOverride[]>,
+	location: {
+		/** Every tab of the location: a modern command can name a group on another tab. */
+		tabs?: readonly RibbonTab[];
+	} = {},
 ): UsersBarItem[] {
-	// Every button, hidden ones too: a modern command is placed by Sequence among
-	// all of them, as on the Modern command bar view, then the hidden ones go.
-	const all = bySequence(tab.groups).flatMap((g) =>
-		bySequence(g.buttons).map((b) => {
-			const o = overrides.get(b.id) ?? [];
-			// With every app's commands shown, an app's hide doesn't hide it for all (review).
-			const replacedBy = o.find((x) => x.effect === "replaced")?.command;
-			// A control Unified Interface doesn't draw shows as nothing, unless a modern command replaces it (#37).
-			const hidden =
-				b.hidden ||
-				(o.length > 0 && o.every((x) => x.effect === "hidden")) ||
-				(isUnrenderedInUci(b.kind) && !replacedBy);
-			const item = {
-				kind: "classic" as const,
-				id: b.id,
-				button: b,
-				groupId: g.id,
-				replacedBy,
-			};
-			return { item, hidden };
-		}),
+	// The tab as given (it may be newer than the store's), among the location's others.
+	const tabs = location.tabs?.some((t) => t.id === tab.id)
+		? location.tabs.map((t) => (t.id === tab.id ? tab : t))
+		: [tab];
+	return barOrder({
+		tabs,
+		modern: modern.map((n) => n.command),
+		overrides,
+	}).filter(
+		(e): e is UsersBarItem =>
+			(e.kind === "classic" && e.tabId === tab.id) ||
+			// The modern commands given are this tab's strip's, wherever their sequence points:
+			// one that names a group on another tab sits before or after this tab's buttons, as
+			// that tab's Sequence puts it; one that names none comes last.
+			e.kind === "modern",
 	);
-	const shown = modern.filter((n) => !n.command.hidden && !n.command.disabled);
-	const placement = placeModernCommands(
-		all.map((c) => ({ id: c.item.id, sequence: c.item.button.sequence })),
-		shown,
-	);
-	const asItem = (n: ModernCommandNode): UsersBarItem => ({
-		kind: "modern",
-		id: `modern:${n.command.id}`,
-		command: n.command,
-	});
-	return [
-		...all.flatMap(({ item, hidden }) => [
-			...(placement.before.get(item.id) ?? []).map(asItem),
-			...(hidden ? [] : [item]),
-		]),
-		...placement.trailing.map(asItem),
-	];
 }

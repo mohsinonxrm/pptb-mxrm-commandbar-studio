@@ -158,7 +158,13 @@ export function baselineFingerprint(state: BaselineState): string {
 	];
 	if (lastFingerprint && lastFingerprint.of.every((v, i) => v === of[i]))
 		return lastFingerprint.value;
-	const value = hash(JSON.stringify(of));
+	// A control's loaded place (#191) is derived from the ribbon: drafts saved before it existed
+	// still match.
+	const value = hash(
+		JSON.stringify(of, (key, v) =>
+			key === "position" && v?.groupId !== undefined ? undefined : v,
+		),
+	);
 	lastFingerprint = { of, value };
 	return value;
 }
