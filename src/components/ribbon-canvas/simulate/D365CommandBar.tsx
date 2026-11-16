@@ -164,13 +164,10 @@ const BarCommand = forwardRef<HTMLButtonElement, BarCommandProps & { compact?: b
 	function BarCommand({ entry, text, reason, selected, mine, onChoose, compact }, ref) {
 		const styles = useStyles();
 		const v = entry.verdict.outcome;
-		// A flyout or split button shows its chevron, menu filled when opened (Run Report) too.
-		const menu =
-			entry.kind === "classic" &&
-			(!!entry.button.menu ||
-				["flyout", "splitButton", "mruSplitButton"].includes(entry.button.kind));
-		// A split button: its action and, apart, its menu's chevron (Email a Link with no rows).
-		const split = entry.kind === "classic" && entry.button.kind === "splitButton";
+		// A flyout shows its chevron, menu filled when opened (Run Report) too; a split button its
+		// action and, apart, its menu's chevron (Email a Link with no rows), when it's drawn split.
+		const menu = entry.drawn === "flyout" || entry.drawn === "split";
+		const split = entry.drawn === "split";
 		return (
 			// eslint-disable-next-line no-restricted-syntax, jsx-a11y/role-supports-aria-props -- drawn as Dynamics 365 draws it; aria-description (ARIA 1.3) is read by Chromium
 			<button

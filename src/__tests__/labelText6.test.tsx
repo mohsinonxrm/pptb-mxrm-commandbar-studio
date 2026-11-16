@@ -123,6 +123,20 @@ describe("#6 captions", () => {
 		expect(displayText("Send", own, 1033, managed)).toBe("Send");
 	});
 
+	it("a label that takes the entity's name: Customer Service's New Case (#191)", () => {
+		const id = "Ribbon.HomepageGrid.incident.MainTab.Management.Controls.New";
+		const token = `$LocLabels(EntityDisplayName):${id}`;
+		const managed = { [id]: label(id, [1033, "New {0}"]) };
+		// Loaded unresolved, the label is its id; the token says it's a reference.
+		expect(displayText(id, [], 1033, managed, token)).toBe("New ‹entity name›");
+		// Not loaded at all: a caption, never the token.
+		expect(displayText(token, [], 1033, {})).toBe("New");
+		// Defined in your layer.
+		expect(displayText(token, [label(id, [1033, "Log {0}"])], 1033, {})).toBe(
+			"Log ‹entity name›",
+		);
+	});
+
 	it("only a reference CBS couldn't resolve gets a caption (#6 review)", () => {
 		// Literal text with dots, and a control without a label (shown by its id), stay as they are.
 		expect(displayText("www.contoso.com", [], 1033, {}, "www.contoso.com")).toBe(

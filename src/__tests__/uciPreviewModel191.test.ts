@@ -948,6 +948,18 @@ describe("#191 B2 against the recorded bars", () => {
 				expect([...positions].sort((a, b) => a - b)).toEqual(positions);
 			});
 
+			it(`${file} ${key}: draws each control as the bar did (plain, split or menu)`, () => {
+				const byId = new Map(sim().map((e) => [e.id, e] as const));
+				const drawn = [...data.states[key].visible, ...data.states[key].overflow]
+					.map((item) => ({ entry: byId.get(modelId(item)), item }))
+					.filter(({ entry }) => entry?.kind === "classic" && !entry.replacedBy);
+				expect(drawn.length).toBeGreaterThan(0);
+				for (const { entry, item } of drawn)
+					expect(`${entry!.id} ${entry!.drawn}`).toBe(
+						`${entry!.id} ${item.split("|")[1] ?? "plain"}`,
+					);
+			});
+
 			const capturedKey = `${data.location}.${data.entity}.${recordedContextKey(c).split(".")[1]}`;
 			if (capture.contexts[capturedKey])
 				it(`${file} ${key}: shows the recorded bar where Command Checker was captured, apart from its known gaps`, () => {
@@ -956,7 +968,6 @@ describe("#191 B2 against the recorded bars", () => {
 					const unknown = entries
 						.filter((e) => e.verdict.outcome === "unknown")
 						.map((e) => e.id);
-					console.log("GAPS", JSON.stringify(`${file} ${key}`), JSON.stringify(unknown));
 					expect([...unknown].sort()).toEqual([...gaps].sort());
 					// Everything else comes out as recorded, in order (but for the known wrong ones).
 					const wrong = KNOWN_WRONG[`${file} ${key}`] ?? [];

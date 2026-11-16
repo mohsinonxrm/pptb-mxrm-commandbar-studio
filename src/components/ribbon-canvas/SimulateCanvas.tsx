@@ -179,12 +179,13 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 					? e.replacedBy.label || e.replacedBy.uniqueName
 					: // Unified Interface's own text for a platform label, where it was recorded.
 						uciLabel(e.button.source?.labelToken, entityName) ||
+						// A label naming the entity ("New ‹entity name›") names this one.
 						captionOf(
 							e.button.label,
 							locLabels,
 							undefined,
 							e.button.source?.labelToken,
-						) ||
+						).replace(/‹entity name›/g, entityName) ||
 						e.button.id;
 	const isSelected = (e: SimulatedEntry) =>
 		e.kind === "classic"

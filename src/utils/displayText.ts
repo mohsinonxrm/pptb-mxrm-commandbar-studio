@@ -1,5 +1,5 @@
 import type { LocLabel } from "@/types/ribbon";
-import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { fillParameter, locLabelParameter, resolveDisplayLabel } from "@/utils/displayLabel";
 
 /** Key segments that name what the text is for, not what it says. */
 const GENERIC_SEGMENTS = new Set([
@@ -112,8 +112,8 @@ function titleIn(label: LocLabel, languageCode: number): string | undefined {
 	);
 }
 
-/** A `$Resources:` (parameterised too) or `$LocLabels:` reference. */
-const REFERENCE = /^\$(Resources(\([^)]*\))?|LocLabels):/;
+/** A `$Resources:` or `$LocLabels:` reference, parameterised too. */
+const REFERENCE = /^\$(Resources|LocLabels)(\([^)]*\))?:/;
 
 /**
  * The placeholders Dataverse fills in with the table a ribbon is shown for
@@ -164,7 +164,10 @@ function displayTextRaw(
 	const reference = unchanged ? token : (value ?? "");
 	if (!REFERENCE.test(reference)) return resolved;
 	const fromManaged = managed[resolved];
-	if (fromManaged) return titleIn(fromManaged, languageCode) ?? resolved;
+	if (fromManaged) {
+		const title = titleIn(fromManaged, languageCode);
+		return title ? fillParameter(title, locLabelParameter(reference)) : resolved;
+	}
 	// Any underscore key reads as a caption only when nothing resolved the
 	// reference: a label's own text (`Send_Email`) is left as it is (review).
 	const unresolved = resolved === reference.replace(REFERENCE, "");
