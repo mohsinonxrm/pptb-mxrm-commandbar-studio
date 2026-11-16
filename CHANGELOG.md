@@ -49,6 +49,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the latest `typescript-eslint` asks for minimatch 10, so an npm `overrides` entry gives
   `@typescript-eslint/typescript-estree` minimatch 11 (11.0.8). It's a development dependency only:
   the published package doesn't include it, and `npm audit` now reports no vulnerabilities at all.
+- **Unified Interface ground truth finished (#192).** For the coming preview (#191), the test
+  fixtures now include:
+  - contact's and account's full merged ribbons;
+  - a recorded probe showing where your own commands land on the bar.
+
+  The probe shows:
+  - **Added controls:** each goes before the first existing control with a greater Sequence.
+  - **New modern commands:** same rule, inside the classic group their sequence names.
+  - **Selection:** hides your commands that have no rules of their own, unless they use
+    `Mscrm.AnySelection`.
+
+  The rules are in `docs/uci-command-bar.md`. Nothing in the app changes.
 
 ## [0.10.0-beta.1] - 2026-11-14
 

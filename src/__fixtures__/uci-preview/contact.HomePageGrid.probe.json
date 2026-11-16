@@ -1,0 +1,198 @@
+{
+	"source": {
+		"org": "CRM279420 (org382cc706), Dataverse 9.2.26092",
+		"app": "Sales Hub (msdynce_saleshub)",
+		"recorded": "2026-11-15",
+		"page": "contact main grid, view My Active Contacts, ribbondebug=true, with the #192 probe in contact's unmanaged layer",
+		"notes": "The probe (probe/contact.HomePageGrid.RibbonDiffXml.xml) adds plain buttons in ExportData at Sequence 22, 45, 1000 and 1010 (1010 with Mscrm.AnySelection), one in Management at 26, a new group at MainTab Sequence 45 with one button, and hides Quick Campaign. 'modern' lists the JavaScript modern commands (appaction, entity scope, main grid) created alongside. Seen live but not recorded here: Command Checker lists each modern command inside the classic group its sequence names (Modern27 under Management). 'merged' is RetrieveEntityRibbon's order after the import. Items are in rendered order; kind suffixes as in contact.HomePageGrid.json (taken from that recording where the item was in the overflow). Recorded at the Browser pane's width (1534 px), after Modern100 appeared about 20 minutes after it was created (see docs/uci-command-bar.md)."
+	},
+	"entity": "contact",
+	"location": "HomePageGrid",
+	"labels": {
+		"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1": "Focused view",
+		"ShowChartPane": "Show Chart",
+		"Mscrm.HomepageGrid.contact.NewRecord": "New",
+		"cbstest.P192.Mgmt26": "Mgmt26",
+		"cbstest.P192.Modern27": "Modern27",
+		"Mscrm.HomepageGrid.contact.DeleteMenu": "Delete",
+		"Mscrm.HomepageGrid.contact.RefreshModernButton": "Refresh",
+		"Mscrm.HomepageGrid.contact.MainTab.QuickPowerBI.Button": "Visualize this view",
+		"Mscrm.HomepageGrid.contact.Send": "Email a Link",
+		"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar": "Run Flow",
+		"cbstest.P192.InGroup": "InGroup",
+		"cbstest.P192.Seq22": "Seq22",
+		"cbstest.P192.Modern23": "Modern23",
+		"Mscrm.HomepageGrid.contact.RunReport": "Run Report",
+		"Mscrm.HomepageGrid.contact.DocumentTemplate": "Excel Templates",
+		"Mscrm.HomepageGrid.contact.ExportToExcel": "Export to Excel",
+		"cbstest.P192.Seq45": "Seq45",
+		"cbstest.P192.Modern100": "Modern100",
+		"Mscrm.HomepageGrid.contact.ImportDataFromExcel": "Import from Excel",
+		"cbstest.P192.Seq1000": "Seq1000",
+		"cbstest.P192.AnySel1010": "AnySel1010",
+		"OpenEntityDashboard": "Open Dashboards",
+		"CommandChecker": "Command checker",
+		"Mscrm.HomepageGrid.contact.Edit": "Edit",
+		"Mscrm.HomepageGrid.contact.Activate": "Activate",
+		"Mscrm.HomepageGrid.contact.Deactivate": "Deactivate",
+		"Mscrm.HomepageGrid.contact.MergeRecords": "Merge",
+		"msdyn.HomepageGrid.contact.SequencesMulti.Button": "Sequences",
+		"Mscrm.HomepageGrid.contact.ViewOrgChart": "Open org chart",
+		"Mscrm.HomepageGrid.contact.AddToList": "Add to Marketing List",
+		"Mscrm.HomepageGrid.contact.Assign": "Assign",
+		"Mscrm.HomepageGrid.contact.Sharing": "Share",
+		"Mscrm.HomepageGrid.contact.FollowButton": "Follow",
+		"Mscrm.HomepageGrid.contact.NewUnfollowButton": "Unfollow",
+		"Mscrm.HomepageGrid.contact.WordTemplate": "Word Templates",
+		"Mscrm.HomepageGrid.contact.ExportSelectedToExcel": "Export to Excel"
+	},
+	"states": {
+		"w1534.sel0": {
+			"selected": 0,
+			"visible": [
+				"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1",
+				"ShowChartPane",
+				"Mscrm.HomepageGrid.contact.NewRecord",
+				"cbstest.P192.Mgmt26",
+				"cbstest.P192.Modern27",
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.RefreshModernButton",
+				"Mscrm.HomepageGrid.contact.MainTab.QuickPowerBI.Button",
+				"Mscrm.HomepageGrid.contact.Send|split",
+				"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar|flyout"
+			],
+			"overflow": [
+				"cbstest.P192.InGroup",
+				"cbstest.P192.Seq22",
+				"cbstest.P192.Modern23",
+				"Mscrm.HomepageGrid.contact.RunReport|flyout",
+				"Mscrm.HomepageGrid.contact.DocumentTemplate|flyout",
+				"Mscrm.HomepageGrid.contact.ExportToExcel|split",
+				"cbstest.P192.Seq45",
+				"cbstest.P192.Modern100",
+				"Mscrm.HomepageGrid.contact.ImportDataFromExcel|split",
+				"cbstest.P192.Seq1000",
+				"cbstest.P192.AnySel1010",
+				"OpenEntityDashboard",
+				"CommandChecker"
+			]
+		},
+		"w1534.sel1": {
+			"selected": 1,
+			"visible": [
+				"changeVisualization-MscrmControls.AcceleratedSales.AnchorShellGridControl--1",
+				"ShowChartPane",
+				"Mscrm.HomepageGrid.contact.Edit",
+				"Mscrm.HomepageGrid.contact.Activate",
+				"Mscrm.HomepageGrid.contact.Deactivate",
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.MergeRecords",
+				"msdyn.HomepageGrid.contact.SequencesMulti.Button|split",
+				"Mscrm.HomepageGrid.contact.ViewOrgChart",
+				"Mscrm.HomepageGrid.contact.AddToList"
+			],
+			"overflow": [
+				"Mscrm.HomepageGrid.contact.Assign",
+				"Mscrm.HomepageGrid.contact.Sharing",
+				"Mscrm.HomepageGrid.contact.Send",
+				"Mscrm.HomepageGrid.contact.FollowButton",
+				"Mscrm.HomepageGrid.contact.NewUnfollowButton",
+				"Mscrm.HomepageGrid.contact.Flows.RefreshCommandBar|flyout",
+				"Mscrm.HomepageGrid.contact.RunReport|flyout",
+				"Mscrm.HomepageGrid.contact.WordTemplate|flyout",
+				"Mscrm.HomepageGrid.contact.ExportSelectedToExcel",
+				"cbstest.P192.AnySel1010",
+				"OpenEntityDashboard",
+				"CommandChecker"
+			]
+		}
+	},
+	"probe": {
+		"ribbonDiffXml": "probe/contact.HomePageGrid.RibbonDiffXml.xml",
+		"modern": [
+			{
+				"name": "cbstest.P192.Modern27",
+				"sequence": 1000100027,
+				"rendered": true
+			},
+			{
+				"name": "cbstest.P192.Modern23",
+				"sequence": 1000500023,
+				"rendered": true
+			},
+			{
+				"name": "cbstest.P192.Modern100",
+				"sequence": 1000500100,
+				"rendered": true
+			}
+		],
+		"merged": {
+			"groups": [
+				"Mscrm.HomepageGrid.contact.MainTab.Management",
+				"Mscrm.HomepageGrid.contact.MainTab.ModernClient",
+				"Mscrm.HomepageGrid.contact.MainTab.Actions",
+				"Mscrm.HomepageGrid.contact.MainTab.Collaborate",
+				"Mscrm.HomepageGrid.contact.MainTab.Workflow",
+				"cbstest.P192.Group",
+				"Mscrm.HomepageGrid.contact.MainTab.ExportData",
+				"Mscrm.HomepageGrid.contact.MainTab.OutlookHelp"
+			],
+			"Mscrm.HomepageGrid.contact.MainTab.Management": [
+				"msdyn.HomepageGrid.contact.OpenFocusedView.Button",
+				"Mscrm.HomepageGrid.contact.NewRecord",
+				"Mscrm.HomepageGrid.contact.NewRecordForBPFEntity",
+				"Mscrm.HomepageGrid.contact.Edit",
+				"cbstest.P192.Mgmt26",
+				"Mscrm.HomepageGrid.contact.Activate",
+				"Mscrm.HomepageGrid.contact.Deactivate",
+				"msdyn.ApplicationRibbon.contact.HomeGrid.BookResource.Button",
+				"msdyn.ApplicationRibbon.contact.HomeGrid.RunRoutingRule.Button",
+				"Mscrm.HomepageGrid.contact.OpenActiveStage",
+				"Mscrm.HomepageGrid.contact.DeleteMenu",
+				"Mscrm.HomepageGrid.contact.MergeRecords",
+				"Mscrm.HomepageGrid.contact.Detect",
+				"Mscrm.HomepageGrid.contact.ChangeDataSetControlButton",
+				"GuidedHelpcontact.Grid",
+				"LPLibrarycontact.Grid"
+			],
+			"cbstest.P192.Group": [
+				"cbstest.P192.InGroup"
+			],
+			"Mscrm.HomepageGrid.contact.MainTab.ExportData": [
+				"cbstest.P192.Seq22",
+				"Mscrm.HomepageGrid.contact.RunReport",
+				"Mscrm.HomepageGrid.contact.DocumentTemplate",
+				"Mscrm.HomepageGrid.contact.WordTemplate",
+				"Mscrm.HomepageGrid.contact.ExportToExcel",
+				"cbstest.P192.Seq45",
+				"Mscrm.HomepageGrid.contact.ExportSelectedToExcel",
+				"Mscrm.HomepageGrid.contact.ImportDataFromExcel",
+				"Mscrm.HomepageGrid.contact.Import",
+				"Mscrm.HomepageGrid.contact.MainFilters",
+				"Mscrm.HomepageGrid.contact.AdvancedFind",
+				"Mscrm.HomepageGrid.contact.Meqf",
+				"cbstest.P192.Seq1000",
+				"cbstest.P192.AnySel1010"
+			],
+			"scaling": [
+				"Mscrm.HomepageGrid.contact.MainTab.Management.MaxSize",
+				"Mscrm.HomepageGrid.contact.MainTab.Collaborate.MaxSize",
+				"Mscrm.HomepageGrid.contact.MainTab.Actions.MaxSize",
+				"Mscrm.HomepageGrid.contact.MainTab.ExportData.MaxSize",
+				"Mscrm.HomepageGrid.contact.MainTab.Workflow.MaxSize",
+				"Mscrm.HomepageGrid.contact.MainTab.Find.MaxSize",
+				"Mscrm.HomepageGrid.contact.MainTab.OutlookHelp.MaxSize",
+				"cbstest.P192.Group.MaxSize",
+				"Mscrm.HomepageGrid.contact.MainTab.ExportData.Scale.1",
+				"Mscrm.HomepageGrid.contact.MainTab.Workflow.Scale.2",
+				"Mscrm.HomepageGrid.contact.MainTab.Actions.Scale.1",
+				"Mscrm.HomepageGrid.contact.MainTab.Collaborate.Scale.1",
+				"Mscrm.HomepageGrid.contact.MainTab.Management.Scale.1",
+				"Mscrm.HomepageGrid.contact.MainTab.ExportData.Scale.3",
+				"Mscrm.HomepageGrid.contact.MainTab.Collaborate.Scale.2",
+				"Mscrm.HomepageGrid.contact.MainTab.Actions.Scale.2",
+				"Mscrm.HomepageGrid.contact.MainTab.Management.Scale.2"
+			]
+		}
+	}
+}
