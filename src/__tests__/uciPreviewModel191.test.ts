@@ -34,6 +34,7 @@ import { RECORDED_RULES } from "@/services/uciPreview/recordedRules";
 import { groupControls } from "@/utils/ribbonMenu";
 import {
 	commandCheckerCapture,
+	formatJson,
 	ribbonXml,
 	type CommandCheckerCapture,
 } from "@/__fixtures__/uci-preview/load";
@@ -993,12 +994,12 @@ const statesOf = (data: Recording) => {
 };
 
 describe("#191 B1 against Command Checker (CRM279420, 2026-11-15 and 2026-11-16)", () => {
-	it("the recorded table is generated from the capture", () => {
+	it("the recorded table is generated from the capture", async () => {
 		// UPDATE_RECORDED_RULES=1 rewrites it from the capture (then run the test again).
 		if (process.env.UPDATE_RECORDED_RULES)
 			writeFileSync(
 				resolve(__dirname, "../services/uciPreview/recordedRules.json"),
-				JSON.stringify(deriveRecordedRules(capture), null, "\t") + "\n",
+				await formatJson(JSON.stringify(deriveRecordedRules(capture))),
 			);
 		expect(RECORDED_RULES).toEqual(deriveRecordedRules(capture));
 	});

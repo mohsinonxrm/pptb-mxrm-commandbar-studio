@@ -66,3 +66,10 @@ export function commandCheckerCapture(): CommandCheckerCapture {
 		contexts,
 	};
 }
+
+/** A generated table as the repository formats it (Prettier, its own config). */
+export async function formatJson(json: string): Promise<string> {
+	const prettier = await import("prettier");
+	const config = (await prettier.resolveConfig(resolve(dir, "../../../package.json"))) ?? {};
+	return prettier.format(json, { ...config, parser: "json" });
+}

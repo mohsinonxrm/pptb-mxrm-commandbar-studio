@@ -7,7 +7,7 @@ import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseRibbonXml } from "@/services/xmlParser";
 import { groupControls } from "@/utils/ribbonMenu";
-import { commandCheckerCapture, ribbonXml } from "@/__fixtures__/uci-preview/load";
+import { commandCheckerCapture, formatJson, ribbonXml } from "@/__fixtures__/uci-preview/load";
 import { uciLabel } from "@/services/uciPreview/labels";
 import recorded from "@/services/uciPreview/resourceLabels.json";
 import type { RibbonButton } from "@/types/ribbon";
@@ -104,12 +104,12 @@ function derive(): Record<string, string> {
 }
 
 describe("#191 Unified Interface's labels", () => {
-	it("the table is generated from the recordings", () => {
+	it("the table is generated from the recordings", async () => {
 		// UPDATE_RECORDED_RULES=1 rewrites it (then run the test again).
 		if (process.env.UPDATE_RECORDED_RULES)
 			writeFileSync(
 				resolve(__dirname, "../services/uciPreview/resourceLabels.json"),
-				JSON.stringify(derive(), null, "\t") + "\n",
+				await formatJson(JSON.stringify(derive())),
 			);
 		expect(recorded).toEqual(derive());
 		expect(Object.keys(recorded).length).toBeGreaterThan(40);

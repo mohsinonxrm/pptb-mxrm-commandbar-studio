@@ -1241,7 +1241,13 @@ function resolveButtonText(
 	// taking it: its text goes back with `{0}`, and the reference keeps its parameter (#191).
 	const parameter = token && locId === tokenId ? locLabelParameter(token) : undefined;
 	if (parameter) {
-		const ref = resolveLocalizedAttr(unfillParameter(current), locId, storeLocLabels, sink, lang);
+		const ref = resolveLocalizedAttr(
+			unfillParameter(current),
+			locId,
+			storeLocLabels,
+			sink,
+			lang,
+		);
 		return ref.replace(/^\$LocLabels:/, `$LocLabels(${parameter}):`);
 	}
 	return resolveLocalizedAttr(current, locId, storeLocLabels, sink, lang);
