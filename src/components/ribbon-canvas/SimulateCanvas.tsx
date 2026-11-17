@@ -93,6 +93,7 @@ function Segmented<T extends string | number>({
 	return (
 		<span className={styles.field}>
 			{label}
+			{/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- the ARIA radio group pattern: the checked radio is the tab stop, the group handles the arrow keys */}
 			<span
 				className={styles.segment}
 				role="radiogroup"

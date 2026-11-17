@@ -2,24 +2,39 @@
 	"source": "Command Checker, CRM279420 (org382cc706), Sales Hub (msdynce_saleshub), a System Administrator, 2026-11-15 and 2026-11-16",
 	"contexts": {
 		"Form.Create": [
-			"contact"
+			"appointment",
+			"contact",
+			"email",
+			"incident",
+			"invoice",
+			"lead",
+			"opportunity",
+			"phonecall",
+			"product",
+			"quote",
+			"salesorder",
+			"task"
 		],
 		"Form.Existing": [
-			"contact"
+			"contact",
+			"opportunity"
 		],
 		"HomePageGrid.sel0": [
 			"account",
+			"activitypointer",
 			"contact",
 			"incident",
 			"invoice",
 			"lead",
 			"opportunity",
+			"product",
 			"quote",
 			"salesorder"
 		],
 		"HomePageGrid.sel1": [
 			"account",
-			"contact"
+			"contact",
+			"opportunity"
 		],
 		"SubGridAssociated.sel0": [
 			"contact"
@@ -66,6 +81,12 @@
 			"Form.Existing": true,
 			"HomePageGrid.sel1": true
 		},
+		"Mscrm.Activities.IsOctober2020UpdateEnabled": {
+			"Form.Create": true
+		},
+		"Mscrm.Activities.IsOctober2020UpdateNotEnabled": {
+			"Form.Create": false
+		},
 		"Mscrm.AddExisting": {
 			"SubGridAssociated.sel0": true,
 			"SubGridAssociated.sel1": true,
@@ -94,29 +115,45 @@
 		"Mscrm.AppCommon.IsPdfEnabledForEntity": {
 			"Form.Existing": false
 		},
+		"Mscrm.AppendPrimary": {
+			"Form.Create": true,
+			"Form.Existing": true
+		},
 		"Mscrm.AppendSelected": {
 			"SubGridAssociated.sel0": true,
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel0": true,
 			"SubGridStandard.sel1": true,
-			"HomePageGrid.sel0": true
+			"HomePageGrid.sel0": true,
+			"HomePageGrid.sel1": true
 		},
 		"Mscrm.AppendToCustomer": {
-			"HomePageGrid.sel0": true
+			"Form.Create": true,
+			"Form.Existing": true,
+			"HomePageGrid.sel0": true,
+			"HomePageGrid.sel1": true
 		},
 		"Mscrm.AppendToPrimary": {
 			"SubGridAssociated.sel0": true,
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel0": true,
-			"SubGridStandard.sel1": true
+			"SubGridStandard.sel1": true,
+			"Form.Create": true
 		},
 		"Mscrm.AssignPrimaryPermission": {
-			"Form.Existing": true
+			"Form.Existing": true,
+			"Form.Create": true
 		},
 		"Mscrm.AssignSelectedEntityPermission": {
 			"HomePageGrid.sel1": true,
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel1": true
+		},
+		"Mscrm.AttachFile.AutoSave": {
+			"Form.Create": true
+		},
+		"Mscrm.AttachFile.FormStateNotNewCustom": {
+			"Form.Create": true
 		},
 		"Mscrm.AvailableOnForm": {
 			"Form.Create": true,
@@ -133,12 +170,35 @@
 		"Mscrm.CPQPDFGenerationFCBEnabled": {
 			"Form.Existing": true
 		},
+		"Mscrm.CanChangeIncidentForm": {
+			"Form.Create": true
+		},
+		"Mscrm.CanCreateIncidentForm": {
+			"Form.Create": true
+		},
+		"Mscrm.CanCreateOpportunity": {
+			"Form.Existing": true,
+			"HomePageGrid.sel1": true
+		},
+		"Mscrm.CanCreateSalesSmsFromActivity": {
+			"HomePageGrid.sel0": false
+		},
+		"Mscrm.CanCreateServiceAppointment": {
+			"HomePageGrid.sel0": true
+		},
 		"Mscrm.CanDeletePrimary": {
 			"Form.Existing": true
 		},
+		"Mscrm.CanEnableEditSeries": {
+			"Form.Create": false
+		},
+		"Mscrm.CanEnableRecurrence": {
+			"Form.Create": true
+		},
 		"Mscrm.CanLaunchPlaybook": {
 			"Form.Existing": true,
-			"HomePageGrid.sel1": true
+			"HomePageGrid.sel1": true,
+			"Form.Create": true
 		},
 		"Mscrm.CanReadAccount": {
 			"Form.Existing": true,
@@ -164,21 +224,52 @@
 			"Form.Create": true,
 			"Form.Existing": true
 		},
+		"Mscrm.CanSavePrimaryForAppointment": {
+			"Form.Create": true
+		},
+		"Mscrm.CanSavePrimaryForEmail": {
+			"Form.Create": true
+		},
 		"Mscrm.CanWriteAccount": {
 			"HomePageGrid.sel1": true
+		},
+		"Mscrm.CanWriteAppointment": {
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.CanWriteContact": {
 			"HomePageGrid.sel1": true,
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel1": true
 		},
+		"Mscrm.CanWriteEmail": {
+			"HomePageGrid.sel0": true
+		},
+		"Mscrm.CanWriteFax": {
+			"HomePageGrid.sel0": true
+		},
+		"Mscrm.CanWriteLetter": {
+			"HomePageGrid.sel0": true
+		},
+		"Mscrm.CanWriteOpportunity": {
+			"Form.Existing": true,
+			"HomePageGrid.sel1": true
+		},
+		"Mscrm.CanWritePhonecall": {
+			"HomePageGrid.sel0": true
+		},
 		"Mscrm.CanWritePrimary": {
-			"Form.Existing": true
+			"Form.Existing": true,
+			"Form.Create": true,
+			"HomePageGrid.sel1": true,
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.CanWriteSelected": {
 			"HomePageGrid.sel1": true,
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel1": true
+		},
+		"Mscrm.CanWriteTask": {
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.CheckBulkEditSupportForEntity": {
 			"HomePageGrid.sel0": false,
@@ -191,12 +282,21 @@
 		"Mscrm.CollabNotEnabled": {
 			"Form.Existing": false
 		},
+		"Mscrm.ContextualEmailHideCommand": {
+			"Form.Create": true
+		},
 		"Mscrm.ConvertActivity": {
 			"Form.Existing": false
+		},
+		"Mscrm.CreateAndReadPrimaryEntityPermission": {
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.CreateConnection": {
 			"Form.Create": true,
 			"Form.Existing": true
+		},
+		"Mscrm.CreateOrderPrivilege": {
+			"Form.Create": true
 		},
 		"Mscrm.CreatePrimaryEntityPermission": {
 			"Form.Create": true,
@@ -210,6 +310,9 @@
 			"SubGridStandard.sel0": true,
 			"SubGridStandard.sel1": true
 		},
+		"Mscrm.Custom.DisplayRule.IsAutonomousCaseCreationEnabled": {
+			"Form.Create": false
+		},
 		"Mscrm.DataEnrichment.Contact.EnrichmentHistoryButton.EnableRule.ShouldEnable": {
 			"Form.Create": false,
 			"Form.Existing": false
@@ -221,6 +324,27 @@
 		"Mscrm.DataEnrichment.Contact.FormCommandUtilityButton.DisplayRule.ShouldShowConsentBanner": {
 			"Form.Create": false,
 			"Form.Existing": false
+		},
+		"Mscrm.DataEnrichment.EnrichmentHistoryButton.EnableRule.ShouldEnable": {
+			"Form.Create": false,
+			"Form.Existing": false
+		},
+		"Mscrm.DataEnrichment.FormCommandUtilityButton.DisplayRule.RegisterPreNavigationHandler": {
+			"Form.Create": false,
+			"Form.Existing": false
+		},
+		"Mscrm.DataEnrichment.FormCommandUtilityButton.DisplayRule.ShouldShowConsentBanner": {
+			"Form.Create": false,
+			"Form.Existing": false
+		},
+		"Mscrm.DataEnrichment.Lead.EnrichmentHistoryButton.EnableRule.ShouldEnable": {
+			"Form.Create": false
+		},
+		"Mscrm.DataEnrichment.Lead.FormCommandUtilityButton.DisplayRule.RegisterPreNavigationHandler": {
+			"Form.Create": false
+		},
+		"Mscrm.DataEnrichment.Lead.FormCommandUtilityButton.DisplayRule.ShouldShowConsentBanner": {
+			"Form.Create": false
 		},
 		"Mscrm.DeletePrimaryEntityPermission": {
 			"Form.Existing": true
@@ -263,7 +387,8 @@
 			"SubGridAssociated.sel0": true,
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel0": true,
-			"SubGridStandard.sel1": true
+			"SubGridStandard.sel1": true,
+			"Form.Existing": true
 		},
 		"Mscrm.DoesUserHaveSequencePrivileges": {
 			"Form.Existing": true,
@@ -280,6 +405,9 @@
 		"Mscrm.EnableImportForWeb": {
 			"HomePageGrid.sel0": true,
 			"HomePageGrid.sel1": true
+		},
+		"Mscrm.EnableInsertSignatureInUCI": {
+			"Form.Create": true
 		},
 		"Mscrm.EnableOnHomePageAspxOrOutlook": {
 			"HomePageGrid.sel0": false,
@@ -299,16 +427,31 @@
 		},
 		"Mscrm.Enabled": {
 			"HomePageGrid.sel0": true,
-			"HomePageGrid.sel1": true
+			"HomePageGrid.sel1": true,
+			"Form.Create": true
 		},
 		"Mscrm.EntityFormIsEnabled": {
 			"SubGridAssociated.sel0": true,
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel0": true,
-			"SubGridStandard.sel1": true
+			"SubGridStandard.sel1": true,
+			"Form.Create": true
 		},
 		"Mscrm.EntityIsNotIncident": {
-			"Form.Create": true,
+			"Form.Create": {
+				"contact": true,
+				"appointment": true,
+				"email": true,
+				"incident": false,
+				"invoice": true,
+				"lead": true,
+				"opportunity": true,
+				"phonecall": true,
+				"product": true,
+				"quote": true,
+				"salesorder": true,
+				"task": true
+			},
 			"Form.Existing": true,
 			"HomePageGrid.sel1": true
 		},
@@ -336,8 +479,27 @@
 			"SubGridStandard.sel0": true,
 			"SubGridStandard.sel1": true
 		},
+		"Mscrm.Form.email.InDraftOrFailedState": {
+			"Form.Create": true
+		},
+		"Mscrm.Form.email.InDraftState": {
+			"Form.Create": true
+		},
+		"Mscrm.Form.email.NotInDraftState": {
+			"Form.Create": false
+		},
+		"Mscrm.Form.opportunity.CopyBannerHidden.DisplayRule": {
+			"Form.Create": false,
+			"Form.Existing": false
+		},
+		"Mscrm.FormEntityIsNotServiceAppointment": {
+			"HomePageGrid.sel0": true
+		},
 		"Mscrm.FormShowHierarchyViewerButton": {
 			"Form.Existing": false
+		},
+		"Mscrm.FormStateExisting": {
+			"Form.Create": false
 		},
 		"Mscrm.FormStateExistingOrReadOnly": {
 			"Form.Create": false,
@@ -391,7 +553,8 @@
 		},
 		"Mscrm.HideInLegacyRibbon": {
 			"Form.Create": true,
-			"Form.Existing": true
+			"Form.Existing": true,
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.HideInOfflineClassic": {
 			"Form.Existing": true,
@@ -409,6 +572,9 @@
 		"Mscrm.HideOnCAEntityForm": {
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel1": true
+		},
+		"Mscrm.HideOnFormComponent": {
+			"Form.Create": true
 		},
 		"Mscrm.HideOnMobile": {
 			"Form.Existing": true,
@@ -451,6 +617,9 @@
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel1": true
 		},
+		"Mscrm.HybridDialogBulkEditEnabled": {
+			"HomePageGrid.sel0": true
+		},
 		"Mscrm.HybridDialogReportsEnabled": {
 			"HomePageGrid.sel0": true,
 			"HomePageGrid.sel1": true,
@@ -472,10 +641,25 @@
 		"Mscrm.InboxRibbonActions.ShouldEnablePersonalizedConfigurations": {
 			"HomePageGrid.sel0": false
 		},
+		"Mscrm.IncidentIsCreate": {
+			"Form.Create": true
+		},
+		"Mscrm.IncidentIsInactive": {
+			"Form.Create": false
+		},
+		"Mscrm.Invoice.IsPriceLocked": {
+			"Form.Create": false
+		},
+		"Mscrm.InvoiceIsPaidOrActive": {
+			"Form.Create": false
+		},
 		"Mscrm.IsAnyEntityRoutingRuleEnabled": {
 			"Form.Create": true,
 			"Form.Existing": true,
 			"HomePageGrid.sel1": true
+		},
+		"Mscrm.IsAppointmentEntityAvailableForUserInMocaOffline": {
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.IsAutoSaveDisable": {
 			"Form.Create": true,
@@ -521,6 +705,9 @@
 			"HomePageGrid.sel0": false,
 			"HomePageGrid.sel1": false
 		},
+		"Mscrm.IsEmailEntityAvailableForUserInMocaOffline": {
+			"HomePageGrid.sel0": true
+		},
 		"Mscrm.IsEnableGrantPermissionsOnUCIEnabled": {
 			"Form.Existing": false
 		},
@@ -557,6 +744,9 @@
 		"Mscrm.IsExportPdfDocumentSdkAvilable": {
 			"Form.Existing": false
 		},
+		"Mscrm.IsFaxEntityAvailableForUserInMocaOffline": {
+			"HomePageGrid.sel0": true
+		},
 		"Mscrm.IsFetchxmlQuery": {
 			"HomePageGrid.sel0": false,
 			"HomePageGrid.sel1": false
@@ -569,6 +759,9 @@
 		},
 		"Mscrm.IsFormHierarchyEnabled": {
 			"Form.Existing": false
+		},
+		"Mscrm.IsLetterEntityAvailableForUserInMocaOffline": {
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.IsListForm": {
 			"SubGridAssociated.sel1": false,
@@ -613,6 +806,9 @@
 			"HomePageGrid.sel0": true,
 			"HomePageGrid.sel1": true
 		},
+		"Mscrm.IsNewOrDraftAppointment": {
+			"Form.Create": false
+		},
 		"Mscrm.IsNotActivityPointer": {
 			"HomePageGrid.sel0": true
 		},
@@ -627,6 +823,9 @@
 			"Form.Existing": true,
 			"HomePageGrid.sel1": true
 		},
+		"Mscrm.IsOutlookClientOrIsProductFamilyOnWebForm": {
+			"HomePageGrid.sel0": true
+		},
 		"Mscrm.IsPUV2EntityCustomizationEnabled": {
 			"Form.Create": true,
 			"Form.Existing": true,
@@ -637,18 +836,30 @@
 			"HomePageGrid.sel0": false,
 			"HomePageGrid.sel1": false
 		},
+		"Mscrm.IsPhoneCallEntityAvailableForUserInMocaOffline": {
+			"HomePageGrid.sel0": true
+		},
 		"Mscrm.IsPlaybookFeatureEnabled": {
 			"Form.Existing": true,
-			"HomePageGrid.sel1": true
+			"HomePageGrid.sel1": true,
+			"Form.Create": true
 		},
 		"Mscrm.IsPlaybookTemplateAvailable": {
-			"Form.Existing": false
+			"Form.Existing": false,
+			"Form.Create": false
 		},
 		"Mscrm.IsPlaybookTemplateAvailableFromGrid": {
 			"HomePageGrid.sel1": false
 		},
+		"Mscrm.IsQualifyLeadForm": {
+			"Form.Create": false,
+			"Form.Existing": false
+		},
 		"Mscrm.IsQualifyLeadForm.Invert": {
-			"HomePageGrid.sel0": true
+			"Form.Create": true,
+			"Form.Existing": true,
+			"HomePageGrid.sel0": true,
+			"HomePageGrid.sel1": true
 		},
 		"Mscrm.IsRecordHierarchyEnabled": {
 			"HomePageGrid.sel1": false
@@ -661,6 +872,15 @@
 		"Mscrm.IsSalesAccFeatureEnabled": {
 			"Form.Existing": true,
 			"HomePageGrid.sel1": true
+		},
+		"Mscrm.IsSaveAsDraftEnabledInvertRule": {
+			"Form.Create": true
+		},
+		"Mscrm.IsSaveAsDraftEnabledRule": {
+			"Form.Create": false
+		},
+		"Mscrm.IsTaskEntityAvailableForUserInMocaOffline": {
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.IsUci": {
 			"SubGridAssociated.sel0": true,
@@ -689,6 +909,15 @@
 		"Mscrm.IsYammerEnabled": {
 			"Form.Existing": true
 		},
+		"Mscrm.LeadIsClosed": {
+			"Form.Create": false
+		},
+		"Mscrm.LeadIsOpen": {
+			"Form.Create": false
+		},
+		"Mscrm.LeadResearchBannerVisibility": {
+			"Form.Create": false
+		},
 		"Mscrm.ListFormOnly": {
 			"SubGridAssociated.sel1": false,
 			"SubGridStandard.sel1": false
@@ -706,6 +935,9 @@
 		"Mscrm.MinIncidentMerge": {
 			"HomePageGrid.sel0": false
 		},
+		"Mscrm.ModernCase.CanChangeIncidentForm": {
+			"Form.Create": true
+		},
 		"Mscrm.NotAListForm": {
 			"HomePageGrid.sel1": true,
 			"SubGridAssociated.sel1": true,
@@ -721,6 +953,9 @@
 		},
 		"Mscrm.NotClosedActivity": {
 			"Form.Existing": true
+		},
+		"Mscrm.NotDisabled": {
+			"Form.Create": true
 		},
 		"Mscrm.NotOffline": {
 			"Form.Create": true,
@@ -757,6 +992,14 @@
 			"HomePageGrid.sel0": false,
 			"HomePageGrid.sel1": false
 		},
+		"Mscrm.OpportunityIsClosed": {
+			"Form.Create": false,
+			"Form.Existing": false
+		},
+		"Mscrm.OpportunityIsOpen": {
+			"Form.Create": false,
+			"Form.Existing": true
+		},
 		"Mscrm.OutlookRenderTypeWeb": {
 			"Form.Create": true,
 			"Form.Existing": true
@@ -765,7 +1008,8 @@
 			"Form.Existing": true
 		},
 		"Mscrm.PrimaryEntityHasStatecode": {
-			"Form.Existing": true
+			"Form.Existing": true,
+			"Form.Create": true
 		},
 		"Mscrm.PrimaryEntityIsBPFEntity": {
 			"Form.Create": false,
@@ -776,21 +1020,72 @@
 			"Form.Existing": true
 		},
 		"Mscrm.PrimaryIsActive": {
-			"Form.Create": false,
+			"Form.Create": {
+				"contact": false,
+				"appointment": false,
+				"email": true,
+				"incident": false,
+				"invoice": false,
+				"lead": false,
+				"opportunity": false,
+				"phonecall": false,
+				"product": false,
+				"quote": false,
+				"salesorder": false,
+				"task": false
+			},
 			"Form.Existing": true
 		},
 		"Mscrm.PrimaryIsActivity": {
-			"Form.Create": false,
-			"Form.Existing": false
+			"Form.Create": {
+				"contact": false,
+				"appointment": true,
+				"incident": false,
+				"invoice": false,
+				"lead": false,
+				"opportunity": false,
+				"phonecall": true,
+				"product": false,
+				"quote": false,
+				"salesorder": false,
+				"task": true
+			},
+			"Form.Existing": false,
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.PrimaryIsInactive": {
 			"Form.Create": false,
 			"Form.Existing": false
 		},
+		"Mscrm.PrimaryIsInactiveForAppointment": {
+			"Form.Create": false
+		},
 		"Mscrm.PrimaryIsNotActivity": {
-			"Form.Create": true,
+			"Form.Create": {
+				"contact": true,
+				"appointment": false,
+				"email": false,
+				"incident": true,
+				"invoice": true,
+				"lead": true,
+				"phonecall": false,
+				"quote": true,
+				"salesorder": true,
+				"task": false
+			},
 			"Form.Existing": true,
-			"HomePageGrid.sel0": true,
+			"HomePageGrid.sel0": {
+				"account": true,
+				"contact": true,
+				"activitypointer": false,
+				"incident": true,
+				"invoice": true,
+				"lead": true,
+				"opportunity": true,
+				"product": true,
+				"quote": true,
+				"salesorder": true
+			},
 			"HomePageGrid.sel1": true
 		},
 		"Mscrm.PrimaryIsNotActivityHomePageGrid": {
@@ -834,6 +1129,18 @@
 			"SubGridStandard.sel0": false,
 			"SubGridStandard.sel1": false
 		},
+		"Mscrm.QuoteIsActive": {
+			"Form.Create": false
+		},
+		"Mscrm.QuoteIsActiveOrClosed": {
+			"Form.Create": false
+		},
+		"Mscrm.QuoteIsActiveOrWon": {
+			"Form.Create": false
+		},
+		"Mscrm.QuoteIsInDraftState": {
+			"Form.Create": false
+		},
 		"Mscrm.ReadPrimaryPermission": {
 			"Form.Create": true,
 			"Form.Existing": true
@@ -845,6 +1152,33 @@
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel0": true,
 			"SubGridStandard.sel1": true
+		},
+		"Mscrm.RecordSelectedTypeNotChat": {
+			"HomePageGrid.sel0": true
+		},
+		"Mscrm.Sales.BulkEmail.IsBulkEmailForm": {
+			"Form.Create": false
+		},
+		"Mscrm.Sales.BulkEmail.IsNotBulkEmailForm": {
+			"Form.Create": true
+		},
+		"Mscrm.Sales.BulkEmail.IsNotPreviewMode": {
+			"Form.Create": true
+		},
+		"Mscrm.Sales.BulkEmail.IsPreviewMode": {
+			"Form.Create": false
+		},
+		"Mscrm.Sales.SuggestedActions.ShouldShowSendWithOutlook": {
+			"Form.Create": false
+		},
+		"Mscrm.SalesorderIsActive": {
+			"Form.Create": true
+		},
+		"Mscrm.SearchAvailabilityRule": {
+			"Form.Create": true
+		},
+		"Mscrm.SearchAvailabilityRuleInverted": {
+			"Form.Create": false
 		},
 		"Mscrm.SelectedEntityHasStatecode": {
 			"HomePageGrid.sel1": true,
@@ -894,6 +1228,9 @@
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel0": false,
 			"SubGridStandard.sel1": true
+		},
+		"Mscrm.SelectionCountNoneOrOne": {
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.SelectionCountNoneOrOutlook": {
 			"HomePageGrid.sel0": true,
@@ -1009,6 +1346,9 @@
 			"SubGridStandard.sel0": true,
 			"SubGridStandard.sel1": true
 		},
+		"Mscrm.ShowRecurrenceButton": {
+			"Form.Create": true
+		},
 		"Mscrm.SubGrid.EnableRule.SubgridEntityMatchesTarget": {
 			"SubGridAssociated.sel0": false,
 			"SubGridAssociated.sel1": false,
@@ -1056,7 +1396,8 @@
 		"Mscrm.WordTemplatesFCBEnabled": {
 			"HomePageGrid.sel1": true,
 			"SubGridAssociated.sel1": true,
-			"SubGridStandard.sel1": true
+			"SubGridStandard.sel1": true,
+			"Form.Existing": true
 		},
 		"Mscrm.WorksWithQueuePrimary": {
 			"Form.Existing": false
@@ -1086,6 +1427,30 @@
 		"Mscrm.YammerDisabled": {
 			"Form.Existing": false
 		},
+		"Mscrm.activitypointer.conversation.EntityRule": {
+			"HomePageGrid.sel0": false
+		},
+		"Mscrm.appointment.IsOnlineTeamsMeetingFCBEnabled": {
+			"Form.Create": false
+		},
+		"Mscrm.incident.CMA.AIAgentStatus.EntityPrivilegeRule": {
+			"Form.Create": true
+		},
+		"Mscrm.incident.CMA.ShowEditAIAutomation": {
+			"Form.Create": false
+		},
+		"Mscrm.incident.CMA.ShowEscalate": {
+			"Form.Create": false
+		},
+		"Mscrm.incident.CMA.ShowResume": {
+			"Form.Create": false
+		},
+		"Mscrm.incident.CMA.ShowStop": {
+			"Form.Create": false
+		},
+		"Mscrm.incident.CanShowNewRecord": {
+			"Form.Create": true
+		},
 		"Mscrm.incident.EntityRule": {
 			"HomePageGrid.sel0": true
 		},
@@ -1099,16 +1464,42 @@
 			"HomePageGrid.sel0": false
 		},
 		"Mscrm.incident.IsModernCaseQuickCreateForm.Invert": {
+			"Form.Create": true,
 			"HomePageGrid.sel0": true
 		},
 		"Mscrm.incident.MaxOneSelection": {
 			"HomePageGrid.sel0": false
+		},
+		"Mscrm.incident.ModernCase.CanUseModernCaseFullPageForm": {
+			"Form.Create": false
+		},
+		"Mscrm.incident.ModernCase.CanUseModernCaseQuickCreateForm": {
+			"Form.Create": false
+		},
+		"Mscrm.incident.ModernCase.IsModernCaseFullPageForm": {
+			"Form.Create": false
+		},
+		"Mscrm.incident.ModernCase.IsModernCaseQuickCreateForm": {
+			"Form.Create": false
+		},
+		"Mscrm.isAttachFileAlertNeeded": {
+			"Form.Create": false
 		},
 		"Mscrm.isNotDynamicList": {
 			"SubGridAssociated.sel0": true,
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel0": true,
 			"SubGridStandard.sel1": true
+		},
+		"Mscrm.opportunity.IsCopyOpportunityEnabled": {
+			"Form.Existing": true,
+			"HomePageGrid.sel1": true
+		},
+		"Mscrm.quote.CanAppendToCustomer": {
+			"Form.Create": false
+		},
+		"Mscrm.salesorder.IsPriceLocked": {
+			"Form.Create": false
 		},
 		"Mscrm.savedquery.Update": {
 			"HomePageGrid.sel0": true,
@@ -1127,6 +1518,12 @@
 		"OfficeProductivity.RibbonRules.showMSTeamsViewCollaborateCommand": {
 			"HomePageGrid.sel0": false,
 			"HomePageGrid.sel1": false
+		},
+		"SalesOmniChannel.IsSalesSMSEnabledInActivity": {
+			"HomePageGrid.sel0": true
+		},
+		"activitypointer.RequestEvaluation.SelectionCountRule": {
+			"HomePageGrid.sel0": false
 		},
 		"msdyn.ActivityFeeds.IsEntityWallEnabledActive": {
 			"HomePageGrid.sel1": true,
@@ -1189,11 +1586,20 @@
 			"SubGridStandard.sel0": false,
 			"SubGridStandard.sel1": false
 		},
+		"msdyn.email.EmailAssistCopilotDummy.EnableRule": {
+			"Form.Create": false
+		},
+		"msdyn.msdyn_incident.EnableRule.FormStateNotNew": {
+			"Form.Create": false
+		},
 		"msdyn.msdyn_incident.EnableRule.SelectionCountExactlyOne": {
 			"HomePageGrid.sel0": false
 		},
 		"new.incident.RequestEvaluation.EnableRule": {
 			"HomePageGrid.sel0": false
+		},
+		"new.incident.RequestEvaluation.ExistingRecord.DisplayRule": {
+			"Form.Create": false
 		}
 	}
 }

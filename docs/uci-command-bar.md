@@ -175,7 +175,16 @@ will draw it; "How users see it" already uses its order.
   is left out: Save, now a modern command, lists `Mscrm.CanSavePrimaryEntityType` as True and Save
   as Complete lists it as False. Command Checker evaluates a command's rules until one is False
   and lists the rest as "Skipped", so a hidden command's later rules are never recorded.
-- **Agreement:** on all ten captured pages, every rule CBS works out without a recording agrees
+- **Two of Unified Interface's own readings:** it treats the Activity entity (`activitypointer`)
+  as an activity, though its metadata says it isn't (`Mscrm.PrimaryIsNotActivity` is False on the
+  Activities grid), and the model does too. On a new email form it lists `Mscrm.PrimaryIsActive`
+  (`FormStateRule Existing`) as True beside `Mscrm.FormStateNotNew` as False; the model keeps the
+  rule's definition, and the recorded table has email's value (`RULE_EXCEPTIONS` in the tests).
+- **What the second capture changed** (2026-11-16, commands CBS can't tell about, before → after):
+  Case's new form 19 → 2, Email's 18 → 3, Order's 4 → 2, opportunity's existing form 10 → 2,
+  the Activities grid 8 → 0, opportunity's grid with a row selected 3 → 0. The rest are mostly the
+  Outlook mail app's buttons, whose later rules Command Checker skipped.
+- **Agreement:** on all 31 captured pages, every rule CBS works out without a recording agrees
   with Command Checker, command by command. The one that didn't,
   `Mscrm.ShowOnInteractionCentricHideOnModern` (True only through `DeviceTypeRule
   InteractionCentric`), made that device type "can't simulate".
@@ -194,7 +203,8 @@ will draw it; "How users see it" already uses its order.
   recording corrects it: the model shows Relationship there (`KNOWN_WRONG` in the tests).
 - **Selection (`hiddenBySelection`):** point 7.
 - **Not recorded:** two rows selected and the inactive form (only one contact and one account
-  existed on 2026-11-15), so a custom rule there can't be simulated.
+  existed on 2026-11-15, one opportunity on 2026-11-16), nor other entities' existing forms and
+  selected rows, so a custom rule there can't be simulated.
 - **Metadata cache:** on 2026-11-15, hours after the probe was removed (the server's ribbon had
   none of it), Command Checker on the contact grid still listed the probe's buttons, and still
   did after Regenerate ribbon metadata and publishing contact. Unified Interface's cached

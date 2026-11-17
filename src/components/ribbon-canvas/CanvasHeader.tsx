@@ -171,6 +171,7 @@ export function LocationRow() {
 	return (
 		<div className={`${styles.row} ${styles.locationRow}`}>
 			{/* Edit ⇄ Simulate (#191): the location and the selection stay as they are. */}
+			{/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- the ARIA radio group pattern: the checked radio is the tab stop, the group handles the arrow keys */}
 			<div
 				className={styles.mode}
 				role="radiogroup"
