@@ -65,13 +65,16 @@ export function RibbonButtonIcon({
 	button,
 	size,
 	style,
+	light,
 }: {
 	button: RibbonButton;
 	size: number;
 	style?: React.CSSProperties;
+	/** Drawn on a light surface whatever CBS's theme (Simulate's Dynamics 365 page): no inverting. */
+	light?: boolean;
 }) {
 	const environment = useSessionStore((s) => s.connectionUrl);
-	const dark = useUIStore((s) => s.themeMode === "dark");
+	const dark = useUIStore((s) => s.themeMode === "dark") && !light;
 	const resource = webResourceImageOf(button);
 	const key = resource ? `${environment}|${resource}` : "";
 	const [loaded, setLoaded] = useState<{ key: string; src: string | null }>({

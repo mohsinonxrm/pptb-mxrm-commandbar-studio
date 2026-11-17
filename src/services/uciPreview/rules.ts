@@ -298,6 +298,11 @@ function evaluateBare(step: RuleStep, ctx: SimulationContext): Verdict {
 		}
 		case "EntityPropertyRule": {
 			const entity = step.entityName ?? entityFor(ctx, step.appliesTo);
+			// The Activity entity's metadata says it isn't an activity, but Unified Interface treats
+			// it as one: Mscrm.PrimaryIsNotActivity is False on the Activities grid (Command
+			// Checker, 2026-11-16), so Visualize this view isn't there.
+			if (entity === "activitypointer" && step.propertyName === "IsActivity")
+				return yes(step.propertyValue === true);
 			const value = ctx.entityProperties?.[entity]?.[step.propertyName];
 			return value === undefined
 				? cannot(

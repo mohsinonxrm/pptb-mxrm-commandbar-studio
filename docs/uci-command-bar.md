@@ -161,25 +161,39 @@ will draw it; "How users see it" already uses its order.
   `Mscrm.IsFolderNotSelected` isn't defined. False wins an AND, true wins an OR, and an unknown
   stays unknown when inverted.
 - **Recorded outcomes (`recordedRules.json`):** where CBS can't evaluate a rule, or assumed a
-  privilege, Command Checker's outcome for it on CRM279420 (2026-11-15, a System Administrator,
-  Sales Hub) stands in for that page and selection or form state, for any entity (a value that
-  differed between contact and account is kept per entity). A rule none of whose steps depends on
+  privilege, Command Checker's outcome for it on CRM279420 (a System Administrator, Sales Hub)
+  stands in for that page and selection or form state, for any entity (a value that differed
+  between entities is kept per entity). Recorded on 2026-11-15 for contact and account, and on
+  2026-11-16 for case, opportunity, lead, quote, order, invoice, product, the Activities grid and
+  the new forms of those and of email, task, phone call and appointment. A rule none of whose steps depends on
   the page, selection or form state (features, settings, client type) uses a recording from any
   page; one with entity or miscellaneous privileges too, from any state of the same page. It's generated from
-  `src/__fixtures__/uci-preview/commandChecker/2026-11-15.json`, which holds each command's rules as Command
+  `src/__fixtures__/uci-preview/commandChecker/*.json` (one file per day), which hold each command's rules as Command
   Checker listed them. Only a group's own controls count: the items of a menu nobody opened list
   values for another state (with a row selected, the Delete item under Delete lists
   `Mscrm.SelectionCountAtLeastOne` as False). A rule two commands list differently in one context
   is left out: Save, now a modern command, lists `Mscrm.CanSavePrimaryEntityType` as True and Save
   as Complete lists it as False. Command Checker evaluates a command's rules until one is False
   and lists the rest as "Skipped", so a hidden command's later rules are never recorded.
-- **Agreement:** on all ten captured pages, every rule CBS works out without a recording agrees
+- **Two of Unified Interface's own readings:** it treats the Activity entity (`activitypointer`)
+  as an activity, though its metadata says it isn't (`Mscrm.PrimaryIsNotActivity` is False on the
+  Activities grid), and the model does too. On a new email form it lists `Mscrm.PrimaryIsActive`
+  (`FormStateRule Existing`) as True beside `Mscrm.FormStateNotNew` as False; the model keeps the
+  rule's definition, and the recorded table has email's value (`RULE_EXCEPTIONS` in the tests).
+- **What the second capture changed** (2026-11-16, commands CBS can't tell about, before → after):
+  Case's new form 19 → 2, Email's 18 → 3, Order's 4 → 2, opportunity's existing form 10 → 2,
+  the Activities grid 8 → 0, opportunity's grid with a row selected 3 → 0. The rest are mostly the
+  Outlook mail app's buttons, whose later rules Command Checker skipped.
+- **Agreement:** on all 31 captured pages, every rule CBS works out without a recording agrees
   with Command Checker, command by command. The one that didn't,
   `Mscrm.ShowOnInteractionCentricHideOnModern` (True only through `DeviceTypeRule
   InteractionCentric`), made that device type "can't simulate".
 - **Another command:** Unified Interface runs a few controls through a command other than the
-  ribbon's: Show As (`ChangeDataSetControlButton`) through `Mscrm.Disabled`. CBS can't know that.
-- **Known gaps** (`KNOWN_GAPS` in the tests): on the recorded bars, the model can't decide Show As,
+  ribbon's: Show As (`ChangeDataSetControlButton`) through `Mscrm.Disabled`, on every grid and
+  sub-grid captured, so it never shows. The model hides it. On a main grid whose view has more
+  than one control, Unified Interface's own Show As leads the bar instead (Simulate's **First
+  item**, below); a sub-grid's Show As wasn't recorded.
+- **Known gaps** (`KNOWN_GAPS` in the tests): on the recorded bars, the model can't decide
   Quick Campaign with a row selected, and the Outlook mail app's form buttons, because no outcome
   was recorded for a rule they need there. Apart from those, each bar comes out as recorded.
 - **Privileges aren't simply held by an administrator:** on the account grid, a System
@@ -189,12 +203,48 @@ will draw it; "How users see it" already uses its order.
   recording corrects it: the model shows Relationship there (`KNOWN_WRONG` in the tests).
 - **Selection (`hiddenBySelection`):** point 7.
 - **Not recorded:** two rows selected and the inactive form (only one contact and one account
-  existed on 2026-11-15), so a custom rule there can't be simulated.
+  existed on 2026-11-15, one opportunity on 2026-11-16), nor other entities' existing forms and
+  selected rows, so a custom rule there can't be simulated.
 - **Metadata cache:** on 2026-11-15, hours after the probe was removed (the server's ribbon had
   none of it), Command Checker on the contact grid still listed the probe's buttons, and still
   did after Regenerate ribbon metadata and publishing contact. Unified Interface's cached
   command-bar metadata in that browser hadn't caught up; the tests skip ids the saved ribbon
   doesn't have.
+
+## Simulate mode (#191, phase C)
+
+**Edit ⇄ Simulate** (the switch in the location row, Ctrl+Shift+M) swaps the canvas for a
+Dynamics 365 page with the location's command bar as a System Administrator gets it in Unified
+Interface on the web, from the model above. The page around the bar is illustrative; the bar is
+drawn to Unified Interface's measurements (CRM279420, 2026-11-15): a white card 44 px high with
+8 px corners, 32 px commands with 16 px icons and 14 px Segoe UI, and the commands that don't
+fit under a ⋮ button 44 px wide, last ones first.
+
+- **The simulation strip** sets what the rules see: the rows selected (main grid, sub-grid), the
+  record's state (form), sub-grid or associated view, the page's width, and whether hidden
+  commands are listed (struck through, with why). Commands CBS can't tell about are dashed and
+  say what they depend on; your own carry a dot.
+- **First item** (main grid): Unified Interface leads the bar with Focused view (Sales Hub, on
+  account, contact, quote, order, invoice and product; lead opens in it), with Show As where the
+  view has more than one control (opportunity, case), or with neither. The app and the view set
+  it, not the ribbon, so it's a choice in the strip.
+- **Split buttons** are drawn split only while the menu offers something: Delete is plain with no
+  rows selected (its Delete item needs a selection, Bulk Delete is hidden), and Email a Link is
+  plain with rows selected (its Of Current View item doesn't count them). All 25 split buttons on
+  the recorded bars agree (`drawnAs`).
+- **Labels:** Unified Interface's text for platform labels where it was recorded
+  (`resourceLabels.json`), managed solutions' LocLabels as CBS reads them (#6), and labels that
+  take the entity's name (`$LocLabels(EntityDisplayName):`, Customer Service's "New {0}") with it
+  filled in.
+- **The entity's properties** (`EntityPropertyRule`: has activities, notes, connections, a
+  statecode…) are read once per entity, so those rules are evaluated, not "can't tell".
+- **Activities:** every activity's list (email, task, phone call, appointment) is the Activities
+  grid, with the Activity entity's (`activitypointer`) bar, not the activity's own. Simulate says
+  so on an activity's main grid; open the Activity entity to simulate it. An activity's form and
+  sub-grids are its own.
+- **The app:** a classic ribbon is the same in every app; a button that differs by app does so
+  through custom JavaScript, whose outcome was recorded in Sales Hub. Modern commands follow the
+  app chosen in the Modern commands view.
 
 ## Against the documented behaviour (#191, #192 review comments)
 

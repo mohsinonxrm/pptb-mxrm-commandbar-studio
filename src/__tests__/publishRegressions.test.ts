@@ -490,3 +490,66 @@ describe("phantom changes found in live testing", () => {
 		expect(plan.hasChanges).toBe(false);
 	});
 });
+
+describe("#191 a label that takes the entity's name", () => {
+	const xml = MERGED.replace(
+		'LabelText="$LocLabels:rw.contact.Existing.Button.LabelText"',
+		'LabelText="$LocLabels(EntityDisplayName):rw.contact.Existing.Button.LabelText"',
+	);
+	const labels = [
+		{
+			id: "rw.contact.Existing.Button.LabelText",
+			titles: [
+				{ languageCode: 1033, description: "Log {0}" },
+				{ languageCode: 1031, description: "{0} protokollieren" },
+			],
+		},
+	];
+	const parse = () => parseRibbonXml(xml, "HomepageGrid", "contact", labels);
+	const generate = (current: RibbonDefinition) => {
+		const parsed = parse();
+		const out = generateRibbonDiffXml({
+			current,
+			baseline: parsed.ribbon,
+			commands: parsed.commands,
+			enableRules: parsed.enableRules,
+			displayRules: parsed.displayRules,
+			locLabels: parsed.locLabels,
+			entityLogicalName: "contact",
+			location: "HomepageGrid",
+		});
+		return new DOMParser().parseFromString(out, "application/xml");
+	};
+
+	it("shows its text with the entity's name as a placeholder", () => {
+		expect(buttonIn(parse().ribbon, "rw.contact.Existing.Button").label).toBe(
+			"Log {!EntityDisplayName}",
+		);
+	});
+
+	it("an edit elsewhere writes the reference back as it was", () => {
+		const cur = clone(parse().ribbon);
+		buttonIn(cur, "rw.contact.Existing.Button").tooltipTitle = "Another tooltip";
+		const btn = generate(cur).querySelector('Button[Id="rw.contact.Existing.Button"]')!;
+		expect(btn.getAttribute("LabelText")).toBe(
+			"$LocLabels(EntityDisplayName):rw.contact.Existing.Button.LabelText",
+		);
+	});
+
+	it("an edited label keeps its parameter, and {0} in its text", () => {
+		const cur = clone(parse().ribbon);
+		buttonIn(cur, "rw.contact.Existing.Button").label = "Record {!EntityDisplayName}";
+		const doc = generate(cur);
+		const btn = doc.querySelector('Button[Id="rw.contact.Existing.Button"]')!;
+		expect(btn.getAttribute("LabelText")).toBe(
+			"$LocLabels(EntityDisplayName):rw.contact.Existing.Button.LabelText",
+		);
+		const loc = doc.querySelector('LocLabel[Id="rw.contact.Existing.Button.LabelText"]')!;
+		expect(loc.querySelector('Title[languagecode="1033"]')?.getAttribute("description")).toBe(
+			"Record {0}",
+		);
+		expect(loc.querySelector('Title[languagecode="1031"]')?.getAttribute("description")).toBe(
+			"{0} protokollieren",
+		);
+	});
+});

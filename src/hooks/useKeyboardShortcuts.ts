@@ -109,6 +109,16 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
+			// Edit ⇄ Simulate: Ctrl+Shift+M (#191)
+			if (ctrl && e.shiftKey && !altGr && key === "m") {
+				e.preventDefault();
+				const { canvasMode, setCanvasMode } = useUIStore.getState();
+				const next = canvasMode === "edit" ? "simulate" : "edit";
+				setCanvasMode(next);
+				announce(next === "simulate" ? "Simulate mode" : "Edit mode");
+				return;
+			}
+
 			// Command palette: Ctrl+K / Cmd+K
 			if (plain && key === "k") {
 				e.preventDefault();
@@ -148,8 +158,9 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			// The rest edits the selected button: not from an editor drawer.
-			if (isInDrawer(target)) return;
+			// The rest edits the selected button: not from an editor drawer, nor in Simulate, which
+			// previews the bar (a command clicked there is selected, not editable).
+			if (isInDrawer(target) || useUIStore.getState().canvasMode === "simulate") return;
 
 			// Duplicate: Ctrl+D / Cmd+D
 			if (plain && key === "d") {

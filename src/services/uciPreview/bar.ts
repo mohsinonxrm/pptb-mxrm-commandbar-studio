@@ -194,6 +194,7 @@ export function barOrder(input: BarInput): BarEntry[] {
 
 export type SystemItemId =
 	| "FocusedView"
+	| "ShowAs"
 	| "ShowChartPane"
 	| "OpenEntityDashboard"
 	| "NavigateToAssociatedGrid"
@@ -203,12 +204,18 @@ export type SystemItemId =
 export interface SystemItemOptions {
 	/** The main grid offers the focused view (Sales apps' `changeVisualization-…`). */
 	focusedView?: boolean;
+	/**
+	 * The main grid's view has more than one control (Kanban, a card list…): Unified Interface's
+	 * Show As (`changeVisualization-Parent`) leads the bar, as on opportunities and cases.
+	 */
+	showAs?: boolean;
 	/** The page has `&ribbondebug=true`, which adds Command checker. */
 	ribbonDebug?: boolean;
 }
 
 const SYSTEM_LABELS: Record<SystemItemId, string> = {
 	FocusedView: "Focused view",
+	ShowAs: "Show As",
 	ShowChartPane: "Show Chart",
 	OpenEntityDashboard: "Open Dashboards",
 	NavigateToAssociatedGrid: "See the records associated with this view",
@@ -223,7 +230,11 @@ export function systemItems(
 	const item = (id: SystemItemId): BarEntry => ({ kind: "system", id, label: SYSTEM_LABELS[id] });
 	const lead: SystemItemId[] =
 		location === "HomePageGrid"
-			? [...(options.focusedView ? (["FocusedView"] as const) : []), "ShowChartPane"]
+			? [
+					...(options.focusedView ? (["FocusedView"] as const) : []),
+					...(options.showAs ? (["ShowAs"] as const) : []),
+					"ShowChartPane",
+				]
 			: location === "SubGridAssociated"
 				? ["ShowChartPane"]
 				: [];
@@ -244,11 +255,20 @@ export interface EntryVerdict {
 	hiddenBySelection?: boolean;
 	/** The control has no CommandDefinition: Unified Interface doesn't show it. */
 	noCommand?: boolean;
+	/** Unified Interface draws its own item in this control's place (Show As). */
+	replacedByPlatform?: string;
 	/** The modern command's visibility is a Power Fx formula, which CBS can't evaluate. */
 	formula?: boolean;
 }
 
-export type SimulatedEntry = BarEntry & { verdict: EntryVerdict };
+/** How the bar draws a control: plain, an action with a menu beside it, or a menu. */
+export type DrawnAs = "plain" | "split" | "flyout";
+
+export type SimulatedEntry = BarEntry & {
+	verdict: EntryVerdict;
+	/** How a classic control is drawn (`drawnAs`). */
+	drawn?: DrawnAs;
+};
 
 export interface RibbonRules extends RuleSet {
 	commands: ReadonlyMap<string, CommandDefinition>;
@@ -272,21 +292,34 @@ function modernVerdict(
 		};
 	if (command.visibility !== "classicRules" || command.classicRules.length === 0)
 		return { verdict: shown, countsSelection: false };
+	const idOf = (r: ModernCommand["classicRules"][number]) =>
+		classicRuleId(
+			r.uniqueName ?? r.name,
+			r.kind === "enable" ? rules.enableRules : rules.displayRules,
+		);
 	const synthetic: CommandDefinition = {
 		id: command.uniqueName,
 		actions: [],
-		enableRules: command.classicRules
-			.filter((r) => r.kind === "enable")
-			.map((r) => r.uniqueName ?? r.name),
-		displayRules: command.classicRules
-			.filter((r) => r.kind === "display")
-			.map((r) => r.uniqueName ?? r.name),
+		enableRules: command.classicRules.filter((r) => r.kind === "enable").map(idOf),
+		displayRules: command.classicRules.filter((r) => r.kind === "display").map(idOf),
 	};
 	const v = evaluateCommand(synthetic, rules, ctx);
 	return {
 		verdict: { outcome: v.outcome, rules: v.rules },
 		countsSelection: countsSelection(synthetic, rules),
 	};
+}
+
+/**
+ * The ribbon rule a migrated modern command's classic rule (`appactionrule`) stands for. Its
+ * unique name carries the solution's prefix and the rule's type:
+ * `msdyn_Mscrm.CheckBulkEditSupportForEntity!0` is `Mscrm.CheckBulkEditSupportForEntity` (seen on
+ * Sales Hub's migrated Edit, 2026-11-15). The name as given when no ribbon rule matches.
+ */
+export function classicRuleId(name: string, defined: ReadonlyMap<string, unknown>): string {
+	const bare = name.replace(/!\d+$/, "");
+	const unprefixed = bare.replace(/^[A-Za-z0-9]+_/, "");
+	return [name, bare, unprefixed].find((id) => defined.has(id)) ?? name;
 }
 
 /**
@@ -304,6 +337,30 @@ export function hiddenBySelection(control: RibbonButton, rules: RibbonRules): bo
 }
 
 const rowsSelected = (ctx: SimulationContext) => ctx.location !== "Form" && ctx.selectedCount > 0;
+
+/**
+ * How Unified Interface draws a control. A flyout (or a button with a menu) is a menu with a
+ * chevron. A split button is drawn split only while its menu has something to offer: plain when
+ * none of its items would show (Delete with no rows: Delete needs a selection, Bulk Delete is
+ * hidden), and plain with rows selected when an item doesn't count them (Email a Link: Of the
+ * Current View). Recorded on contact and account's grids, form and sub-grids, 2026-10-29: all 25
+ * split buttons drawn agree.
+ */
+export function drawnAs(
+	control: RibbonButton,
+	rules: RibbonRules,
+	ctx: SimulationContext,
+): DrawnAs {
+	const items = (control.menu?.sections ?? []).flatMap((s) => s.controls);
+	if (control.kind !== "splitButton" && control.kind !== "mruSplitButton")
+		return control.kind === "flyout" || control.menu ? "flyout" : "plain";
+	if (rowsSelected(ctx) && items.some((item) => hiddenBySelection(item, rules))) return "plain";
+	const offered = items.some((item) => {
+		const command = rules.commands.get(item.commandId);
+		return !!command && evaluateCommand(command, rules, ctx).outcome !== false;
+	});
+	return offered ? "split" : "plain";
+}
 
 /** Each bar entry with whether it shows in this page context. Items stay in bar order. */
 export function simulateBar(
@@ -327,17 +384,31 @@ export function simulateBar(
 				};
 			return { ...entry, verdict: m.verdict };
 		}
+		// The ribbon's Show As: Unified Interface runs it through Mscrm.Disabled and draws its own
+		// Show As, first on the bar, where the view has more than one control (Command Checker,
+		// account, contact and case grids and sub-grids).
+		if (/\.ChangeDataSetControlButton$/.test(entry.button.id))
+			return {
+				...entry,
+				verdict: { outcome: false, rules: [], replacedByPlatform: "Show As" },
+			};
 		const command = rules.commands.get(entry.button.commandId);
 		if (!command) return { ...entry, verdict: { outcome: false, rules: [], noCommand: true } };
 		const v: CommandVerdict = evaluateCommand(command, rules, ctx);
+		const drawn = drawnAs(entry.button, rules, ctx);
 		if (rowsSelected(ctx) && hiddenBySelection(entry.button, rules))
 			return {
 				...entry,
+				drawn,
 				verdict: { outcome: false, rules: v.rules, hiddenBySelection: true },
 			};
-		return { ...entry, verdict: { outcome: v.outcome, rules: v.rules } };
+		return { ...entry, drawn, verdict: { outcome: v.outcome, rules: v.rules } };
 	});
-	const sys = (e: BarEntry): SimulatedEntry => ({ ...e, verdict: shown });
+	const sys = (e: BarEntry): SimulatedEntry => ({
+		...e,
+		verdict: shown,
+		...(e.id === "ShowAs" ? { drawn: "flyout" as const } : {}),
+	});
 	return [...system.lead.map(sys), ...entries, ...system.trail.map(sys)];
 }
 

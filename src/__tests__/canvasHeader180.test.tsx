@@ -101,11 +101,12 @@ afterEach(() => {
 describe("#180 the location row", () => {
 	it("names the locations as Unified Interface does, in its order", () => {
 		render(<LocationRow />);
-		const tabs = [...container.querySelectorAll('[role="tablist"] [role="tab"]')].map(textOf);
+		const where = '[role="tablist"][aria-label="Where the command bar appears"]';
+		const tabs = [...container.querySelectorAll(`${where} [role="tab"]`)].map(textOf);
 		expect(tabs).toEqual(["Main grid", "Main form", "Sub-grid", "Application"]);
-		expect(container.querySelector('[role="tablist"]')?.getAttribute("aria-label")).toBe(
-			"Where the command bar appears",
-		);
+		// Before them, the Edit ⇄ Simulate switch (#191).
+		const modes = '[role="radiogroup"][aria-label="Mode (Ctrl+Shift+M)"] [role="radio"]';
+		expect([...container.querySelectorAll(modes)].map(textOf)).toEqual(["Edit", "Simulate"]);
 	});
 
 	it("switches location and opens that ribbon's default tab", () => {

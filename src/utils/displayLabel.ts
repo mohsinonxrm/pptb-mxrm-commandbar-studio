@@ -25,15 +25,16 @@ export function resolveDisplayLabel(
 	if (!label) return "";
 
 	// $LocLabels reference → look up by ID in the parsed LocLabels collection
-	const locMatch = label.match(/^\$LocLabels:(.+)$/);
+	const locMatch = label.match(LOC_LABELS);
 	if (locMatch) {
-		const id = locMatch[1];
+		const [, parameter, id] = locMatch;
 		const entry = locLabels.find((l) => l.id === id);
 		if (entry) {
 			const preferred = entry.titles.find((t) => t.languageCode === preferredLanguageCode);
 			const english = entry.titles.find((t) => t.languageCode === 1033);
 			const first = entry.titles[0];
-			return preferred?.description ?? english?.description ?? first?.description ?? id;
+			const text = preferred?.description ?? english?.description ?? first?.description;
+			return text ? fillParameter(text, parameter) : id;
 		}
 		// Reference exists but no matching LocLabel — show the key, signal the
 		// problem with a leading dot so the user can spot orphan references.
@@ -48,6 +49,40 @@ export function resolveDisplayLabel(
 	}
 
 	return label;
+}
+
+/**
+ * A `$LocLabels:` reference, or a parameterised one such as Customer Service's
+ * `$LocLabels(EntityDisplayName):Ribbon.HomepageGrid.incident.MainTab.Management.Controls.New`
+ * (its text "New {0}", the entity's name in place of `{0}`).
+ */
+const LOC_LABELS = /^\$LocLabels(?:\(([^)]*)\))?:(.+)$/;
+
+/**
+ * A parameterised label's text with the table's name in place of `{0}`, as the placeholder the
+ * application ribbon uses (`{!EntityDisplayName}`), so it reads (and simulates) the same way.
+ */
+export function fillParameter(text: string, parameter: string | undefined): string {
+	if (parameter !== "EntityDisplayName" && parameter !== "EntityPluralDisplayName") return text;
+	return text.replace(/\{0\}/g, `{!${parameter}}`);
+}
+
+/** The parameter of a `$LocLabels(…):` reference, if it has one. */
+export function locLabelParameter(reference: string): string | undefined {
+	return reference.match(LOC_LABELS)?.[1];
+}
+
+/** The LocLabel id a `$LocLabels:` reference names, parameterised or not. */
+export function locLabelId(reference: string | undefined): string | undefined {
+	return reference?.match(LOC_LABELS)?.[2];
+}
+
+/**
+ * Text shown for a parameterised label (`{!EntityDisplayName}`) as its LocLabel stores it
+ * (`{0}`), for writing an edit back.
+ */
+export function unfillParameter(text: string): string {
+	return text.replace(/\{!(EntityDisplayName|EntityPluralDisplayName)\}/g, "{0}");
 }
 
 /**

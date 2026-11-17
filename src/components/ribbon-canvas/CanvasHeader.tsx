@@ -14,6 +14,7 @@ import {
 	TabList,
 	Tooltip,
 	makeStyles,
+	mergeClasses,
 	tokens,
 	useIsOverflowItemVisible,
 	useOverflowMenu,
@@ -21,6 +22,8 @@ import {
 import {
 	ChevronDownRegular,
 	DocumentRegular,
+	EditRegular,
+	EyeRegular,
 	GlobeRegular,
 	TableRegular,
 	TableResizeColumnRegular,
@@ -28,12 +31,13 @@ import {
 import { useSelectionStore } from "@/store/selectionStore";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSessionStore } from "@/store/sessionStore";
-import { useUIStore, type RibbonViewStyle } from "@/store/uiStore";
+import { useUIStore, type CanvasMode, type RibbonViewStyle } from "@/store/uiStore";
 import { defaultTabId } from "@/utils/defaultTab";
 import { LOCATION_INFO } from "@/constants/locationInfo";
 import { LocationInfo } from "@/components/shared/LocationInfo";
 import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ModernAppFilter } from "./modern/ModernAppFilter";
+import { radioGroupKeys, radioTabIndex } from "@/components/shared/radioGroupKeys";
 import type { RibbonLocation } from "@/types/ribbon";
 
 /**
@@ -87,7 +91,44 @@ const useStyles = makeStyles({
 		fontWeight: tokens.fontWeightSemibold,
 	},
 	pinned: { flexShrink: 0 },
+	/** The artboard's pill: two options on a grey track, the chosen one raised. */
+	mode: {
+		display: "inline-flex",
+		flexShrink: 0,
+		gap: "2px",
+		padding: "2px",
+		marginRight: tokens.spacingHorizontalS,
+		borderRadius: tokens.borderRadiusLarge,
+		backgroundColor: tokens.colorNeutralBackground5,
+	},
+	modeOption: {
+		minWidth: "auto",
+		fontWeight: tokens.fontWeightRegular,
+		color: tokens.colorNeutralForeground2,
+	},
+	modeOn: {
+		backgroundColor: tokens.colorNeutralBackground1,
+		color: tokens.colorBrandForeground1,
+		fontWeight: tokens.fontWeightSemibold,
+		boxShadow: tokens.shadow2,
+		":hover": { backgroundColor: tokens.colorNeutralBackground1 },
+	},
 });
+
+const MODES: { value: CanvasMode; label: string; tip: string; icon: React.ReactElement }[] = [
+	{
+		value: "edit",
+		label: "Edit",
+		tip: "Change buttons, groups and rules (Ctrl+Shift+M to switch)",
+		icon: <EditRegular />,
+	},
+	{
+		value: "simulate",
+		label: "Simulate",
+		tip: "See the page as users do in Dynamics 365 (Ctrl+Shift+M to switch)",
+		icon: <EyeRegular />,
+	},
+];
 
 const LOCATION_ORDER: RibbonLocation[] = ["HomepageGrid", "Form", "SubGrid", "Application"];
 const LOCATION_ICON: Record<RibbonLocation, React.ReactElement> = {
@@ -118,6 +159,8 @@ export function LocationRow() {
 	const tableName = useSessionStore((s) => s.activeEntity?.displayName);
 	const view = useUIStore((s) => s.ribbonViewStyle);
 	const setView = useUIStore((s) => s.setRibbonViewStyle);
+	const mode = useUIStore((s) => s.canvasMode);
+	const setMode = useUIStore((s) => s.setCanvasMode);
 
 	const select = (loc: RibbonLocation) => {
 		setLocation(loc);
@@ -127,6 +170,38 @@ export function LocationRow() {
 
 	return (
 		<div className={`${styles.row} ${styles.locationRow}`}>
+			{/* Edit ⇄ Simulate (#191): the location and the selection stay as they are. */}
+			{/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- the ARIA radio group pattern: the checked radio is the tab stop, the group handles the arrow keys */}
+			<div
+				className={styles.mode}
+				role="radiogroup"
+				aria-label="Mode (Ctrl+Shift+M)"
+				onKeyDown={radioGroupKeys(
+					MODES.map((m) => m.value),
+					mode,
+					setMode,
+				)}
+			>
+				{MODES.map((m) => (
+					<Tooltip key={m.value} content={m.tip} relationship="description">
+						<Button
+							size="small"
+							appearance="subtle"
+							role="radio"
+							aria-checked={mode === m.value}
+							tabIndex={radioTabIndex(mode === m.value)}
+							icon={m.icon}
+							className={mergeClasses(
+								styles.modeOption,
+								mode === m.value && styles.modeOn,
+							)}
+							onClick={() => setMode(m.value)}
+						>
+							{m.label}
+						</Button>
+					</Tooltip>
+				))}
+			</div>
 			{table && (
 				<Tooltip
 					content={`Entity: ${tableName || table} (${table})`}
@@ -171,33 +246,35 @@ export function LocationRow() {
 				</div>
 			</Overflow>
 			<ModernAppFilter />
-			<Menu
-				checkedValues={{ view: [view] }}
-				onCheckedValueChange={(_, d) => setView(d.checkedItems[0] as RibbonViewStyle)}
-			>
-				<MenuTrigger disableButtonEnhancement>
-					<Button
-						appearance="subtle"
-						size="small"
-						icon={<ChevronDownRegular />}
-						iconPosition="after"
-						aria-label={`View as: ${VIEW_LABEL[view]}`}
-						className={styles.pinned}
-					>
-						<span className={styles.muted}>View:&nbsp;</span>
-						<span className={styles.viewValue}>{VIEW_LABEL[view]}</span>
-					</Button>
-				</MenuTrigger>
-				<MenuPopover>
-					<MenuList>
-						{(Object.keys(VIEW_LABEL) as RibbonViewStyle[]).map((v) => (
-							<MenuItemRadio key={v} name="view" value={v}>
-								{VIEW_LABEL[v]}
-							</MenuItemRadio>
-						))}
-					</MenuList>
-				</MenuPopover>
-			</Menu>
+			{mode === "edit" && (
+				<Menu
+					checkedValues={{ view: [view] }}
+					onCheckedValueChange={(_, d) => setView(d.checkedItems[0] as RibbonViewStyle)}
+				>
+					<MenuTrigger disableButtonEnhancement>
+						<Button
+							appearance="subtle"
+							size="small"
+							icon={<ChevronDownRegular />}
+							iconPosition="after"
+							aria-label={`View as: ${VIEW_LABEL[view]}`}
+							className={styles.pinned}
+						>
+							<span className={styles.muted}>View:&nbsp;</span>
+							<span className={styles.viewValue}>{VIEW_LABEL[view]}</span>
+						</Button>
+					</MenuTrigger>
+					<MenuPopover>
+						<MenuList>
+							{(Object.keys(VIEW_LABEL) as RibbonViewStyle[]).map((v) => (
+								<MenuItemRadio key={v} name="view" value={v}>
+									{VIEW_LABEL[v]}
+								</MenuItemRadio>
+							))}
+						</MenuList>
+					</MenuPopover>
+				</Menu>
+			)}
 		</div>
 	);
 }

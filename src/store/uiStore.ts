@@ -4,6 +4,37 @@ import type { RibbonLocation } from "@/types/ribbon";
 import { throttledStorage } from "@/utils/throttledStorage";
 
 export type RibbonViewStyle = "groups" | "classic" | "modern" | "list";
+
+/** Edit (the structure and its cards) or Simulate (the command bar as users get it, #191). */
+export type CanvasMode = "edit" | "simulate";
+
+/** The page Simulate shows (#191): shared by both modes, remembered. */
+export interface Simulation {
+	/** Rows selected on a grid: none, one, or two or more. */
+	selection: 0 | 1 | 2;
+	/** On a form: a new record, an existing one, or an inactive (read-only) one. */
+	formState: "Create" | "Existing" | "Disabled";
+	/** The Sub-grid location's page: a sub-grid on a form, or the associated view (Related). */
+	subGridPage: "SubGridStandard" | "SubGridAssociated";
+	/** Also list the commands users don't get, dimmed, with why. */
+	showHidden: boolean;
+	/** The page's width: what fits on the bar and what goes under ⋮. */
+	width: "desktop" | "tablet" | "phone";
+	/**
+	 * What leads a main grid's bar, which the app and the view set, not the ribbon: Sales Hub's
+	 * Focused view, Show As where the view has more than one control, or neither.
+	 */
+	viewSwitch: "none" | "focusedView" | "showAs";
+}
+
+export const DEFAULT_SIMULATION: Simulation = {
+	selection: 0,
+	formState: "Existing",
+	subGridPage: "SubGridStandard",
+	showHidden: false,
+	width: "desktop",
+	viewSwitch: "none",
+};
 export type RightPaneMode = "docked" | "floating" | "hidden";
 export type ThemeMode = "light" | "dark";
 
@@ -93,6 +124,8 @@ export interface UIStore {
 
 	// View
 	ribbonViewStyle: RibbonViewStyle;
+	canvasMode: CanvasMode;
+	simulation: Simulation;
 	activeBottomTab: "commands" | "displayRules" | "enableRules" | "history" | "console";
 
 	// Modal / panel open states
@@ -146,6 +179,8 @@ export interface UIStore {
 	setRightPaneMode(mode: RightPaneMode): void;
 	setThemeMode(mode: ThemeMode): void;
 	setRibbonViewStyle(style: RibbonViewStyle): void;
+	setCanvasMode(mode: CanvasMode): void;
+	setSimulation(change: Partial<Simulation>): void;
 	setActiveBottomTab(tab: UIStore["activeBottomTab"]): void;
 
 	openCommandEditor(commandId: string | null): void;
@@ -219,6 +254,8 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	themeMode: "light",
 	// Edit mode's group cards (#194); a saved choice is kept.
 	ribbonViewStyle: "groups",
+	canvasMode: "edit",
+	simulation: DEFAULT_SIMULATION,
 	activeBottomTab: "commands",
 
 	editorStack: [],
@@ -260,6 +297,9 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	setRightPaneMode: (mode) => set({ rightPaneMode: mode }),
 	setThemeMode: (mode) => set({ themeMode: mode }),
 	setRibbonViewStyle: (style) => set({ ribbonViewStyle: style }),
+	setCanvasMode: (mode) => set({ canvasMode: mode }),
+	setSimulation: (change) =>
+		set((s) => ({ simulation: { ...DEFAULT_SIMULATION, ...s.simulation, ...change } })),
 	setActiveBottomTab: (tab) => set({ activeBottomTab: tab }),
 
 	openCommandEditor: (id) =>
@@ -364,7 +404,14 @@ export const useUIStore = create<UIStore>()(
 			rightPaneMode: state.rightPaneMode,
 			themeMode: state.themeMode,
 			ribbonViewStyle: state.ribbonViewStyle,
+			simulation: state.simulation,
 			scopeTipDismissed: state.scopeTipDismissed,
+		}),
+		// CBS opens in Edit: a Simulate mode an earlier build saved isn't restored.
+		merge: (persisted, current) => ({
+			...current,
+			...(persisted as Partial<UIStore>),
+			canvasMode: current.canvasMode,
 		}),
 	}),
 );
