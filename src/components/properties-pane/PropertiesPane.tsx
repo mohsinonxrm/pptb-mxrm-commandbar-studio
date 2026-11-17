@@ -80,7 +80,7 @@ export function PropertiesPane() {
 			title="Why it shows here"
 			info="Whether Unified Interface shows this command on the page the simulation sets (Simulate's strip), and which of its rules decide. Rules CBS can't work out use the outcomes Command Checker recorded on a test org."
 		>
-			<WhyItShows target={{ kind: "classic", button, inMenu: !!place }} />
+			<WhyItShows target={{ kind: "classic", button, tabId, parent: place?.parent }} />
 		</PropertySection>
 	);
 
@@ -123,12 +123,22 @@ export function PropertiesPane() {
 					)}
 					{isReadOnlyControlKind(button.kind) ? (
 						// ToggleButton, Label, DropDown, …: shown, never edited (#42).
-						<ReadOnlyControlSection
-							button={button}
-							location={location}
-							tabId={tabId}
-							groupId={selectedGroupId!}
-						/>
+						<>
+							<ReadOnlyControlSection
+								button={button}
+								location={location}
+								tabId={tabId}
+								groupId={selectedGroupId!}
+							/>
+							{/* Unified Interface draws some of these (MRU split buttons, galleries). */}
+							<PropertySections
+								key={`${selectedGroupId}|${button.id}`}
+								storageKey="properties.readOnlyControl"
+								defaultOpen={["why"]}
+							>
+								{why}
+							</PropertySections>
+						</>
 					) : (
 						// Keyed by the button: typed filters and picks don't carry over to
 						// the next selection (open sections are remembered separately).

@@ -121,6 +121,47 @@ function controlsInMergedOrder(group: RibbonGroup): RibbonButton[] {
  */
 const CONTEXTUAL_TAB = /\.VisualizationTab$/;
 
+/** Why a control or modern command isn't on the bar at all, before any rule. */
+export type OffBar =
+	/** A HideCustomAction hides it. */
+	| "hidden"
+	/** A migrated modern command hides it in every app. */
+	| "hiddenByModern"
+	/** It's on the chart designer's contextual tab, not the page's bar. */
+	| "contextualTab"
+	/** Unified Interface doesn't draw this kind of control (#37). */
+	| "unrendered"
+	/** The modern command is hidden in the command designer. */
+	| "modernHidden"
+	/** The modern command is switched off. */
+	| "modernDisabled";
+
+/**
+ * Why `barOrder` leaves a classic control out, if it does. With every app's commands shown, one
+ * app's hide doesn't hide it for all (#194 review); a control Unified Interface doesn't draw
+ * shows as nothing, unless a modern command replaces it (#37).
+ */
+export function classicOffBar(
+	button: RibbonButton,
+	tabId: string,
+	overrides: readonly ClassicModernOverride[] = [],
+): OffBar | undefined {
+	if (CONTEXTUAL_TAB.test(tabId)) return "contextualTab";
+	if (button.hidden) return "hidden";
+	if (overrides.length > 0 && overrides.every((x) => x.effect === "hidden"))
+		return "hiddenByModern";
+	const replaced = overrides.some((x) => x.effect === "replaced");
+	if (isUnrenderedInUci(button.kind) && !replaced) return "unrendered";
+	return undefined;
+}
+
+/** Why `barOrder` leaves a modern command out, if it does. */
+export function modernOffBar(command: ModernCommand): OffBar | undefined {
+	if (command.hidden) return "modernHidden";
+	if (command.disabled) return "modernDisabled";
+	return undefined;
+}
+
 /** Every classic control and modern command of the bar, in order, before any rule. */
 export function barOrder(input: BarInput): BarEntry[] {
 	const tabs = input.tabs
@@ -134,7 +175,7 @@ export function barOrder(input: BarInput): BarEntry[] {
 
 	// Modern commands by the group their sequence names (lowest sequence first).
 	const modern = [...(input.modern ?? [])]
-		.filter((c) => !c.hidden && !c.disabled)
+		.filter((c) => !modernOffBar(c))
 		.sort((a, b) => a.sequence - b.sequence);
 	const groupBySlot = new Map<string, RibbonGroup>();
 	for (const tab of tabs)
@@ -169,14 +210,8 @@ export function barOrder(input: BarInput): BarEntry[] {
 			controls.forEach((button, i) => {
 				for (const c of before.get(i) ?? []) out.push(asModern(c, group.id));
 				const o = input.overrides?.get(button.id) ?? [];
-				// With every app's commands shown, one app's hide doesn't hide it for all (#194 review).
 				const replacedBy = o.find((x) => x.effect === "replaced")?.command;
-				const hidden =
-					button.hidden ||
-					(o.length > 0 && o.every((x) => x.effect === "hidden")) ||
-					// A control Unified Interface doesn't draw shows as nothing, unless a modern command replaces it (#37).
-					(isUnrenderedInUci(button.kind) && !replacedBy);
-				if (!hidden)
+				if (!classicOffBar(button, tab.id, o))
 					out.push({
 						kind: "classic",
 						id: button.id,
@@ -259,6 +294,8 @@ export interface EntryVerdict {
 	replacedByPlatform?: string;
 	/** The modern command's visibility is a Power Fx formula, which CBS can't evaluate. */
 	formula?: boolean;
+	/** It isn't on the bar at all (see `OffBar`). */
+	offBar?: OffBar;
 }
 
 /** How the bar draws a control: plain, an action with a menu beside it, or a menu. */

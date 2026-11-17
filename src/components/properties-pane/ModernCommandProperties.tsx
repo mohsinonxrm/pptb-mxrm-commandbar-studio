@@ -48,6 +48,7 @@ const useStyles = makeStyles({
 	mono: {
 		fontFamily: tokens.fontFamilyMonospace,
 	},
+	heading: { margin: 0, fontSize: tokens.fontSizeBase300 },
 	list: {
 		display: "flex",
 		flexDirection: "column",
@@ -102,8 +103,10 @@ export function ModernCommandProperties({
 				</MessageBarBody>
 			</MessageBar>
 
-			<Text weight="semibold">Why it shows here</Text>
-			<WhyItShows target={{ kind: "modern", command }} />
+			<Text as="h3" weight="semibold" className={styles.heading}>
+				Why it shows here
+			</Text>
+			<WhyItShows target={{ kind: "modern", command, parent }} />
 			<Divider />
 
 			<div className={styles.grid}>

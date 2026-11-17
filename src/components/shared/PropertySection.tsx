@@ -62,8 +62,14 @@ export const PropertySections: React.FC<PropertySectionsProps> = ({
 	children,
 }) => {
 	const [open, setOpen] = useState<string[]>(() => {
-		const remembered = readPref<string[]>(`sections.${storageKey}`, defaultOpen);
-		const seen = readPref<string[]>(`sections.${storageKey}.introduced`, []);
+		// Stored values are checked: anything but a list counts as nothing remembered.
+		const list = (v: unknown, fallback: string[]) =>
+			Array.isArray(v) ? v.map(String) : fallback;
+		const remembered = list(
+			readPref<unknown>(`sections.${storageKey}`, defaultOpen),
+			defaultOpen,
+		);
+		const seen = list(readPref<unknown>(`sections.${storageKey}.introduced`, []), []);
 		const fresh = introduced.filter((v) => !seen.includes(v));
 		if (fresh.length === 0) return remembered;
 		// Remembered open, as if they had opened it: the next mount reads it back.

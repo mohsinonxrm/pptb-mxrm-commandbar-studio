@@ -25,7 +25,7 @@ import type {
 	RibbonLocation,
 	RibbonTab,
 } from "@/types/ribbon";
-import type { ModernCommand } from "@/types/modernCommand";
+import { mapAppActionRows } from "@/services/modernCommands";
 
 vi.setConfig({ testTimeout: 30_000 });
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -126,6 +126,50 @@ const simulate = (change: Partial<Simulation>) =>
 	act(() => useUIStore.getState().setSimulation(change));
 const rules = () =>
 	[...container.querySelectorAll('[aria-label="Rules"] > li')].map((li) => li.textContent);
+const patchButton = (id: string, patch: Partial<RibbonButton>) =>
+	act(() =>
+		useRibbonStore.setState((s) => ({
+			ribbons: {
+				...s.ribbons,
+				HomepageGrid: {
+					...s.ribbons.HomepageGrid,
+					tabs: s.ribbons.HomepageGrid.tabs.map((t) => ({
+						...t,
+						groups: t.groups.map((g) => ({
+							...g,
+							buttons: g.buttons.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+						})),
+					})),
+				},
+			},
+		})),
+	);
+const hideButton = (id: string) => patchButton(id, { hidden: true });
+const ACCOUNT_MD = "70816501-edb9-4740-a16c-6a5efbc05d84";
+const M1 = "aaaaaaaa-0000-0000-0000-000000000001";
+const M2 = "aaaaaaaa-0000-0000-0000-000000000002";
+/** An appaction row on account's main grid, in all apps. */
+const modernRow = (over: Record<string, unknown>) => ({
+	context: 1,
+	_contextentity_value: ACCOUNT_MD,
+	contextvalue: "account",
+	location: 1,
+	type: 0,
+	hidden: false,
+	isdisabled: false,
+	origin: 0,
+	name: String(over.uniquename),
+	buttonlabeltext: String(over.uniquename),
+	sequence: 900,
+	...over,
+});
+const loadModern = (rows: Record<string, unknown>[]) =>
+	act(() => {
+		const s = useModernCommandStore.getState();
+		s.finishLoad(s.beginLoad("account"), { apps: [], commands: mapAppActionRows(rows) });
+	});
+const modernById = (id: string) =>
+	useModernCommandStore.getState().commands.find((c) => c.id === id)!;
 const sectionTitles = () =>
 	[...container.querySelectorAll(".fui-AccordionHeader__button")].map((b) => b.textContent);
 
@@ -148,8 +192,18 @@ beforeEach(() => {
 	} as never);
 	useSelectionStore.getState().setLocation("HomepageGrid");
 	useSelectionStore.getState().setTabId(MAIN);
+	useModernCommandStore.getState().reset();
 	useModernCommandStore.setState({ selectedCommandId: null, appFilter: "all", apps: [] });
-	useSessionStore.setState({ connectionUrl: "https://org.crm.dynamics.com/" });
+	useSessionStore.setState({
+		connectionUrl: "https://org.crm.dynamics.com/",
+		activeEntity: {
+			metadataId: ACCOUNT_MD,
+			logicalName: "account",
+			displayName: "Account",
+			isCustomEntity: false,
+			isIntersect: false,
+		},
+	});
 	useUIStore.setState({ canvasMode: "edit", simulation: DEFAULT_SIMULATION });
 });
 afterEach(() => {
@@ -178,10 +232,11 @@ describe("#191 C4 Why it shows here", () => {
 		expect(rules()[0]).toContain("One");
 		expect(rules()[0]).toContain("Enable rule · fails · hides it");
 		expect(whyText()).toContain("One fails, so Unified Interface hides it.");
-		const step = container.querySelector('[aria-label="Steps of One"] li');
-		expect(step?.getAttribute("aria-label")).toBe(
-			"Selection count is at least 1 and at most 1: fails",
-		);
+		const step = container.querySelector<HTMLElement>('[aria-label="Steps of One"] li');
+		expect(step?.dataset.step).toBe("Selection count is at least 1 and at most 1");
+		expect(step?.dataset.outcome).toBe("fails");
+		// A screen reader hears the outcome with the step, not instead of it.
+		expect(step?.textContent).toBe("fails: Selection count is at least 1 and at most 1");
 		simulate({ selection: 1 });
 		expect(status()).toBe("Shows here");
 		expect(whyText()).toContain("All its rules pass.");
@@ -201,13 +256,41 @@ describe("#191 C4 Why it shows here", () => {
 		expect(whyText()).toContain("Custom rule: f() from x.js");
 		expect(whyText()).toContain("CBS can't tell: it depends on custom JavaScript");
 		const link = [...container.querySelectorAll("button")].find((b) =>
-			b.textContent?.includes("open it in Dynamics 365 with Command Checker"),
+			b.textContent?.includes("open the list in Dynamics 365 with Command Checker"),
 		)!;
+		expect(whyText()).toContain("then choose Command checker on the command bar.");
 		act(() => link.click());
 		expect(open).toHaveBeenCalledWith(
 			"https://org.crm.dynamics.com/main.aspx?pagetype=entitylist&etn=account&ribbondebug=true",
 			"primary",
 		);
+	});
+
+	it("offers no Command Checker link without PPTB, and says when the list is only a start", () => {
+		select("x.Custom");
+		render(<PropertiesPane />);
+		expect(whyText()).not.toContain("Command Checker");
+		(window as { toolboxAPI?: unknown }).toolboxAPI = {
+			utils: { openInConnectionBrowser: vi.fn().mockRejectedValue(new Error("no")) },
+		};
+		// A sub-grid is reached from the list, not opened directly.
+		act(() => useSelectionStore.getState().setLocation("SubGrid"));
+		render(
+			<WhyItShows
+				target={{
+					kind: "classic",
+					button: button("x.Custom", 1, "Cmd.Custom"),
+					tabId: MAIN,
+				}}
+			/>,
+		);
+		expect(whyText()).toContain("open the list in Dynamics 365 with Command Checker");
+		expect(whyText()).toContain("go from there to the page simulated");
+		const link = [...container.querySelectorAll("button")].find((b) =>
+			b.textContent?.includes("open the list"),
+		)!;
+		// A rejected open is caught, not left unhandled.
+		act(() => link.click());
 	});
 
 	it("explains a display rule's hide, a missing command and records selected", () => {
@@ -251,8 +334,10 @@ describe("#191 C4 Why it shows here", () => {
 		);
 		expect(status()).toBe("Hidden here");
 		const labels = [
-			...container.querySelectorAll('[aria-label="Steps of Either"] li[aria-label]'),
-		].map((li) => li.getAttribute("aria-label"));
+			...container.querySelectorAll<HTMLElement>(
+				'[aria-label="Steps of Either"] li[data-step]',
+			),
+		].map((li) => `${li.dataset.step}: ${li.dataset.outcome}`);
 		expect(labels).toEqual([
 			"Any of these: fails",
 			'Form state is "Create": fails',
@@ -277,45 +362,92 @@ describe("#191 C4 Why it shows here", () => {
 
 	it("says Simulate doesn't cover a location it has no page for", () => {
 		act(() => useSelectionStore.getState().setLocation("Application"));
-		render(<WhyItShows target={{ kind: "classic", button: button("a", 1, "Cmd.New") }} />);
+		render(
+			<WhyItShows
+				target={{ kind: "classic", button: button("a", 1, "Cmd.New"), tabId: MAIN }}
+			/>,
+		);
 		expect(container.textContent).toContain(
 			"Simulate covers the main grid, the main form and sub-grids.",
 		);
 	});
 
+	it("agrees with the bar on a control it leaves out: a HideCustomAction, the chart designer's tab", () => {
+		hideButton("x.New");
+		select("x.New");
+		render(<PropertiesPane />);
+		expect(status()).toBe("Hidden here");
+		expect(whyText()).toContain("A HideCustomAction hides it, so it isn't on the bar.");
+		render(
+			<WhyItShows
+				target={{
+					kind: "classic",
+					button: button("v", 1, "Cmd.New"),
+					tabId: "Mscrm.HomepageGrid.account.VisualizationTab",
+				}}
+			/>,
+		);
+		expect(whyText()).toContain("It's on the chart designer's tab");
+	});
+
+	it("explains a control kind Properties shows read-only, as the bar does", () => {
+		patchButton("x.New", { kind: "toggleButton" });
+		select("x.New");
+		render(<PropertiesPane />);
+		expect(status()).toBe("Hidden here");
+		expect(whyText()).toContain("Unified Interface doesn't draw this kind of control.");
+	});
+
+	it("judges a menu item with its menu's button", () => {
+		const item = button("x.Item", 1, "Cmd.New");
+		const menuOf = (parentId: string) => ({
+			kind: "classic" as const,
+			button: item,
+			tabId: MAIN,
+			parent: TAB.groups[0].buttons.find((b) => b.id === parentId)!,
+		});
+		render(<WhyItShows target={menuOf("x.Edit")} />);
+		// Its own rules pass, but Edit is hidden with no records selected.
+		expect(status()).toBe("Hidden here");
+		expect(whyText()).toContain("Its menu's button, “x.Edit”, is hidden here");
+		render(<WhyItShows target={menuOf("x.Custom")} />);
+		expect(status()).toBe("Can't tell");
+		expect(whyText()).toContain("CBS can't tell whether that shows here");
+		render(<WhyItShows target={menuOf("x.Either")} />);
+		expect(status()).toBe("Shows here");
+		expect(whyText()).toContain("It's an item of “x.Either”'s menu, which shows here.");
+	});
+
 	it("explains a modern command, from the bar's own simulation", () => {
-		const modern = {
-			id: "m1",
-			name: "Formula",
-			uniqueName: "new_formula",
-			label: "Formula",
-			appModuleId: null,
-			scope: "entity",
-			location: 1,
-			type: 0,
-			sequence: 10,
-			hidden: false,
-			disabled: false,
-			origin: "custom",
-			managed: false,
-			parentId: null,
-			groupTitleHidden: false,
-			action: "javascript",
-			visibility: "formula",
-			classicRules: [],
-		} as unknown as ModernCommand;
-		render(<WhyItShows target={{ kind: "modern", command: modern }} />);
+		loadModern([modernRow({ appactionid: M1, uniquename: "new_formula", visibilitytype: 1 })]);
+		render(<WhyItShows target={{ kind: "modern", command: modernById(M1) }} />);
 		expect(status()).toBe("Can't tell");
 		expect(whyText()).toContain("Power Fx formula");
 	});
 
-	it("notes a menu item depends on its menu's button", () => {
-		render(
-			<WhyItShows
-				target={{ kind: "classic", button: button("i", 1, "Cmd.New"), inMenu: true }}
-			/>,
-		);
-		expect(whyText()).toContain("only if the menu's own button shows");
+	it("says a modern command the bar leaves out is hidden or switched off", () => {
+		loadModern([
+			modernRow({ appactionid: M1, uniquename: "new_hidden", hidden: true }),
+			modernRow({ appactionid: M2, uniquename: "new_off", isdisabled: true }),
+		]);
+		render(<WhyItShows target={{ kind: "modern", command: modernById(M1) }} />);
+		expect(status()).toBe("Hidden here");
+		expect(whyText()).toContain("It's hidden in the command designer");
+		render(<WhyItShows target={{ kind: "modern", command: modernById(M2) }} />);
+		expect(whyText()).toContain("It's switched off");
+	});
+
+	it("keeps a stand-in modern command's own reason", () => {
+		// A migrated command named after the classic button stands in for it.
+		loadModern([
+			modernRow({ appactionid: M1, uniquename: "x.New", buttonlabeltext: "New+", origin: 1 }),
+		]);
+		simulate({ selection: 1 });
+		select("x.New");
+		render(<PropertiesPane />);
+		expect(status()).toBe("Hidden here");
+		expect(whyText()).toContain("The modern command “New+” takes its place on the bar");
+		expect(whyText()).toContain("Records are selected, and its command doesn't count them");
 	});
 });
 
@@ -385,6 +517,14 @@ describe("#191 C4 a section added later opens once", () => {
 		expect(whyOpen()).toBe(true);
 		select("x.New");
 		expect(status()).toBe("Shows here");
+	});
+
+	it("reads anything stored that isn't a list as nothing remembered", () => {
+		window.localStorage.setItem("cbs.ui.sections.t", "null");
+		window.localStorage.setItem("cbs.ui.sections.t.introduced", '{"b":1}');
+		render(sections);
+		expect(container.textContent).toContain("a");
+		expect(container.textContent).toContain("b");
 	});
 
 	it("then leaves it as they left it", () => {

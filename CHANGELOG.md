@@ -28,7 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and enable rule passing, failing or "can't tell", the rule that hides it marked, and the steps of
   any rule that doesn't pass with what CBS couldn't work out (custom JavaScript, the
   organization's features). It also names the cases no rule explains, such as selected records
-  hiding a command that doesn't count them. It agrees with Simulate's bar, leads Properties in
+  hiding a command that doesn't count them, or a HideCustomAction keeping it off the bar, and judges
+  a menu item with its menu's button. It agrees with Simulate's bar, leads Properties in
   Simulate and follows Appearance in Edit, and modern commands get it too. A link opens the page in
   Dynamics 365 with Command Checker on, to check it live.
 

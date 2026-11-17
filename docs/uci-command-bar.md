@@ -250,9 +250,13 @@ fit under a ⋮ button 44 px wide, last ones first.
   "can't tell", the first failing one marked as the one that hides it, with the steps of any rule
   that doesn't pass, an OR's groups included, each with its own outcome and what CBS couldn't work
   out (custom JavaScript, the organization's features, the record's data). Rules whose outcome comes
-  from Command Checker say so, and the cases no rule explains come first: records selected and the
-  command doesn't count them, no command, Show As drawn by Unified Interface, a Power Fx formula, a
-  modern command standing in for the button. It reads the same simulated bar as Simulate, so the two
+  from Command Checker say so (for this page, or recorded elsewhere when the rule doesn't depend on
+  the page), and when a recording overrides what the steps give. The cases no rule explains come
+  first: records selected and the command doesn't count them, no command, Show As drawn by Unified
+  Interface, a Power Fx formula, a modern command standing in for the button, and what keeps it off
+  the bar altogether (a HideCustomAction, a modern command hiding it in every app, the chart
+  designer's tab, a control kind Unified Interface doesn't draw, a modern command hidden or switched
+  off). A menu item is judged with its menu's button. It reads the same simulated bar as Simulate, so the two
   agree; in Edit it follows Appearance, with a link to change the context in Simulate. A link opens
   the page in Dynamics 365 with `ribbondebug=true` (a new form for a new record, the list
   otherwise, in the app chosen) to check it live in Command Checker.

@@ -12,6 +12,7 @@ import {
 import type { SimulationContext, UciLocation } from "@/services/uciPreview/rules";
 import { simulationContext, uciLocation } from "@/utils/simulation";
 import type { RibbonLocation } from "@/types/ribbon";
+import type { ClassicModernOverride } from "@/types/modernCommand";
 
 export interface SimulatedPage {
 	/** The simulation strip's settings, defaults filled in. */
@@ -23,6 +24,8 @@ export interface SimulatedPage {
 	rules: RibbonRules;
 	/** The bar, in order, each entry with its verdict. */
 	entries: SimulatedEntry[];
+	/** Classic buttons a migrated modern command hides or replaces, by button id (#32). */
+	overrides: ReadonlyMap<string, readonly ClassicModernOverride[]>;
 }
 
 /**
@@ -76,5 +79,5 @@ export function useSimulatedPage(location: RibbonLocation): SimulatedPage {
 		);
 	}, [context, ribbon, modern, rules, simulation.viewSwitch]);
 
-	return { simulation, page, context, rules, entries };
+	return { simulation, page, context, rules, entries, overrides: modern.overrides };
 }
