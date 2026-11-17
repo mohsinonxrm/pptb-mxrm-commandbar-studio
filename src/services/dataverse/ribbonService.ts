@@ -26,7 +26,7 @@ import {
 } from "@/services/ribbonDiffMerge";
 import { findLayerOrphans, resolveEntityToken, type LayerOrphan } from "@/services/layerOrphans";
 import { applyLayerOwnership } from "@/utils/ribbonProvenance";
-import { resolveDisplayLabel } from "@/utils/displayLabel";
+import { locLabelId, resolveDisplayLabel } from "@/utils/displayLabel";
 import { groupControls, removeMenuItem } from "@/utils/ribbonMenu";
 import { OPEN_RECORD_ITEM_COMMAND_ID } from "@/utils/openRecordItem";
 
@@ -426,7 +426,7 @@ function resolveLabelsIn(
 				for (const button of groupControls(group)) {
 					for (const section of button.menu?.sections ?? []) {
 						const token = section.attributes?.["Title"];
-						if (token?.startsWith("$LocLabels:"))
+						if (locLabelId(token))
 							section.title = resolveDisplayLabel(token, locLabels, languageCode);
 					}
 					const src = button.source;
@@ -439,7 +439,7 @@ function resolveLabelsIn(
 						[src.tooltipBodyToken, "tooltipBody"],
 					];
 					for (const [token, field] of pairs) {
-						if (token?.startsWith("$LocLabels:"))
+						if (locLabelId(token))
 							button[field] = resolveDisplayLabel(token, locLabels, languageCode);
 					}
 				}

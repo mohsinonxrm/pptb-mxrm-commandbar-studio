@@ -404,7 +404,6 @@ export const useUIStore = create<UIStore>()(
 			rightPaneMode: state.rightPaneMode,
 			themeMode: state.themeMode,
 			ribbonViewStyle: state.ribbonViewStyle,
-			canvasMode: state.canvasMode,
 			simulation: state.simulation,
 			scopeTipDismissed: state.scopeTipDismissed,
 		}),

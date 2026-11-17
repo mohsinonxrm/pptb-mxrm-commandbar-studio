@@ -39,7 +39,7 @@ export function entryReason(entry: SimulatedEntry): string | undefined {
 	if (v.hiddenBySelection) return "Rows are selected, and its command doesn't count them";
 	if (v.noCommand) return "Its command isn't in the ribbon";
 	if (v.replacedByPlatform)
-		return `Unified Interface draws its own ${v.replacedByPlatform} instead, first on the bar, where the view has more than one control`;
+		return `Unified Interface doesn't draw the ribbon's ${v.replacedByPlatform}; on a main grid whose view has more than one control, it leads the bar with its own`;
 	if (v.formula) return "Can't tell: its visibility is a Power Fx formula";
 	if (v.outcome === false) {
 		const failed = v.rules.filter((r) => r.outcome === false).map((r) => r.ruleId);

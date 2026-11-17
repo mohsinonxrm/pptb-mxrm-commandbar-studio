@@ -37,6 +37,7 @@ import { LOCATION_INFO } from "@/constants/locationInfo";
 import { LocationInfo } from "@/components/shared/LocationInfo";
 import { UCI_TAB_NOTE } from "@/services/publishPlan";
 import { ModernAppFilter } from "./modern/ModernAppFilter";
+import { radioGroupKeys, radioTabIndex } from "@/components/shared/radioGroupKeys";
 import type { RibbonLocation } from "@/types/ribbon";
 
 /**
@@ -170,7 +171,16 @@ export function LocationRow() {
 	return (
 		<div className={`${styles.row} ${styles.locationRow}`}>
 			{/* Edit ⇄ Simulate (#191): the location and the selection stay as they are. */}
-			<div className={styles.mode} role="radiogroup" aria-label="Mode (Ctrl+Shift+M)">
+			<div
+				className={styles.mode}
+				role="radiogroup"
+				aria-label="Mode (Ctrl+Shift+M)"
+				onKeyDown={radioGroupKeys(
+					MODES.map((m) => m.value),
+					mode,
+					setMode,
+				)}
+			>
 				{MODES.map((m) => (
 					<Tooltip key={m.value} content={m.tip} relationship="description">
 						<Button
@@ -178,6 +188,7 @@ export function LocationRow() {
 							appearance="subtle"
 							role="radio"
 							aria-checked={mode === m.value}
+							tabIndex={radioTabIndex(mode === m.value)}
 							icon={m.icon}
 							className={mergeClasses(
 								styles.modeOption,

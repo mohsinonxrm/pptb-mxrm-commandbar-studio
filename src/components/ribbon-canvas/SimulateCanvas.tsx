@@ -1,12 +1,5 @@
 import { useMemo } from "react";
-import {
-	InfoLabel,
-	Switch,
-	Text,
-	ToggleButton,
-	makeStyles,
-	tokens,
-} from "@fluentui/react-components";
+import { InfoLabel, Switch, Text, Button, makeStyles, tokens } from "@fluentui/react-components";
 import { DesktopRegular, PhoneRegular, TabletRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
@@ -20,8 +13,10 @@ import { ribbonRules, simulateBar, type SimulatedEntry } from "@/services/uciPre
 import { entryReason, simulationContext, uciLocation } from "@/utils/simulation";
 import { uciLabel } from "@/services/uciPreview/labels";
 import { D365Page } from "./simulate/D365Page";
+import { radioGroupKeys, radioTabIndex } from "@/components/shared/radioGroupKeys";
 import type { BarCommandProps } from "./simulate/D365CommandBar";
-import type { RibbonLocation } from "@/types/ribbon";
+import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
+import { resolveDisplayLabel } from "@/utils/displayLabel";
 
 /**
  * Simulate mode (#191): the location's command bar as users get it in Dynamics 365, on the page
@@ -82,7 +77,7 @@ const useStyles = makeStyles({
 
 type Option<T> = { value: T; label: string; icon?: React.ReactElement };
 
-/** A row of toggle buttons where one is on: the artboard's segmented control. */
+/** A row of buttons where one is on, a radio group: the artboard's segmented control. */
 function Segmented<T extends string | number>({
 	label,
 	value,
@@ -98,22 +93,30 @@ function Segmented<T extends string | number>({
 	return (
 		<span className={styles.field}>
 			{label}
-			<span className={styles.segment} role="radiogroup" aria-label={label}>
+			<span
+				className={styles.segment}
+				role="radiogroup"
+				aria-label={label}
+				onKeyDown={radioGroupKeys(
+					options.map((o) => o.value),
+					value,
+					onChange,
+				)}
+			>
 				{options.map((o) => (
-					<ToggleButton
+					<Button
 						key={String(o.value)}
 						size="small"
 						appearance={o.value === value ? "primary" : "subtle"}
-						checked={o.value === value}
 						role="radio"
 						aria-checked={o.value === value}
-						aria-pressed={undefined}
+						tabIndex={radioTabIndex(o.value === value)}
 						icon={o.icon}
 						className={styles.segmentButton}
 						onClick={() => onChange(o.value)}
 					>
 						{o.label}
-					</ToggleButton>
+					</Button>
 				))}
 			</span>
 		</span>
@@ -200,8 +203,10 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 				? e.command.label || e.command.uniqueName
 				: e.replacedBy
 					? e.replacedBy.label || e.replacedBy.uniqueName
-					: // Unified Interface's own text for a platform label, where it was recorded.
-						uciLabel(e.button.source?.labelToken, entityName) ||
+					: // Unified Interface's own text for a platform label, where it was recorded and the
+						// label isn't edited.
+						(unchangedLabel(e.button) &&
+							uciLabel(e.button.source?.labelToken, entityName)) ||
 						// A label naming the entity ("New ‹entity name›") names this one.
 						captionOf(
 							e.button.label,
@@ -210,6 +215,8 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 							e.button.source?.labelToken,
 						).replace(/‹entity name›/g, entityName) ||
 						e.button.id;
+	const unchangedLabel = (b: RibbonButton) =>
+		!!b.source?.labelToken && resolveDisplayLabel(b.source.labelToken, locLabels) === b.label;
 	const isSelected = (e: SimulatedEntry) =>
 		e.kind === "classic"
 			? e.id === selectedButtonId

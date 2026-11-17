@@ -97,6 +97,8 @@ const useStyles = makeStyles({
 		border: `1px dashed ${D365.dashed}`,
 	},
 	system: { cursor: "default" },
+	/** A hidden command under ⋮ (Show hidden commands): struck through, as on the bar. */
+	hiddenItem: { color: D365.disabledText, textDecorationLine: "line-through" },
 	more: {
 		display: "inline-flex",
 		alignItems: "center",
@@ -236,6 +238,7 @@ function MoreCommands({ commands, compact }: { commands: BarCommandProps[]; comp
 }
 
 function MoreItem({ entry, text, reason, onChoose }: BarCommandProps) {
+	const styles = useStyles();
 	const visible = useIsOverflowItemVisible(entry.id);
 	if (visible) return null;
 	return (
@@ -247,7 +250,14 @@ function MoreItem({ entry, text, reason, onChoose }: BarCommandProps) {
 					<RibbonButtonIcon button={entry.button} size={16} light />
 				) : undefined
 			}
-			secondaryContent={entry.verdict.outcome === "unknown" ? "Can't tell" : undefined}
+			secondaryContent={
+				entry.verdict.outcome === "unknown"
+					? "Can't tell"
+					: entry.verdict.outcome === false
+						? "Hidden"
+						: undefined
+			}
+			className={entry.verdict.outcome === false ? styles.hiddenItem : undefined}
 			aria-description={reason}
 			onClick={entry.kind === "system" ? undefined : onChoose}
 		>

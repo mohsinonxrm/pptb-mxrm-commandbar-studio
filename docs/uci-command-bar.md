@@ -181,8 +181,9 @@ will draw it; "How users see it" already uses its order.
   InteractionCentric`), made that device type "can't simulate".
 - **Another command:** Unified Interface runs a few controls through a command other than the
   ribbon's: Show As (`ChangeDataSetControlButton`) through `Mscrm.Disabled`, on every grid and
-  sub-grid captured. The model hides it and, where the view has more than one control, Unified
-  Interface's own Show As leads the bar (Simulate's **First item**, below).
+  sub-grid captured, so it never shows. The model hides it. On a main grid whose view has more
+  than one control, Unified Interface's own Show As leads the bar instead (Simulate's **First
+  item**, below); a sub-grid's Show As wasn't recorded.
 - **Known gaps** (`KNOWN_GAPS` in the tests): on the recorded bars, the model can't decide
   Quick Campaign with a row selected, and the Outlook mail app's form buttons, because no outcome
   was recorded for a rule they need there. Apart from those, each bar comes out as recorded.

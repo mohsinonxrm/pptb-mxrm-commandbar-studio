@@ -57,7 +57,14 @@ function derive(): Record<string, string> {
 	let seen = bars;
 	const note = (entity: string, tokens: Map<string, string>, id: string, text: string) => {
 		const token = tokens.get(id);
-		if (!token?.startsWith("$Resources") || !text || /[{}]/.test(text) || text === "---")
+		// A label with the entity's plural name is left out: the session has no plural to put in.
+		if (
+			!token?.startsWith("$Resources") ||
+			token.startsWith("$Resources(EntityPluralDisplayName)") ||
+			!text ||
+			/[{}]/.test(text) ||
+			text === "---"
+		)
 			return;
 		const name = DISPLAY_NAME[entity];
 		const value = /^\$Resources\(EntityDisplayName\):/.test(token)

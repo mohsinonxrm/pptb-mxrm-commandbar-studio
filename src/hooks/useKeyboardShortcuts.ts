@@ -158,8 +158,9 @@ export function useKeyboardShortcuts() {
 				return;
 			}
 
-			// The rest edits the selected button: not from an editor drawer.
-			if (isInDrawer(target)) return;
+			// The rest edits the selected button: not from an editor drawer, nor in Simulate, which
+			// previews the bar (a command clicked there is selected, not editable).
+			if (isInDrawer(target) || useUIStore.getState().canvasMode === "simulate") return;
 
 			// Duplicate: Ctrl+D / Cmd+D
 			if (plain && key === "d") {

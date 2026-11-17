@@ -186,14 +186,16 @@ describe("#191 C1 simulation context", () => {
 		).toBeUndefined();
 	});
 
-	it("remembers the mode and the simulation", () => {
+	it("remembers the simulation, and opens in Edit", () => {
 		const options = useUIStore.persist.getOptions();
 		const saved = options.partialize!({
 			...useUIStore.getState(),
 			canvasMode: "simulate",
 			simulation: { ...DEFAULT_SIMULATION, selection: 1 },
 		});
-		expect(saved).toMatchObject({ canvasMode: "simulate", simulation: { selection: 1 } });
+		expect(saved).toMatchObject({ simulation: { selection: 1 } });
+		// The switch isn't on screen before an entity loads, and Simulate hides the panes.
+		expect(saved).not.toHaveProperty("canvasMode");
 	});
 });
 
@@ -264,6 +266,25 @@ describe("#191 C1 Simulate canvas", () => {
 		expect(simulated()).not.toContain("x.New");
 	});
 
+	it("moves through a choice with the arrow keys, one tab stop each, as radios do", () => {
+		render(<SimulateCanvas location="HomepageGrid" />);
+		const group = container.querySelector<HTMLElement>('[aria-label="Selected records"]')!;
+		const radios = () => [...group.querySelectorAll<HTMLElement>('[role="radio"]')];
+		expect(radios().map((r) => r.tabIndex)).toEqual([0, -1, -1]);
+		expect(radios().some((r) => r.hasAttribute("aria-pressed"))).toBe(false);
+		const key = (k: string) =>
+			act(() => {
+				radios()[0].dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+			});
+		key("ArrowRight");
+		expect(useUIStore.getState().simulation.selection).toBe(1);
+		expect(radios().map((r) => r.tabIndex)).toEqual([-1, 0, -1]);
+		key("End");
+		expect(useUIStore.getState().simulation.selection).toBe(2);
+		key("ArrowRight");
+		expect(useUIStore.getState().simulation.selection).toBe(0);
+	});
+
 	it("asks for the record's state on a form, and the page on a sub-grid", () => {
 		render(<SimulateCanvas location="Form" />);
 		expect(container.querySelector('[aria-label="Form state"]')?.textContent).toBe(
@@ -294,6 +315,30 @@ describe("#191 C1 Simulate canvas", () => {
 			}),
 		);
 		expect(page().style.width).toBe("100%");
+	});
+
+	it("shows your edited label, not Unified Interface's recorded one", () => {
+		const tab = useRibbonStore.getState().ribbons.HomepageGrid!.tabs[0];
+		const send: RibbonButton = {
+			...button("x.Send", 35, "Cmd.New"),
+			label: "Ribbon.HomepageGrid.Record.Shortcut.Send",
+			source: { labelToken: "$Resources:Ribbon.HomepageGrid.Record.Shortcut.Send" } as never,
+		};
+		const load = (b: RibbonButton) =>
+			useRibbonStore.setState((st) => ({
+				ribbons: {
+					...st.ribbons,
+					HomepageGrid: {
+						...st.ribbons.HomepageGrid!,
+						tabs: [{ ...tab, groups: [{ ...tab.groups[0], buttons: [b] }] }],
+					},
+				},
+			}));
+		act(() => load(send));
+		render(<SimulateCanvas location="HomepageGrid" />);
+		expect(item("x.Send")!.textContent).toBe("Email a Link");
+		act(() => load({ ...send, label: "Share link" }));
+		expect(item("x.Send")!.textContent).toBe("Share link");
 	});
 
 	it("selects a command in Edit's place too", () => {
@@ -371,5 +416,37 @@ describe("#191 C1 Edit ⇄ Simulate switch", () => {
 		expect(useUIStore.getState().canvasMode).toBe("simulate");
 		press();
 		expect(useUIStore.getState().canvasMode).toBe("edit");
+	});
+
+	it("doesn't edit the command selected in Simulate from the keyboard", () => {
+		function Keys() {
+			useKeyboardShortcuts();
+			return null;
+		}
+		render(<Keys />);
+		act(() =>
+			useSelectionStore
+				.getState()
+				.selectButtonInContext("HomepageGrid", MAIN, "G", "x.Custom"),
+		);
+		const count = () =>
+			useRibbonStore.getState().ribbons.HomepageGrid!.tabs[0].groups[0].buttons.length;
+		const duplicate = () =>
+			act(() => {
+				document.body.dispatchEvent(
+					new KeyboardEvent("keydown", {
+						key: "d",
+						code: "KeyD",
+						ctrlKey: true,
+						bubbles: true,
+					}),
+				);
+			});
+		act(() => useUIStore.getState().setCanvasMode("simulate"));
+		duplicate();
+		expect(count()).toBe(4);
+		act(() => useUIStore.getState().setCanvasMode("edit"));
+		duplicate();
+		expect(count()).toBe(5);
 	});
 });

@@ -72,6 +72,19 @@ export function locLabelParameter(reference: string): string | undefined {
 	return reference.match(LOC_LABELS)?.[1];
 }
 
+/** The LocLabel id a `$LocLabels:` reference names, parameterised or not. */
+export function locLabelId(reference: string | undefined): string | undefined {
+	return reference?.match(LOC_LABELS)?.[2];
+}
+
+/**
+ * Text shown for a parameterised label (`{!EntityDisplayName}`) as its LocLabel stores it
+ * (`{0}`), for writing an edit back.
+ */
+export function unfillParameter(text: string): string {
+	return text.replace(/\{!(EntityDisplayName|EntityPluralDisplayName)\}/g, "{0}");
+}
+
 /**
  * A platform text: `$Resources:Key`, or a parameterised one such as
  * `$Resources(EntityDisplayName):Ribbon.Tooltip.New`. Dataverse resolves it;

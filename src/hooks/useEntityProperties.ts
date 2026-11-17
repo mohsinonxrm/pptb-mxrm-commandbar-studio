@@ -21,6 +21,8 @@ export function useEntityProperties(logicalName: string | undefined): Properties
 		let current = true;
 		if (!cache.has(key)) cache.set(key, fetchEntityProperties(logicalName));
 		void cache.get(key)!.then((properties) => {
+			// A failed read (none) is tried again next time.
+			if (Object.keys(properties).length === 0) cache.delete(key);
 			if (current) setRead({ key, properties });
 		});
 		return () => {

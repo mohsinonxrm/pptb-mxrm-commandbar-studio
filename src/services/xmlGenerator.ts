@@ -23,7 +23,13 @@ import {
 	locLabelRef,
 	sectionTitleLabelId,
 } from "@/utils/locLabelRef";
-import { isPlatformText, resolveDisplayLabel } from "@/utils/displayLabel";
+import {
+	isPlatformText,
+	locLabelId,
+	locLabelParameter,
+	resolveDisplayLabel,
+	unfillParameter,
+} from "@/utils/displayLabel";
 import { freeMaxSizeSequence, maxSizeBand } from "@/services/scalingSequence";
 import { menuItemsOf } from "@/utils/ribbonMenu";
 import {
@@ -1218,8 +1224,9 @@ function resolveButtonText(
 		token !== undefined &&
 		(current ?? "") === resolveDisplayLabel(token, storeLocLabels, lang)
 	) {
-		if (token.startsWith("$LocLabels:")) {
-			const existing = storeLocLabels.find((l) => l.id === token.slice("$LocLabels:".length));
+		const id = locLabelId(token);
+		if (id) {
+			const existing = storeLocLabels.find((l) => l.id === id);
 			if (existing) sink(existing);
 			// Not loaded → the unmanaged layer's row is kept by the merge.
 		}
@@ -1228,10 +1235,15 @@ function resolveButtonText(
 	if (!current) return undefined;
 	// Edited text of another solution's label (not loaded, #137) gets a label of
 	// the control's own: that one is shared — by the original of a copy, say.
-	const tokenId = token?.startsWith("$LocLabels:")
-		? token.slice("$LocLabels:".length)
-		: undefined;
+	const tokenId = locLabelId(token);
 	const locId = tokenId && storeLocLabels.some((l) => l.id === tokenId) ? tokenId : conventionId;
+	// A label that takes the entity's name (`$LocLabels(EntityDisplayName):`, "New {0}") keeps
+	// taking it: its text goes back with `{0}`, and the reference keeps its parameter (#191).
+	const parameter = token && locId === tokenId ? locLabelParameter(token) : undefined;
+	if (parameter) {
+		const ref = resolveLocalizedAttr(unfillParameter(current), locId, storeLocLabels, sink, lang);
+		return ref.replace(/^\$LocLabels:/, `$LocLabels(${parameter}):`);
+	}
 	return resolveLocalizedAttr(current, locId, storeLocLabels, sink, lang);
 }
 

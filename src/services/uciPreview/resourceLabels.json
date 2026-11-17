@@ -65,8 +65,5 @@
 	"$Resources:Ribbon.VisualizationTab.Save.Save.Label": "Save",
 	"$Resources(EntityDisplayName):Ribbon.SubGrid.AddExisting": "Add Existing {EntityDisplayName}",
 	"$Resources(EntityDisplayName):Ribbon.SubGrid.AddNew": "Add New {EntityDisplayName}",
-	"$Resources(EntityDisplayName):Ribbon.SubGrid.MainTab.Management.Delete": "Delete {EntityDisplayName}",
-	"$Resources(EntityPluralDisplayName):Ribbon.SubGrid.Data.Export.ExportToExcel": "Export Contacts",
-	"$Resources(EntityPluralDisplayName):Ribbon.SubGrid.Data.Export.ExportToExcelOnline": "Export Contacts in Excel Online",
-	"$Resources(EntityPluralDisplayName):Ribbon.SubGrid.MainTab.Actions.Assign": "Assign Contacts"
+	"$Resources(EntityDisplayName):Ribbon.SubGrid.MainTab.Management.Delete": "Delete {EntityDisplayName}"
 }
