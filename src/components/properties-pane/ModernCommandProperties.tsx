@@ -14,6 +14,7 @@ import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useModernAppNames } from "@/hooks/useModernCommands";
 import { describeModernCommand } from "@/services/modernCommands";
 import type { ModernCommand } from "@/types/modernCommand";
+import { WhyItShows } from "./WhyItShows";
 
 const useStyles = makeStyles({
 	root: {
@@ -100,6 +101,10 @@ export function ModernCommandProperties({
 					here. Edit them in the command designer.
 				</MessageBarBody>
 			</MessageBar>
+
+			<Text weight="semibold">Why it shows here</Text>
+			<WhyItShows target={{ kind: "modern", command }} />
+			<Divider />
 
 			<div className={styles.grid}>
 				{describeModernCommand(command, appNames).map((r) => (

@@ -362,6 +362,44 @@ export function drawnAs(
 	return offered ? "split" : "plain";
 }
 
+/**
+ * Whether a modern command shows in this page context. One without classic rules doesn't count
+ * the selection: rows selected hide it (probe, #192).
+ */
+export function modernEntryVerdict(
+	command: ModernCommand,
+	rules: RibbonRules,
+	ctx: SimulationContext,
+): EntryVerdict {
+	const m = modernVerdict(command, rules, ctx);
+	if (rowsSelected(ctx) && !m.countsSelection)
+		return { ...m.verdict, outcome: false, hiddenBySelection: true };
+	return m.verdict;
+}
+
+/**
+ * Whether a classic control shows in this page context, and how it's drawn. A menu item is
+ * judged the same way: its own command's rules, and the selection when it doesn't count it.
+ */
+export function classicEntryVerdict(
+	control: RibbonButton,
+	rules: RibbonRules,
+	ctx: SimulationContext,
+): { verdict: EntryVerdict; drawn?: DrawnAs } {
+	// The ribbon's Show As: Unified Interface runs it through Mscrm.Disabled and draws its own
+	// Show As, first on the bar, where the view has more than one control (Command Checker,
+	// account, contact and case grids and sub-grids).
+	if (/\.ChangeDataSetControlButton$/.test(control.id))
+		return { verdict: { outcome: false, rules: [], replacedByPlatform: "Show As" } };
+	const command = rules.commands.get(control.commandId);
+	if (!command) return { verdict: { outcome: false, rules: [], noCommand: true } };
+	const v: CommandVerdict = evaluateCommand(command, rules, ctx);
+	const drawn = drawnAs(control, rules, ctx);
+	if (rowsSelected(ctx) && hiddenBySelection(control, rules))
+		return { drawn, verdict: { outcome: false, rules: v.rules, hiddenBySelection: true } };
+	return { drawn, verdict: { outcome: v.outcome, rules: v.rules } };
+}
+
 /** Each bar entry with whether it shows in this page context. Items stay in bar order. */
 export function simulateBar(
 	input: BarInput,
@@ -372,37 +410,17 @@ export function simulateBar(
 	const system = systemItems(ctx.location, options);
 	const entries = barOrder(input).map((entry): SimulatedEntry => {
 		if (entry.kind === "system") return { ...entry, verdict: shown };
-		// A modern command (or one standing in for a classic button) without classic rules
-		// doesn't count the selection: rows selected hide it (probe, #192).
-		if (entry.kind === "modern" || entry.replacedBy) {
-			const modern = entry.kind === "modern" ? entry.command : entry.replacedBy!;
-			const m = modernVerdict(modern, rules, ctx);
-			if (rowsSelected(ctx) && !m.countsSelection)
-				return {
-					...entry,
-					verdict: { ...m.verdict, outcome: false, hiddenBySelection: true },
-				};
-			return { ...entry, verdict: m.verdict };
-		}
-		// The ribbon's Show As: Unified Interface runs it through Mscrm.Disabled and draws its own
-		// Show As, first on the bar, where the view has more than one control (Command Checker,
-		// account, contact and case grids and sub-grids).
-		if (/\.ChangeDataSetControlButton$/.test(entry.button.id))
+		// A classic button a migrated modern command stands in for shows as that command does.
+		if (entry.kind === "modern" || entry.replacedBy)
 			return {
 				...entry,
-				verdict: { outcome: false, rules: [], replacedByPlatform: "Show As" },
+				verdict: modernEntryVerdict(
+					entry.kind === "modern" ? entry.command : entry.replacedBy!,
+					rules,
+					ctx,
+				),
 			};
-		const command = rules.commands.get(entry.button.commandId);
-		if (!command) return { ...entry, verdict: { outcome: false, rules: [], noCommand: true } };
-		const v: CommandVerdict = evaluateCommand(command, rules, ctx);
-		const drawn = drawnAs(entry.button, rules, ctx);
-		if (rowsSelected(ctx) && hiddenBySelection(entry.button, rules))
-			return {
-				...entry,
-				drawn,
-				verdict: { outcome: false, rules: v.rules, hiddenBySelection: true },
-			};
-		return { ...entry, drawn, verdict: { outcome: v.outcome, rules: v.rules } };
+		return { ...entry, ...classicEntryVerdict(entry.button, rules, ctx) };
 	});
 	const sys = (e: BarEntry): SimulatedEntry => ({
 		...e,

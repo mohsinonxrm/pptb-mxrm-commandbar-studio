@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the rest, struck through, with why. Clicking a command selects it, as in Edit. An activity's list
   says it shows the Activity entity's bar, as Unified Interface does.
 
+- **Why it shows here (#191, #36).** Properties says whether the selected command shows on the
+  simulated page (Main grid with one record selected, a new record's form…) and why: each display
+  and enable rule passing, failing or "can't tell", the rule that hides it marked, and the steps of
+  any rule that doesn't pass with what CBS couldn't work out (custom JavaScript, the
+  organization's features). It also names the cases no rule explains, such as selected records
+  hiding a command that doesn't count them. It agrees with Simulate's bar, leads Properties in
+  Simulate and follows Appearance in Edit, and modern commands get it too. A link opens the page in
+  Dynamics 365 with Command Checker on, to check it live.
+
 - **Several values for a web resource's data parameter (#275).** An HTML web resource reads only a
   few query string names, so values of your own go in `data`. For an Open a URL action on a
   `$webresource:` address, **Values for data** takes name / value rows and packs them into one
