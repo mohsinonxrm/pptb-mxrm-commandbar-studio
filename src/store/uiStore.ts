@@ -407,5 +407,11 @@ export const useUIStore = create<UIStore>()(
 			simulation: state.simulation,
 			scopeTipDismissed: state.scopeTipDismissed,
 		}),
+		// CBS opens in Edit: a Simulate mode an earlier build saved isn't restored.
+		merge: (persisted, current) => ({
+			...current,
+			...(persisted as Partial<UIStore>),
+			canvasMode: current.canvasMode,
+		}),
 	}),
 );

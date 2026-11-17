@@ -196,6 +196,15 @@ describe("#191 C1 simulation context", () => {
 		expect(saved).toMatchObject({ simulation: { selection: 1 } });
 		// The switch isn't on screen before an entity loads, and Simulate hides the panes.
 		expect(saved).not.toHaveProperty("canvasMode");
+		// Nor is one an earlier build saved.
+		const restored = options.merge!(
+			{ canvasMode: "simulate", leftPaneWidth: 300 },
+			{
+				...useUIStore.getState(),
+				canvasMode: "edit",
+			},
+		);
+		expect(restored).toMatchObject({ canvasMode: "edit", leftPaneWidth: 300 });
 	});
 });
 
