@@ -247,6 +247,16 @@ export interface RibbonStore extends RibbonStoreState {
 	 * when nothing moved.
 	 */
 	moveButton(src: DragSource, dst: DragTarget): string | null;
+	/**
+	 * Puts a button in a group with this exact Sequence (Simulate's bar, #191 C5: the Sequence
+	 * the platform's merge draws where it was dropped). A button that isn't yours moves as your
+	 * copy, the original hidden, as moveButton does; one that isn't yours with a menu doesn't
+	 * move. Returns the id of the button placed, or null when nothing moved.
+	 */
+	placeButton(
+		src: DragSource,
+		dst: { location: RibbonLocation; tabId: string; groupId: string; sequence: number },
+	): string | null;
 	setButtonProp(
 		location: RibbonLocation,
 		tabId: string,
@@ -1364,6 +1374,93 @@ export const useRibbonStore = create<RibbonStore>()(
 						op: "moved",
 						target: src.buttonId,
 						detail: `to ${dst.groupId}`,
+						icon: "arrow_move",
+						color: "info",
+					},
+				),
+			);
+			return src.buttonId;
+		},
+
+		placeButton(src, dst) {
+			const state = get();
+			const original = state.ribbons[src.location].tabs
+				.find((t) => t.id === src.tabId)
+				?.groups.find((g) => g.id === src.groupId)
+				?.buttons.find((b) => b.id === src.buttonId);
+			const dstGroup = state.ribbons[dst.location].tabs
+				.find((t) => t.id === dst.tabId)
+				?.groups.find((g) => g.id === dst.groupId);
+			if (!original || !dstGroup || src.location !== dst.location) return null;
+			if (
+				src.groupId !== dst.groupId &&
+				refusedOnGlobalTab(
+					`move ${original.id} to ${dst.groupId}`,
+					newButtonBlockedReason(dst.location, dst.tabId, dst.groupId),
+				)
+			)
+				return null;
+			if (isReadOnlyGlobalOobButton(src.location, src.tabId, original)) return null;
+			const loadedOrigin = loadedButton(state, src.location, original.id)?.origin;
+			if (loadedOrigin !== undefined && loadedOrigin !== "unmanaged") {
+				const refuse = (why: string) => {
+					useRuntimeLogStore
+						.getState()
+						.logWarn("ribbon", `Can't move ${original.id}: ${why}`);
+					return null;
+				};
+				// Publish can't move or re-order a menu that isn't yours.
+				if (original.menu || isMenuKind(original.kind))
+					return refuse("it isn't yours and has a menu; customise it in Edit first.");
+				if (original.hidden) return refuse("it's hidden — move your copy of it instead.");
+				let placed: string | null = null;
+				get().batch(() => {
+					const copyId = get().customiseButton(
+						src.location,
+						src.tabId,
+						src.groupId,
+						src.buttonId,
+						sessionIdPrefix(),
+					);
+					if (copyId) placed = get().placeButton({ ...src, buttonId: copyId }, dst);
+				});
+				return placed ?? refuse("it isn't yours and can't be copied.");
+			}
+			if (
+				src.groupId === dst.groupId &&
+				src.tabId === dst.tabId &&
+				original.sequence === dst.sequence
+			)
+				return null;
+			set((state) =>
+				commitMutation(
+					state,
+					(ribbons) => {
+						const srcGroup = ribbons[src.location].tabs
+							.find((t) => t.id === src.tabId)
+							?.groups.find((g) => g.id === src.groupId);
+						const target = ribbons[dst.location].tabs
+							.find((t) => t.id === dst.tabId)
+							?.groups.find((g) => g.id === dst.groupId);
+						const at = srcGroup?.buttons.findIndex((b) => b.id === src.buttonId) ?? -1;
+						if (!srcGroup || !target || at < 0) return;
+						const [button] = srcGroup.buttons.splice(at, 1);
+						button.sequence = dst.sequence;
+						// Among the group's controls by Sequence, as the other views list them.
+						const before = target.buttons.findIndex((b) => b.sequence > dst.sequence);
+						target.buttons.splice(
+							before < 0 ? target.buttons.length : before,
+							0,
+							button,
+						);
+					},
+					{
+						ts: new Date().toISOString(),
+						userId: "",
+						userName: "You",
+						op: "moved",
+						target: src.buttonId,
+						detail: `to ${dst.groupId}, Sequence ${dst.sequence}`,
 						icon: "arrow_move",
 						color: "info",
 					},

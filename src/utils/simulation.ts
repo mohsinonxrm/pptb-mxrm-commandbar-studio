@@ -1,5 +1,5 @@
 import { RECORDED_RULES } from "@/services/uciPreview/recordedRules";
-import type { SimulatedEntry } from "@/services/uciPreview/bar";
+import type { PlacementGoal, SimulatedEntry } from "@/services/uciPreview/bar";
 import type { SimulationContext, UciLocation } from "@/services/uciPreview/rules";
 import type { Simulation } from "@/store/uiStore";
 import type { EntityProperty, RibbonLocation } from "@/types/ribbon";
@@ -103,43 +103,48 @@ export function commandCheckerUrl(
 	return `${connectionUrl.replace(/\/$/, "")}/main.aspx?${params}`;
 }
 
-/** Where a classic button goes in the ribbon: a group, and the control it goes before (or the end). */
-export interface BarPlacement {
-	tabId: string;
-	groupId: string;
-	beforeButtonId?: string;
-}
-
 /**
- * The ribbon position for a gap in the bar as drawn (#191 C5): gap `i` is before the `i`th
- * command listed, `listed.length` after the last. The new or moved button goes before the next
- * classic control, in its group; past a group's last control (the next one is in another group,
- * or there's none), at the end of the previous one's group. Modern commands and Unified
- * Interface's own items aren't ribbon controls, so they're stepped over; the bar redraws it where
- * the platform's merge puts it. `moving` is left out of the neighbours. Between two groups both
- * places draw the same, so a moved button keeps its own group. Null when the bar shows no classic
- * control to place it by.
+ * What a gap in the bar as drawn asks of the ribbon (#191 C5): gap `i` is before the `i`th
+ * command listed, `listed.length` after the last. The button goes between the entries on either
+ * side (classic or modern; Unified Interface's own items lead or close the bar whatever the
+ * ribbon says, so they're stepped over), in one of their groups: a moved button's own first,
+ * then the one before the gap, then the one after. `planPlacement` finds the Sequence.
  */
-export function barPlacement(
+export function placementGoal(
 	listed: readonly SimulatedEntry[],
 	gap: number,
+	tabOf: (groupId: string) => string | undefined,
 	moving?: string,
-): BarPlacement | null {
-	const classic = (e: SimulatedEntry | undefined) =>
-		e?.kind === "classic" && e.id !== moving ? e : undefined;
-	const right = listed.slice(gap).map(classic).find(Boolean);
-	const left = listed.slice(0, gap).map(classic).filter(Boolean).pop();
+): PlacementGoal {
+	const others = (list: readonly SimulatedEntry[]) =>
+		list.filter((e) => e.kind !== "system" && e.id !== moving);
+	const after = others(listed.slice(0, gap)).pop();
+	const before = others(listed.slice(gap))[0];
 	const own = listed.find((e) => e.id === moving);
-	const ownGroup = own?.kind === "classic" ? own.groupId : undefined;
-	if (right && (!left || left.groupId === right.groupId || ownGroup === right.groupId))
-		return { tabId: right.tabId, groupId: right.groupId, beforeButtonId: right.button.id };
-	if (left) return { tabId: left.tabId, groupId: left.groupId };
-	return null;
+	const groupOf = (e: SimulatedEntry | undefined) => {
+		const groupId = e?.kind === "classic" || e?.kind === "modern" ? e.groupId : undefined;
+		const tabId =
+			e?.kind === "classic" ? e.tabId : groupId !== undefined ? tabOf(groupId) : undefined;
+		return groupId && tabId ? { tabId, groupId } : undefined;
+	};
+	const groups = [groupOf(own), groupOf(after), groupOf(before)].filter(
+		(g, i, all): g is { tabId: string; groupId: string } =>
+			!!g && all.findIndex((x) => x?.groupId === g.groupId && x?.tabId === g.tabId) === i,
+	);
+	return {
+		after: after?.id,
+		before: before?.id,
+		shown: new Set(listed.filter((e) => e.kind !== "system").map((e) => e.id)),
+		groups,
+		...(own?.kind === "classic"
+			? { moving: { tabId: own.tabId, groupId: own.groupId, buttonId: own.button.id } }
+			: {}),
+	};
 }
 
 /**
- * The gap a classic command moves to, one place earlier or later on the bar: before the classic
- * command before it, or after the one after it. Null at either end.
+ * The gap a command moves to, one place earlier or later on the bar: before the command before
+ * it, or after the one after it (Unified Interface's own items don't count). Null at either end.
  */
 export function moveGap(
 	listed: readonly SimulatedEntry[],
@@ -148,11 +153,11 @@ export function moveGap(
 ): number | null {
 	const at = listed.findIndex((e) => e.id === id);
 	if (at < 0) return null;
-	const isClassic = (e: SimulatedEntry) => e.kind === "classic";
+	const counts = (e: SimulatedEntry) => e.kind !== "system";
 	if (direction === "earlier") {
-		for (let i = at - 1; i >= 0; i--) if (isClassic(listed[i])) return i;
+		for (let i = at - 1; i >= 0; i--) if (counts(listed[i])) return i;
 		return null;
 	}
-	for (let i = at + 1; i < listed.length; i++) if (isClassic(listed[i])) return i + 1;
+	for (let i = at + 1; i < listed.length; i++) if (counts(listed[i])) return i + 1;
 	return null;
 }

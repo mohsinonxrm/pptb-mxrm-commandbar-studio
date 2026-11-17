@@ -123,8 +123,9 @@ const useStyles = makeStyles({
 		position: "absolute",
 		top: 0,
 		bottom: 0,
-		left: "-6px",
-		width: "12px",
+		// Narrow, so a click near a command's edge still chooses the command.
+		left: "-4px",
+		width: "8px",
 		zIndex: 2,
 		display: "flex",
 		justifyContent: "center",
@@ -132,7 +133,7 @@ const useStyles = makeStyles({
 		":hover > span": { opacity: 1 },
 	},
 	markerStart: { left: 0 },
-	markerEnd: { left: "auto", right: "-6px" },
+	markerEnd: { left: "auto", right: "-4px" },
 	markerLine: {
 		width: "2px",
 		height: "100%",
@@ -211,7 +212,9 @@ export function D365CommandBar({
 				if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropGap(null);
 			}}
 		>
-			<Overflow padding={compact ? 32 : 48}>
+			{/* Remounted when the order changes: Overflow measures items once, so a reordered bar
+			    would keep the old ones under ⋮. */}
+			<Overflow key={commands.map((c) => c.entry.id).join("|")} padding={compact ? 32 : 48}>
 				<div className={styles.fill} role="toolbar" aria-label={label} {...arrowKeys}>
 					{commands.map((c, i) => (
 						<OverflowItem
@@ -257,17 +260,24 @@ const BarSlot = forwardRef<
 	const { entry } = command;
 	const movable = !!editing && editing.canMove(entry);
 	const dragging = drag.dragId !== null;
+	// The gap the pointer is nearest: before this command, or after it.
+	const gapAt = (e: React.DragEvent<HTMLSpanElement>) => {
+		const rect = e.currentTarget.getBoundingClientRect();
+		return e.clientX < rect.left + rect.width / 2 ? index : index + 1;
+	};
 	const onDragOver = (e: React.DragEvent<HTMLSpanElement>) => {
 		if (!editing || !dragging) return;
 		e.preventDefault();
 		e.dataTransfer.dropEffect = "move";
-		const rect = e.currentTarget.getBoundingClientRect();
-		drag.setDropGap(e.clientX < rect.left + rect.width / 2 ? index : index + 1);
+		const gap = gapAt(e);
+		if (gap !== drag.dropGap) drag.setDropGap(gap);
 	};
 	const onDrop = (e: React.DragEvent<HTMLSpanElement>) => {
-		if (!editing || drag.dragId === null || drag.dropGap === null) return;
+		const id = drag.dragId ?? (e.dataTransfer.getData(DRAG_TYPE) || null);
+		if (!editing || id === null) return;
 		e.preventDefault();
-		editing.moveTo(drag.dragId, drag.dropGap);
+		// Where it was dropped, not the last line drawn: a render may not have caught up.
+		editing.moveTo(id, gapAt(e));
 		drag.setDragId(null);
 		drag.setDropGap(null);
 	};
@@ -282,7 +292,9 @@ const BarSlot = forwardRef<
 					? (e: React.DragEvent<HTMLButtonElement>) => {
 							e.dataTransfer.effectAllowed = "move";
 							e.dataTransfer.setData(DRAG_TYPE, entry.id);
-							drag.setDragId(entry.id);
+							// After dragstart: Chromium can end a drag whose page changes during it
+							// (the insert markers go while dragging).
+							setTimeout(() => drag.setDragId(entry.id), 0);
 						}
 					: undefined
 			}

@@ -479,3 +479,137 @@ export function ribbonRules(parsed: {
 		enableRules: new Map(parsed.enableRules.map((r) => [r.id, r])),
 	};
 }
+
+/** A place for a button in the ribbon: its group and the Sequence that puts it there. */
+export interface PlacementPlan {
+	tabId: string;
+	groupId: string;
+	sequence: number;
+}
+
+/** What a button is to be placed between on the bar, and which groups it may go in. */
+export interface PlacementGoal {
+	/** The bar entry (classic id or `modern:<id>`) it must follow; none: first. */
+	after?: string;
+	/** The bar entry it must precede; none: last. */
+	before?: string;
+	/** The entries the bar shows: only their order counts (hidden ones aren't drawn). */
+	shown: ReadonlySet<string>;
+	/** The groups to try, in order. */
+	groups: readonly { tabId: string; groupId: string }[];
+	/** The button moving; none for a new one. */
+	moving?: { tabId: string; groupId: string; buttonId: string };
+}
+
+const PROBE = "__cbs_placement_probe__";
+
+/** Integer Sequences worth trying among `values`, round ones first. */
+function candidateSequences(values: readonly number[]): number[] {
+	const sorted = [...new Set(values)].sort((a, b) => a - b);
+	const out = new Set<number>();
+	const add = (n: number) => {
+		if (Number.isInteger(n) && n > 0) out.add(n);
+	};
+	if (sorted.length === 0) add(10);
+	const first = sorted[0];
+	if (first !== undefined) {
+		add(Math.floor((first - 1) / 10) * 10);
+		add(Math.floor(first / 2));
+		add(first - 1);
+	}
+	for (let i = 0; i + 1 < sorted.length; i++) {
+		const [a, b] = [sorted[i], sorted[i + 1]];
+		add(Math.ceil((a + 1) / 10) * 10);
+		add(Math.ceil((a + 1) / 5) * 5);
+		add(Math.floor((a + b) / 2));
+		add(a + 1);
+		add(b - 1);
+	}
+	for (const v of sorted) {
+		add(v - 1);
+		add(v + 1);
+	}
+	const last = sorted[sorted.length - 1];
+	if (last !== undefined) {
+		add(Math.floor(last / 10) * 10 + 10);
+		add(last + 1);
+	}
+	const roundness = (n: number) => (n % 10 === 0 ? 0 : n % 5 === 0 ? 1 : 2);
+	return [...out].sort((a, b) => roundness(a) - roundness(b));
+}
+
+/**
+ * The group and Sequence that make the platform's merge draw a button between `goal.after` and
+ * `goal.before` (#191 C5). The bar's order isn't Sequence order: controls still where the loaded
+ * ribbon had them keep its XML order, a moved or new one goes before the first sibling with a
+ * greater Sequence, and modern commands go by the slot their sequence names. So each candidate
+ * Sequence is checked with `barOrder` itself. A Sequence another control of the group has isn't
+ * used. Null when no Sequence in any of the groups draws it there (e.g. a group whose XML has
+ * Sequence 30 before 20: nothing new can go between them).
+ */
+export function planPlacement(input: BarInput, goal: PlacementGoal): PlacementPlan | null {
+	const moving = goal.moving;
+	const movingButton = moving
+		? input.tabs
+				.find((t) => t.id === moving.tabId)
+				?.groups.find((g) => g.id === moving.groupId)
+				?.buttons.find((b) => b.id === moving.buttonId)
+		: undefined;
+	if (moving && !movingButton) return null;
+	const probeId = movingButton?.id ?? PROBE;
+	for (const { tabId, groupId } of goal.groups) {
+		const tab = input.tabs.find((t) => t.id === tabId);
+		const group = tab?.groups.find((g) => g.id === groupId);
+		if (!tab || !group) continue;
+		const siblings = group.buttons.filter((b) => b.id !== probeId);
+		const used = new Set(siblings.map((b) => b.sequence));
+		const slots = (input.modern ?? []).flatMap((c) => {
+			const slot = decodeModernSequence(c.sequence);
+			return slot && slot.tab === tab.sequence && slot.group === group.sequence
+				? [slot.control]
+				: [];
+		});
+		for (const sequence of candidateSequences([...used, ...slots])) {
+			if (used.has(sequence)) continue;
+			if (
+				movingButton &&
+				moving!.groupId === groupId &&
+				moving!.tabId === tabId &&
+				movingButton.sequence === sequence
+			)
+				continue;
+			const probe: RibbonButton = movingButton
+				? { ...movingButton, sequence }
+				: {
+						id: PROBE,
+						label: "",
+						kind: "button",
+						sequence,
+						templateAlias: "o1",
+						commandId: "",
+						hidden: false,
+						oob: false,
+						custom: true,
+						managed: false,
+					};
+			const tabs = input.tabs.map((t) => ({
+				...t,
+				groups: t.groups.map((g) => {
+					const buttons = g.buttons.filter((b) => b.id !== probeId);
+					return g.id === groupId && t.id === tabId
+						? { ...g, buttons: [...buttons, probe] }
+						: { ...g, buttons };
+				}),
+			}));
+			const order = barOrder({ ...input, tabs })
+				.map((e) => e.id)
+				.filter((id) => id === probeId || goal.shown.has(id));
+			const at = order.indexOf(probeId);
+			if (at < 0) continue;
+			if ((order[at - 1] ?? undefined) !== goal.after) continue;
+			if ((order[at + 1] ?? undefined) !== goal.before) continue;
+			return { tabId, groupId, sequence };
+		}
+	}
+	return null;
+}

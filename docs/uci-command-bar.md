@@ -263,13 +263,16 @@ fit under a ⋮ button 44 px wide, last ones first.
 - **Adding and moving on the bar** (#191 C5): a "+" between two commands (shown on hover) adds a
   button there, through New button; dragging a classic command to another place moves it, and so
   do its context menu (Add a button before / after, Move earlier / later) and Alt+←/→ on the
-  keyboard. A gap on the bar becomes a place in the ribbon (`barPlacement`): before the next
-  classic command, in its group; past a group's last command, at the end of that group (a moved
-  command keeps its own group there, as both places draw the same). Modern commands and Unified
-  Interface's own items aren't ribbon controls and are stepped over. The store's add and move do
-  the rest: a Sequence between the new neighbours, and for a button that isn't yours, your copy
-  moves and the original is hidden (#26). The bar then redraws it where the platform's merge puts
-  it, so what you see is where it lands.
+  keyboard. A gap asks for a place between the entries either side (`placementGoal`; Unified
+  Interface's own items are stepped over), in one of their groups, a moved button's own first.
+  The bar's order isn't Sequence order (controls still where the loaded ribbon had them keep its
+  XML order, and modern commands go by the slot their sequence names), so `planPlacement` tries
+  Sequences no other control of the group has and keeps the first that `barOrder` itself draws
+  in that place. Where none does (a group whose XML has Sequence 30 before 20: nothing new or
+  moved can go between them), CBS says so and changes nothing. The store puts the button there
+  (`placeButton`): a button that isn't yours moves as your copy, the original hidden (#26); one
+  that isn't yours with a menu, or one a migrated modern command stands in for, isn't offered to
+  move.
 
 ## Against the documented behaviour (#191, #192 review comments)
 
