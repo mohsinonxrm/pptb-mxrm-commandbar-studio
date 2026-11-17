@@ -1,16 +1,14 @@
-import { useMemo } from "react";
 import { InfoLabel, Switch, Text, Button, makeStyles, tokens } from "@fluentui/react-components";
 import { DesktopRegular, PhoneRegular, TabletRegular } from "@fluentui/react-icons";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useSessionStore } from "@/store/sessionStore";
-import { DEFAULT_SIMULATION, useUIStore } from "@/store/uiStore";
-import { useModernLocation } from "@/hooks/useModernCommands";
+import { useUIStore } from "@/store/uiStore";
 import { useDisplayText } from "@/hooks/useDisplayText";
-import { useEntityProperties } from "@/hooks/useEntityProperties";
-import { ribbonRules, simulateBar, type SimulatedEntry } from "@/services/uciPreview/bar";
-import { entryReason, simulationContext, uciLocation } from "@/utils/simulation";
+import { useSimulatedPage } from "@/hooks/useSimulatedPage";
+import type { SimulatedEntry } from "@/services/uciPreview/bar";
+import { entryReason } from "@/utils/simulation";
 import { uciLabel } from "@/services/uciPreview/labels";
 import { D365Page } from "./simulate/D365Page";
 import { radioGroupKeys, radioTabIndex } from "@/components/shared/radioGroupKeys";
@@ -126,20 +124,9 @@ function Segmented<T extends string | number>({
 
 export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 	const styles = useStyles();
-	const stored = useUIStore((s) => s.simulation);
-	// A simulation remembered before a setting existed gets its default.
-	const simulation = useMemo(
-		() => ({
-			...DEFAULT_SIMULATION,
-			...Object.fromEntries(Object.entries(stored ?? {}).filter(([, v]) => v !== undefined)),
-		}),
-		[stored],
-	);
+	const { simulation, page, entries } = useSimulatedPage(location);
 	const setSimulation = useUIStore((s) => s.setSimulation);
 	const ribbon = useRibbonStore((s) => s.ribbons[location]);
-	const commands = useRibbonStore((s) => s.commands);
-	const displayRules = useRibbonStore((s) => s.displayRules);
-	const enableRules = useRibbonStore((s) => s.enableRules);
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const entityLabel = useSessionStore((s) => s.activeEntity?.displayName) ?? "";
 	const isActivity = useSessionStore((s) => !!s.activeEntity?.isActivity);
@@ -150,26 +137,6 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 	const selectedModernId = useModernCommandStore((s) => s.selectedCommandId);
 	const selectCommand = useModernCommandStore((s) => s.selectCommand);
 	const captionOf = useDisplayText();
-	const modern = useModernLocation(location);
-	const page = uciLocation(location, simulation);
-	const properties = useEntityProperties(ribbon?.entityLogicalName || undefined);
-
-	const entries = useMemo(() => {
-		if (!page || !ribbon) return [];
-		return simulateBar(
-			{
-				tabs: ribbon.tabs,
-				modern: modern.nodes.map((n) => n.command),
-				overrides: modern.overrides,
-			},
-			ribbonRules({ commands, displayRules, enableRules }),
-			simulationContext(page, ribbon.entityLogicalName, simulation, properties),
-			{
-				focusedView: simulation.viewSwitch === "focusedView",
-				showAs: simulation.viewSwitch === "showAs",
-			},
-		);
-	}, [page, ribbon, modern, commands, displayRules, enableRules, simulation, properties]);
 
 	if (!page)
 		return (

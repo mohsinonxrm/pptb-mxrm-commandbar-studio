@@ -18,6 +18,8 @@ import { ModernCommandProperties } from "./ModernCommandProperties";
 import { ButtonNotices } from "./ButtonNotices";
 import { PropertiesHeader } from "./PropertiesHeader";
 import { ShowOnField } from "./ShowOnField";
+import { WhyItShows } from "./WhyItShows";
+import { useUIStore } from "@/store/uiStore";
 import { PropertySection, PropertySections } from "@/components/shared/PropertySection";
 import { useClassicOverrides, useSelectedModernCommand } from "@/hooks/useModernCommands";
 
@@ -67,8 +69,19 @@ export function PropertiesPane() {
 	// Modern commands (#32) are shown read-only and live outside the ribbon store.
 	const modern = useSelectedModernCommand();
 	const modernOverrides = useClassicOverrides(location, button?.id);
+	const simulate = useUIStore((s) => s.canvasMode === "simulate");
 	const command = useRibbonStore((s) =>
 		button?.commandId ? s.commands.find((c) => c.id === button.commandId) : undefined,
+	);
+
+	const why = button && (
+		<PropertySection
+			value="why"
+			title="Why it shows here"
+			info="Whether Unified Interface shows this command on the page the simulation sets (Simulate's strip), and which of its rules decide. Rules CBS can't work out use the outcomes Command Checker recorded on a test org."
+		>
+			<WhyItShows target={{ kind: "classic", button, tabId, parent: place?.parent }} />
+		</PropertySection>
 	);
 
 	return (
@@ -110,20 +123,40 @@ export function PropertiesPane() {
 					)}
 					{isReadOnlyControlKind(button.kind) ? (
 						// ToggleButton, Label, DropDown, …: shown, never edited (#42).
-						<ReadOnlyControlSection
-							button={button}
-							location={location}
-							tabId={tabId}
-							groupId={selectedGroupId!}
-						/>
+						<>
+							<ReadOnlyControlSection
+								button={button}
+								location={location}
+								tabId={tabId}
+								groupId={selectedGroupId!}
+							/>
+							{/* Unified Interface draws some of these (MRU split buttons, galleries). */}
+							<PropertySections
+								key={`${selectedGroupId}|${button.id}`}
+								storageKey="properties.readOnlyControl"
+								defaultOpen={["why"]}
+							>
+								{why}
+							</PropertySections>
+						</>
 					) : (
 						// Keyed by the button: typed filters and picks don't carry over to
 						// the next selection (open sections are remembered separately).
 						<PropertySections
 							key={`${selectedGroupId}|${button.id}`}
 							storageKey="properties.button"
-							defaultOpen={["appearance", "position", "command", "display", "enable"]}
+							defaultOpen={[
+								"appearance",
+								"why",
+								"position",
+								"command",
+								"display",
+								"enable",
+							]}
+							introduced={["why"]}
 						>
+							{/* Simulate leads with it: choosing a command there asks why (#191 C4). */}
+							{simulate && why}
 							<PropertySection value="appearance" title="Appearance">
 								<IdentitySection
 									part="appearance"
@@ -134,6 +167,7 @@ export function PropertiesPane() {
 								/>
 								<ShowOnField button={button} />
 							</PropertySection>
+							{!simulate && why}
 							<PropertySection value="position" title="Position">
 								<IdentitySection
 									part="position"

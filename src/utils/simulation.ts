@@ -54,3 +54,51 @@ export function entryReason(entry: SimulatedEntry): string | undefined {
 	);
 	return `Can't tell: it depends on ${[...reasons].join(", ") || "rules CBS can't evaluate"}`;
 }
+
+const PAGE_NAMES: Record<UciLocation, string> = {
+	HomePageGrid: "Main grid",
+	Form: "Main form",
+	SubGridStandard: "Sub-grid on a form",
+	SubGridAssociated: "Associated view",
+};
+
+const FORM_STATES: Record<Simulation["formState"], string> = {
+	Create: "new record",
+	Existing: "existing record",
+	Disabled: "inactive record",
+};
+
+const SELECTIONS: Record<Simulation["selection"], string> = {
+	0: "no records selected",
+	1: "1 record selected",
+	2: "2 or more records selected",
+};
+
+/** The page and its state, as the simulation strip sets them: "Main grid, 1 record selected". */
+export function describeContext(page: UciLocation, simulation: Simulation): string {
+	const state =
+		page === "Form" ? FORM_STATES[simulation.formState] : SELECTIONS[simulation.selection];
+	return `${PAGE_NAMES[page]}, ${state}`;
+}
+
+/**
+ * The page in Dynamics 365 with Command Checker on (`ribbondebug=true`): a new form for a new
+ * record, the entity's list otherwise (CBS has no record or parent form to open). In the app
+ * chosen, if one is.
+ */
+export function commandCheckerUrl(
+	connectionUrl: string,
+	entity: string,
+	page: UciLocation,
+	simulation: Simulation,
+	appId?: string,
+): string {
+	const newForm = page === "Form" && simulation.formState === "Create";
+	const params = new URLSearchParams({
+		...(appId ? { appid: appId } : {}),
+		pagetype: newForm ? "entityrecord" : "entitylist",
+		etn: entity,
+		ribbondebug: "true",
+	});
+	return `${connectionUrl.replace(/\/$/, "")}/main.aspx?${params}`;
+}

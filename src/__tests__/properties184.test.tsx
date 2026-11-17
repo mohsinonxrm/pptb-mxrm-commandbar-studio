@@ -186,6 +186,7 @@ describe("#184 one style of section", () => {
 		render(<PropertiesPane />);
 		expect(sectionTitles()).toEqual([
 			"Appearance",
+			"Why it shows here",
 			"Position",
 			"Command",
 			"Display rules",

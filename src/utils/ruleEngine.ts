@@ -9,7 +9,8 @@ export function summarizeRule(steps: RuleStep[]): string {
 	return steps.map(summarizeStep).join(" AND ");
 }
 
-function summarizeStep(step: RuleStep): string {
+/** One step in plain English, `InvertResult` as NOT. */
+export function summarizeStep(step: RuleStep): string {
 	const inv = "invertResult" in step && step.invertResult ? "NOT " : "";
 	switch (step.kind) {
 		case "SelectionCountRule": {

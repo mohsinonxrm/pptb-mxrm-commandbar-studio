@@ -14,6 +14,7 @@ import { useModernCommandStore } from "@/store/modernCommandStore";
 import { useModernAppNames } from "@/hooks/useModernCommands";
 import { describeModernCommand } from "@/services/modernCommands";
 import type { ModernCommand } from "@/types/modernCommand";
+import { WhyItShows } from "./WhyItShows";
 
 const useStyles = makeStyles({
 	root: {
@@ -47,6 +48,7 @@ const useStyles = makeStyles({
 	mono: {
 		fontFamily: tokens.fontFamilyMonospace,
 	},
+	heading: { margin: 0, fontSize: tokens.fontSizeBase300 },
 	list: {
 		display: "flex",
 		flexDirection: "column",
@@ -100,6 +102,12 @@ export function ModernCommandProperties({
 					here. Edit them in the command designer.
 				</MessageBarBody>
 			</MessageBar>
+
+			<Text as="h3" weight="semibold" className={styles.heading}>
+				Why it shows here
+			</Text>
+			<WhyItShows target={{ kind: "modern", command, parent }} />
+			<Divider />
 
 			<div className={styles.grid}>
 				{describeModernCommand(command, appNames).map((r) => (
