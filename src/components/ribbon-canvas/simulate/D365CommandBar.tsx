@@ -139,9 +139,11 @@ const useStyles = makeStyles({
 		backgroundColor: D365.brand,
 		opacity: 0,
 	},
+	// On the line's middle: the bar clips anything above or below its commands.
 	markerPlus: {
 		position: "absolute",
-		top: "-6px",
+		top: "50%",
+		transform: "translateY(-50%)",
 		display: "inline-flex",
 		alignItems: "center",
 		justifyContent: "center",
