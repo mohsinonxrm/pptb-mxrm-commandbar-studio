@@ -177,6 +177,7 @@ describe("#191 C4 Why it shows here", () => {
 		expect(rules()).toHaveLength(1);
 		expect(rules()[0]).toContain("One");
 		expect(rules()[0]).toContain("Enable rule · fails · hides it");
+		expect(whyText()).toContain("One fails, so Unified Interface hides it.");
 		const step = container.querySelector('[aria-label="Steps of One"] li');
 		expect(step?.getAttribute("aria-label")).toBe(
 			"Selection count is at least 1 and at most 1: fails",
@@ -367,6 +368,23 @@ describe("#191 C4 a section added later opens once", () => {
 		render(sections);
 		expect(container.textContent).toContain("b");
 		expect(readPref("sections.t.introduced", [])).toEqual(["b"]);
+		// Properties remounts its sections for each command chosen: it stays open (PPTB check).
+		act(() => root.unmount());
+		root = createRoot(container);
+		render(sections);
+		expect(container.textContent).toContain("b");
+	});
+
+	it("stays open from one Properties command to the next, for someone who used CBS before", () => {
+		writePref("sections.properties.button", ["appearance"]);
+		select("x.Edit");
+		render(<PropertiesPane />);
+		const whyOpen = () =>
+			!!container.querySelector("[data-why-it-shows]") ||
+			container.textContent!.includes("Hidden here");
+		expect(whyOpen()).toBe(true);
+		select("x.New");
+		expect(status()).toBe("Shows here");
 	});
 
 	it("then leaves it as they left it", () => {

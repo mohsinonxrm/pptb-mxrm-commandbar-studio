@@ -216,7 +216,12 @@ function headline(verdict: EntryVerdict, standIn?: ModernCommand): string | unde
 			? "It has no display or enable rules, so it shows wherever its location does."
 			: undefined;
 	if (verdict.outcome === true) return "All its rules pass.";
-	if (verdict.outcome === false) return undefined;
+	if (verdict.outcome === false) {
+		const failing = verdict.rules.filter((r) => r.outcome === false);
+		return failing.length === 1
+			? `${failing[0].ruleId} fails, so Unified Interface hides it.`
+			: `${failing.length} of its rules fail; the first, ${failing[0].ruleId}, is enough to hide it.`;
+	}
 	return "None of its rules fails, but CBS can't work out all of them.";
 }
 

@@ -66,8 +66,11 @@ export const PropertySections: React.FC<PropertySectionsProps> = ({
 		const seen = readPref<string[]>(`sections.${storageKey}.introduced`, []);
 		const fresh = introduced.filter((v) => !seen.includes(v));
 		if (fresh.length === 0) return remembered;
+		// Remembered open, as if they had opened it: the next mount reads it back.
+		const opened = [...new Set([...remembered, ...fresh])];
+		writePref(`sections.${storageKey}`, opened);
 		writePref(`sections.${storageKey}.introduced`, [...seen, ...fresh]);
-		return [...new Set([...remembered, ...fresh])];
+		return opened;
 	});
 	const onToggle: AccordionToggleEventHandler<string> = (_, data) => {
 		const next = data.openItems.map(String);
