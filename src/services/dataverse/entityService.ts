@@ -1,4 +1,5 @@
 import type { EntityMetadata } from "@/types/entity";
+import type { EntityProperty } from "@/types/ribbon";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 
 function getDataverseAPI() {
@@ -29,7 +30,8 @@ export async function fetchEntitiesByMetadataIds(metadataIds: string[]): Promise
 		`Loading metadata for ${metadataIds.length} solution entit${metadataIds.length === 1 ? "y" : "ies"}...`,
 	);
 
-	const select = "MetadataId,LogicalName,SchemaName,DisplayName,IsCustomEntity,IsIntersect";
+	const select =
+		"MetadataId,LogicalName,SchemaName,DisplayName,IsCustomEntity,IsIntersect,IsActivity";
 
 	const toEntity = (r: Record<string, unknown>): EntityMetadata => ({
 		metadataId: String(r["MetadataId"] ?? ""),
@@ -41,6 +43,7 @@ export async function fetchEntitiesByMetadataIds(metadataIds: string[]): Promise
 		isCustomEntity: Boolean(r["IsCustomEntity"]),
 		isManaged: false,
 		isIntersect: Boolean(r["IsIntersect"]),
+		isActivity: Boolean(r["IsActivity"]),
 	});
 	const one = async (id: string): Promise<EntityMetadata | null> => {
 		try {
@@ -101,4 +104,75 @@ export async function fetchEntitiesByMetadataIds(metadataIds: string[]): Promise
 
 	logs.logInfo("dataverse", `Loaded metadata for ${mapped.length} entities.`);
 	return mapped;
+}
+
+/**
+ * The entity's properties that `EntityPropertyRule`s test (#191 Simulate): one EntityDefinitions
+ * read, booleans and managed properties (`{ Value }`) alike, and whether it has a statecode. A
+ * property Dataverse doesn't return is left out (Simulate then can't tell); a failed read
+ * returns none.
+ */
+export async function fetchEntityProperties(
+	logicalName: string,
+): Promise<Partial<Record<EntityProperty, boolean>>> {
+	const select = [
+		"IsActivity",
+		"IsActivityParty",
+		"HasActivities",
+		"HasNotes",
+		"HasFeedback",
+		"IsBusinessProcessEnabled",
+		"IsConnectionsEnabled",
+		"IsCustomizable",
+		"IsDuplicateDetectionEnabled",
+		"IsMailMergeEnabled",
+		"IsEnabledForCharts",
+		"IsChildEntity",
+		"IsBPFEntity",
+		"HasEmailAddresses",
+		"IsValidForQueue",
+		"IsImportable",
+	].join(",");
+	try {
+		const safe = logicalName.replace(/'/g, "''");
+		const r = (await getDataverseAPI().queryData(
+			`EntityDefinitions(LogicalName='${safe}')?$select=${select}` +
+				`&$expand=Attributes($select=LogicalName;$filter=LogicalName eq 'statecode')`,
+		)) as Record<string, unknown>;
+		const flag = (name: string): boolean | undefined => {
+			const v = r[name];
+			const value = v && typeof v === "object" ? (v as { Value?: unknown }).Value : v;
+			return typeof value === "boolean" ? value : undefined;
+		};
+		const props: Partial<Record<EntityProperty, boolean>> = {
+			IsActivity: flag("IsActivity"),
+			IsActivityParty: flag("IsActivityParty"),
+			HasActivities: flag("HasActivities"),
+			HasNotes: flag("HasNotes"),
+			HasFeedback: flag("HasFeedback"),
+			IsBusinessProcessEnabled: flag("IsBusinessProcessEnabled"),
+			IsConnectionsEnabled: flag("IsConnectionsEnabled"),
+			IsCustomizable: flag("IsCustomizable"),
+			DuplicateDetectionEnabled: flag("IsDuplicateDetectionEnabled"),
+			MailMergeEnabled: flag("IsMailMergeEnabled"),
+			IsEnabledForCharts: flag("IsEnabledForCharts"),
+			IsChildEntity: flag("IsChildEntity"),
+			IsBPFEntity: flag("IsBPFEntity"),
+			HasEmailAddresses: flag("HasEmailAddresses"),
+			WorksWithQueue: flag("IsValidForQueue"),
+			IsImportable: flag("IsImportable"),
+			...(Array.isArray(r["Attributes"])
+				? { HasStateCode: (r["Attributes"] as unknown[]).length > 0 }
+				: {}),
+		};
+		return Object.fromEntries(Object.entries(props).filter(([, v]) => v !== undefined));
+	} catch (err) {
+		useRuntimeLogStore
+			.getState()
+			.logWarn(
+				"dataverse",
+				`Couldn't read ${logicalName}'s properties for Simulate (${err instanceof Error ? err.message : String(err)}); rules that test them show as can't tell.`,
+			);
+		return {};
+	}
 }

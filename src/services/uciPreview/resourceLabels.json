@@ -24,6 +24,7 @@
 	"$Resources:Ribbon.Form.MainTab.Save.Save": "Save (CTRL+S)",
 	"$Resources:Ribbon.Form.MainTab.Save.SaveAndClose": "Save & Close",
 	"$Resources:Ribbon.Form.MainTab.Save.SaveAsComplete": "Mark Complete",
+	"$Resources:Ribbon.Form.opportunity.MainTab.Actions.Disqualify": "Disqualify",
 	"$Resources:Ribbon.HomepageGrid.account.MainTab.Actions.QuickCampaign": "Quick Campaign",
 	"$Resources:Ribbon.HomepageGrid.account.MainTab.Actions.QuickCampaign.AllAllPages": "For All Records on All Pages",
 	"$Resources:Ribbon.HomepageGrid.account.MainTab.Actions.QuickCampaign.AllCurrentPage": "For All Records on Current Page",

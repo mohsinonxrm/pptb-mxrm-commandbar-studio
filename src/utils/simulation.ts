@@ -2,7 +2,7 @@ import { RECORDED_RULES } from "@/services/uciPreview/recordedRules";
 import type { SimulatedEntry } from "@/services/uciPreview/bar";
 import type { SimulationContext, UciLocation } from "@/services/uciPreview/rules";
 import type { Simulation } from "@/store/uiStore";
-import type { RibbonLocation } from "@/types/ribbon";
+import type { EntityProperty, RibbonLocation } from "@/types/ribbon";
 
 /** Simulate mode's helpers (#191): the page, the context and why a command isn't shown. */
 
@@ -14,11 +14,12 @@ export function uciLocation(location: RibbonLocation, simulation: Simulation): U
 	return null;
 }
 
-/** The simulation context for the preview model. */
+/** The simulation context for the preview model, with the entity's properties where read. */
 export function simulationContext(
 	page: UciLocation,
 	entity: string,
 	simulation: Simulation,
+	properties?: Partial<Record<EntityProperty, boolean>>,
 ): SimulationContext {
 	return {
 		location: page,
@@ -27,6 +28,7 @@ export function simulationContext(
 		...(page === "Form" ? { formState: simulation.formState } : {}),
 		privileges: "all",
 		recorded: RECORDED_RULES,
+		...(properties ? { entityProperties: { [entity]: properties } } : {}),
 	};
 }
 
@@ -36,6 +38,8 @@ export function entryReason(entry: SimulatedEntry): string | undefined {
 	if (v.outcome === true) return undefined;
 	if (v.hiddenBySelection) return "Rows are selected, and its command doesn't count them";
 	if (v.noCommand) return "Its command isn't in the ribbon";
+	if (v.replacedByPlatform)
+		return `Unified Interface draws its own ${v.replacedByPlatform} instead, first on the bar, where the view has more than one control`;
 	if (v.formula) return "Can't tell: its visibility is a Power Fx formula";
 	if (v.outcome === false) {
 		const failed = v.rules.filter((r) => r.outcome === false).map((r) => r.ruleId);

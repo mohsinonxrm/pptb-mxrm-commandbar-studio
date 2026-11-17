@@ -194,6 +194,7 @@ export function barOrder(input: BarInput): BarEntry[] {
 
 export type SystemItemId =
 	| "FocusedView"
+	| "ShowAs"
 	| "ShowChartPane"
 	| "OpenEntityDashboard"
 	| "NavigateToAssociatedGrid"
@@ -203,12 +204,18 @@ export type SystemItemId =
 export interface SystemItemOptions {
 	/** The main grid offers the focused view (Sales apps' `changeVisualization-…`). */
 	focusedView?: boolean;
+	/**
+	 * The main grid's view has more than one control (Kanban, a card list…): Unified Interface's
+	 * Show As (`changeVisualization-Parent`) leads the bar, as on opportunities and cases.
+	 */
+	showAs?: boolean;
 	/** The page has `&ribbondebug=true`, which adds Command checker. */
 	ribbonDebug?: boolean;
 }
 
 const SYSTEM_LABELS: Record<SystemItemId, string> = {
 	FocusedView: "Focused view",
+	ShowAs: "Show As",
 	ShowChartPane: "Show Chart",
 	OpenEntityDashboard: "Open Dashboards",
 	NavigateToAssociatedGrid: "See the records associated with this view",
@@ -223,7 +230,11 @@ export function systemItems(
 	const item = (id: SystemItemId): BarEntry => ({ kind: "system", id, label: SYSTEM_LABELS[id] });
 	const lead: SystemItemId[] =
 		location === "HomePageGrid"
-			? [...(options.focusedView ? (["FocusedView"] as const) : []), "ShowChartPane"]
+			? [
+					...(options.focusedView ? (["FocusedView"] as const) : []),
+					...(options.showAs ? (["ShowAs"] as const) : []),
+					"ShowChartPane",
+				]
 			: location === "SubGridAssociated"
 				? ["ShowChartPane"]
 				: [];
@@ -244,6 +255,8 @@ export interface EntryVerdict {
 	hiddenBySelection?: boolean;
 	/** The control has no CommandDefinition: Unified Interface doesn't show it. */
 	noCommand?: boolean;
+	/** Unified Interface draws its own item in this control's place (Show As). */
+	replacedByPlatform?: string;
 	/** The modern command's visibility is a Power Fx formula, which CBS can't evaluate. */
 	formula?: boolean;
 }
@@ -371,6 +384,14 @@ export function simulateBar(
 				};
 			return { ...entry, verdict: m.verdict };
 		}
+		// The ribbon's Show As: Unified Interface runs it through Mscrm.Disabled and draws its own
+		// Show As, first on the bar, where the view has more than one control (Command Checker,
+		// account, contact and case grids and sub-grids).
+		if (/\.ChangeDataSetControlButton$/.test(entry.button.id))
+			return {
+				...entry,
+				verdict: { outcome: false, rules: [], replacedByPlatform: "Show As" },
+			};
 		const command = rules.commands.get(entry.button.commandId);
 		if (!command) return { ...entry, verdict: { outcome: false, rules: [], noCommand: true } };
 		const v: CommandVerdict = evaluateCommand(command, rules, ctx);
@@ -383,7 +404,11 @@ export function simulateBar(
 			};
 		return { ...entry, drawn, verdict: { outcome: v.outcome, rules: v.rules } };
 	});
-	const sys = (e: BarEntry): SimulatedEntry => ({ ...e, verdict: shown });
+	const sys = (e: BarEntry): SimulatedEntry => ({
+		...e,
+		verdict: shown,
+		...(e.id === "ShowAs" ? { drawn: "flyout" as const } : {}),
+	});
 	return [...system.lead.map(sys), ...entries, ...system.trail.map(sys)];
 }
 

@@ -11,8 +11,10 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useRibbonStore } from "@/store/ribbonStore";
 import { useSelectionStore } from "@/store/selectionStore";
 import { useModernCommandStore } from "@/store/modernCommandStore";
+import { useSessionStore } from "@/store/sessionStore";
 import { DEFAULT_SIMULATION, useUIStore } from "@/store/uiStore";
 import { simulationContext, uciLocation } from "@/utils/simulation";
+import { fetchEntityProperties } from "@/services/dataverse/entityService";
 import type {
 	CommandDefinition,
 	DisplayRule,
@@ -154,6 +156,36 @@ describe("#191 C1 simulation context", () => {
 		expect(form).toMatchObject({ selectedCount: 0, formState: "Disabled" });
 	});
 
+	it("reads the entity's properties its rules test, managed properties and statecode too", async () => {
+		const queryData = vi.fn().mockResolvedValue({
+			IsActivity: false,
+			HasActivities: true,
+			IsConnectionsEnabled: { Value: true, CanBeChanged: true },
+			IsValidForQueue: { Value: false },
+			Attributes: [{ LogicalName: "statecode" }],
+		});
+		(window as { dataverseAPI?: unknown }).dataverseAPI = { queryData };
+		try {
+			expect(await fetchEntityProperties("lead")).toEqual({
+				IsActivity: false,
+				HasActivities: true,
+				IsConnectionsEnabled: true,
+				WorksWithQueue: false,
+				HasStateCode: true,
+			});
+			expect(queryData.mock.calls[0][0]).toMatch(/^EntityDefinitions\(LogicalName='lead'\)/);
+			queryData.mockRejectedValueOnce(new Error("offline"));
+			expect(await fetchEntityProperties("lead")).toEqual({});
+		} finally {
+			delete (window as { dataverseAPI?: unknown }).dataverseAPI;
+		}
+		const c = simulationContext("Form", "lead", DEFAULT_SIMULATION, { HasActivities: true });
+		expect(c.entityProperties).toEqual({ lead: { HasActivities: true } });
+		expect(
+			simulationContext("Form", "lead", DEFAULT_SIMULATION).entityProperties,
+		).toBeUndefined();
+	});
+
 	it("remembers the mode and the simulation", () => {
 		const options = useUIStore.persist.getOptions();
 		const saved = options.partialize!({
@@ -198,6 +230,20 @@ describe("#191 C1 Simulate canvas", () => {
 		act(() => useUIStore.getState().setSimulation({ selection: 1, showHidden: false }));
 		expect(simulated()).not.toContain("x.New");
 		expect(simulated()).toContain("x.Delete");
+	});
+
+	it("leads a main grid with the view switch the app sets: Focused view, Show As or neither", () => {
+		render(<SimulateCanvas location="HomepageGrid" />);
+		expect(simulated()[0]).toBe("ShowChartPane");
+		act(() => useUIStore.getState().setSimulation({ viewSwitch: "showAs" }));
+		expect(simulated().slice(0, 2)).toEqual(["ShowAs", "ShowChartPane"]);
+		// Show As opens a menu.
+		expect(item("ShowAs")!.querySelector("svg:last-child")).not.toBeNull();
+		act(() => useUIStore.getState().setSimulation({ viewSwitch: "focusedView" }));
+		expect(simulated()[0]).toBe("FocusedView");
+		// Only a main grid has one.
+		render(<SimulateCanvas location="Form" />);
+		expect(container.querySelector('[aria-label="First item"]')).toBeNull();
 	});
 
 	it("changes the simulation from its own controls", () => {
@@ -258,6 +304,25 @@ describe("#191 C1 Simulate canvas", () => {
 			selectedButtonId: "x.Delete",
 		});
 		expect(item("x.Delete")!.getAttribute("aria-current")).toBe("true");
+	});
+
+	it("sends an activity's list to the Activity entity, whose bar Unified Interface shows there", () => {
+		const entity = {
+			metadataId: "",
+			logicalName: "account",
+			isCustomEntity: false,
+			isIntersect: false,
+		};
+		useSessionStore
+			.getState()
+			.setActiveEntity({ ...entity, displayName: "Email", isActivity: true });
+		render(<SimulateCanvas location="HomepageGrid" />);
+		expect(container.textContent).toContain("Activity entity's command bar");
+		expect(simulated()).toEqual([]);
+		// Its form is its own.
+		render(<SimulateCanvas location="Form" />);
+		expect(container.textContent).not.toContain("Activity entity's command bar");
+		useSessionStore.setState({ activeEntity: null });
 	});
 
 	it("says the Application ribbon isn't a page of its own", () => {

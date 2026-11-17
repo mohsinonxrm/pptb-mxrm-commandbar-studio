@@ -8,6 +8,8 @@ export interface EntityMetadata {
 	displayName: string;
 	isCustomEntity: boolean;
 	isIntersect: boolean;
+	/** An activity (email, task, …): Unified Interface shows its main grid with the Activity entity's bar (#191). */
+	isActivity?: boolean;
 	isManaged?: boolean;
 	iconSmallName?: string;
 	objectTypeCode?: number;

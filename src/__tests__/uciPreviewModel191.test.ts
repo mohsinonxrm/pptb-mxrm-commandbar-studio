@@ -4,7 +4,7 @@
  * the recorded bars (#192, 2026-10-29), the probe of your own commands (2026-11-15) and Command
  * Checker's rule outcomes (2026-11-15).
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { parseRibbonXml } from "@/services/xmlParser";
@@ -32,6 +32,11 @@ import {
 } from "@/services/uciPreview/rules";
 import { RECORDED_RULES } from "@/services/uciPreview/recordedRules";
 import { groupControls } from "@/utils/ribbonMenu";
+import {
+	commandCheckerCapture,
+	ribbonXml,
+	type CommandCheckerCapture,
+} from "@/__fixtures__/uci-preview/load";
 import type {
 	CommandDefinition,
 	EntityProperty,
@@ -41,6 +46,9 @@ import type {
 	RuleStep,
 } from "@/types/ribbon";
 import type { ModernCommand } from "@/types/modernCommand";
+
+// The fixtures hold fourteen ribbons; parsing them takes a few seconds on a busy run.
+vi.setConfig({ testTimeout: 60_000 });
 
 const dir = resolve(__dirname, "../__fixtures__/uci-preview");
 const read = (path: string) => readFileSync(resolve(dir, path), "utf-8");
@@ -608,27 +616,6 @@ interface Recording {
 	probe?: { modern: { name: string; sequence: number }[]; ribbonDiffXml: string };
 }
 /**
- * Command Checker, item by item: flags V shown, H hidden by its rules, S hidden by selection; each
- * rule True, False, or null where Command Checker lists it as Skipped (not evaluated: an earlier
- * rule was already False).
- */
-interface CommandCheckerCapture {
-	source: Record<string, string>;
-	contexts: Record<
-		string,
-		Record<
-			string,
-			{
-				label: string;
-				command?: string;
-				flags: string;
-				rules: Record<string, boolean | null>;
-			}
-		>
-	>;
-}
-
-/**
  * The recorded table: each rule's outcome per page and selection or form state, the same for
  * every entity, or per entity where they differed. A rule two commands listed differently in one
  * context is left out (Save, now a modern command, lists Mscrm.CanSavePrimaryEntityType as True;
@@ -670,9 +657,9 @@ function deriveRecordedRules(c: CommandCheckerCapture): RecordedRules {
 const recordings = readdirSync(dir)
 	.filter((f) => f.endsWith(".json"))
 	.map((f) => ({ file: f, data: JSON.parse(read(f)) as Recording }));
-const capture = JSON.parse(read("commandChecker/2026-11-15.json")) as CommandCheckerCapture;
+const capture = commandCheckerCapture();
 
-/** EntityDefinitions on CRM279420, 2026-11-15 (HasStateCode: both have statecode). */
+/** EntityDefinitions on CRM279420, 2026-11-15 and 2026-11-16 (HasStateCode: has a statecode). */
 const ENTITY_PROPERTIES: Record<string, Partial<Record<EntityProperty, boolean>>> = {
 	contact: {
 		IsActivity: false,
@@ -712,15 +699,240 @@ const ENTITY_PROPERTIES: Record<string, Partial<Record<EntityProperty, boolean>>
 		IsImportable: true,
 		HasStateCode: true,
 	},
+	lead: {
+		IsActivity: false,
+		IsActivityParty: true,
+		HasActivities: true,
+		HasNotes: true,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: true,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: true,
+		MailMergeEnabled: true,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: true,
+		WorksWithQueue: false,
+		IsImportable: true,
+		HasStateCode: true,
+	},
+	opportunity: {
+		IsActivity: false,
+		IsActivityParty: true,
+		HasActivities: true,
+		HasNotes: true,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: true,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: true,
+		MailMergeEnabled: true,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: true,
+		WorksWithQueue: false,
+		IsImportable: true,
+		HasStateCode: true,
+	},
+	quote: {
+		IsActivity: false,
+		IsActivityParty: true,
+		HasActivities: true,
+		HasNotes: true,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: true,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: true,
+		MailMergeEnabled: false,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: true,
+		WorksWithQueue: false,
+		IsImportable: true,
+		HasStateCode: true,
+	},
+	salesorder: {
+		IsActivity: false,
+		IsActivityParty: true,
+		HasActivities: true,
+		HasNotes: true,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: true,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: false,
+		MailMergeEnabled: false,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: true,
+		WorksWithQueue: false,
+		IsImportable: true,
+		HasStateCode: true,
+	},
+	invoice: {
+		IsActivity: false,
+		IsActivityParty: true,
+		HasActivities: true,
+		HasNotes: true,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: true,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: false,
+		MailMergeEnabled: false,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: true,
+		WorksWithQueue: false,
+		IsImportable: true,
+		HasStateCode: true,
+	},
+	product: {
+		IsActivity: false,
+		IsActivityParty: false,
+		HasActivities: false,
+		HasNotes: true,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: true,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: false,
+		MailMergeEnabled: false,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: false,
+		WorksWithQueue: false,
+		IsImportable: true,
+		HasStateCode: true,
+	},
+	incident: {
+		IsActivity: false,
+		IsActivityParty: true,
+		HasActivities: true,
+		HasNotes: true,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: true,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: true,
+		MailMergeEnabled: true,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: true,
+		WorksWithQueue: true,
+		IsImportable: true,
+		HasStateCode: true,
+	},
+	email: {
+		IsActivity: true,
+		IsActivityParty: false,
+		HasActivities: false,
+		HasNotes: true,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: true,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: false,
+		MailMergeEnabled: false,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: false,
+		WorksWithQueue: true,
+		IsImportable: true,
+		HasStateCode: true,
+	},
+	task: {
+		IsActivity: true,
+		IsActivityParty: false,
+		HasActivities: false,
+		HasNotes: true,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: true,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: true,
+		MailMergeEnabled: false,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: false,
+		WorksWithQueue: true,
+		IsImportable: true,
+		HasStateCode: true,
+	},
+	phonecall: {
+		IsActivity: true,
+		IsActivityParty: false,
+		HasActivities: false,
+		HasNotes: true,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: true,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: true,
+		MailMergeEnabled: false,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: false,
+		WorksWithQueue: true,
+		IsImportable: true,
+		HasStateCode: true,
+	},
+	appointment: {
+		IsActivity: true,
+		IsActivityParty: false,
+		HasActivities: false,
+		HasNotes: true,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: true,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: true,
+		MailMergeEnabled: false,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: false,
+		WorksWithQueue: true,
+		IsImportable: true,
+		HasStateCode: true,
+	},
+	activitypointer: {
+		IsActivity: false,
+		IsActivityParty: false,
+		HasActivities: false,
+		HasNotes: false,
+		HasFeedback: false,
+		IsBusinessProcessEnabled: false,
+		IsConnectionsEnabled: true,
+		IsCustomizable: true,
+		DuplicateDetectionEnabled: false,
+		MailMergeEnabled: false,
+		IsEnabledForCharts: true,
+		IsChildEntity: false,
+		IsBPFEntity: false,
+		HasEmailAddresses: false,
+		WorksWithQueue: false,
+		IsImportable: false,
+		HasStateCode: true,
+	},
 };
 
 const parsedCache = new Map<string, ReturnType<typeof parseRibbonXml>>();
 const parsed = (entity: string) => {
 	if (!parsedCache.has(entity))
-		parsedCache.set(
-			entity,
-			parseRibbonXml(read(`ribbon/${entity}.All.xml`), "HomepageGrid", entity),
-		);
+		parsedCache.set(entity, parseRibbonXml(ribbonXml(entity), "HomepageGrid", entity));
 	return parsedCache.get(entity)!;
 };
 /** A group's own controls, not the items of their menus. */
@@ -780,7 +992,7 @@ const statesOf = (data: Recording) => {
 	});
 };
 
-describe("#191 B1 against Command Checker (CRM279420, 2026-11-15)", () => {
+describe("#191 B1 against Command Checker (CRM279420, 2026-11-15 and 2026-11-16)", () => {
 	it("the recorded table is generated from the capture", () => {
 		// UPDATE_RECORDED_RULES=1 rewrites it from the capture (then run the test again).
 		if (process.env.UPDATE_RECORDED_RULES)
@@ -873,18 +1085,6 @@ describe("#191 B1 against Command Checker (CRM279420, 2026-11-15)", () => {
  * hidden custom action removes), so no outcome was recorded for that page and state.
  */
 const KNOWN_GAPS: Record<string, string[]> = {
-	// Show As: Unified Interface runs it through Mscrm.Disabled, so its own FCB.DataSetControl
-	// rule was never evaluated.
-	"account.HomePageGrid.json w1920.sel0": [
-		"Mscrm.HomepageGrid.account.ChangeDataSetControlButton",
-	],
-	"contact.HomePageGrid.json w1920.sel0": [
-		"Mscrm.HomepageGrid.contact.ChangeDataSetControlButton",
-	],
-	"contact.SubGridAssociated.json w1920.sel0": [
-		"Mscrm.SubGrid.contact.ChangeDataSetControlButton",
-	],
-	"contact.SubGridStandard.json w1920.sel0": ["Mscrm.SubGrid.contact.ChangeDataSetControlButton"],
 	// Quick Campaign's modernization rule, recorded with no row selected only: the capture with a
 	// row selected missed it (account) or the probe's cached HideCustomAction left it out (contact).
 	"account.HomePageGrid.json w1920.sel1": ["Mscrm.HomepageGrid.account.QuickCampaign"],

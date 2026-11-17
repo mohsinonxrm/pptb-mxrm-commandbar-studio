@@ -7,6 +7,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { ribbonXml } from "@/__fixtures__/uci-preview/load";
 
 interface State {
 	selected?: number;
@@ -42,7 +43,7 @@ const parse = (xml: string) => new DOMParser().parseFromString(xml, "application
  * on the main grid, the HomepageGrid filter leaves out Merge's CommandDefinition and returns New's
  * with other display rules.
  */
-const ribbonOf = (data: Fixture) => parse(read(`ribbon/${data.entity}.All.xml`));
+const ribbonOf = (data: Fixture) => parse(ribbonXml(data.entity));
 
 /** Items Unified Interface adds that no ribbon defines (docs/uci-command-bar.md, point 4). */
 const SYSTEM_ITEM =

@@ -1,0 +1,4735 @@
+{
+	"source": {
+		"org": "CRM279420 (org382cc706)",
+		"app": "Sales Hub (msdynce_saleshub)",
+		"user": "a System Administrator",
+		"recorded": "2026-11-16",
+		"notes": "Command checker (ribbondebug=true), item by item, as on 2026-11-15. Pages: the main grids of case, opportunity, lead, quote, order, invoice and product with no row selected; the Activities grid (activitypointer, opened from the task list); opportunity's grid with its one row selected; a new form of each of these entities and of email, task, phone call and appointment; opportunity's one existing record. Only opportunity had a record, so other entities' existing and inactive forms and selected rows were not captured."
+	},
+	"contexts": {
+		"HomePageGrid.incident.sel0": {
+			"AIBuilder.incident.Flyout": {
+				"label": "AI Builder (hidden)",
+				"command": "AIBuilder.Command.Flyout",
+				"flags": "H",
+				"rules": {
+					"AIBuilder.FCB.ShowAIBuilderCommandInUCI": false,
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.ShowOnlyOnModern": true,
+					"Mscrm.WriteCustomization": true
+				}
+			},
+			"AIBuilder.incident.Flyout.Dummy": {
+				"label": "AIBuilder Hidden (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"AIBuilder.incident.Flyout.Menu.MenuSection.Controls.CreateModel.Dummy": {
+				"label": "Create model (hidden)",
+				"command": "AIBuilder.Command.CreateModel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"AIBuilder.incident.Flyout.Menu.MenuSection.Controls.SeeModels.Dummy": {
+				"label": "See your models (hidden)",
+				"command": "AIBuilder.Command.SeeModels",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.ActionButtonForMSTeams": {
+				"label": "Collaborate (hidden)",
+				"command": "Mscrm.HomePageGrid.MSTeamsViewCollaborateCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsMSTeamsIntegrationEnabled": true,
+					"Mscrm.ShowMSTeamsChannelCollaboration": false,
+					"Mscrm.ShowOnlyOnModern": true,
+					"OfficeProductivity.RibbonRules.showMSTeamsViewCollaborateCommand": false
+				}
+			},
+			"Mscrm.HomepageGrid.incident.AddToQueue": {
+				"label": "Add to Queue (hidden)",
+				"command": "Mscrm.AddSelectedToQueue",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AppendToSelected": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnGridAndQuickAction": null,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WorksWithQueueSelected": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Assign": {
+				"label": "Assign (hidden)",
+				"command": "Mscrm.AssignSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AssignSelectedEntityPermission": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnGridAndQuickAction": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.AssociateParentChildCase": {
+				"label": "Associate Child Cases (hidden)",
+				"command": "Mscrm.HomepageGrid.incident.AssociateParentChildCase",
+				"flags": "H",
+				"rules": {
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastTwo": false,
+					"Mscrm.ShowOnInteractionCentricHideOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Cancel": {
+				"label": "Cancel Case (hidden)",
+				"command": "Mscrm.HomepageGrid.incident.Cancel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanChangeIncidentForm": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnGridAndQuickAction": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.ChangeDataSetControlButton": {
+				"label": "Show As (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Delete": {
+				"label": "Delete (hidden)",
+				"command": "Mscrm.DeleteSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DeleteSelectedEntityPermission": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.NotShowForManyToManyGrids": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.DeleteMenu": {
+				"label": "Delete",
+				"command": "Mscrm.HomepageGrid.DeleteSplitButtonCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DeleteSplitButtonDisplayRule": true,
+					"Mscrm.DeleteSplitButtonEnableRule": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Diagnose": {
+				"label": "Diagnose (hidden)",
+				"command": "Mscrm.incident.DiagnoseCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.incident.EntityPrivilegeRule": null,
+					"Mscrm.incident.EntityRule": true,
+					"Mscrm.incident.MaxOneSelection": false,
+					"Mscrm.incident.ShouldEnableDiagnoseButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.DocumentTemplate": {
+				"label": "Excel Templates",
+				"command": "Mscrm.DocumentTemplate.Templates",
+				"flags": "V",
+				"rules": {
+					"Mscrm.DocumentGenerationPrivilege": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.TemplatesFCBEnabled": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.DoNotDecrementEntitlementTerms": {
+				"label": "Do Not Decrement Entitlement Terms (hidden)",
+				"command": "Mscrm.HomepageGrid.incident.DoNotDecrementEntitlementTerms",
+				"flags": "H",
+				"rules": {
+					"Mscrm.NotOffline": null,
+					"Mscrm.PrimaryIsNotActivity": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Edit": {
+				"label": "Edit (hidden)",
+				"command": "Mscrm.EditSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.BulkEditPrivilege": true,
+					"Mscrm.CheckBulkEditSupportForEntity": false,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true,
+					"Mscrm.WriteSelectedEntityPermission": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Flows.RefreshCommandBar": {
+				"label": "Flow",
+				"command": "Mscrm.Form.Flows.ManageRunFlow",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DisplayFlowSingleMenu": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.incident.IsModernCaseQuickCreateForm.Invert": true,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": true,
+					"Mscrm.MicrosoftFlows": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Flows.RefreshCommandBar.Flows": {
+				"label": "Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Flows.RefreshCommandBar.ManageFlows": {
+				"label": "Manage Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Flows.RefreshCommandBar.RunFlow": {
+				"label": "Run Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Flows.RefreshCommandBar.RunWorkflow": {
+				"label": "Run WorkFlow (hidden)",
+				"command": "Mscrm.Form.Flows.RunWorkflow",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.IsOnDemandWorkflowUCIEnabled": null,
+					"Mscrm.MicrosoftFlows": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.FollowButton": {
+				"label": "Follow (hidden)",
+				"command": "Mscrm.HomepageGrid.FollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledActive": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowFollowButton": null,
+					"msdyn.ActivityFeeds.Yammer.ShouldEnableFollow": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.MainTab.QuickPowerBI.Button": {
+				"label": "Visualize this view",
+				"command": "Mscrm.HomepageGrid.MainTab.QuickPowerBI.Command",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnablePowerBIQuickReport": true,
+					"Mscrm.HideOnPhone": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.PrimaryIsNotActivity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.MergeRecords": {
+				"label": "Merge Cases (hidden)",
+				"command": "Mscrm.HomepageGrid.incident.MergeRecords",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanWriteIncident": null,
+					"Mscrm.HomepageGrid.incident.MergeGroup": null,
+					"Mscrm.MinIncidentMerge": false,
+					"Mscrm.NotOffline": true,
+					"Mscrm.ShowOnInteractionCentricHideOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.modern.SendDirectEmail": {
+				"label": "Send Direct Email (hidden)",
+				"command": "Mscrm.modern.AddEmailToSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBulkEmailInUciEnabled": null,
+					"Mscrm.SelectedEntityIsListedForSendDirectEmailOrEmailable": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WriteActivityPermission": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.NavigateToHomepageGrid": {
+				"label": "See all records (hidden)",
+				"command": "Mscrm.NavigateToHomepageGrid",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsNavigateToInUCIEnabled": true,
+					"Mscrm.ShowOnDashboardPageUCI": false,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.NewRecord": {
+				"label": "New Case",
+				"command": "Mscrm.NewRecordFromGrid",
+				"flags": "V",
+				"rules": {
+					"Mscrm.CreateSelectedEntityPermission": true,
+					"Mscrm.HideAddressEntities": true,
+					"Mscrm.HideNewForChildEntities": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.PrimaryIsNotActivity": true,
+					"Mscrm.ShowForNonRelationshipBoundGrids": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.NewRecordForBPFEntity": {
+				"label": "New (hidden)",
+				"command": "Mscrm.HomepageGrid.incident.NewRecordForBPFEntity",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CreateSelectedEntityPermission": null,
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.SelectedEntityIsBPFEntity": false
+				}
+			},
+			"Mscrm.HomepageGrid.incident.NewUnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.NewUnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarEnabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.OpenActiveStage": {
+				"label": "Open Active Stage (hidden)",
+				"command": "Mscrm.HomepageGrid.incident.OpenActiveStage",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": null,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": null,
+					"Mscrm.SelectedEntityIsBPFEntity": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.incident.OpenRecordInSidePane": {
+				"label": "Open in side pane (hidden)",
+				"command": "Mscrm.OpenRecordInSidePane",
+				"flags": "H",
+				"rules": {
+					"FCB.SearchQuickActionOpenInSidePane.IsEnabled": null,
+					"Mscrm.IsQuickActionToOpenRecordInSidePaneEnabled": null,
+					"Mscrm.ReadPrimaryPermission": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnQuickAction": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.RefreshModernButton": {
+				"label": "Refresh",
+				"command": "Mscrm.Modern.refreshCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.FormStateNotNew": true,
+					"Mscrm.HideInOfflineClassic": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.RequestEvaluation": {
+				"label": "Request evaluation (hidden)",
+				"command": "new.incident.RequestEvaluation.Command",
+				"flags": "H",
+				"rules": {
+					"incident.isQEAEnabled.DisplayRule": null,
+					"new.incident.RequestEvaluation.DisplayRule": null,
+					"new.incident.RequestEvaluation.EnableRule": false
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Resolve": {
+				"label": "Resolve Case (hidden)",
+				"command": "Mscrm.HomepageGrid.incident.Resolve",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanChangeIncidentForm": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnGridAndQuickAction": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.RunReport": {
+				"label": "Run Report",
+				"command": "Mscrm.ReportMenu.Grid",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.HybridDialogReportsEnabled": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ReadReport": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Send": {
+				"label": "Email a Link",
+				"command": "Mscrm.SendShortcutSelected.AlwaysEnabled",
+				"flags": "V",
+				"rules": {
+					"Mscrm.Enabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Send.Selected": {
+				"label": "Of Selected Items (hidden)",
+				"command": "Mscrm.SendShortcutSelected",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyPageInUC": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Send.View": {
+				"label": "Of Current View",
+				"command": "Mscrm.SendShortcutView",
+				"flags": "V",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.incident.Sharing": {
+				"label": "Share (hidden)",
+				"command": "Mscrm.ShareSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.HybridDialogShareEnabled": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShareSelectedEntityPermission": null,
+					"Mscrm.ShareValid": null,
+					"Mscrm.ShowOnGridAndQuickAction": null,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.UnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.UnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarDisabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.incident.ViewHierarchy": {
+				"label": "View Hierarchy (hidden)",
+				"command": "Mscrm.ViewHierarchyForSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsRecordHierarchyEnabled": null,
+					"Mscrm.IsViewHierarchyEnabled": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.incident.HomeGrid.CMA.EditAIAutomation": {
+				"label": "Edit AI automation (hidden)",
+				"command": "Mscrm.incident.HomeGrid.CMA.EditAIAutomation.Command",
+				"flags": "H",
+				"rules": {
+					"Mscrm.incident.CMA.AIAgentStatus.EntityPrivilegeRule": null,
+					"Mscrm.incident.HomeGrid.CMA.ShowEditAIAutomation": null,
+					"Mscrm.incident.HomeGrid.CMA.ShowEditAIAutomation.MinOneSelection": false
+				}
+			},
+			"Mscrm.incident.HomeGrid.CMA.Escalate": {
+				"label": "Escalate (hidden)",
+				"command": "Mscrm.incident.HomeGrid.CMA.Escalate.Command",
+				"flags": "H",
+				"rules": {
+					"Mscrm.incident.CMA.AIAgentStatus.EntityPrivilegeRule": null,
+					"Mscrm.incident.HomeGrid.CMA.shouldShowEscalateMultipleCMA": null,
+					"Mscrm.incident.HomeGrid.CMA.ShowEscalate.MinOneSelection": false
+				}
+			},
+			"Mscrm.incident.HomeGrid.CMA.Stop": {
+				"label": "Stop (hidden)",
+				"command": "Mscrm.incident.HomeGrid.CMA.Stop.Command",
+				"flags": "H",
+				"rules": {
+					"Mscrm.incident.CMA.AIAgentStatus.EntityPrivilegeRule": null,
+					"Mscrm.incident.HomeGrid.CMA.shouldShowStopMultipleCRA": null,
+					"Mscrm.incident.HomeGrid.CMA.ShowStop.MinOneSelection": false
+				}
+			},
+			"Mscrm.SequencesMulti.Connect.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Connect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.Disconnect.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.ViewConnectedSequences.Button": {
+				"label": "View connected sequences (hidden)",
+				"command": "Mscrm.SequencesMulti.ViewConnectedSequences",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.SelectionCountOnlyOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.ApplicationRibbon.incident.HomeGrid.BookResource.Button": {
+				"label": "Book (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.BookResource.Command",
+				"flags": "H",
+				"rules": {
+					"msdyn.ApplicationRibbon.HomeGrid.BookResource.EnableRule": false
+				}
+			},
+			"msdyn.ApplicationRibbon.incident.HomeGrid.RunRoutingRule.Button": {
+				"label": "Apply Routing Rule (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.RunRoutingRule.Command",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EntityIsNotIncident": null,
+					"Mscrm.IsAnyEntityRoutingRuleEnabled": null,
+					"Mscrm.IsRoutingRuleCreatedForEntity": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"msdyn.HomepageGrid.incident.ApplyCadence.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.Apply",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityApplicableForCadence": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.incident.DisconnectSequence.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Sequence.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.Sequence.Grid.IsApplicableForDisconnect": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.incident.LaunchPlaybook.Button": {
+				"label": "Launch playbook (hidden)",
+				"command": "Playbook.HomepageGrid.Launch",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanLaunchPlaybook": null,
+					"Mscrm.IsPlaybookFeatureEnabled": null,
+					"Mscrm.IsPlaybookTemplateAvailableFromGrid": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.incident.OpenFocusedView.Button": {
+				"label": "Focused view (hidden)",
+				"command": "Mscrm.HomepageGrid.AcceleratedSales.OpenFocusedView",
+				"flags": "H",
+				"rules": {
+					"AcceleratedSales.IsFocusedViewCommandVisible": null,
+					"AcceleratedSales.IsFocusedViewEnabled": false,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityEnabledForFocusedView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.incident.OpenGridViewInInbox.Button": {
+				"label": "Inbox view (hidden)",
+				"command": "Mscrm.HomepageGrid.Inbox.OpenGridViewInInbox",
+				"flags": "H",
+				"rules": {
+					"Mscrm.HideOnMobile": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.InboxRibbonActions.ShouldEnablePersonalizedConfigurations": false,
+					"Mscrm.NotOffline": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"msdyn.HomepageGrid.incident.SequencesMulti.Button": {
+				"label": "Sequences (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.SequencesMulti",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityForCadenceConnectOrDisconnect": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.msdyn_incident.Button.HomeSendCommand": {
+				"label": "Send Command (hidden)",
+				"command": "msdyn.msdyn_incident.Command.HomeSendCommand",
+				"flags": "H",
+				"rules": {
+					"msdyn.msdyn_incident.DisplayRule.AllowCommandAccess": null,
+					"msdyn.msdyn_incident.EnableRule.AssociatedAssetHome": null,
+					"msdyn.msdyn_incident.EnableRule.IoTInUseHome": null,
+					"msdyn.msdyn_incident.EnableRule.SelectionCountExactlyOne": false
+				}
+			}
+		},
+		"HomePageGrid.invoice.sel0": {
+			"AIBuilder.invoice.Flyout": {
+				"label": "AI Builder (hidden)",
+				"command": "AIBuilder.Command.Flyout",
+				"flags": "H",
+				"rules": {
+					"AIBuilder.FCB.ShowAIBuilderCommandInUCI": false,
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.ShowOnlyOnModern": true,
+					"Mscrm.WriteCustomization": true
+				}
+			},
+			"AIBuilder.invoice.Flyout.Dummy": {
+				"label": "AIBuilder Hidden (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"AIBuilder.invoice.Flyout.Menu.MenuSection.Controls.CreateModel.Dummy": {
+				"label": "Create model (hidden)",
+				"command": "AIBuilder.Command.CreateModel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"AIBuilder.invoice.Flyout.Menu.MenuSection.Controls.SeeModels.Dummy": {
+				"label": "See your models (hidden)",
+				"command": "AIBuilder.Command.SeeModels",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"Mscrm.HomepageGrid.AllEntities.VisualizationTab.Save.Save": {
+				"label": "Save (hidden)",
+				"command": "Mscrm.VisualizationTab.SaveChart",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EnableSaveChart": false,
+					"Mscrm.userqueryvisualization.CreateOrWrite": false
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.ActionButtonForMSTeams": {
+				"label": "Collaborate (hidden)",
+				"command": "Mscrm.HomePageGrid.MSTeamsViewCollaborateCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsMSTeamsIntegrationEnabled": true,
+					"Mscrm.ShowMSTeamsChannelCollaboration": false,
+					"Mscrm.ShowOnlyOnModern": true,
+					"OfficeProductivity.RibbonRules.showMSTeamsViewCollaborateCommand": false
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.AddToQueue": {
+				"label": "Add to Queue (hidden)",
+				"command": "Mscrm.AddSelectedToQueue",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AppendToSelected": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WorksWithQueueSelected": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Assign": {
+				"label": "Assign (hidden)",
+				"command": "Mscrm.HomepageGrid.invoice.Assign",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AssignSelectedEntityPermission": null,
+					"Mscrm.IsValidForHierarchyPageInUC": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.ChangeDataSetControlButton": {
+				"label": "Show As (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Chart.Delete": {
+				"label": "Delete Chart (hidden)",
+				"command": "Mscrm.HomepageGrid.invoice.Chart.Delete",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.EnableOnHomePageAspxOrOutlook": false,
+					"Mscrm.IsDeleteVisualizationEnabled": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.userqueryvisualization.Delete": null,
+					"Mscrm.VisualizationPaneRuntimeMode": false
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Chart.Edit": {
+				"label": "Edit Chart (hidden)",
+				"command": "Mscrm.HomepageGrid.invoice.Chart.Edit",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.IsChartSelected": false,
+					"Mscrm.IsDefaultVisualizationModule": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.IsFetchxmlQuery": false,
+					"Mscrm.IsParentChartLoaded": false,
+					"Mscrm.NotOffline": true,
+					"Mscrm.userqueryvisualization.Write": null,
+					"Mscrm.UserVisualizationSelected": false,
+					"Mscrm.VisualizationPaneRuntimeMode": false
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Charts": {
+				"label": "Chart Pane (hidden)",
+				"command": "Mscrm.Charts.Flyout",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.EnableChartsButton": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.NotAdvancedFind": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Delete": {
+				"label": "Delete (hidden)",
+				"command": "Mscrm.DeleteSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DeleteSelectedEntityPermission": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.NotShowForManyToManyGrids": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.DeleteMenu": {
+				"label": "Delete",
+				"command": "Mscrm.HomepageGrid.DeleteSplitButtonCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DeleteSplitButtonDisplayRule": true,
+					"Mscrm.DeleteSplitButtonEnableRule": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.DocumentTemplate": {
+				"label": "Excel Templates",
+				"command": "Mscrm.DocumentTemplate.Templates",
+				"flags": "V",
+				"rules": {
+					"Mscrm.DocumentGenerationPrivilege": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.TemplatesFCBEnabled": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.DynamicPivotTable": {
+				"label": "Dynamic PivotTable",
+				"command": "Mscrm.ExportToExcel.PivotXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.ShowPivotXlsx": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.DynamicWorkesheet": {
+				"label": "Dynamic Worksheet",
+				"command": "Mscrm.ExportToExcel.DynamicXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableOnlyInBrowsersForModern": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Edit": {
+				"label": "Edit (hidden)",
+				"command": "Mscrm.EditSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.BulkEditPrivilege": true,
+					"Mscrm.CheckBulkEditSupportForEntity": false,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true,
+					"Mscrm.WriteSelectedEntityPermission": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.ExportSelectedToExcel": {
+				"label": "Export to Excel (hidden)",
+				"command": "Mscrm.ExportSelectedToExcel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.ExportToExcel": null,
+					"Mscrm.ExportToExcelPrivilege": null,
+					"Mscrm.HideForTabletExperience": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowExportSelectedToExcel": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.ExportToExcel": {
+				"label": "Export to Excel",
+				"command": "Mscrm.ExportToExcel",
+				"flags": "V",
+				"rules": {
+					"Mscrm.ExportToExcel": true,
+					"Mscrm.ExportToExcelPrivilege": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.SelectionCountNoneOrOutlook": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.ExportToExcelOnline": {
+				"label": "Open in Excel Online",
+				"command": "Mscrm.ExportToExcel.Online",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableExportToExcelOnlineForModern": true,
+					"Mscrm.EnableOnlyInBrowsersForModern": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.HideOnPhoneForNonModern": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true,
+					"Mscrm.Live": true,
+					"Mscrm.NotAdvancedFind": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Flows.RefreshCommandBar": {
+				"label": "Flow",
+				"command": "Mscrm.Form.Flows.ManageRunFlow",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DisplayFlowSingleMenu": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": true,
+					"Mscrm.MicrosoftFlows": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Flows.RefreshCommandBar.Flows": {
+				"label": "Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Flows.RefreshCommandBar.ManageFlows": {
+				"label": "Manage Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Flows.RefreshCommandBar.RunFlow": {
+				"label": "Run Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Flows.RefreshCommandBar.RunWorkflow": {
+				"label": "Run WorkFlow (hidden)",
+				"command": "Mscrm.Form.Flows.RunWorkflow",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.IsOnDemandWorkflowUCIEnabled": null,
+					"Mscrm.MicrosoftFlows": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.FollowButton": {
+				"label": "Follow (hidden)",
+				"command": "Mscrm.HomepageGrid.FollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledActive": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowFollowButton": null,
+					"msdyn.ActivityFeeds.Yammer.ShouldEnableFollow": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.ImportDataFromCSV": {
+				"label": "Import from CSV",
+				"command": "Mscrm.ImportDataFromCSV",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.ImportDataFromExcel": {
+				"label": "Import from Excel",
+				"command": "Mscrm.ImportDataFromExcel",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.ImportData": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.ImportDataFromXML": {
+				"label": "Import from XML",
+				"command": "Mscrm.ImportDataFromXML",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.MainTab.QuickPowerBI.Button": {
+				"label": "Visualize this view",
+				"command": "Mscrm.HomepageGrid.MainTab.QuickPowerBI.Command",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnablePowerBIQuickReport": true,
+					"Mscrm.HideOnPhone": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.PrimaryIsNotActivity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.modern.SendDirectEmail": {
+				"label": "Send Direct Email (hidden)",
+				"command": "Mscrm.modern.AddEmailToSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBulkEmailInUciEnabled": null,
+					"Mscrm.SelectedEntityIsListedForSendDirectEmailOrEmailable": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WriteActivityPermission": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.NavigateToHomepageGrid": {
+				"label": "See all records (hidden)",
+				"command": "Mscrm.NavigateToHomepageGrid",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsNavigateToInUCIEnabled": true,
+					"Mscrm.ShowOnDashboardPageUCI": false,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.NewRecord": {
+				"label": "New",
+				"command": "Mscrm.HomepageGrid.invoice.NewRecord",
+				"flags": "V",
+				"rules": {
+					"Mscrm.CreateSelectedEntityPermission": true,
+					"Mscrm.HideAddressEntities": true,
+					"Mscrm.HideNewForChildEntities": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.IsNotActivityPointer": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.PrimaryIsNotActivityHomePageGrid": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowForNonRelationshipBoundGrids": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.NewRecordForBPFEntity": {
+				"label": "New (hidden)",
+				"command": "Mscrm.HomepageGrid.invoice.NewRecordForBPFEntity",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CreateSelectedEntityPermission": null,
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.SelectedEntityIsBPFEntity": false
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.NewUnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.NewUnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarEnabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.OpenActiveStage": {
+				"label": "Open Active Stage (hidden)",
+				"command": "Mscrm.HomepageGrid.invoice.OpenActiveStage",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": null,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": null,
+					"Mscrm.SelectedEntityIsBPFEntity": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.OpenRecordInSidePane": {
+				"label": "Open in side pane (hidden)",
+				"command": "Mscrm.OpenRecordInSidePane",
+				"flags": "H",
+				"rules": {
+					"FCB.SearchQuickActionOpenInSidePane.IsEnabled": null,
+					"Mscrm.IsQuickActionToOpenRecordInSidePaneEnabled": null,
+					"Mscrm.ReadPrimaryPermission": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnQuickAction": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.RefreshButton": {
+				"label": "Refresh (hidden)",
+				"command": "Mscrm.HomepageGrid.invoice.RefreshButton",
+				"flags": "H",
+				"rules": {
+					"Mscrm.ShowOnlyInOutlookExplorerOrInspector": false
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.RefreshModernButton": {
+				"label": "Refresh",
+				"command": "Mscrm.Modern.refreshCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.FormStateNotNew": true,
+					"Mscrm.HideInOfflineClassic": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.RunReport": {
+				"label": "Run Report",
+				"command": "Mscrm.ReportMenu.Grid",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.HybridDialogReportsEnabled": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ReadReport": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.SaveFiltersToCurrentSystemView": {
+				"label": "Save Filters to Current System View (hidden)",
+				"command": "Mscrm.SaveFilterForSystemQuery",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EnableSaveButton": false,
+					"Mscrm.GridFiltersEnabled": true,
+					"Mscrm.IsCustomizable": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.OpenCustomizations": false,
+					"Mscrm.savedquery.Update": true,
+					"Mscrm.SystemQuerySelected": false,
+					"Mscrm.VisualizationPaneNotMaximized": true,
+					"Mscrm.WriteCustomization": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Send": {
+				"label": "Email a Link",
+				"command": "Mscrm.SendShortcutSelected.AlwaysEnabled",
+				"flags": "V",
+				"rules": {
+					"Mscrm.Enabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Send.Selected": {
+				"label": "Of Selected Items (hidden)",
+				"command": "Mscrm.SendShortcutSelected",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyPageInUC": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Send.View": {
+				"label": "Of Current View",
+				"command": "Mscrm.SendShortcutView",
+				"flags": "V",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.Sharing": {
+				"label": "Share (hidden)",
+				"command": "Mscrm.HomepageGrid.invoice.Sharing",
+				"flags": "H",
+				"rules": {
+					"Mscrm.HybridDialogShareEnabled": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShareSelectedEntityPermission": null,
+					"Mscrm.ShareValid": null,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.StaticWorksheet": {
+				"label": "Static Worksheet (Page only)",
+				"command": "Mscrm.ExportToExcel.StaticXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.StaticWorksheetAll": {
+				"label": "Static Worksheet",
+				"command": "Mscrm.ExportToExcel.AllStaticXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.UnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.UnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarDisabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.ViewHierarchy": {
+				"label": "View Hierarchy (hidden)",
+				"command": "Mscrm.ViewHierarchyForSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsRecordHierarchyEnabled": null,
+					"Mscrm.IsViewHierarchyEnabled": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.invoice.WordTemplate": {
+				"label": "Word Templates (hidden)",
+				"command": "Mscrm.HomepageGrid.WordTemplate",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DocumentGenerationPrivilege": null,
+					"Mscrm.HideForTabletExperience": null,
+					"Mscrm.IsFolderNotSelected": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WordTemplatesFCBEnabled": null
+				}
+			},
+			"Mscrm.SequencesMulti.Connect.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Connect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.Disconnect.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.ViewConnectedSequences.Button": {
+				"label": "View connected sequences (hidden)",
+				"command": "Mscrm.SequencesMulti.ViewConnectedSequences",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.SelectionCountOnlyOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.ApplicationRibbon.invoice.HomeGrid.BookResource.Button": {
+				"label": "Book (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.BookResource.Command",
+				"flags": "H",
+				"rules": {
+					"msdyn.ApplicationRibbon.HomeGrid.BookResource.EnableRule": false
+				}
+			},
+			"msdyn.ApplicationRibbon.invoice.HomeGrid.RunRoutingRule.Button": {
+				"label": "Apply Routing Rule (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.RunRoutingRule.Command",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EntityIsNotIncident": null,
+					"Mscrm.IsAnyEntityRoutingRuleEnabled": null,
+					"Mscrm.IsRoutingRuleCreatedForEntity": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"msdyn.HomepageGrid.invoice.ApplyCadence.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.Apply",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityApplicableForCadence": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.invoice.DisconnectSequence.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Sequence.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.Sequence.Grid.IsApplicableForDisconnect": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.invoice.LaunchPlaybook.Button": {
+				"label": "Launch playbook (hidden)",
+				"command": "Playbook.HomepageGrid.Launch",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanLaunchPlaybook": null,
+					"Mscrm.IsPlaybookFeatureEnabled": null,
+					"Mscrm.IsPlaybookTemplateAvailableFromGrid": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.invoice.OpenFocusedView.Button": {
+				"label": "Focused view (hidden)",
+				"command": "Mscrm.HomepageGrid.AcceleratedSales.OpenFocusedView",
+				"flags": "H",
+				"rules": {
+					"AcceleratedSales.IsFocusedViewCommandVisible": null,
+					"AcceleratedSales.IsFocusedViewEnabled": false,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityEnabledForFocusedView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.invoice.SequencesMulti.Button": {
+				"label": "Sequences (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.SequencesMulti",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityForCadenceConnectOrDisconnect": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			}
+		},
+		"HomePageGrid.lead.sel0": {
+			"AIBuilder.lead.Flyout": {
+				"label": "AI Builder (hidden)",
+				"command": "AIBuilder.Command.Flyout",
+				"flags": "H",
+				"rules": {
+					"AIBuilder.FCB.ShowAIBuilderCommandInUCI": false,
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.ShowOnlyOnModern": true,
+					"Mscrm.WriteCustomization": true
+				}
+			},
+			"AIBuilder.lead.Flyout.Dummy": {
+				"label": "AIBuilder Hidden (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"AIBuilder.lead.Flyout.Menu.MenuSection.Controls.CreateModel.Dummy": {
+				"label": "Create model (hidden)",
+				"command": "AIBuilder.Command.CreateModel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"AIBuilder.lead.Flyout.Menu.MenuSection.Controls.SeeModels.Dummy": {
+				"label": "See your models (hidden)",
+				"command": "AIBuilder.Command.SeeModels",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"Mscrm.DynamicMenu.Grid.DisqualifyAs.4.0": {
+				"label": "Lost (hidden)",
+				"command": "Mscrm.DynamicMenu.Grid.DisqualifyAs.4.0",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DynamicMenu.Grid.DisqualifyAs.4.0": null
+				}
+			},
+			"Mscrm.DynamicMenu.Grid.DisqualifyAs.5.1": {
+				"label": "Cannot Contact (hidden)",
+				"command": "Mscrm.DynamicMenu.Grid.DisqualifyAs.5.1",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DynamicMenu.Grid.DisqualifyAs.5.1": null
+				}
+			},
+			"Mscrm.DynamicMenu.Grid.DisqualifyAs.6.2": {
+				"label": "No Longer Interested (hidden)",
+				"command": "Mscrm.DynamicMenu.Grid.DisqualifyAs.6.2",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DynamicMenu.Grid.DisqualifyAs.6.2": null
+				}
+			},
+			"Mscrm.DynamicMenu.Grid.DisqualifyAs.7.3": {
+				"label": "Canceled (hidden)",
+				"command": "Mscrm.DynamicMenu.Grid.DisqualifyAs.7.3",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DynamicMenu.Grid.DisqualifyAs.7.3": null
+				}
+			},
+			"Mscrm.DynamicMenu.Grid.QualifyAs.3.0": {
+				"label": "Qualified (hidden)",
+				"command": "Mscrm.DynamicMenu.Grid.QualifyAs.3.0",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DynamicMenu.Grid.QualifyAs.3.0": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ActionButtonForMSTeams": {
+				"label": "Collaborate (hidden)",
+				"command": "Mscrm.HomePageGrid.MSTeamsViewCollaborateCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsMSTeamsIntegrationEnabled": true,
+					"Mscrm.ShowMSTeamsChannelCollaboration": false,
+					"Mscrm.ShowOnlyOnModern": true,
+					"OfficeProductivity.RibbonRules.showMSTeamsViewCollaborateCommand": false
+				}
+			},
+			"Mscrm.HomepageGrid.lead.AddToList": {
+				"label": "Add to Marketing List (hidden)",
+				"command": "Mscrm.AddSelectedToMarketingList",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AddSelectedToMarketingList": null,
+					"Mscrm.NotAListForm": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.AddToQueue": {
+				"label": "Add to Queue (hidden)",
+				"command": "Mscrm.AddSelectedToQueue",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AppendToSelected": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WorksWithQueueSelected": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Assign": {
+				"label": "Assign (hidden)",
+				"command": "Mscrm.HomepageGrid.lead.Assign",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AssignSelectedEntityPermission": null,
+					"Mscrm.IsValidForHierarchyPageInUC": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ChangeDataSetControlButton": {
+				"label": "Show As (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Chart.Delete": {
+				"label": "Delete Chart (hidden)",
+				"command": "Mscrm.HomepageGrid.lead.Chart.Delete",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.EnableOnHomePageAspxOrOutlook": false,
+					"Mscrm.IsDeleteVisualizationEnabled": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.userqueryvisualization.Delete": null,
+					"Mscrm.VisualizationPaneRuntimeMode": false
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Chart.Edit": {
+				"label": "Edit Chart (hidden)",
+				"command": "Mscrm.HomepageGrid.lead.Chart.Edit",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.IsChartSelected": false,
+					"Mscrm.IsDefaultVisualizationModule": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.IsFetchxmlQuery": false,
+					"Mscrm.IsParentChartLoaded": false,
+					"Mscrm.NotOffline": true,
+					"Mscrm.userqueryvisualization.Write": null,
+					"Mscrm.UserVisualizationSelected": false,
+					"Mscrm.VisualizationPaneRuntimeMode": false
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Charts": {
+				"label": "Chart Pane (hidden)",
+				"command": "Mscrm.Charts.Flyout",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.EnableChartsButton": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.NotAdvancedFind": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ConvertLeadAs": {
+				"label": "Qualify (hidden)",
+				"command": "Mscrm.Lead.QualifyFlyout",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanCreateAccount": null,
+					"Mscrm.CanCreateContact": null,
+					"Mscrm.CanWriteLead": null,
+					"Mscrm.DynamicMenu.NewRecord.opportunity": null,
+					"Mscrm.Form.lead.IsUCI": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsAccountAvailableInMocaOffline": null,
+					"Mscrm.IsContactAvailableInMocaOffline": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.IsOpportunityAvailableInMocaOffline": null,
+					"Mscrm.MultipleQualifyStatusCodes": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.SelectionCountOnlyOneForOffline": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ConvertLeadAs.Web": {
+				"label": "Qualify (hidden)",
+				"command": "Mscrm.Lead.QualifyFlyout.Web",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanCreateAccount": null,
+					"Mscrm.CanCreateContact": null,
+					"Mscrm.CanWriteLead": null,
+					"Mscrm.DynamicMenu.NewRecord.opportunity": null,
+					"Mscrm.Form.lead.IsNotUCI": null,
+					"Mscrm.MultipleQualifyStatusCodes": null,
+					"Mscrm.SelectionCountAtLeastOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ConvertLeadQuick": {
+				"label": "Qualify (hidden)",
+				"command": "Mscrm.HomepageGrid.lead.ConvertQuick",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DynamicMenu.NewRecord.opportunity": null,
+					"Mscrm.Form.lead.IsUCI": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsAccountAvailableInMocaOffline": null,
+					"Mscrm.IsContactAvailableInMocaOffline": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.IsOpportunityAvailableInMocaOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.SelectionCountOnlyOneForOffline": null,
+					"Mscrm.SingleQualifyStatusCode": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ConvertLeadQuick.Web": {
+				"label": "Qualify (hidden)",
+				"command": "Mscrm.HomepageGrid.lead.ConvertQuick.Web",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DynamicMenu.NewRecord.opportunity": null,
+					"Mscrm.Form.lead.IsNotUCI": null,
+					"Mscrm.IsAccountAvailableInMocaOffline": null,
+					"Mscrm.IsContactAvailableInMocaOffline": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.IsOpportunityAvailableInMocaOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.SelectionCountOnlyOneForOffline": null,
+					"Mscrm.SingleQualifyStatusCode": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Delete": {
+				"label": "Delete (hidden)",
+				"command": "Mscrm.DeleteSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DeleteSelectedEntityPermission": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.NotOnCampaignForm": null,
+					"Mscrm.NotShowForManyToManyGrids": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.DeleteMenu": {
+				"label": "Delete",
+				"command": "Mscrm.HomepageGrid.DeleteSplitButtonCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DeleteSplitButtonDisplayRule": true,
+					"Mscrm.DeleteSplitButtonEnableRule": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.DisqualifyLeadAs": {
+				"label": "Disqualify (hidden)",
+				"command": "Mscrm.Lead.DisqualifyFlyout",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanWriteLead": null,
+					"Mscrm.Form.lead.IsNotUCI": null,
+					"Mscrm.MultipleDisqualifyStatusCodes": null,
+					"Mscrm.SelectionCountAtLeastOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.lead.DisqualifyLeadAs.UCI": {
+				"label": "Disqualify (hidden)",
+				"command": "Mscrm.Lead.DisqualifyFlyout.UCI",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanWriteLead": null,
+					"Mscrm.Form.lead.IsUCI": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.MultipleDisqualifyStatusCodes": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.SelectionCountOnlyOneForOffline": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.DocumentTemplate": {
+				"label": "Excel Templates",
+				"command": "Mscrm.DocumentTemplate.Templates",
+				"flags": "V",
+				"rules": {
+					"Mscrm.DocumentGenerationPrivilege": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.TemplatesFCBEnabled": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.DynamicPivotTable": {
+				"label": "Dynamic PivotTable",
+				"command": "Mscrm.ExportToExcel.PivotXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.ShowPivotXlsx": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.DynamicWorkesheet": {
+				"label": "Dynamic Worksheet",
+				"command": "Mscrm.ExportToExcel.DynamicXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableOnlyInBrowsersForModern": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Edit": {
+				"label": "Edit (hidden)",
+				"command": "Mscrm.EditSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.BulkEditPrivilege": true,
+					"Mscrm.CheckBulkEditSupportForEntity": false,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true,
+					"Mscrm.WriteSelectedEntityPermission": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ExportSelectedToExcel": {
+				"label": "Export to Excel (hidden)",
+				"command": "Mscrm.ExportSelectedToExcel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.ExportToExcel": null,
+					"Mscrm.ExportToExcelPrivilege": null,
+					"Mscrm.HideForTabletExperience": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowExportSelectedToExcel": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ExportToExcel": {
+				"label": "Export to Excel",
+				"command": "Mscrm.ExportToExcel",
+				"flags": "V",
+				"rules": {
+					"Mscrm.ExportToExcel": true,
+					"Mscrm.ExportToExcelPrivilege": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.SelectionCountNoneOrOutlook": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ExportToExcelOnline": {
+				"label": "Open in Excel Online",
+				"command": "Mscrm.ExportToExcel.Online",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableExportToExcelOnlineForModern": true,
+					"Mscrm.EnableOnlyInBrowsersForModern": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.HideOnPhoneForNonModern": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true,
+					"Mscrm.Live": true,
+					"Mscrm.NotAdvancedFind": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Flows.RefreshCommandBar": {
+				"label": "Flow",
+				"command": "Mscrm.Form.Flows.ManageRunFlow",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DisplayFlowSingleMenu": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": true,
+					"Mscrm.MicrosoftFlows": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Flows.RefreshCommandBar.Flows": {
+				"label": "Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Flows.RefreshCommandBar.ManageFlows": {
+				"label": "Manage Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Flows.RefreshCommandBar.RunFlow": {
+				"label": "Run Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Flows.RefreshCommandBar.RunWorkflow": {
+				"label": "Run WorkFlow (hidden)",
+				"command": "Mscrm.Form.Flows.RunWorkflow",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.IsOnDemandWorkflowUCIEnabled": null,
+					"Mscrm.MicrosoftFlows": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.FollowButton": {
+				"label": "Follow (hidden)",
+				"command": "Mscrm.HomepageGrid.FollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledActive": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowFollowButton": null,
+					"msdyn.ActivityFeeds.Yammer.ShouldEnableFollow": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ImportDataFromCSV": {
+				"label": "Import from CSV",
+				"command": "Mscrm.ImportDataFromCSV",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ImportDataFromExcel": {
+				"label": "Import from Excel",
+				"command": "Mscrm.ImportDataFromExcel",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.ImportData": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ImportDataFromXML": {
+				"label": "Import from XML",
+				"command": "Mscrm.ImportDataFromXML",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.LeadHygiene.ViewDuplicates": {
+				"label": "View duplicates (hidden)",
+				"command": "Mscrm.HomepageGrid.lead.LeadHygiene.ViewDuplicates",
+				"flags": "H",
+				"rules": {
+					"Mscrm.LeadHygiene.OnlyIfLeadHasDuplicates": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.lead.MainTab.Actions.Controls.CustomAction.Hidden.9.1": {
+				"label": "Ignore (hidden)",
+				"command": "Mscrm.lead.Hide",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false,
+					"Mscrm.HideOnOutlookClient": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.MainTab.Actions.Controls.CustomAction.Hidden.9.5": {
+				"label": "Ignore Disqualify (hidden)",
+				"command": "Mscrm.Grid.lead.DisqualifyAs",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.MainTab.Actions.Controls.CustomAction.Hidden.9.6": {
+				"label": "Ignore Qualify (hidden)",
+				"command": "Mscrm.Grid.lead.QualifyAs",
+				"flags": "H",
+				"rules": {
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.MainTab.QuickPowerBI.Button": {
+				"label": "Visualize this view",
+				"command": "Mscrm.HomepageGrid.MainTab.QuickPowerBI.Command",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnablePowerBIQuickReport": true,
+					"Mscrm.HideOnPhone": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.PrimaryIsNotActivity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.MergeRecords": {
+				"label": "Merge (hidden)",
+				"command": "Mscrm.HomepageGrid.lead.MergeRecords",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanWriteLead": null,
+					"Mscrm.HomepageGrid.lead.MergeGroup": null,
+					"Mscrm.HybridDialogMergeEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountOneOrTwo": false,
+					"Mscrm.ValidateSettingsForModernDeviceMergeRecords": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.modern.SendDirectEmail": {
+				"label": "Send Direct Email (hidden)",
+				"command": "Mscrm.modern.AddEmailToSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBulkEmailInUciEnabled": null,
+					"Mscrm.SelectedEntityIsListedForSendDirectEmailOrEmailable": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WriteActivityPermission": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ModernQuickCampaign": {
+				"label": "Quick Campaign (hidden)",
+				"command": "Mscrm.HomepageGrid.ACL.QuickCampaign.Modernization.Selected",
+				"flags": "H",
+				"rules": {
+					"Mscrm.NotOffline": true,
+					"Mscrm.QuickCampaignAllowed": true,
+					"Mscrm.QuickCampaignModernizationEnabled": false,
+					"Mscrm.SelectionCountAtLeastZero": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.NavigateToHomepageGrid": {
+				"label": "See all records (hidden)",
+				"command": "Mscrm.NavigateToHomepageGrid",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsNavigateToInUCIEnabled": true,
+					"Mscrm.ShowOnDashboardPageUCI": false,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.NewRecord": {
+				"label": "New",
+				"command": "Mscrm.NewRecordFromGrid",
+				"flags": "V",
+				"rules": {
+					"Mscrm.CreateSelectedEntityPermission": true,
+					"Mscrm.HideAddressEntities": true,
+					"Mscrm.HideNewForChildEntities": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.NotOnMarketingList": true,
+					"Mscrm.PrimaryIsNotActivity": true,
+					"Mscrm.ShowForNonRelationshipBoundGrids": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.NewRecordForBPFEntity": {
+				"label": "New (hidden)",
+				"command": "Mscrm.HomepageGrid.lead.NewRecordForBPFEntity",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CreateSelectedEntityPermission": null,
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.SelectedEntityIsBPFEntity": false
+				}
+			},
+			"Mscrm.HomepageGrid.lead.NewUnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.NewUnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarEnabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.OpenActiveStage": {
+				"label": "Open Active Stage (hidden)",
+				"command": "Mscrm.HomepageGrid.lead.OpenActiveStage",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": null,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": null,
+					"Mscrm.SelectedEntityIsBPFEntity": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.lead.OpenRecordInSidePane": {
+				"label": "Open in side pane (hidden)",
+				"command": "Mscrm.OpenRecordInSidePane",
+				"flags": "H",
+				"rules": {
+					"FCB.SearchQuickActionOpenInSidePane.IsEnabled": null,
+					"Mscrm.IsQuickActionToOpenRecordInSidePaneEnabled": null,
+					"Mscrm.ReadPrimaryPermission": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnQuickAction": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.QuickCampaign": {
+				"label": "Quick Campaign",
+				"command": "Mscrm.HomepageGrid.QuickCampaign.Modernization.Legacy",
+				"flags": "V",
+				"rules": {
+					"Mscrm.NotOffline": true,
+					"Mscrm.QuickCampaignAllowed": true,
+					"Mscrm.QuickCampaignModernizationDisabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.QuickCampaign.AllAllPages": {
+				"label": "For All Records on All Pages (hidden)",
+				"command": "Mscrm.HomepageGrid.ACL.QuickCampaign.AllAllPages",
+				"flags": "H",
+				"rules": {
+					"Mscrm.NotOffline": null,
+					"Mscrm.QuickCampaignAllowed": null,
+					"Mscrm.SelectionCountAtLeastZero": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.QuickCampaign.AllCurrentPage": {
+				"label": "For All Records on Current Page (hidden)",
+				"command": "Mscrm.HomepageGrid.ACL.QuickCampaign.AllCurrentPage",
+				"flags": "H",
+				"rules": {
+					"Mscrm.NotOffline": null,
+					"Mscrm.QuickCampaignAllowed": null,
+					"Mscrm.SelectionCountAtLeastZero": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.QuickCampaign.Selected": {
+				"label": "For Selected Records (hidden)",
+				"command": "Mscrm.HomepageGrid.ACL.QuickCampaign.Selected",
+				"flags": "H",
+				"rules": {
+					"Mscrm.NotOffline": null,
+					"Mscrm.QuickCampaignAllowed": null,
+					"Mscrm.SelectionCountAtLeastOne": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.RefreshButton": {
+				"label": "Refresh (hidden)",
+				"command": "Mscrm.HomepageGrid.lead.RefreshButton",
+				"flags": "H",
+				"rules": {
+					"Mscrm.ShowOnlyInOutlookExplorerOrInspector": false
+				}
+			},
+			"Mscrm.HomepageGrid.lead.RefreshModernButton": {
+				"label": "Refresh",
+				"command": "Mscrm.Modern.refreshCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.FormStateNotNew": true,
+					"Mscrm.HideInOfflineClassic": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.RunReport": {
+				"label": "Run Report",
+				"command": "Mscrm.ReportMenu.Grid",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.HybridDialogReportsEnabled": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ReadReport": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.SaveFiltersToCurrentSystemView": {
+				"label": "Save Filters to Current System View (hidden)",
+				"command": "Mscrm.SaveFilterForSystemQuery",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EnableSaveButton": false,
+					"Mscrm.GridFiltersEnabled": true,
+					"Mscrm.IsCustomizable": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.OpenCustomizations": false,
+					"Mscrm.savedquery.Update": true,
+					"Mscrm.SystemQuerySelected": false,
+					"Mscrm.VisualizationPaneNotMaximized": true,
+					"Mscrm.WriteCustomization": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Send": {
+				"label": "Email a Link",
+				"command": "Mscrm.SendShortcutSelected.AlwaysEnabled",
+				"flags": "V",
+				"rules": {
+					"Mscrm.Enabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Send.Selected": {
+				"label": "Of Selected Items (hidden)",
+				"command": "Mscrm.SendShortcutSelected",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyPageInUC": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Send.View": {
+				"label": "Of Current View",
+				"command": "Mscrm.SendShortcutView",
+				"flags": "V",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.Sharing": {
+				"label": "Share (hidden)",
+				"command": "Mscrm.HomepageGrid.lead.Sharing",
+				"flags": "H",
+				"rules": {
+					"Mscrm.HybridDialogShareEnabled": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShareSelectedEntityPermission": null,
+					"Mscrm.ShareValid": null,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ShowHierarchyViewer.Button": {
+				"label": "View hierarchy (hidden)",
+				"command": "LinkedInExtensions.lead.ShowHierarchyViewerForGrid",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanReadHierarchyConfiguration": null,
+					"Mscrm.GridShowHierarchyViewerButton": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.StaticWorksheet": {
+				"label": "Static Worksheet (Page only)",
+				"command": "Mscrm.ExportToExcel.StaticXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.StaticWorksheetAll": {
+				"label": "Static Worksheet",
+				"command": "Mscrm.ExportToExcel.AllStaticXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.lead.UnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.UnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarDisabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.lead.ViewHierarchy": {
+				"label": "View Hierarchy (hidden)",
+				"command": "Mscrm.ViewHierarchyForSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsRecordHierarchyEnabled": null,
+					"Mscrm.IsViewHierarchyEnabled": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.lead.WordTemplate": {
+				"label": "Word Templates (hidden)",
+				"command": "Mscrm.HomepageGrid.WordTemplate",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DocumentGenerationPrivilege": null,
+					"Mscrm.HideForTabletExperience": null,
+					"Mscrm.IsFolderNotSelected": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WordTemplatesFCBEnabled": null
+				}
+			},
+			"Mscrm.SequencesMulti.Connect.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Connect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.Disconnect.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.ViewConnectedSequences.Button": {
+				"label": "View connected sequences (hidden)",
+				"command": "Mscrm.SequencesMulti.ViewConnectedSequences",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.SelectionCountOnlyOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.ApplicationRibbon.lead.HomeGrid.BookResource.Button": {
+				"label": "Book (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.BookResource.Command",
+				"flags": "H",
+				"rules": {
+					"msdyn.ApplicationRibbon.HomeGrid.BookResource.EnableRule": false
+				}
+			},
+			"msdyn.ApplicationRibbon.lead.HomeGrid.RunRoutingRule.Button": {
+				"label": "Apply Routing Rule (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.RunRoutingRule.Command",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EntityIsNotIncident": null,
+					"Mscrm.IsAnyEntityRoutingRuleEnabled": null,
+					"Mscrm.IsRoutingRuleCreatedForEntity": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"msdyn.HomepageGrid.lead.ApplyCadence.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.Apply",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityApplicableForCadence": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.lead.DisconnectSequence.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Sequence.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.Sequence.Grid.IsApplicableForDisconnect": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.lead.LaunchPlaybook.Button": {
+				"label": "Launch playbook (hidden)",
+				"command": "Playbook.HomepageGrid.Launch",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanLaunchPlaybook": null,
+					"Mscrm.IsPlaybookFeatureEnabled": null,
+					"Mscrm.IsPlaybookTemplateAvailableFromGrid": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.lead.OpenFocusedView.Button": {
+				"label": "Focused view (hidden)",
+				"command": "Mscrm.HomepageGrid.AcceleratedSales.OpenFocusedView",
+				"flags": "H",
+				"rules": {
+					"AcceleratedSales.IsFocusedViewCommandVisible": null,
+					"AcceleratedSales.IsFocusedViewEnabled": false,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityEnabledForFocusedView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.lead.SequencesMulti.Button": {
+				"label": "Sequences (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.SequencesMulti",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityForCadenceConnectOrDisconnect": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			}
+		},
+		"HomePageGrid.opportunity.sel0": {
+			"AIBuilder.opportunity.Flyout": {
+				"label": "AI Builder (hidden)",
+				"command": "AIBuilder.Command.Flyout",
+				"flags": "H",
+				"rules": {
+					"AIBuilder.FCB.ShowAIBuilderCommandInUCI": false,
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.ShowOnlyOnModern": true,
+					"Mscrm.WriteCustomization": true
+				}
+			},
+			"AIBuilder.opportunity.Flyout.Dummy": {
+				"label": "AIBuilder Hidden (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"AIBuilder.opportunity.Flyout.Menu.MenuSection.Controls.CreateModel.Dummy": {
+				"label": "Create model (hidden)",
+				"command": "AIBuilder.Command.CreateModel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"AIBuilder.opportunity.Flyout.Menu.MenuSection.Controls.SeeModels.Dummy": {
+				"label": "See your models (hidden)",
+				"command": "AIBuilder.Command.SeeModels",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"Mscrm.HomepageGrid.AllEntities.VisualizationTab.Save.Save": {
+				"label": "Save (hidden)",
+				"command": "Mscrm.VisualizationTab.SaveChart",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EnableSaveChart": false,
+					"Mscrm.userqueryvisualization.CreateOrWrite": false
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.ActionButtonForMSTeams": {
+				"label": "Collaborate (hidden)",
+				"command": "Mscrm.HomePageGrid.MSTeamsViewCollaborateCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsMSTeamsIntegrationEnabled": true,
+					"Mscrm.ShowMSTeamsChannelCollaboration": false,
+					"Mscrm.ShowOnlyOnModern": true,
+					"OfficeProductivity.RibbonRules.showMSTeamsViewCollaborateCommand": false
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.AddToQueue": {
+				"label": "Add to Queue (hidden)",
+				"command": "Mscrm.AddSelectedToQueue",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AppendToSelected": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WorksWithQueueSelected": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Assign": {
+				"label": "Assign (hidden)",
+				"command": "Mscrm.HomepageGrid.opportunity.Assign",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AssignSelectedEntityPermission": null,
+					"Mscrm.IsValidForHierarchyPageInUC": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.ChangeDataSetControlButton": {
+				"label": "Show As (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Chart.Delete": {
+				"label": "Delete Chart (hidden)",
+				"command": "Mscrm.HomepageGrid.opportunity.Chart.Delete",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.EnableOnHomePageAspxOrOutlook": false,
+					"Mscrm.IsDeleteVisualizationEnabled": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.userqueryvisualization.Delete": null,
+					"Mscrm.VisualizationPaneRuntimeMode": false
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Chart.Edit": {
+				"label": "Edit Chart (hidden)",
+				"command": "Mscrm.HomepageGrid.opportunity.Chart.Edit",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.IsChartSelected": false,
+					"Mscrm.IsDefaultVisualizationModule": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.IsFetchxmlQuery": false,
+					"Mscrm.IsParentChartLoaded": false,
+					"Mscrm.NotOffline": true,
+					"Mscrm.userqueryvisualization.Write": null,
+					"Mscrm.UserVisualizationSelected": false,
+					"Mscrm.VisualizationPaneRuntimeMode": false
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Charts": {
+				"label": "Chart Pane (hidden)",
+				"command": "Mscrm.Charts.Flyout",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.EnableChartsButton": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.NotAdvancedFind": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.CopyOpportunity": {
+				"label": "Copy opportunity (hidden)",
+				"command": "Mscrm.HomepageGrid.opportunity.CopyOpportunity",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanCreateOpportunity": null,
+					"Mscrm.CanWriteOpportunity": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.opportunity.IsCopyOpportunityEnabled": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Delete": {
+				"label": "Delete (hidden)",
+				"command": "Mscrm.DeleteSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DeleteSelectedEntityPermission": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.NotShowForManyToManyGrids": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.DeleteMenu": {
+				"label": "Delete",
+				"command": "Mscrm.HomepageGrid.DeleteSplitButtonCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DeleteSplitButtonDisplayRule": true,
+					"Mscrm.DeleteSplitButtonEnableRule": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.DocumentTemplate": {
+				"label": "Excel Templates",
+				"command": "Mscrm.DocumentTemplate.Templates",
+				"flags": "V",
+				"rules": {
+					"Mscrm.DocumentGenerationPrivilege": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.TemplatesFCBEnabled": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.DynamicPivotTable": {
+				"label": "Dynamic PivotTable",
+				"command": "Mscrm.ExportToExcel.PivotXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.ShowPivotXlsx": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.DynamicWorkesheet": {
+				"label": "Dynamic Worksheet",
+				"command": "Mscrm.ExportToExcel.DynamicXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableOnlyInBrowsersForModern": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Edit": {
+				"label": "Edit (hidden)",
+				"command": "Mscrm.EditSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.BulkEditPrivilege": true,
+					"Mscrm.CheckBulkEditSupportForEntity": false,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true,
+					"Mscrm.WriteSelectedEntityPermission": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.ExportSelectedToExcel": {
+				"label": "Export to Excel (hidden)",
+				"command": "Mscrm.ExportSelectedToExcel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.ExportToExcel": null,
+					"Mscrm.ExportToExcelPrivilege": null,
+					"Mscrm.HideForTabletExperience": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowExportSelectedToExcel": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.ExportToExcel": {
+				"label": "Export to Excel",
+				"command": "Mscrm.ExportToExcel",
+				"flags": "V",
+				"rules": {
+					"Mscrm.ExportToExcel": true,
+					"Mscrm.ExportToExcelPrivilege": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.SelectionCountNoneOrOutlook": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.ExportToExcelOnline": {
+				"label": "Open in Excel Online",
+				"command": "Mscrm.ExportToExcel.Online",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableExportToExcelOnlineForModern": true,
+					"Mscrm.EnableOnlyInBrowsersForModern": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.HideOnPhoneForNonModern": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true,
+					"Mscrm.Live": true,
+					"Mscrm.NotAdvancedFind": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Flows.RefreshCommandBar": {
+				"label": "Flow",
+				"command": "Mscrm.Form.Flows.ManageRunFlow",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DisplayFlowSingleMenu": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": true,
+					"Mscrm.IsQualifyLeadForm.Invert": true,
+					"Mscrm.MicrosoftFlows": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Flows.RefreshCommandBar.Flows": {
+				"label": "Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Flows.RefreshCommandBar.ManageFlows": {
+				"label": "Manage Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Flows.RefreshCommandBar.RunFlow": {
+				"label": "Run Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Flows.RefreshCommandBar.RunWorkflow": {
+				"label": "Run WorkFlow (hidden)",
+				"command": "Mscrm.Form.Flows.RunWorkflow",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.IsOnDemandWorkflowUCIEnabled": null,
+					"Mscrm.MicrosoftFlows": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.FollowButton": {
+				"label": "Follow (hidden)",
+				"command": "Mscrm.HomepageGrid.FollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledActive": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowFollowButton": null,
+					"msdyn.ActivityFeeds.Yammer.ShouldEnableFollow": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.ImportDataFromCSV": {
+				"label": "Import from CSV",
+				"command": "Mscrm.ImportDataFromCSV",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.ImportDataFromExcel": {
+				"label": "Import from Excel",
+				"command": "Mscrm.ImportDataFromExcel",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.ImportData": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.ImportDataFromXML": {
+				"label": "Import from XML",
+				"command": "Mscrm.ImportDataFromXML",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.MainTab.QuickPowerBI.Button": {
+				"label": "Visualize this view",
+				"command": "Mscrm.HomepageGrid.MainTab.QuickPowerBI.Command",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnablePowerBIQuickReport": true,
+					"Mscrm.HideOnPhone": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.PrimaryIsNotActivity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.MarkAsLost": {
+				"label": "Close as lost (hidden)",
+				"command": "Mscrm.HomepageGrid.opportunity.MarkAsLost",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanWriteOpportunity": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.MarkAsWon": {
+				"label": "Close as won (hidden)",
+				"command": "Mscrm.HomepageGrid.opportunity.MarkAsWon",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanWriteOpportunity": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.modern.SendDirectEmail": {
+				"label": "Send Direct Email (hidden)",
+				"command": "Mscrm.modern.AddEmailToSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBulkEmailInUciEnabled": null,
+					"Mscrm.SelectedEntityIsListedForSendDirectEmailOrEmailable": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WriteActivityPermission": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.NavigateToHomepageGrid": {
+				"label": "See all records (hidden)",
+				"command": "Mscrm.NavigateToHomepageGrid",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsNavigateToInUCIEnabled": true,
+					"Mscrm.ShowOnDashboardPageUCI": false,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.NewRecord": {
+				"label": "New",
+				"command": "Mscrm.NewRecordFromGrid",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AppendSelected": true,
+					"Mscrm.AppendToCustomer": true,
+					"Mscrm.CreateSelectedEntityPermission": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ShowForNonRelationshipBoundGrids": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.NewRecordForBPFEntity": {
+				"label": "New (hidden)",
+				"command": "Mscrm.HomepageGrid.opportunity.NewRecordForBPFEntity",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CreateSelectedEntityPermission": null,
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.SelectedEntityIsBPFEntity": false
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.NewUnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.NewUnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarEnabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.OpenActiveStage": {
+				"label": "Open Active Stage (hidden)",
+				"command": "Mscrm.HomepageGrid.opportunity.OpenActiveStage",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": null,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": null,
+					"Mscrm.SelectedEntityIsBPFEntity": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.OpenRecordInSidePane": {
+				"label": "Open in side pane (hidden)",
+				"command": "Mscrm.OpenRecordInSidePane",
+				"flags": "H",
+				"rules": {
+					"FCB.SearchQuickActionOpenInSidePane.IsEnabled": null,
+					"Mscrm.IsQuickActionToOpenRecordInSidePaneEnabled": null,
+					"Mscrm.ReadPrimaryPermission": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnQuickAction": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.RefreshButton": {
+				"label": "Refresh (hidden)",
+				"command": "Mscrm.HomepageGrid.opportunity.RefreshButton",
+				"flags": "H",
+				"rules": {
+					"Mscrm.ShowOnlyInOutlookExplorerOrInspector": false
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.RefreshModernButton": {
+				"label": "Refresh",
+				"command": "Mscrm.Modern.refreshCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.FormStateNotNew": true,
+					"Mscrm.HideInOfflineClassic": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.ReopenOpp": {
+				"label": "Reopen Opportunity (hidden)",
+				"command": "Mscrm.HomepageGrid.opportunity.ReopenOpp",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanWriteOpportunity": null,
+					"Mscrm.CanWritePrimary": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.RunReport": {
+				"label": "Run Report",
+				"command": "Mscrm.ReportMenu.Grid",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.HybridDialogReportsEnabled": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ReadReport": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.SaveFiltersToCurrentSystemView": {
+				"label": "Save Filters to Current System View (hidden)",
+				"command": "Mscrm.SaveFilterForSystemQuery",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EnableSaveButton": false,
+					"Mscrm.GridFiltersEnabled": true,
+					"Mscrm.IsCustomizable": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.OpenCustomizations": false,
+					"Mscrm.savedquery.Update": true,
+					"Mscrm.SystemQuerySelected": false,
+					"Mscrm.VisualizationPaneNotMaximized": true,
+					"Mscrm.WriteCustomization": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Send": {
+				"label": "Email a Link",
+				"command": "Mscrm.SendShortcutSelected.AlwaysEnabled",
+				"flags": "V",
+				"rules": {
+					"Mscrm.Enabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Send.Selected": {
+				"label": "Of Selected Items (hidden)",
+				"command": "Mscrm.SendShortcutSelected",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyPageInUC": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Send.View": {
+				"label": "Of Current View",
+				"command": "Mscrm.SendShortcutView",
+				"flags": "V",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.Sharing": {
+				"label": "Share (hidden)",
+				"command": "Mscrm.HomepageGrid.opportunity.Sharing",
+				"flags": "H",
+				"rules": {
+					"Mscrm.HybridDialogShareEnabled": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShareSelectedEntityPermission": null,
+					"Mscrm.ShareValid": null,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.ShowHierarchyViewer.Button": {
+				"label": "View hierarchy (hidden)",
+				"command": "LinkedInExtensions.opportunity.ShowHierarchyViewerForGrid",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanReadHierarchyConfiguration": null,
+					"Mscrm.GridShowHierarchyViewerButton": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.StaticWorksheet": {
+				"label": "Static Worksheet (Page only)",
+				"command": "Mscrm.ExportToExcel.StaticXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.StaticWorksheetAll": {
+				"label": "Static Worksheet",
+				"command": "Mscrm.ExportToExcel.AllStaticXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.UnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.UnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarDisabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.ViewHierarchy": {
+				"label": "View Hierarchy (hidden)",
+				"command": "Mscrm.ViewHierarchyForSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsRecordHierarchyEnabled": null,
+					"Mscrm.IsViewHierarchyEnabled": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.opportunity.WordTemplate": {
+				"label": "Word Templates (hidden)",
+				"command": "Mscrm.HomepageGrid.WordTemplate",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DocumentGenerationPrivilege": null,
+					"Mscrm.HideForTabletExperience": null,
+					"Mscrm.IsFolderNotSelected": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WordTemplatesFCBEnabled": null
+				}
+			},
+			"Mscrm.SequencesMulti.Connect.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Connect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.Disconnect.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.ViewConnectedSequences.Button": {
+				"label": "View connected sequences (hidden)",
+				"command": "Mscrm.SequencesMulti.ViewConnectedSequences",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.SelectionCountOnlyOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.ApplicationRibbon.opportunity.HomeGrid.BookResource.Button": {
+				"label": "Book (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.BookResource.Command",
+				"flags": "H",
+				"rules": {
+					"msdyn.ApplicationRibbon.HomeGrid.BookResource.EnableRule": false
+				}
+			},
+			"msdyn.ApplicationRibbon.opportunity.HomeGrid.RunRoutingRule.Button": {
+				"label": "Apply Routing Rule (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.RunRoutingRule.Command",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EntityIsNotIncident": null,
+					"Mscrm.IsAnyEntityRoutingRuleEnabled": null,
+					"Mscrm.IsRoutingRuleCreatedForEntity": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"msdyn.HomepageGrid.opportunity.ApplyCadence.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.Apply",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityApplicableForCadence": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.opportunity.DisconnectSequence.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Sequence.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.Sequence.Grid.IsApplicableForDisconnect": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.opportunity.LaunchPlaybook.Button": {
+				"label": "Launch playbook (hidden)",
+				"command": "Playbook.HomepageGrid.Launch",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanLaunchPlaybook": null,
+					"Mscrm.IsPlaybookFeatureEnabled": null,
+					"Mscrm.IsPlaybookTemplateAvailableFromGrid": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.opportunity.OpenFocusedView.Button": {
+				"label": "Focused view (hidden)",
+				"command": "Mscrm.HomepageGrid.AcceleratedSales.OpenFocusedView",
+				"flags": "H",
+				"rules": {
+					"AcceleratedSales.IsFocusedViewCommandVisible": null,
+					"AcceleratedSales.IsFocusedViewEnabled": false,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityEnabledForFocusedView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.opportunity.SequencesMulti.Button": {
+				"label": "Sequences (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.SequencesMulti",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityForCadenceConnectOrDisconnect": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			}
+		},
+		"HomePageGrid.quote.sel0": {
+			"AIBuilder.quote.Flyout": {
+				"label": "AI Builder (hidden)",
+				"command": "AIBuilder.Command.Flyout",
+				"flags": "H",
+				"rules": {
+					"AIBuilder.FCB.ShowAIBuilderCommandInUCI": false,
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.ShowOnlyOnModern": true,
+					"Mscrm.WriteCustomization": true
+				}
+			},
+			"AIBuilder.quote.Flyout.Dummy": {
+				"label": "AIBuilder Hidden (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"AIBuilder.quote.Flyout.Menu.MenuSection.Controls.CreateModel.Dummy": {
+				"label": "Create model (hidden)",
+				"command": "AIBuilder.Command.CreateModel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"AIBuilder.quote.Flyout.Menu.MenuSection.Controls.SeeModels.Dummy": {
+				"label": "See your models (hidden)",
+				"command": "AIBuilder.Command.SeeModels",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"Mscrm.HomepageGrid.AllEntities.VisualizationTab.Save.Save": {
+				"label": "Save (hidden)",
+				"command": "Mscrm.VisualizationTab.SaveChart",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EnableSaveChart": false,
+					"Mscrm.userqueryvisualization.CreateOrWrite": false
+				}
+			},
+			"Mscrm.HomepageGrid.quote.ActionButtonForMSTeams": {
+				"label": "Collaborate (hidden)",
+				"command": "Mscrm.HomePageGrid.MSTeamsViewCollaborateCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsMSTeamsIntegrationEnabled": true,
+					"Mscrm.ShowMSTeamsChannelCollaboration": false,
+					"Mscrm.ShowOnlyOnModern": true,
+					"OfficeProductivity.RibbonRules.showMSTeamsViewCollaborateCommand": false
+				}
+			},
+			"Mscrm.HomepageGrid.quote.AddToQueue": {
+				"label": "Add to Queue (hidden)",
+				"command": "Mscrm.AddSelectedToQueue",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AppendToSelected": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WorksWithQueueSelected": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Assign": {
+				"label": "Assign (hidden)",
+				"command": "Mscrm.HomepageGrid.quote.Assign",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AssignSelectedEntityPermission": null,
+					"Mscrm.IsValidForHierarchyPageInUC": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.ChangeDataSetControlButton": {
+				"label": "Show As (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Chart.Delete": {
+				"label": "Delete Chart (hidden)",
+				"command": "Mscrm.HomepageGrid.quote.Chart.Delete",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.EnableOnHomePageAspxOrOutlook": false,
+					"Mscrm.IsDeleteVisualizationEnabled": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.userqueryvisualization.Delete": null,
+					"Mscrm.VisualizationPaneRuntimeMode": false
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Chart.Edit": {
+				"label": "Edit Chart (hidden)",
+				"command": "Mscrm.HomepageGrid.quote.Chart.Edit",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.IsChartSelected": false,
+					"Mscrm.IsDefaultVisualizationModule": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.IsFetchxmlQuery": false,
+					"Mscrm.IsParentChartLoaded": false,
+					"Mscrm.NotOffline": true,
+					"Mscrm.userqueryvisualization.Write": null,
+					"Mscrm.UserVisualizationSelected": false,
+					"Mscrm.VisualizationPaneRuntimeMode": false
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Charts": {
+				"label": "Chart Pane (hidden)",
+				"command": "Mscrm.Charts.Flyout",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.EnableChartsButton": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.NotAdvancedFind": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Delete": {
+				"label": "Delete (hidden)",
+				"command": "Mscrm.DeleteSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DeleteSelectedEntityPermission": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.NotShowForManyToManyGrids": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.DeleteMenu": {
+				"label": "Delete",
+				"command": "Mscrm.HomepageGrid.DeleteSplitButtonCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DeleteSplitButtonDisplayRule": true,
+					"Mscrm.DeleteSplitButtonEnableRule": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.DocumentTemplate": {
+				"label": "Excel Templates",
+				"command": "Mscrm.DocumentTemplate.Templates",
+				"flags": "V",
+				"rules": {
+					"Mscrm.DocumentGenerationPrivilege": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.TemplatesFCBEnabled": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.DynamicPivotTable": {
+				"label": "Dynamic PivotTable",
+				"command": "Mscrm.ExportToExcel.PivotXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.ShowPivotXlsx": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.DynamicWorkesheet": {
+				"label": "Dynamic Worksheet",
+				"command": "Mscrm.ExportToExcel.DynamicXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableOnlyInBrowsersForModern": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Edit": {
+				"label": "Edit (hidden)",
+				"command": "Mscrm.EditSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.BulkEditPrivilege": true,
+					"Mscrm.CheckBulkEditSupportForEntity": false,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true,
+					"Mscrm.WriteSelectedEntityPermission": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.ExportSelectedToExcel": {
+				"label": "Export to Excel (hidden)",
+				"command": "Mscrm.ExportSelectedToExcel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.ExportToExcel": null,
+					"Mscrm.ExportToExcelPrivilege": null,
+					"Mscrm.HideForTabletExperience": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowExportSelectedToExcel": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.ExportToExcel": {
+				"label": "Export to Excel",
+				"command": "Mscrm.ExportToExcel",
+				"flags": "V",
+				"rules": {
+					"Mscrm.ExportToExcel": true,
+					"Mscrm.ExportToExcelPrivilege": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.SelectionCountNoneOrOutlook": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.ExportToExcelOnline": {
+				"label": "Open in Excel Online",
+				"command": "Mscrm.ExportToExcel.Online",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableExportToExcelOnlineForModern": true,
+					"Mscrm.EnableOnlyInBrowsersForModern": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.HideOnPhoneForNonModern": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true,
+					"Mscrm.Live": true,
+					"Mscrm.NotAdvancedFind": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Flows.RefreshCommandBar": {
+				"label": "Flow",
+				"command": "Mscrm.Form.Flows.ManageRunFlow",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DisplayFlowSingleMenu": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": true,
+					"Mscrm.MicrosoftFlows": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Flows.RefreshCommandBar.Flows": {
+				"label": "Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Flows.RefreshCommandBar.ManageFlows": {
+				"label": "Manage Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Flows.RefreshCommandBar.RunFlow": {
+				"label": "Run Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Flows.RefreshCommandBar.RunWorkflow": {
+				"label": "Run WorkFlow (hidden)",
+				"command": "Mscrm.Form.Flows.RunWorkflow",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.IsOnDemandWorkflowUCIEnabled": null,
+					"Mscrm.MicrosoftFlows": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.FollowButton": {
+				"label": "Follow (hidden)",
+				"command": "Mscrm.HomepageGrid.FollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledActive": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowFollowButton": null,
+					"msdyn.ActivityFeeds.Yammer.ShouldEnableFollow": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.ImportDataFromCSV": {
+				"label": "Import from CSV",
+				"command": "Mscrm.ImportDataFromCSV",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.ImportDataFromExcel": {
+				"label": "Import from Excel",
+				"command": "Mscrm.ImportDataFromExcel",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.ImportData": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.ImportDataFromXML": {
+				"label": "Import from XML",
+				"command": "Mscrm.ImportDataFromXML",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.MainTab.QuickPowerBI.Button": {
+				"label": "Visualize this view",
+				"command": "Mscrm.HomepageGrid.MainTab.QuickPowerBI.Command",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnablePowerBIQuickReport": true,
+					"Mscrm.HideOnPhone": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.PrimaryIsNotActivity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.modern.SendDirectEmail": {
+				"label": "Send Direct Email (hidden)",
+				"command": "Mscrm.modern.AddEmailToSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBulkEmailInUciEnabled": null,
+					"Mscrm.SelectedEntityIsListedForSendDirectEmailOrEmailable": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WriteActivityPermission": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.NavigateToHomepageGrid": {
+				"label": "See all records (hidden)",
+				"command": "Mscrm.NavigateToHomepageGrid",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsNavigateToInUCIEnabled": true,
+					"Mscrm.ShowOnDashboardPageUCI": false,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.NewRecord": {
+				"label": "New",
+				"command": "Mscrm.HomepageGrid.quote.NewRecord",
+				"flags": "V",
+				"rules": {
+					"Mscrm.CreateSelectedEntityPermission": true,
+					"Mscrm.HideAddressEntities": true,
+					"Mscrm.HideNewForChildEntities": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.IsNotActivityPointer": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.PrimaryIsNotActivityHomePageGrid": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowForNonRelationshipBoundGrids": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.NewRecordForBPFEntity": {
+				"label": "New (hidden)",
+				"command": "Mscrm.HomepageGrid.quote.NewRecordForBPFEntity",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CreateSelectedEntityPermission": null,
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.SelectedEntityIsBPFEntity": false
+				}
+			},
+			"Mscrm.HomepageGrid.quote.NewUnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.NewUnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarEnabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.OpenActiveStage": {
+				"label": "Open Active Stage (hidden)",
+				"command": "Mscrm.HomepageGrid.quote.OpenActiveStage",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": null,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": null,
+					"Mscrm.SelectedEntityIsBPFEntity": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.quote.OpenRecordInSidePane": {
+				"label": "Open in side pane (hidden)",
+				"command": "Mscrm.OpenRecordInSidePane",
+				"flags": "H",
+				"rules": {
+					"FCB.SearchQuickActionOpenInSidePane.IsEnabled": null,
+					"Mscrm.IsQuickActionToOpenRecordInSidePaneEnabled": null,
+					"Mscrm.ReadPrimaryPermission": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnQuickAction": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.RefreshButton": {
+				"label": "Refresh (hidden)",
+				"command": "Mscrm.HomepageGrid.quote.RefreshButton",
+				"flags": "H",
+				"rules": {
+					"Mscrm.ShowOnlyInOutlookExplorerOrInspector": false
+				}
+			},
+			"Mscrm.HomepageGrid.quote.RefreshModernButton": {
+				"label": "Refresh",
+				"command": "Mscrm.Modern.refreshCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.FormStateNotNew": true,
+					"Mscrm.HideInOfflineClassic": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.RunReport": {
+				"label": "Run Report",
+				"command": "Mscrm.ReportMenu.Grid",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.HybridDialogReportsEnabled": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ReadReport": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.SaveFiltersToCurrentSystemView": {
+				"label": "Save Filters to Current System View (hidden)",
+				"command": "Mscrm.SaveFilterForSystemQuery",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EnableSaveButton": false,
+					"Mscrm.GridFiltersEnabled": true,
+					"Mscrm.IsCustomizable": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.OpenCustomizations": false,
+					"Mscrm.savedquery.Update": true,
+					"Mscrm.SystemQuerySelected": false,
+					"Mscrm.VisualizationPaneNotMaximized": true,
+					"Mscrm.WriteCustomization": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Send": {
+				"label": "Email a Link",
+				"command": "Mscrm.SendShortcutSelected.AlwaysEnabled",
+				"flags": "V",
+				"rules": {
+					"Mscrm.Enabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Send.Selected": {
+				"label": "Of Selected Items (hidden)",
+				"command": "Mscrm.SendShortcutSelected",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyPageInUC": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Send.View": {
+				"label": "Of Current View",
+				"command": "Mscrm.SendShortcutView",
+				"flags": "V",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.Sharing": {
+				"label": "Share (hidden)",
+				"command": "Mscrm.HomepageGrid.quote.Sharing",
+				"flags": "H",
+				"rules": {
+					"Mscrm.HybridDialogShareEnabled": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShareSelectedEntityPermission": null,
+					"Mscrm.ShareValid": null,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.StaticWorksheet": {
+				"label": "Static Worksheet (Page only)",
+				"command": "Mscrm.ExportToExcel.StaticXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.StaticWorksheetAll": {
+				"label": "Static Worksheet",
+				"command": "Mscrm.ExportToExcel.AllStaticXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.quote.UnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.UnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarDisabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.quote.ViewHierarchy": {
+				"label": "View Hierarchy (hidden)",
+				"command": "Mscrm.ViewHierarchyForSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsRecordHierarchyEnabled": null,
+					"Mscrm.IsViewHierarchyEnabled": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.quote.WordTemplate": {
+				"label": "Word Templates (hidden)",
+				"command": "Mscrm.HomepageGrid.WordTemplate",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DocumentGenerationPrivilege": null,
+					"Mscrm.HideForTabletExperience": null,
+					"Mscrm.IsFolderNotSelected": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WordTemplatesFCBEnabled": null
+				}
+			},
+			"Mscrm.SequencesMulti.Connect.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Connect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.Disconnect.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.ViewConnectedSequences.Button": {
+				"label": "View connected sequences (hidden)",
+				"command": "Mscrm.SequencesMulti.ViewConnectedSequences",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.SelectionCountOnlyOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.ApplicationRibbon.quote.HomeGrid.BookResource.Button": {
+				"label": "Book (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.BookResource.Command",
+				"flags": "H",
+				"rules": {
+					"msdyn.ApplicationRibbon.HomeGrid.BookResource.EnableRule": false
+				}
+			},
+			"msdyn.ApplicationRibbon.quote.HomeGrid.RunRoutingRule.Button": {
+				"label": "Apply Routing Rule (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.RunRoutingRule.Command",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EntityIsNotIncident": null,
+					"Mscrm.IsAnyEntityRoutingRuleEnabled": null,
+					"Mscrm.IsRoutingRuleCreatedForEntity": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"msdyn.HomepageGrid.quote.ApplyCadence.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.Apply",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityApplicableForCadence": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.quote.DisconnectSequence.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Sequence.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.Sequence.Grid.IsApplicableForDisconnect": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.quote.LaunchPlaybook.Button": {
+				"label": "Launch playbook (hidden)",
+				"command": "Playbook.HomepageGrid.Launch",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanLaunchPlaybook": null,
+					"Mscrm.IsPlaybookFeatureEnabled": null,
+					"Mscrm.IsPlaybookTemplateAvailableFromGrid": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.quote.OpenFocusedView.Button": {
+				"label": "Focused view (hidden)",
+				"command": "Mscrm.HomepageGrid.AcceleratedSales.OpenFocusedView",
+				"flags": "H",
+				"rules": {
+					"AcceleratedSales.IsFocusedViewCommandVisible": null,
+					"AcceleratedSales.IsFocusedViewEnabled": false,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityEnabledForFocusedView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.quote.SequencesMulti.Button": {
+				"label": "Sequences (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.SequencesMulti",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityForCadenceConnectOrDisconnect": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			}
+		},
+		"HomePageGrid.salesorder.sel0": {
+			"AIBuilder.salesorder.Flyout": {
+				"label": "AI Builder (hidden)",
+				"command": "AIBuilder.Command.Flyout",
+				"flags": "H",
+				"rules": {
+					"AIBuilder.FCB.ShowAIBuilderCommandInUCI": false,
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.ShowOnlyOnModern": true,
+					"Mscrm.WriteCustomization": true
+				}
+			},
+			"AIBuilder.salesorder.Flyout.Dummy": {
+				"label": "AIBuilder Hidden (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"AIBuilder.salesorder.Flyout.Menu.MenuSection.Controls.CreateModel.Dummy": {
+				"label": "Create model (hidden)",
+				"command": "AIBuilder.Command.CreateModel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"AIBuilder.salesorder.Flyout.Menu.MenuSection.Controls.SeeModels.Dummy": {
+				"label": "See your models (hidden)",
+				"command": "AIBuilder.Command.SeeModels",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null
+				}
+			},
+			"Mscrm.HomepageGrid.AllEntities.VisualizationTab.Save.Save": {
+				"label": "Save (hidden)",
+				"command": "Mscrm.VisualizationTab.SaveChart",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EnableSaveChart": false,
+					"Mscrm.userqueryvisualization.CreateOrWrite": false
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.ActionButtonForMSTeams": {
+				"label": "Collaborate (hidden)",
+				"command": "Mscrm.HomePageGrid.MSTeamsViewCollaborateCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsMSTeamsIntegrationEnabled": true,
+					"Mscrm.ShowMSTeamsChannelCollaboration": false,
+					"Mscrm.ShowOnlyOnModern": true,
+					"OfficeProductivity.RibbonRules.showMSTeamsViewCollaborateCommand": false
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.AddToQueue": {
+				"label": "Add to Queue (hidden)",
+				"command": "Mscrm.AddSelectedToQueue",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AppendToSelected": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WorksWithQueueSelected": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Assign": {
+				"label": "Assign (hidden)",
+				"command": "Mscrm.HomepageGrid.salesorder.Assign",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AssignSelectedEntityPermission": null,
+					"Mscrm.IsValidForHierarchyPageInUC": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.ChangeDataSetControlButton": {
+				"label": "Show As (hidden)",
+				"command": "Mscrm.Disabled",
+				"flags": "H",
+				"rules": {
+					"Mscrm.Disabled": false
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Chart.Delete": {
+				"label": "Delete Chart (hidden)",
+				"command": "Mscrm.HomepageGrid.salesorder.Chart.Delete",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.EnableOnHomePageAspxOrOutlook": false,
+					"Mscrm.IsDeleteVisualizationEnabled": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.userqueryvisualization.Delete": null,
+					"Mscrm.VisualizationPaneRuntimeMode": false
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Chart.Edit": {
+				"label": "Edit Chart (hidden)",
+				"command": "Mscrm.HomepageGrid.salesorder.Chart.Edit",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.IsChartSelected": false,
+					"Mscrm.IsDefaultVisualizationModule": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.IsFetchxmlQuery": false,
+					"Mscrm.IsParentChartLoaded": false,
+					"Mscrm.NotOffline": true,
+					"Mscrm.userqueryvisualization.Write": null,
+					"Mscrm.UserVisualizationSelected": false,
+					"Mscrm.VisualizationPaneRuntimeMode": false
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Charts": {
+				"label": "Chart Pane (hidden)",
+				"command": "Mscrm.Charts.Flyout",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DisplayCharts": false,
+					"Mscrm.EnableChartsButton": false,
+					"Mscrm.IsEntityEnabledForCharts": true,
+					"Mscrm.NotAdvancedFind": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Delete": {
+				"label": "Delete (hidden)",
+				"command": "Mscrm.DeleteSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DeleteSelectedEntityPermission": null,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": null,
+					"Mscrm.NotShowForManyToManyGrids": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.DeleteMenu": {
+				"label": "Delete",
+				"command": "Mscrm.HomepageGrid.DeleteSplitButtonCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DeleteSplitButtonDisplayRule": true,
+					"Mscrm.DeleteSplitButtonEnableRule": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.DocumentTemplate": {
+				"label": "Excel Templates",
+				"command": "Mscrm.DocumentTemplate.Templates",
+				"flags": "V",
+				"rules": {
+					"Mscrm.DocumentGenerationPrivilege": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.TemplatesFCBEnabled": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.DynamicPivotTable": {
+				"label": "Dynamic PivotTable",
+				"command": "Mscrm.ExportToExcel.PivotXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.ShowPivotXlsx": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.DynamicWorkesheet": {
+				"label": "Dynamic Worksheet",
+				"command": "Mscrm.ExportToExcel.DynamicXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableOnlyInBrowsersForModern": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Edit": {
+				"label": "Edit (hidden)",
+				"command": "Mscrm.EditSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.BulkEditPrivilege": true,
+					"Mscrm.CheckBulkEditSupportForEntity": false,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true,
+					"Mscrm.WriteSelectedEntityPermission": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.ExportSelectedToExcel": {
+				"label": "Export to Excel (hidden)",
+				"command": "Mscrm.ExportSelectedToExcel",
+				"flags": "H",
+				"rules": {
+					"Mscrm.ExportToExcel": null,
+					"Mscrm.ExportToExcelPrivilege": null,
+					"Mscrm.HideForTabletExperience": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowExportSelectedToExcel": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.ExportToExcel": {
+				"label": "Export to Excel",
+				"command": "Mscrm.ExportToExcel",
+				"flags": "V",
+				"rules": {
+					"Mscrm.ExportToExcel": true,
+					"Mscrm.ExportToExcelPrivilege": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.SelectionCountNoneOrOutlook": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.ExportToExcelOnline": {
+				"label": "Open in Excel Online",
+				"command": "Mscrm.ExportToExcel.Online",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableExportToExcelOnlineForModern": true,
+					"Mscrm.EnableOnlyInBrowsersForModern": true,
+					"Mscrm.ExportToExcel.ValidForXlsxExport": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.HideOnPhoneForNonModern": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true,
+					"Mscrm.Live": true,
+					"Mscrm.NotAdvancedFind": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Flows.RefreshCommandBar": {
+				"label": "Flow",
+				"command": "Mscrm.Form.Flows.ManageRunFlow",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.DisplayFlowSingleMenu": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": true,
+					"Mscrm.MicrosoftFlows": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Flows.RefreshCommandBar.Flows": {
+				"label": "Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Flows.RefreshCommandBar.ManageFlows": {
+				"label": "Manage Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Flows.RefreshCommandBar.RunFlow": {
+				"label": "Run Flow (hidden)",
+				"command": "Mscrm.Form.Flows",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideOnOutlookClient": true,
+					"Mscrm.IsFlowSubMenuUCIEnabled": false,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.MicrosoftFlows": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Flows.RefreshCommandBar.RunWorkflow": {
+				"label": "Run WorkFlow (hidden)",
+				"command": "Mscrm.Form.Flows.RunWorkflow",
+				"flags": "H",
+				"rules": {
+					"Mscrm.AnySelection": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMicrosoftFlowIntegrationEnabled": null,
+					"Mscrm.IsOnDemandWorkflowUCIEnabled": null,
+					"Mscrm.MicrosoftFlows": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.FollowButton": {
+				"label": "Follow (hidden)",
+				"command": "Mscrm.HomepageGrid.FollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledActive": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowFollowButton": null,
+					"msdyn.ActivityFeeds.Yammer.ShouldEnableFollow": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.ImportDataFromCSV": {
+				"label": "Import from CSV",
+				"command": "Mscrm.ImportDataFromCSV",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.ImportDataFromExcel": {
+				"label": "Import from Excel",
+				"command": "Mscrm.ImportDataFromExcel",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.ImportData": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.ImportDataFromXML": {
+				"label": "Import from XML",
+				"command": "Mscrm.ImportDataFromXML",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnableImportForWeb": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.MainTab.QuickPowerBI.Button": {
+				"label": "Visualize this view",
+				"command": "Mscrm.HomepageGrid.MainTab.QuickPowerBI.Command",
+				"flags": "V",
+				"rules": {
+					"Mscrm.EnablePowerBIQuickReport": true,
+					"Mscrm.HideOnPhone": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.PrimaryIsNotActivity": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.modern.SendDirectEmail": {
+				"label": "Send Direct Email (hidden)",
+				"command": "Mscrm.modern.AddEmailToSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBulkEmailInUciEnabled": null,
+					"Mscrm.SelectedEntityIsListedForSendDirectEmailOrEmailable": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WriteActivityPermission": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.NavigateToHomepageGrid": {
+				"label": "See all records (hidden)",
+				"command": "Mscrm.NavigateToHomepageGrid",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsNavigateToInUCIEnabled": true,
+					"Mscrm.ShowOnDashboardPageUCI": false,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.NewRecord": {
+				"label": "New",
+				"command": "Mscrm.HomepageGrid.salesorder.NewRecord",
+				"flags": "V",
+				"rules": {
+					"Mscrm.CreateSelectedEntityPermission": true,
+					"Mscrm.HideAddressEntities": true,
+					"Mscrm.HideNewForChildEntities": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.IsNotActivityPointer": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.PrimaryIsNotActivityHomePageGrid": true,
+					"Mscrm.SelectedEntityIsNotBPFEntity": true,
+					"Mscrm.ShowForNonRelationshipBoundGrids": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.NewRecordForBPFEntity": {
+				"label": "New (hidden)",
+				"command": "Mscrm.HomepageGrid.salesorder.NewRecordForBPFEntity",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CreateSelectedEntityPermission": null,
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.SelectedEntityIsBPFEntity": false
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.NewUnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.NewUnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarEnabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.OpenActiveStage": {
+				"label": "Open Active Stage (hidden)",
+				"command": "Mscrm.HomepageGrid.salesorder.OpenActiveStage",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsBPFEntityCustomizationFeatureEnabled": null,
+					"Mscrm.IsPUV2EntityCustomizationEnabled": null,
+					"Mscrm.SelectedEntityIsBPFEntity": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.OpenRecordInSidePane": {
+				"label": "Open in side pane (hidden)",
+				"command": "Mscrm.OpenRecordInSidePane",
+				"flags": "H",
+				"rules": {
+					"FCB.SearchQuickActionOpenInSidePane.IsEnabled": null,
+					"Mscrm.IsQuickActionToOpenRecordInSidePaneEnabled": null,
+					"Mscrm.ReadPrimaryPermission": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnQuickAction": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.RefreshButton": {
+				"label": "Refresh (hidden)",
+				"command": "Mscrm.HomepageGrid.salesorder.RefreshButton",
+				"flags": "H",
+				"rules": {
+					"Mscrm.ShowOnlyInOutlookExplorerOrInspector": false
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.RefreshModernButton": {
+				"label": "Refresh",
+				"command": "Mscrm.Modern.refreshCommand",
+				"flags": "V",
+				"rules": {
+					"Mscrm.FormStateNotNew": true,
+					"Mscrm.HideInOfflineClassic": true,
+					"Mscrm.IsEntityAvailableForUserInMocaOffline": true,
+					"Mscrm.ShowOnlyOnModern": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.RunReport": {
+				"label": "Run Report",
+				"command": "Mscrm.ReportMenu.Grid",
+				"flags": "V",
+				"rules": {
+					"Mscrm.AnySelection": true,
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.HybridDialogReportsEnabled": true,
+					"Mscrm.IsValidForHierarchyView": true,
+					"Mscrm.ReadReport": true,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": true,
+					"Mscrm.VisualizationPaneNotMaximized": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.SaveFiltersToCurrentSystemView": {
+				"label": "Save Filters to Current System View (hidden)",
+				"command": "Mscrm.SaveFilterForSystemQuery",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EnableSaveButton": false,
+					"Mscrm.GridFiltersEnabled": true,
+					"Mscrm.IsCustomizable": true,
+					"Mscrm.NotOffline": true,
+					"Mscrm.OpenCustomizations": false,
+					"Mscrm.savedquery.Update": true,
+					"Mscrm.SystemQuerySelected": false,
+					"Mscrm.VisualizationPaneNotMaximized": true,
+					"Mscrm.WriteCustomization": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Send": {
+				"label": "Email a Link",
+				"command": "Mscrm.SendShortcutSelected.AlwaysEnabled",
+				"flags": "V",
+				"rules": {
+					"Mscrm.Enabled": true,
+					"Mscrm.IsValidForHierarchyPageInUC": true,
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Send.Selected": {
+				"label": "Of Selected Items (hidden)",
+				"command": "Mscrm.SendShortcutSelected",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyPageInUC": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Send.View": {
+				"label": "Of Current View",
+				"command": "Mscrm.SendShortcutView",
+				"flags": "V",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.Sharing": {
+				"label": "Share (hidden)",
+				"command": "Mscrm.HomepageGrid.salesorder.Sharing",
+				"flags": "H",
+				"rules": {
+					"Mscrm.HybridDialogShareEnabled": null,
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShareSelectedEntityPermission": null,
+					"Mscrm.ShareValid": null,
+					"Mscrm.ShowOnNonModernAndModernIfAllowed": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.StaticWorksheet": {
+				"label": "Static Worksheet (Page only)",
+				"command": "Mscrm.ExportToExcel.StaticXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.StaticWorksheetAll": {
+				"label": "Static Worksheet",
+				"command": "Mscrm.ExportToExcel.AllStaticXlsx",
+				"flags": "V",
+				"rules": {
+					"Mscrm.HideForTabletExperience": true,
+					"Mscrm.IsExportToExcelFCBEnabled": true
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.UnfollowButton": {
+				"label": "Unfollow (hidden)",
+				"command": "Mscrm.HomepageGrid.UnfollowCommand",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsValidForHierarchyView": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"msdyn.ActivityFeeds.IsEntityWallEnabledInActive": null,
+					"msdyn.ActivityFeeds.IsGreyStarDisabled": null,
+					"msdyn.ActivityFeeds.IsMultiRecordFollowAllowed": null,
+					"msdyn.ActivityFeeds.ShowUnfollowButton": null
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.ViewHierarchy": {
+				"label": "View Hierarchy (hidden)",
+				"command": "Mscrm.ViewHierarchyForSelectedRecord",
+				"flags": "H",
+				"rules": {
+					"Mscrm.IsRecordHierarchyEnabled": null,
+					"Mscrm.IsViewHierarchyEnabled": null,
+					"Mscrm.SelectionCountExactlyOne": false
+				}
+			},
+			"Mscrm.HomepageGrid.salesorder.WordTemplate": {
+				"label": "Word Templates (hidden)",
+				"command": "Mscrm.HomepageGrid.WordTemplate",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DocumentGenerationPrivilege": null,
+					"Mscrm.HideForTabletExperience": null,
+					"Mscrm.IsFolderNotSelected": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.VisualizationPaneNotMaximized": null,
+					"Mscrm.WordTemplatesFCBEnabled": null
+				}
+			},
+			"Mscrm.SequencesMulti.Connect.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Connect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.Disconnect.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.SequencesMulti.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"Mscrm.SequencesMulti.ViewConnectedSequences.Button": {
+				"label": "View connected sequences (hidden)",
+				"command": "Mscrm.SequencesMulti.ViewConnectedSequences",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": null,
+					"Mscrm.SelectionCountAtLeastOne": null,
+					"Mscrm.SelectionCountMax1000": null,
+					"Mscrm.SelectionCountOnlyOne": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.ApplicationRibbon.salesorder.HomeGrid.BookResource.Button": {
+				"label": "Book (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.BookResource.Command",
+				"flags": "H",
+				"rules": {
+					"msdyn.ApplicationRibbon.HomeGrid.BookResource.EnableRule": false
+				}
+			},
+			"msdyn.ApplicationRibbon.salesorder.HomeGrid.RunRoutingRule.Button": {
+				"label": "Apply Routing Rule (hidden)",
+				"command": "msdyn.ApplicationRibbon.HomeGrid.RunRoutingRule.Command",
+				"flags": "H",
+				"rules": {
+					"Mscrm.EntityIsNotIncident": null,
+					"Mscrm.IsAnyEntityRoutingRuleEnabled": null,
+					"Mscrm.IsRoutingRuleCreatedForEntity": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null,
+					"Mscrm.VisualizationPaneNotMaximized": null
+				}
+			},
+			"msdyn.HomepageGrid.salesorder.ApplyCadence.Button": {
+				"label": "Connect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.Apply",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityApplicableForCadence": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.salesorder.DisconnectSequence.Button": {
+				"label": "Disconnect sequence (hidden)",
+				"command": "Mscrm.HomepageGrid.Sequence.Disconnect",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsMultiSequenceFFOff": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.Sequence.Grid.IsApplicableForDisconnect": null,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.salesorder.LaunchPlaybook.Button": {
+				"label": "Launch playbook (hidden)",
+				"command": "Playbook.HomepageGrid.Launch",
+				"flags": "H",
+				"rules": {
+					"Mscrm.CanLaunchPlaybook": null,
+					"Mscrm.IsPlaybookFeatureEnabled": null,
+					"Mscrm.IsPlaybookTemplateAvailableFromGrid": null,
+					"Mscrm.SelectionCountExactlyOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.salesorder.OpenFocusedView.Button": {
+				"label": "Focused view (hidden)",
+				"command": "Mscrm.HomepageGrid.AcceleratedSales.OpenFocusedView",
+				"flags": "H",
+				"rules": {
+					"AcceleratedSales.IsFocusedViewCommandVisible": null,
+					"AcceleratedSales.IsFocusedViewEnabled": false,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityEnabledForFocusedView": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			},
+			"msdyn.HomepageGrid.salesorder.SequencesMulti.Button": {
+				"label": "Sequences (hidden)",
+				"command": "Mscrm.HomepageGrid.Cadence.SequencesMulti",
+				"flags": "H",
+				"rules": {
+					"Mscrm.DoesUserHaveSequencePrivileges": null,
+					"Mscrm.HideOnMobile": null,
+					"Mscrm.HideOnOutlookClient": null,
+					"Mscrm.IsEntityForCadenceConnectOrDisconnect": null,
+					"Mscrm.IsMultiSequenceFFOn": null,
+					"Mscrm.IsSalesAccFeatureEnabled": null,
+					"Mscrm.NotOffline": true,
+					"Mscrm.SelectionCountAtLeastOne": false,
+					"Mscrm.ShowOnlyOnModern": null
+				}
+			}
+		}
+	}
+}

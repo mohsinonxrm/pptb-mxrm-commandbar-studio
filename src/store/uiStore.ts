@@ -20,6 +20,11 @@ export interface Simulation {
 	showHidden: boolean;
 	/** The page's width: what fits on the bar and what goes under ⋮. */
 	width: "desktop" | "tablet" | "phone";
+	/**
+	 * What leads a main grid's bar, which the app and the view set, not the ribbon: Sales Hub's
+	 * Focused view, Show As where the view has more than one control, or neither.
+	 */
+	viewSwitch: "none" | "focusedView" | "showAs";
 }
 
 export const DEFAULT_SIMULATION: Simulation = {
@@ -28,6 +33,7 @@ export const DEFAULT_SIMULATION: Simulation = {
 	subGridPage: "SubGridStandard",
 	showHidden: false,
 	width: "desktop",
+	viewSwitch: "none",
 };
 export type RightPaneMode = "docked" | "floating" | "hidden";
 export type ThemeMode = "light" | "dark";

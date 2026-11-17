@@ -1,14 +1,38 @@
 {
-	"source": "Command Checker, CRM279420 (org382cc706), Sales Hub (msdynce_saleshub), a System Administrator, 2026-11-15",
+	"source": "Command Checker, CRM279420 (org382cc706), Sales Hub (msdynce_saleshub), a System Administrator, 2026-11-15 and 2026-11-16",
 	"contexts": {
-		"Form.Create": ["contact"],
-		"Form.Existing": ["contact"],
-		"HomePageGrid.sel0": ["account", "contact"],
-		"HomePageGrid.sel1": ["account", "contact"],
-		"SubGridAssociated.sel0": ["contact"],
-		"SubGridAssociated.sel1": ["contact"],
-		"SubGridStandard.sel0": ["contact"],
-		"SubGridStandard.sel1": ["contact"]
+		"Form.Create": [
+			"contact"
+		],
+		"Form.Existing": [
+			"contact"
+		],
+		"HomePageGrid.sel0": [
+			"account",
+			"contact",
+			"incident",
+			"invoice",
+			"lead",
+			"opportunity",
+			"quote",
+			"salesorder"
+		],
+		"HomePageGrid.sel1": [
+			"account",
+			"contact"
+		],
+		"SubGridAssociated.sel0": [
+			"contact"
+		],
+		"SubGridAssociated.sel1": [
+			"contact"
+		],
+		"SubGridStandard.sel0": [
+			"contact"
+		],
+		"SubGridStandard.sel1": [
+			"contact"
+		]
 	},
 	"rules": {
 		"AIBuilder.FCB.ShowAIBuilderCommandInUCI": {
@@ -74,7 +98,11 @@
 			"SubGridAssociated.sel0": true,
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel0": true,
-			"SubGridStandard.sel1": true
+			"SubGridStandard.sel1": true,
+			"HomePageGrid.sel0": true
+		},
+		"Mscrm.AppendToCustomer": {
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.AppendToPrimary": {
 			"SubGridAssociated.sel0": true,
@@ -384,7 +412,8 @@
 		},
 		"Mscrm.HideOnMobile": {
 			"Form.Existing": true,
-			"HomePageGrid.sel1": true
+			"HomePageGrid.sel1": true,
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.HideOnOutlookClient": {
 			"Form.Create": true,
@@ -439,6 +468,9 @@
 		"Mscrm.ImportData": {
 			"HomePageGrid.sel0": true,
 			"HomePageGrid.sel1": true
+		},
+		"Mscrm.InboxRibbonActions.ShouldEnablePersonalizedConfigurations": {
+			"HomePageGrid.sel0": false
 		},
 		"Mscrm.IsAnyEntityRoutingRuleEnabled": {
 			"Form.Create": true,
@@ -581,6 +613,9 @@
 			"HomePageGrid.sel0": true,
 			"HomePageGrid.sel1": true
 		},
+		"Mscrm.IsNotActivityPointer": {
+			"HomePageGrid.sel0": true
+		},
 		"Mscrm.IsOpportunityAvailableInMocaOffline": {
 			"Form.Existing": true
 		},
@@ -611,6 +646,9 @@
 		},
 		"Mscrm.IsPlaybookTemplateAvailableFromGrid": {
 			"HomePageGrid.sel1": false
+		},
+		"Mscrm.IsQualifyLeadForm.Invert": {
+			"HomePageGrid.sel0": true
 		},
 		"Mscrm.IsRecordHierarchyEnabled": {
 			"HomePageGrid.sel1": false
@@ -664,6 +702,9 @@
 			"SubGridAssociated.sel1": true,
 			"SubGridStandard.sel0": true,
 			"SubGridStandard.sel1": true
+		},
+		"Mscrm.MinIncidentMerge": {
+			"HomePageGrid.sel0": false
 		},
 		"Mscrm.NotAListForm": {
 			"HomePageGrid.sel1": true,
@@ -835,7 +876,8 @@
 			"SubGridAssociated.sel0": false,
 			"SubGridAssociated.sel1": false,
 			"SubGridStandard.sel0": false,
-			"SubGridStandard.sel1": false
+			"SubGridStandard.sel1": false,
+			"HomePageGrid.sel0": false
 		},
 		"Mscrm.SelectionCountAtLeastZero": {
 			"HomePageGrid.sel0": true,
@@ -1044,6 +1086,24 @@
 		"Mscrm.YammerDisabled": {
 			"Form.Existing": false
 		},
+		"Mscrm.incident.EntityRule": {
+			"HomePageGrid.sel0": true
+		},
+		"Mscrm.incident.HomeGrid.CMA.ShowEditAIAutomation.MinOneSelection": {
+			"HomePageGrid.sel0": false
+		},
+		"Mscrm.incident.HomeGrid.CMA.ShowEscalate.MinOneSelection": {
+			"HomePageGrid.sel0": false
+		},
+		"Mscrm.incident.HomeGrid.CMA.ShowStop.MinOneSelection": {
+			"HomePageGrid.sel0": false
+		},
+		"Mscrm.incident.IsModernCaseQuickCreateForm.Invert": {
+			"HomePageGrid.sel0": true
+		},
+		"Mscrm.incident.MaxOneSelection": {
+			"HomePageGrid.sel0": false
+		},
 		"Mscrm.isNotDynamicList": {
 			"SubGridAssociated.sel0": true,
 			"SubGridAssociated.sel1": true,
@@ -1128,6 +1188,12 @@
 			"SubGridAssociated.sel1": false,
 			"SubGridStandard.sel0": false,
 			"SubGridStandard.sel1": false
+		},
+		"msdyn.msdyn_incident.EnableRule.SelectionCountExactlyOne": {
+			"HomePageGrid.sel0": false
+		},
+		"new.incident.RequestEvaluation.EnableRule": {
+			"HomePageGrid.sel0": false
 		}
 	}
 }

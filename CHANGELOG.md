@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ✨ Added
 
+- **Simulate mode (#191).** **Edit ⇄ Simulate** (in the location row, or Ctrl+Shift+M) shows the
+  location's command bar as a System Administrator gets it in Dynamics 365, on a Dynamics 365 page:
+  the white bar card, the commands' own icons and Unified Interface's labels ("Email a Link",
+  "Visualize this view"), chevrons on menus and split buttons, and the commands that don't fit
+  under ⋮ as the page narrows. A strip above it sets the rows selected, the record's state, the
+  sub-grid or associated view, the page's width (desktop, tablet, phone) and the grid's first item
+  (Focused view, Show As or neither, which the app sets). The rules decide what shows; commands CBS
+  can't tell about (custom JavaScript, the organization's features) are dashed, and use the
+  outcomes Command Checker reported on a test org where it has them. **Show hidden commands** lists
+  the rest, struck through, with why. Clicking a command selects it, as in Edit. An activity's list
+  says it shows the Activity entity's bar, as Unified Interface does.
+
 - **Several values for a web resource's data parameter (#275).** An HTML web resource reads only a
   few query string names, so values of your own go in `data`. For an Open a URL action on a
   `$webresource:` address, **Values for data** takes name / value rows and packs them into one
@@ -21,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   go in `data`, and leaves alone a `data` parameter it didn't write.
 
 ### 🔧 Changed
+
+- **Labels that take the entity's name show as text (#191).** Customer Service writes some labels
+  as `$LocLabels(EntityDisplayName):…` ("New {0}" for New Case); CBS showed the reference itself.
+  It now shows "New ‹entity name›" in Edit, and the entity's name in Simulate.
 
 - **"How users see it" lists commands in Unified Interface's order (#191).** It used to sort each
   group's buttons by Sequence. Unified Interface keeps the order of the merged ribbon instead: a

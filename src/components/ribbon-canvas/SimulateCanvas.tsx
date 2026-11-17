@@ -15,6 +15,7 @@ import { useSessionStore } from "@/store/sessionStore";
 import { DEFAULT_SIMULATION, useUIStore } from "@/store/uiStore";
 import { useModernLocation } from "@/hooks/useModernCommands";
 import { useDisplayText } from "@/hooks/useDisplayText";
+import { useEntityProperties } from "@/hooks/useEntityProperties";
 import { ribbonRules, simulateBar, type SimulatedEntry } from "@/services/uciPreview/bar";
 import { entryReason, simulationContext, uciLocation } from "@/utils/simulation";
 import { uciLabel } from "@/services/uciPreview/labels";
@@ -137,6 +138,7 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 	const enableRules = useRibbonStore((s) => s.enableRules);
 	const locLabels = useRibbonStore((s) => s.locLabels);
 	const entityLabel = useSessionStore((s) => s.activeEntity?.displayName) ?? "";
+	const isActivity = useSessionStore((s) => !!s.activeEntity?.isActivity);
 	const apps = useModernCommandStore((s) => s.apps);
 	const appFilter = useModernCommandStore((s) => s.appFilter);
 	const selectedButtonId = useSelectionStore((s) => s.selectedButtonId);
@@ -146,6 +148,7 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 	const captionOf = useDisplayText();
 	const modern = useModernLocation(location);
 	const page = uciLocation(location, simulation);
+	const properties = useEntityProperties(ribbon?.entityLogicalName || undefined);
 
 	const entries = useMemo(() => {
 		if (!page || !ribbon) return [];
@@ -156,15 +159,35 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 				overrides: modern.overrides,
 			},
 			ribbonRules({ commands, displayRules, enableRules }),
-			simulationContext(page, ribbon.entityLogicalName, simulation),
+			simulationContext(page, ribbon.entityLogicalName, simulation, properties),
+			{
+				focusedView: simulation.viewSwitch === "focusedView",
+				showAs: simulation.viewSwitch === "showAs",
+			},
 		);
-	}, [page, ribbon, modern, commands, displayRules, enableRules, simulation]);
+	}, [page, ribbon, modern, commands, displayRules, enableRules, simulation, properties]);
 
 	if (!page)
 		return (
 			<section className={styles.root} aria-label="Simulate">
 				<Text className={styles.empty}>
 					Simulate shows an entity&apos;s pages. Choose Main grid, Main form or Sub-grid.
+				</Text>
+			</section>
+		);
+	// Every activity's list is the Activities grid, with the Activity entity's bar (checked on
+	// email, task, phone call and appointment in Sales Hub, 2026-11-16).
+	if (
+		location === "HomepageGrid" &&
+		isActivity &&
+		ribbon?.entityLogicalName !== "activitypointer"
+	)
+		return (
+			<section className={styles.root} aria-label="Simulate">
+				<Text className={styles.empty}>
+					Unified Interface shows {entityLabel || "this activity"}&apos;s list with the
+					Activity entity&apos;s command bar, the same for every activity. To simulate it,
+					open the Activity entity (activitypointer). Its form and sub-grids are its own.
 				</Text>
 			</section>
 		);
@@ -248,6 +271,18 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 							{ value: 2 as const, label: "2+" },
 						]}
 						onChange={(v) => setSimulation({ selection: v })}
+					/>
+				)}
+				{location === "HomepageGrid" && (
+					<Segmented
+						label="First item"
+						value={simulation.viewSwitch}
+						options={[
+							{ value: "none" as const, label: "None" },
+							{ value: "focusedView" as const, label: "Focused view" },
+							{ value: "showAs" as const, label: "Show As" },
+						]}
+						onChange={(v) => setSimulation({ viewSwitch: v })}
 					/>
 				)}
 				<Segmented
