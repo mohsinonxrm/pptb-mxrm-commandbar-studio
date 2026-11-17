@@ -102,3 +102,57 @@ export function commandCheckerUrl(
 	});
 	return `${connectionUrl.replace(/\/$/, "")}/main.aspx?${params}`;
 }
+
+/** Where a classic button goes in the ribbon: a group, and the control it goes before (or the end). */
+export interface BarPlacement {
+	tabId: string;
+	groupId: string;
+	beforeButtonId?: string;
+}
+
+/**
+ * The ribbon position for a gap in the bar as drawn (#191 C5): gap `i` is before the `i`th
+ * command listed, `listed.length` after the last. The new or moved button goes before the next
+ * classic control, in its group; past a group's last control (the next one is in another group,
+ * or there's none), at the end of the previous one's group. Modern commands and Unified
+ * Interface's own items aren't ribbon controls, so they're stepped over; the bar redraws it where
+ * the platform's merge puts it. `moving` is left out of the neighbours. Between two groups both
+ * places draw the same, so a moved button keeps its own group. Null when the bar shows no classic
+ * control to place it by.
+ */
+export function barPlacement(
+	listed: readonly SimulatedEntry[],
+	gap: number,
+	moving?: string,
+): BarPlacement | null {
+	const classic = (e: SimulatedEntry | undefined) =>
+		e?.kind === "classic" && e.id !== moving ? e : undefined;
+	const right = listed.slice(gap).map(classic).find(Boolean);
+	const left = listed.slice(0, gap).map(classic).filter(Boolean).pop();
+	const own = listed.find((e) => e.id === moving);
+	const ownGroup = own?.kind === "classic" ? own.groupId : undefined;
+	if (right && (!left || left.groupId === right.groupId || ownGroup === right.groupId))
+		return { tabId: right.tabId, groupId: right.groupId, beforeButtonId: right.button.id };
+	if (left) return { tabId: left.tabId, groupId: left.groupId };
+	return null;
+}
+
+/**
+ * The gap a classic command moves to, one place earlier or later on the bar: before the classic
+ * command before it, or after the one after it. Null at either end.
+ */
+export function moveGap(
+	listed: readonly SimulatedEntry[],
+	id: string,
+	direction: "earlier" | "later",
+): number | null {
+	const at = listed.findIndex((e) => e.id === id);
+	if (at < 0) return null;
+	const isClassic = (e: SimulatedEntry) => e.kind === "classic";
+	if (direction === "earlier") {
+		for (let i = at - 1; i >= 0; i--) if (isClassic(listed[i])) return i;
+		return null;
+	}
+	for (let i = at + 1; i < listed.length; i++) if (isClassic(listed[i])) return i + 1;
+	return null;
+}

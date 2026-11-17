@@ -33,6 +33,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Simulate and follows Appearance in Edit, and modern commands get it too. A link opens the page in
   Dynamics 365 with Command Checker on, to check it live.
 
+- **Add and move commands on Simulate's bar (#191).** Hover between two commands and click **+** to
+  add a button there. Drag a command to move it, or use its context menu (**Add a button before /
+  after**, **Move earlier / later**) or **Alt+←/→**. It goes into the group at that place, with a
+  Sequence between its new neighbours; a button that isn't yours is copied and the original hidden,
+  as in Edit. The bar redraws it where Dynamics 365 will put it, and each add or move is one undo
+  step.
+
 - **Several values for a web resource's data parameter (#275).** An HTML web resource reads only a
   few query string names, so values of your own go in `data`. For an Open a URL action on a
   `$webresource:` address, **Values for data** takes name / value rows and packs them into one

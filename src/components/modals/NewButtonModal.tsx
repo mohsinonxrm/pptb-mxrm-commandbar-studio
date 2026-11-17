@@ -6,6 +6,7 @@ import {
 	MessageBar,
 	MessageBarBody,
 	Select,
+	Text,
 } from "@fluentui/react-components";
 import { AppDialog } from "@/components/shared/AppDialog";
 import { useUIStore } from "@/store/uiStore";
@@ -17,9 +18,12 @@ import type { RibbonButton } from "@/types/ribbon";
 import { groupControls } from "@/utils/ribbonMenu";
 import { newButtonIds } from "@/utils/idGenerator";
 import { newButtonBlockedReason } from "@/utils/globalTab";
+import { useDisplayText } from "@/hooks/useDisplayText";
 
 export const NewButtonModal: React.FC = () => {
 	const newButtonGroupId = useUIStore((s) => s.newButtonGroupId);
+	const newButtonBefore = useUIStore((s) => s.newButtonBefore);
+	const moveButton = useRibbonStore((s) => s.moveButton);
 	const closeNewButton = useUIStore((s) => s.closeNewButton);
 	const createButton = useRibbonStore((s) => s.createButton);
 	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
@@ -114,6 +118,24 @@ export const NewButtonModal: React.FC = () => {
 				displayRules: [],
 				actions: [],
 			});
+
+			// Placed where it was asked for (Simulate's insert marker): before that control, with a
+			// Sequence between its neighbours.
+			if (newButtonBefore)
+				moveButton(
+					{
+						location: activeLocation,
+						tabId: targetTabId,
+						groupId: newButtonGroupId,
+						buttonId: id,
+					},
+					{
+						location: activeLocation,
+						tabId: targetTabId,
+						groupId: newButtonGroupId,
+						beforeButtonId: newButtonBefore,
+					},
+				);
 		});
 
 		// Select the newly-created button so it's immediately visible in the
@@ -134,6 +156,17 @@ export const NewButtonModal: React.FC = () => {
 				)?.id
 			: undefined,
 	);
+	// Where it goes, when it was asked for at a place (Simulate's insert marker): before that control.
+	const captionOf = useDisplayText();
+	const before = useRibbonStore((s) => {
+		if (!newButtonBefore || !activeLocation) return undefined;
+		for (const t of s.ribbons[activeLocation].tabs)
+			for (const g of t.groups)
+				if (g.id === newButtonGroupId)
+					return g.buttons.find((x) => x.id === newButtonBefore);
+		return undefined;
+	});
+	const locLabels = useRibbonStore((s) => s.locLabels);
 	const blockedTabId = groupTabId ?? selectedTabId;
 	const blocked =
 		newButtonGroupId && activeLocation && blockedTabId
@@ -173,6 +206,14 @@ export const NewButtonModal: React.FC = () => {
 			>
 				<Input value={label} onChange={(_, d) => setLabel(d.value)} data-autofocus />
 			</Field>
+			{before && (
+				<Text size={200}>
+					It goes before “
+					{captionOf(before.label, locLabels, undefined, before.source?.labelToken) ||
+						before.id}
+					”.
+				</Text>
+			)}
 			<Field label="Kind">
 				<Select value={kind} onChange={(_, d) => setKind(d.value as RibbonButton["kind"])}>
 					<option value="button">Button</option>

@@ -8,11 +8,12 @@ import { useUIStore } from "@/store/uiStore";
 import { useDisplayText } from "@/hooks/useDisplayText";
 import { useSimulatedPage } from "@/hooks/useSimulatedPage";
 import type { SimulatedEntry } from "@/services/uciPreview/bar";
-import { entryReason } from "@/utils/simulation";
+import { barPlacement, entryReason, moveGap } from "@/utils/simulation";
 import { uciLabel } from "@/services/uciPreview/labels";
 import { D365Page } from "./simulate/D365Page";
 import { radioGroupKeys, radioTabIndex } from "@/components/shared/radioGroupKeys";
 import type { BarCommandProps } from "./simulate/D365CommandBar";
+import { BarEditingContext, type BarEditing } from "./simulate/barEditing";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 
@@ -137,6 +138,9 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 	const selectedModernId = useModernCommandStore((s) => s.selectedCommandId);
 	const selectCommand = useModernCommandStore((s) => s.selectCommand);
 	const captionOf = useDisplayText();
+	const moveButton = useRibbonStore((s) => s.moveButton);
+	const openNewButton = useUIStore((s) => s.openNewButton);
+	const announce = useUIStore((s) => s.announce);
 
 	if (!page)
 		return (
@@ -204,6 +208,45 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 			else if (e.kind === "modern") selectCommand(e.command.id);
 		},
 	}));
+	// Adding and moving on the bar (#191 C5): a gap becomes a place in a group (`barPlacement`), and
+	// the store's own add and move do the rest (Sequence between the neighbours; a copy of a button
+	// that isn't yours, the original hidden). The bar redraws it where the platform's merge puts it.
+	const moveTo = (id: string, gap: number) => {
+		const at = listed.findIndex((e) => e.id === id);
+		const entry = listed[at];
+		if (entry?.kind !== "classic" || gap === at || gap === at + 1) return;
+		const place = barPlacement(listed, gap, id);
+		if (!place) return;
+		const movedId = moveButton(
+			{ location, tabId: entry.tabId, groupId: entry.groupId, buttonId: entry.button.id },
+			{ location, ...place },
+		);
+		if (!movedId) return;
+		selectButtonInContext(location, place.tabId, place.groupId, movedId);
+		const next = place.beforeButtonId && listed.find((e) => e.id === place.beforeButtonId);
+		announce(
+			`Moved ${textOf(entry)}${next ? ` before ${textOf(next)}` : " to the end of its group"}${movedId === entry.button.id ? "" : ", as your copy"}.`,
+		);
+		// Keep the keyboard on it: a copy is a new button on the bar.
+		requestAnimationFrame(() =>
+			[...document.querySelectorAll<HTMLElement>("[data-simulated]")]
+				.find((el) => el.dataset.simulated === movedId)
+				?.focus(),
+		);
+	};
+	const editing: BarEditing = {
+		insertAt(gap) {
+			const place = barPlacement(listed, gap);
+			if (place) openNewButton(place.groupId, place.beforeButtonId);
+		},
+		moveTo,
+		moveBy(id, direction) {
+			const gap = moveGap(listed, id, direction);
+			if (gap !== null) moveTo(id, gap);
+		},
+		canMove: (e) => e.kind === "classic",
+		canMoveBy: (id, direction) => moveGap(listed, id, direction) !== null,
+	};
 	const counted = entries.filter((e) => e.kind !== "system");
 	const count = (o: boolean | "unknown") => counted.filter((e) => e.verdict.outcome === o).length;
 	const appName = appFilter === "all" ? undefined : apps.find((a) => a.id === appFilter)?.name;
@@ -290,15 +333,17 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 				/>
 			</div>
 			<div className={styles.stage}>
-				<D365Page
-					page={page}
-					width={simulation.width}
-					appName={appName}
-					entityLabel={entityName}
-					selectedCount={simulation.selection}
-					formState={simulation.formState}
-					commands={barCommands}
-				/>
+				<BarEditingContext.Provider value={editing}>
+					<D365Page
+						page={page}
+						width={simulation.width}
+						appName={appName}
+						entityLabel={entityName}
+						selectedCount={simulation.selection}
+						formState={simulation.formState}
+						commands={barCommands}
+					/>
+				</BarEditingContext.Provider>
 			</div>
 		</section>
 	);

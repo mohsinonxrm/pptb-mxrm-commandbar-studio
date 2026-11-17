@@ -260,6 +260,16 @@ fit under a ⋮ button 44 px wide, last ones first.
   agree; in Edit it follows Appearance, with a link to change the context in Simulate. A link opens
   the page in Dynamics 365 with `ribbondebug=true` (a new form for a new record, the list
   otherwise, in the app chosen) to check it live in Command Checker.
+- **Adding and moving on the bar** (#191 C5): a "+" between two commands (shown on hover) adds a
+  button there, through New button; dragging a classic command to another place moves it, and so
+  do its context menu (Add a button before / after, Move earlier / later) and Alt+←/→ on the
+  keyboard. A gap on the bar becomes a place in the ribbon (`barPlacement`): before the next
+  classic command, in its group; past a group's last command, at the end of that group (a moved
+  command keeps its own group there, as both places draw the same). Modern commands and Unified
+  Interface's own items aren't ribbon controls and are stepped over. The store's add and move do
+  the rest: a Sequence between the new neighbours, and for a button that isn't yours, your copy
+  moves and the original is hidden (#26). The bar then redraws it where the platform's merge puts
+  it, so what you see is where it lands.
 
 ## Against the documented behaviour (#191, #192 review comments)
 

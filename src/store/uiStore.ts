@@ -146,6 +146,8 @@ export interface UIStore {
 	localizationEditorButtonId: string | null;
 	newGroupOpen: boolean;
 	newButtonGroupId: string | null;
+	/** Where the new button goes in its group: before this control (Simulate's insert marker, #191 C5); the end without one. */
+	newButtonBefore: string | null;
 	importXmlOpen: boolean;
 	/** XML the import dialog opens with (the XML drawer's, or the clipboard's). */
 	importXmlSeed: string;
@@ -212,7 +214,7 @@ export interface UIStore {
 	closeLocalizationEditor(): void;
 	openNewGroup(): void;
 	closeNewGroup(): void;
-	openNewButton(groupId: string): void;
+	openNewButton(groupId: string, beforeButtonId?: string): void;
 	closeNewButton(): void;
 	openImportXml(seed?: string, note?: string): void;
 	closeImportXml(): void;
@@ -272,6 +274,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	localizationEditorButtonId: null,
 	newGroupOpen: false,
 	newButtonGroupId: null,
+	newButtonBefore: null,
 	importXmlOpen: false,
 	importXmlSeed: "",
 	importXmlNote: "",
@@ -354,8 +357,9 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 		set((s) => editorState(s.editorStack.filter((v) => v.kind !== "translations"))),
 	openNewGroup: () => set({ newGroupOpen: true }),
 	closeNewGroup: () => set({ newGroupOpen: false }),
-	openNewButton: (groupId) => set({ newButtonGroupId: groupId }),
-	closeNewButton: () => set({ newButtonGroupId: null }),
+	openNewButton: (groupId, beforeButtonId) =>
+		set({ newButtonGroupId: groupId, newButtonBefore: beforeButtonId ?? null }),
+	closeNewButton: () => set({ newButtonGroupId: null, newButtonBefore: null }),
 	openImportXml: (seed, note) =>
 		set({
 			importXmlOpen: true,
