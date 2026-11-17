@@ -1,5 +1,5 @@
 import { RECORDED_RULES } from "@/services/uciPreview/recordedRules";
-import type { SimulatedEntry } from "@/services/uciPreview/bar";
+import type { PlacementGoal, SimulatedEntry } from "@/services/uciPreview/bar";
 import type { SimulationContext, UciLocation } from "@/services/uciPreview/rules";
 import type { Simulation } from "@/store/uiStore";
 import type { EntityProperty, RibbonLocation } from "@/types/ribbon";
@@ -101,4 +101,63 @@ export function commandCheckerUrl(
 		ribbondebug: "true",
 	});
 	return `${connectionUrl.replace(/\/$/, "")}/main.aspx?${params}`;
+}
+
+/**
+ * What a gap in the bar as drawn asks of the ribbon (#191 C5): gap `i` is before the `i`th
+ * command listed, `listed.length` after the last. The button goes between the entries on either
+ * side (classic or modern; Unified Interface's own items lead or close the bar whatever the
+ * ribbon says, so they're stepped over), in one of their groups: a moved button's own first,
+ * then the one before the gap, then the one after. `planPlacement` finds the Sequence.
+ */
+export function placementGoal(
+	listed: readonly SimulatedEntry[],
+	gap: number,
+	tabOf: (groupId: string) => string | undefined,
+	moving?: string,
+): PlacementGoal {
+	const others = (list: readonly SimulatedEntry[]) =>
+		list.filter((e) => e.kind !== "system" && e.id !== moving);
+	const after = others(listed.slice(0, gap)).pop();
+	const before = others(listed.slice(gap))[0];
+	const own = listed.find((e) => e.id === moving);
+	const groupOf = (e: SimulatedEntry | undefined) => {
+		const groupId = e?.kind === "classic" || e?.kind === "modern" ? e.groupId : undefined;
+		const tabId =
+			e?.kind === "classic" ? e.tabId : groupId !== undefined ? tabOf(groupId) : undefined;
+		return groupId && tabId ? { tabId, groupId } : undefined;
+	};
+	const groups = [groupOf(own), groupOf(after), groupOf(before)].filter(
+		(g, i, all): g is { tabId: string; groupId: string } =>
+			!!g && all.findIndex((x) => x?.groupId === g.groupId && x?.tabId === g.tabId) === i,
+	);
+	return {
+		after: after?.id,
+		before: before?.id,
+		shown: new Set(listed.filter((e) => e.kind !== "system").map((e) => e.id)),
+		groups,
+		...(own?.kind === "classic"
+			? { moving: { tabId: own.tabId, groupId: own.groupId, buttonId: own.button.id } }
+			: {}),
+	};
+}
+
+/**
+ * The gap a command moves to, one place earlier or later on the bar: before the command before
+ * it, or after the one after it (Unified Interface's own items don't count). Null at either end.
+ */
+export function moveGap(
+	listed: readonly SimulatedEntry[],
+	id: string,
+	direction: "earlier" | "later",
+): number | null {
+	const at = listed.findIndex((e) => e.id === id);
+	if (at < 0) return null;
+	const counts = (e: SimulatedEntry) => e.kind !== "system";
+	if (direction === "earlier") {
+		for (let i = at - 1; i >= 0; i--) if (counts(listed[i])) return i;
+		return null;
+	}
+	for (let i = at + 1; i < listed.length; i++) if (counts(listed[i])) return i + 1;
+	return null;
 }

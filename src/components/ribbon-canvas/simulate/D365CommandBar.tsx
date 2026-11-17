@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, useContext, useState } from "react";
 import {
 	Menu,
 	MenuItem,
@@ -13,10 +13,11 @@ import {
 	useIsOverflowItemVisible,
 	useOverflowMenu,
 } from "@fluentui/react-components";
-import { ChevronDownRegular, MoreVerticalRegular } from "@fluentui/react-icons";
+import { AddRegular, ChevronDownRegular, MoreVerticalRegular } from "@fluentui/react-icons";
 import { RibbonButtonIcon } from "@/components/shared/RibbonButtonIcon";
 import type { SimulatedEntry } from "@/services/uciPreview/bar";
 import { D365 } from "./d365Theme";
+import { BarEditingContext, type BarEditing } from "./barEditing";
 
 /**
  * A Dynamics 365 command bar (#191): a white card 44 px high with 8 px corners, 32 px commands
@@ -116,6 +117,56 @@ const useStyles = makeStyles({
 	},
 	compactMore: { width: "28px", height: "28px" },
 	fill: { display: "flex", alignItems: "center", flex: "1 1 0", minWidth: 0, overflow: "hidden" },
+	/** A command's place on the bar: the insert marker and drop line sit on its edges. */
+	slot: { position: "relative", display: "inline-flex", flexShrink: 0 },
+	marker: {
+		position: "absolute",
+		top: 0,
+		bottom: 0,
+		// Narrow, so a click near a command's edge still chooses the command.
+		left: "-4px",
+		width: "8px",
+		zIndex: 2,
+		display: "flex",
+		justifyContent: "center",
+		cursor: "pointer",
+		":hover > span": { opacity: 1 },
+	},
+	markerStart: { left: 0 },
+	markerEnd: { left: "auto", right: "-4px" },
+	markerLine: {
+		width: "2px",
+		height: "100%",
+		backgroundColor: D365.brand,
+		opacity: 0,
+	},
+	// On the line's middle: the bar clips anything above or below its commands.
+	markerPlus: {
+		position: "absolute",
+		top: "50%",
+		transform: "translateY(-50%)",
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		width: "14px",
+		height: "14px",
+		borderRadius: "50%",
+		backgroundColor: D365.brand,
+		color: D365.surface,
+		opacity: 0,
+	},
+	/** Where a dragged command will go. */
+	dropLine: {
+		position: "absolute",
+		top: "2px",
+		bottom: "2px",
+		left: "-1px",
+		width: "2px",
+		backgroundColor: D365.brand,
+		zIndex: 2,
+		pointerEvents: "none",
+	},
+	dropLineEnd: { left: "auto", right: "-1px" },
 });
 
 export interface BarCommandProps {
@@ -126,6 +177,15 @@ export interface BarCommandProps {
 	selected: boolean;
 	mine: boolean;
 	onChoose: () => void;
+}
+
+const DRAG_TYPE = "application/x-cbs-simulated";
+
+interface DragState {
+	dragId: string | null;
+	setDragId(id: string | null): void;
+	dropGap: number | null;
+	setDropGap(gap: number | null): void;
 }
 
 export function D365CommandBar({
@@ -140,18 +200,37 @@ export function D365CommandBar({
 }) {
 	const styles = useStyles();
 	const arrowKeys = useArrowNavigationGroup({ axis: "horizontal", memorizeCurrent: true });
+	const editing = useContext(BarEditingContext);
+	const [dragId, setDragId] = useState<string | null>(null);
+	const [dropGap, setDropGap] = useState<number | null>(null);
+	const drag: DragState = { dragId, setDragId, dropGap, setDropGap };
 	return (
-		<div className={mergeClasses(styles.card, compact && styles.compact)}>
-			<Overflow padding={compact ? 32 : 48}>
+		<div
+			className={mergeClasses(styles.card, compact && styles.compact)}
+			onDragLeave={(e) => {
+				// Left the bar (not just moved between its commands): no drop place.
+				if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropGap(null);
+			}}
+		>
+			{/* Remounted when the order changes: Overflow measures items once, so a reordered bar
+			    would keep the old ones under ⋮. */}
+			<Overflow key={commands.map((c) => c.entry.id).join("|")} padding={compact ? 32 : 48}>
 				<div className={styles.fill} role="toolbar" aria-label={label} {...arrowKeys}>
-					{commands.map((c) => (
+					{commands.map((c, i) => (
 						<OverflowItem
 							key={c.entry.id}
 							id={c.entry.id}
 							// The command chosen in CBS stays in view.
 							priority={c.selected ? 2 : 1}
 						>
-							<BarCommand {...c} compact={compact} />
+							<BarSlot
+								command={c}
+								index={i}
+								last={i === commands.length - 1}
+								compact={compact}
+								editing={editing}
+								drag={drag}
+							/>
 						</OverflowItem>
 					))}
 					<MoreCommands commands={commands} compact={compact} />
@@ -161,50 +240,232 @@ export function D365CommandBar({
 	);
 }
 
-/** One command, passing its ref on: Fluent's Overflow measures it. */
-const BarCommand = forwardRef<HTMLButtonElement, BarCommandProps & { compact?: boolean }>(
-	function BarCommand({ entry, text, reason, selected, mine, onChoose, compact }, ref) {
-		const styles = useStyles();
-		const v = entry.verdict.outcome;
-		// A flyout shows its chevron, menu filled when opened (Run Report) too; a split button its
-		// action and, apart, its menu's chevron (Email a Link with no rows), when it's drawn split.
-		const menu = entry.drawn === "flyout" || entry.drawn === "split";
-		const split = entry.drawn === "split";
-		return (
-			// eslint-disable-next-line no-restricted-syntax, jsx-a11y/role-supports-aria-props -- drawn as Dynamics 365 draws it; aria-description (ARIA 1.3) is read by Chromium
-			<button
-				ref={ref}
-				type="button"
-				data-simulated={entry.id}
-				aria-disabled={entry.kind === "system" || undefined}
-				aria-current={selected || undefined}
-				aria-description={
-					reason ?? (entry.kind === "system" ? "Added by Unified Interface" : undefined)
-				}
-				title={reason ? `${text}\n\n${reason}` : text}
-				className={mergeClasses(
-					styles.command,
-					compact && styles.compactCommand,
-					entry.kind === "system" && styles.system,
-					v === "unknown" && styles.unknown,
-					v === false && styles.hidden,
-					mine && styles.mine,
-					selected && styles.selected,
-				)}
-				onClick={entry.kind === "system" ? undefined : onChoose}
-			>
-				{entry.kind === "classic" && (
-					<span className={styles.icon}>
-						<RibbonButtonIcon button={entry.button} size={16} light />
-					</span>
-				)}
-				<span className={styles.label}>{text}</span>
-				{menu && split && <span className={styles.splitDivider} aria-hidden="true" />}
-				{menu && <ChevronDownRegular fontSize={12} className={styles.chevron} />}
-			</button>
-		);
-	},
-);
+/**
+ * A command on the bar, with Simulate's editing around it: the insert marker before it (and
+ * after the last), the drop line while a command is dragged, and its context menu. Passes its
+ * ref on: Fluent's Overflow measures it.
+ */
+const BarSlot = forwardRef<
+	HTMLSpanElement,
+	{
+		command: BarCommandProps;
+		index: number;
+		last: boolean;
+		compact?: boolean;
+		editing: BarEditing | null;
+		drag: DragState;
+	}
+>(function BarSlot({ command, index, last, compact, editing, drag }, ref) {
+	const styles = useStyles();
+	const { entry } = command;
+	const movable = !!editing && editing.canMove(entry);
+	const dragging = drag.dragId !== null;
+	// The gap the pointer is nearest: before this command, or after it.
+	const gapAt = (e: React.DragEvent<HTMLSpanElement>) => {
+		const rect = e.currentTarget.getBoundingClientRect();
+		return e.clientX < rect.left + rect.width / 2 ? index : index + 1;
+	};
+	const onDragOver = (e: React.DragEvent<HTMLSpanElement>) => {
+		if (!editing || !dragging) return;
+		e.preventDefault();
+		e.dataTransfer.dropEffect = "move";
+		const gap = gapAt(e);
+		if (gap !== drag.dropGap) drag.setDropGap(gap);
+	};
+	const onDrop = (e: React.DragEvent<HTMLSpanElement>) => {
+		const id = drag.dragId ?? (e.dataTransfer.getData(DRAG_TYPE) || null);
+		if (!editing || id === null) return;
+		e.preventDefault();
+		// Where it was dropped, not the last line drawn: a render may not have caught up.
+		editing.moveTo(id, gapAt(e));
+		drag.setDragId(null);
+		drag.setDropGap(null);
+	};
+	const button = (
+		<BarCommand
+			{...command}
+			compact={compact}
+			draggable={movable || undefined}
+			aria-keyshortcuts={movable ? "Alt+ArrowLeft Alt+ArrowRight" : undefined}
+			onDragStart={
+				movable
+					? (e: React.DragEvent<HTMLButtonElement>) => {
+							e.dataTransfer.effectAllowed = "move";
+							e.dataTransfer.setData(DRAG_TYPE, entry.id);
+							// After dragstart: Chromium can end a drag whose page changes during it
+							// (the insert markers go while dragging).
+							setTimeout(() => drag.setDragId(entry.id), 0);
+						}
+					: undefined
+			}
+			onDragEnd={
+				movable
+					? () => {
+							drag.setDragId(null);
+							drag.setDropGap(null);
+						}
+					: undefined
+			}
+			onKeyDown={
+				movable
+					? (e: React.KeyboardEvent<HTMLButtonElement>) => {
+							if (!e.altKey || (e.key !== "ArrowLeft" && e.key !== "ArrowRight"))
+								return;
+							e.preventDefault();
+							e.stopPropagation();
+							editing!.moveBy(entry.id, e.key === "ArrowLeft" ? "earlier" : "later");
+						}
+					: undefined
+			}
+		/>
+	);
+	return (
+		<span ref={ref} className={styles.slot} onDragOver={onDragOver} onDrop={onDrop}>
+			{editing && !dragging && (
+				<InsertMarker
+					gap={index}
+					edge={index === 0 ? "start" : undefined}
+					editing={editing}
+				/>
+			)}
+			{drag.dropGap === index && <span className={styles.dropLine} data-drop-gap={index} />}
+			{editing && entry.kind === "classic" ? (
+				<Menu openOnContext>
+					<MenuTrigger disableButtonEnhancement>{button}</MenuTrigger>
+					<MenuPopover>
+						<MenuList>
+							<MenuItem onClick={() => editing.insertAt(index)}>
+								Add a button before
+							</MenuItem>
+							<MenuItem onClick={() => editing.insertAt(index + 1)}>
+								Add a button after
+							</MenuItem>
+							{movable && (
+								<>
+									<MenuItem
+										disabled={!editing.canMoveBy(entry.id, "earlier")}
+										secondaryContent="Alt+←"
+										onClick={() => editing.moveBy(entry.id, "earlier")}
+									>
+										Move earlier
+									</MenuItem>
+									<MenuItem
+										disabled={!editing.canMoveBy(entry.id, "later")}
+										secondaryContent="Alt+→"
+										onClick={() => editing.moveBy(entry.id, "later")}
+									>
+										Move later
+									</MenuItem>
+								</>
+							)}
+						</MenuList>
+					</MenuPopover>
+				</Menu>
+			) : (
+				button
+			)}
+			{last && editing && !dragging && (
+				<InsertMarker gap={index + 1} edge="end" editing={editing} />
+			)}
+			{last && drag.dropGap === index + 1 && (
+				<span
+					className={mergeClasses(styles.dropLine, styles.dropLineEnd)}
+					data-drop-gap={index + 1}
+				/>
+			)}
+		</span>
+	);
+});
+
+/**
+ * A "+" between two commands, shown on hover, that adds a button there. Mouse only: the
+ * keyboard gets the same through a command's context menu (Shift+F10).
+ */
+function InsertMarker({
+	gap,
+	edge,
+	editing,
+}: {
+	gap: number;
+	edge?: "start" | "end";
+	editing: BarEditing;
+}) {
+	const styles = useStyles();
+	return (
+		// a mouse shortcut; the context menu's Add a button before / after is the keyboard's way
+		<span
+			aria-hidden="true"
+			data-insert-gap={gap}
+			title="Add a button here"
+			className={mergeClasses(
+				styles.marker,
+				edge === "start" && styles.markerStart,
+				edge === "end" && styles.markerEnd,
+			)}
+			onClick={(e) => {
+				e.stopPropagation();
+				editing.insertAt(gap);
+			}}
+		>
+			<span className={styles.markerLine} />
+			<span className={styles.markerPlus}>
+				<AddRegular fontSize={10} />
+			</span>
+		</span>
+	);
+}
+
+type NativeButtonProps = Pick<
+	React.ButtonHTMLAttributes<HTMLButtonElement>,
+	"draggable" | "onDragStart" | "onDragEnd" | "onKeyDown" | "aria-keyshortcuts" | "onContextMenu"
+>;
+
+/** One command, as Dynamics 365 draws it. */
+const BarCommand = forwardRef<
+	HTMLButtonElement,
+	BarCommandProps & { compact?: boolean } & NativeButtonProps
+>(function BarCommand({ entry, text, reason, selected, mine, onChoose, compact, ...native }, ref) {
+	const styles = useStyles();
+	const v = entry.verdict.outcome;
+	// A flyout shows its chevron, menu filled when opened (Run Report) too; a split button its
+	// action and, apart, its menu's chevron (Email a Link with no rows), when it's drawn split.
+	const menu = entry.drawn === "flyout" || entry.drawn === "split";
+	const split = entry.drawn === "split";
+	return (
+		// eslint-disable-next-line no-restricted-syntax, jsx-a11y/role-supports-aria-props -- drawn as Dynamics 365 draws it; aria-description (ARIA 1.3) is read by Chromium
+		<button
+			{...native}
+			ref={ref}
+			type="button"
+			data-simulated={entry.id}
+			aria-disabled={entry.kind === "system" || undefined}
+			aria-current={selected || undefined}
+			aria-description={
+				reason ?? (entry.kind === "system" ? "Added by Unified Interface" : undefined)
+			}
+			title={reason ? `${text}\n\n${reason}` : text}
+			className={mergeClasses(
+				styles.command,
+				compact && styles.compactCommand,
+				entry.kind === "system" && styles.system,
+				v === "unknown" && styles.unknown,
+				v === false && styles.hidden,
+				mine && styles.mine,
+				selected && styles.selected,
+			)}
+			onClick={entry.kind === "system" ? undefined : onChoose}
+		>
+			{entry.kind === "classic" && (
+				<span className={styles.icon}>
+					<RibbonButtonIcon button={entry.button} size={16} light />
+				</span>
+			)}
+			<span className={styles.label}>{text}</span>
+			{menu && split && <span className={styles.splitDivider} aria-hidden="true" />}
+			{menu && <ChevronDownRegular fontSize={12} className={styles.chevron} />}
+		</button>
+	);
+});
 
 /** ⋮: the commands that didn't fit, in the bar's order. */
 function MoreCommands({ commands, compact }: { commands: BarCommandProps[]; compact?: boolean }) {

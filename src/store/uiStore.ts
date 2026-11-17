@@ -9,6 +9,13 @@ export type RibbonViewStyle = "groups" | "classic" | "modern" | "list";
 export type CanvasMode = "edit" | "simulate";
 
 /** The page Simulate shows (#191): shared by both modes, remembered. */
+/** A new button's place on Simulate's bar (#191 C5). */
+export interface NewButtonPlace {
+	sequence: number;
+	/** Where it goes, in words: before “Refresh”. */
+	where: string;
+}
+
 export interface Simulation {
 	/** Rows selected on a grid: none, one, or two or more. */
 	selection: 0 | 1 | 2;
@@ -146,6 +153,11 @@ export interface UIStore {
 	localizationEditorButtonId: string | null;
 	newGroupOpen: boolean;
 	newButtonGroupId: string | null;
+	/**
+	 * Where the new button goes, when it was asked for at a place (Simulate's insert marker, #191
+	 * C5): the Sequence that draws it there, and the place in words. Null: after the group's last.
+	 */
+	newButtonPlace: NewButtonPlace | null;
 	importXmlOpen: boolean;
 	/** XML the import dialog opens with (the XML drawer's, or the clipboard's). */
 	importXmlSeed: string;
@@ -212,7 +224,7 @@ export interface UIStore {
 	closeLocalizationEditor(): void;
 	openNewGroup(): void;
 	closeNewGroup(): void;
-	openNewButton(groupId: string): void;
+	openNewButton(groupId: string, place?: NewButtonPlace): void;
 	closeNewButton(): void;
 	openImportXml(seed?: string, note?: string): void;
 	closeImportXml(): void;
@@ -272,6 +284,7 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 	localizationEditorButtonId: null,
 	newGroupOpen: false,
 	newButtonGroupId: null,
+	newButtonPlace: null,
 	importXmlOpen: false,
 	importXmlSeed: "",
 	importXmlNote: "",
@@ -354,8 +367,9 @@ const uiStoreCreator: StateCreator<UIStore, [], [["zustand/persist", Partial<UIS
 		set((s) => editorState(s.editorStack.filter((v) => v.kind !== "translations"))),
 	openNewGroup: () => set({ newGroupOpen: true }),
 	closeNewGroup: () => set({ newGroupOpen: false }),
-	openNewButton: (groupId) => set({ newButtonGroupId: groupId }),
-	closeNewButton: () => set({ newButtonGroupId: null }),
+	openNewButton: (groupId, place) =>
+		set({ newButtonGroupId: groupId, newButtonPlace: place ?? null }),
+	closeNewButton: () => set({ newButtonGroupId: null, newButtonPlace: null }),
 	openImportXml: (seed, note) =>
 		set({
 			importXmlOpen: true,

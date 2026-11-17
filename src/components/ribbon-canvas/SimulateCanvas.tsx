@@ -8,11 +8,14 @@ import { useUIStore } from "@/store/uiStore";
 import { useDisplayText } from "@/hooks/useDisplayText";
 import { useSimulatedPage } from "@/hooks/useSimulatedPage";
 import type { SimulatedEntry } from "@/services/uciPreview/bar";
-import { entryReason } from "@/utils/simulation";
+import { entryReason, moveGap, placementGoal } from "@/utils/simulation";
+import { planPlacement } from "@/services/uciPreview/bar";
+import { isMenuKind } from "@/utils/ribbonMenu";
 import { uciLabel } from "@/services/uciPreview/labels";
 import { D365Page } from "./simulate/D365Page";
 import { radioGroupKeys, radioTabIndex } from "@/components/shared/radioGroupKeys";
 import type { BarCommandProps } from "./simulate/D365CommandBar";
+import { BarEditingContext, type BarEditing } from "./simulate/barEditing";
 import type { RibbonButton, RibbonLocation } from "@/types/ribbon";
 import { resolveDisplayLabel } from "@/utils/displayLabel";
 
@@ -124,7 +127,7 @@ function Segmented<T extends string | number>({
 
 export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 	const styles = useStyles();
-	const { simulation, page, entries } = useSimulatedPage(location);
+	const { simulation, page, entries, input } = useSimulatedPage(location);
 	const setSimulation = useUIStore((s) => s.setSimulation);
 	const ribbon = useRibbonStore((s) => s.ribbons[location]);
 	const locLabels = useRibbonStore((s) => s.locLabels);
@@ -137,6 +140,9 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 	const selectedModernId = useModernCommandStore((s) => s.selectedCommandId);
 	const selectCommand = useModernCommandStore((s) => s.selectCommand);
 	const captionOf = useDisplayText();
+	const placeButton = useRibbonStore((s) => s.placeButton);
+	const openNewButton = useUIStore((s) => s.openNewButton);
+	const announce = useUIStore((s) => s.announce);
 
 	if (!page)
 		return (
@@ -204,6 +210,76 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 			else if (e.kind === "modern") selectCommand(e.command.id);
 		},
 	}));
+	// Adding and moving on the bar (#191 C5). A gap asks for a place between two entries
+	// (`placementGoal`); `planPlacement` finds the group and Sequence the platform's merge draws
+	// there, checked against the bar itself; the store puts the button there (your copy of a
+	// button that isn't yours, the original hidden). Where no Sequence can, it says so.
+	const tabOf = (groupId: string) =>
+		ribbon?.tabs.find((t) => t.groups.some((g) => g.id === groupId))?.id;
+	const between = (gap: number, moving?: string) => {
+		const at = (offset: number) => listed[gap + offset];
+		const named = (e: SimulatedEntry | undefined) => (e ? textOf(e) : undefined);
+		return { left: named(at(-1)), right: named(at(0)), moving };
+	};
+	const cantPlace = (what: string, gap: number) => {
+		const { left, right } = between(gap);
+		announce(
+			`Can't ${what} ${left && right ? `between ${left} and ${right}` : right ? `before ${right}` : `after ${left}`}: no Sequence puts it there, as the group's controls aren't in Sequence order in the ribbon.`,
+		);
+	};
+	const moveTo = (id: string, gap: number) => {
+		const at = listed.findIndex((e) => e.id === id);
+		const entry = listed[at];
+		if (entry?.kind !== "classic" || gap === at || gap === at + 1) return;
+		const plan = planPlacement(input, placementGoal(listed, gap, tabOf, id));
+		if (!plan) {
+			cantPlace(`move ${textOf(entry)}`, gap);
+			return;
+		}
+		const movedId = placeButton(
+			{ location, tabId: entry.tabId, groupId: entry.groupId, buttonId: entry.button.id },
+			{ location, ...plan },
+		);
+		if (!movedId) return;
+		selectButtonInContext(location, plan.tabId, plan.groupId, movedId);
+		const { left, right } = between(gap);
+		announce(
+			`Moved ${textOf(entry)} ${right && listed[gap]?.id !== id ? `before ${right}` : `after ${left}`}${movedId === entry.button.id ? "" : ", as your copy"}.`,
+		);
+		// Keep the keyboard on it: a copy is a new button on the bar.
+		requestAnimationFrame(() =>
+			[...document.querySelectorAll<HTMLElement>("[data-simulated]")]
+				.find((el) => el.dataset.simulated === movedId)
+				?.focus(),
+		);
+	};
+	const editing: BarEditing = {
+		insertAt(gap) {
+			const plan = planPlacement(input, placementGoal(listed, gap, tabOf));
+			if (!plan) {
+				cantPlace("add a button", gap);
+				return;
+			}
+			const { left, right } = between(gap);
+			openNewButton(plan.groupId, {
+				sequence: plan.sequence,
+				where: right ? `before “${right}”` : `after “${left}”`,
+			});
+		},
+		moveTo,
+		moveBy(id, direction) {
+			const gap = moveGap(listed, id, direction);
+			if (gap !== null) moveTo(id, gap);
+		},
+		canMove: (e) =>
+			e.kind === "classic" &&
+			// A button that isn't yours moves as your copy; one with a menu can't (publish doesn't
+			// move Microsoft's menus), nor one a migrated modern command stands in for (the copy
+			// wouldn't be it).
+			(e.button.origin === "unmanaged" ||
+				(!e.button.menu && !isMenuKind(e.button.kind) && !e.replacedBy)),
+		canMoveBy: (id, direction) => moveGap(listed, id, direction) !== null,
+	};
 	const counted = entries.filter((e) => e.kind !== "system");
 	const count = (o: boolean | "unknown") => counted.filter((e) => e.verdict.outcome === o).length;
 	const appName = appFilter === "all" ? undefined : apps.find((a) => a.id === appFilter)?.name;
@@ -290,15 +366,17 @@ export function SimulateCanvas({ location }: { location: RibbonLocation }) {
 				/>
 			</div>
 			<div className={styles.stage}>
-				<D365Page
-					page={page}
-					width={simulation.width}
-					appName={appName}
-					entityLabel={entityName}
-					selectedCount={simulation.selection}
-					formState={simulation.formState}
-					commands={barCommands}
-				/>
+				<BarEditingContext.Provider value={editing}>
+					<D365Page
+						page={page}
+						width={simulation.width}
+						appName={appName}
+						entityLabel={entityName}
+						selectedCount={simulation.selection}
+						formState={simulation.formState}
+						commands={barCommands}
+					/>
+				</BarEditingContext.Provider>
 			</div>
 		</section>
 	);

@@ -6,6 +6,7 @@ import { useEntityProperties } from "@/hooks/useEntityProperties";
 import {
 	ribbonRules,
 	simulateBar,
+	type BarInput,
 	type RibbonRules,
 	type SimulatedEntry,
 } from "@/services/uciPreview/bar";
@@ -26,6 +27,8 @@ export interface SimulatedPage {
 	entries: SimulatedEntry[];
 	/** Classic buttons a migrated modern command hides or replaces, by button id (#32). */
 	overrides: ReadonlyMap<string, readonly ClassicModernOverride[]>;
+	/** What the bar is drawn from: the ribbon's tabs, the modern commands and their overrides. */
+	input: BarInput;
 }
 
 /**
@@ -62,22 +65,21 @@ export function useSimulatedPage(location: RibbonLocation): SimulatedPage {
 				: null,
 		[page, ribbon, simulation, properties],
 	);
+	const input = useMemo<BarInput>(
+		() => ({
+			tabs: ribbon?.tabs ?? [],
+			modern: modern.nodes.map((n) => n.command),
+			overrides: modern.overrides,
+		}),
+		[ribbon, modern],
+	);
 	const entries = useMemo(() => {
 		if (!context || !ribbon) return [];
-		return simulateBar(
-			{
-				tabs: ribbon.tabs,
-				modern: modern.nodes.map((n) => n.command),
-				overrides: modern.overrides,
-			},
-			rules,
-			context,
-			{
-				focusedView: simulation.viewSwitch === "focusedView",
-				showAs: simulation.viewSwitch === "showAs",
-			},
-		);
-	}, [context, ribbon, modern, rules, simulation.viewSwitch]);
+		return simulateBar(input, rules, context, {
+			focusedView: simulation.viewSwitch === "focusedView",
+			showAs: simulation.viewSwitch === "showAs",
+		});
+	}, [context, ribbon, input, rules, simulation.viewSwitch]);
 
-	return { simulation, page, context, rules, entries, overrides: modern.overrides };
+	return { simulation, page, context, rules, entries, overrides: modern.overrides, input };
 }

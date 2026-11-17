@@ -6,6 +6,7 @@ import {
 	MessageBar,
 	MessageBarBody,
 	Select,
+	Text,
 } from "@fluentui/react-components";
 import { AppDialog } from "@/components/shared/AppDialog";
 import { useUIStore } from "@/store/uiStore";
@@ -20,6 +21,7 @@ import { newButtonBlockedReason } from "@/utils/globalTab";
 
 export const NewButtonModal: React.FC = () => {
 	const newButtonGroupId = useUIStore((s) => s.newButtonGroupId);
+	const place = useUIStore((s) => s.newButtonPlace);
 	const closeNewButton = useUIStore((s) => s.closeNewButton);
 	const createButton = useRibbonStore((s) => s.createButton);
 	const upsertCommand = useRibbonStore((s) => s.upsertCommand);
@@ -91,7 +93,9 @@ export const NewButtonModal: React.FC = () => {
 					id,
 					label,
 					kind,
-					// No sequence: the store places it after the group's last button.
+					// Without a place, the store puts it after the group's last button; with one
+					// (Simulate's insert marker), the Sequence that draws it there.
+					...(place ? { sequence: place.sequence } : {}),
 					templateAlias: "o1",
 					commandId,
 					hidden: false,
@@ -173,6 +177,7 @@ export const NewButtonModal: React.FC = () => {
 			>
 				<Input value={label} onChange={(_, d) => setLabel(d.value)} data-autofocus />
 			</Field>
+			{place && <Text size={200}>It goes {place.where}.</Text>}
 			<Field label="Kind">
 				<Select value={kind} onChange={(_, d) => setKind(d.value as RibbonButton["kind"])}>
 					<option value="button">Button</option>
