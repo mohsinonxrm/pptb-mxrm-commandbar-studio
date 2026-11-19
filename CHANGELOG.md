@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### 🐛 Fixed
+
+- **A new global command bar button can stay hidden after publishing, and CBS now says why (#306).**
+  Dataverse adds the application ribbon's buttons to the ribbon Unified Interface draws from when
+  you publish, but their commands and rules later, on its own schedule: in a live check 20 to 40
+  minutes after publishing, with reads in between returning older commands. Neither publishing the
+  application ribbon nor Publish all customizations hurries it, and a button whose command is
+  missing isn't drawn. CBS verified only its own layer, so it reported "Verified" for buttons users
+  couldn't see. After an application-ribbon publish it now also reads that ribbon, and names the
+  commands and rules Dataverse hasn't added yet, saying there's no need to publish again.
+
 ### ✨ Added
 
 - **Several values for a web resource's data parameter (#275).** An HTML web resource reads only a

@@ -31,6 +31,8 @@ import {
 	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
 import { fetchUnmanagedRibbonParts } from "@/services/dataverse/ribbonLayerService";
+import { decompressRibbonZip } from "@/utils/decompressRibbonZip";
+import { hasGaps, mergedRibbonGaps, type MergedRibbonGaps } from "@/services/mergedRibbonGaps";
 import { ConnectionChangedError, writeGuard, type WriteGuard } from "@/services/hostConnection";
 import {
 	fetchOrganizationLanguageCode,
@@ -1164,6 +1166,77 @@ export async function verifyPublishedLayer(
 }
 
 /**
+ * After an application-ribbon publish: what Unified Interface gets of it (#306). `warning` names
+ * the commands and rules of buttons the merged application ribbon (what Unified Interface draws
+ * from) has but whose definitions it doesn't have yet, or says it couldn't be read; `note` says
+ * changed commands and rules reach it later (their content can't be checked). Both absent when
+ * there's nothing to say.
+ */
+export async function applicationRibbonPending(
+	layer: RibbonDiffParts,
+	changedKeys: readonly string[] = [],
+): Promise<{ warning?: string; note?: string }> {
+	let gaps: MergedRibbonGaps;
+	try {
+		const result = await dataverseAPI.execute({
+			operationName: "RetrieveApplicationRibbon",
+			operationType: "function",
+		});
+		const compressed = (result as { CompressedApplicationRibbonXml?: unknown } | undefined)
+			?.CompressedApplicationRibbonXml;
+		if (typeof compressed !== "string" || !compressed) throw new Error("no ribbon returned");
+		gaps = mergedRibbonGaps(await decompressRibbonZip(compressed), layer);
+	} catch (err) {
+		return {
+			warning:
+				`CBS couldn't read the application ribbon Unified Interface draws from to check your ` +
+				`buttons' commands reached it (${err instanceof Error ? err.message : String(err)}).`,
+		};
+	}
+	if (hasGaps(gaps)) {
+		const sample = (ids: string[]) =>
+			ids.slice(0, 3).join(", ") + (ids.length > 3 ? ", …" : "");
+		const parts = [
+			gaps.commands.length
+				? `${gaps.commands.length} command(s) (${sample(gaps.commands)})`
+				: "",
+			gaps.enableRules.length
+				? `${gaps.enableRules.length} enable rule(s) (${sample(gaps.enableRules)})`
+				: "",
+			gaps.displayRules.length
+				? `${gaps.displayRules.length} display rule(s) (${sample(gaps.displayRules)})`
+				: "",
+		].filter(Boolean);
+		return {
+			warning:
+				`Dataverse hasn't added ${parts.join(", ")} to the application ribbon Unified Interface ` +
+				`draws from yet. It adds the application ribbon's buttons when you publish, but their ` +
+				`commands and rules later, on its own schedule: ${APPLICATION_COMMANDS_LAG}. Until then, ` +
+				`a button whose command is missing isn't shown. You don't need to publish again.`,
+		};
+	}
+	const changedDefinitions = changedKeys.some((k) =>
+		/^(commandDefinitions|enableRules|displayRules):/.test(k),
+	);
+	return changedDefinitions
+		? {
+				note:
+					`Changed commands and rules reach Unified Interface later than buttons: ` +
+					`${APPLICATION_COMMANDS_LAG}.`,
+			}
+		: {};
+}
+
+/**
+ * How long Dataverse took to add newly published application-ribbon commands (#306). Measured on
+ * CRM279420, 2026-11-18, reading RetrieveApplicationRibbon every 5 minutes: about 18 and 40
+ * minutes after two publishes, and reads in between returned older command sets in turn (each of
+ * Dataverse's servers caches them).
+ */
+export const APPLICATION_COMMANDS_LAG =
+	"in a live check, 20 to 40 minutes after publishing, with reads in between still returning older commands";
+
+/**
  * The table's ribbon changed in Dataverse while it was being published (#102):
  * other changes to it were published meanwhile (another session, tool or
  * solution import). Nothing more is imported, since the import would replace
@@ -1701,6 +1774,24 @@ async function publishRibbonUnguarded(
 					contentKeys: merged.changedKeys,
 				},
 			);
+			// The application ribbon's commands and rules reach the merged ribbon on Dataverse's own
+			// schedule, not with the publish: until they do, its new buttons aren't drawn (#306).
+			if (verification.ok && isApplication) {
+				onProgress?.("Checking what Unified Interface gets…");
+				const pending = await applicationRibbonPending(merged.parts, merged.changedKeys);
+				// The layer verified: that stays said, with what Unified Interface doesn't have yet.
+				if (pending.warning)
+					verification = {
+						...verification,
+						ok: false,
+						message: `${verification.message} ${pending.warning}`,
+					};
+				else if (pending.note)
+					verification = {
+						...verification,
+						message: `${verification.message} ${pending.note}`,
+					};
+			}
 			if (verification.ok) logs.logInfo("publish", verification.message);
 			else logs.logWarn("publish", verification.message);
 		}
