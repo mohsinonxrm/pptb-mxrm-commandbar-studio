@@ -47,6 +47,7 @@ import { useSessionStore } from "@/store/sessionStore";
 import { withCloseGuard } from "@/utils/pptbRuntime";
 import { useRuntimeLogStore } from "@/store/runtimeLogStore";
 import {
+	APPLICATION_COMMANDS_LAG,
 	checkBeforePublish,
 	cancelMayStillFinish,
 	fetchImportJobLog,
@@ -1391,6 +1392,10 @@ export const BulkPublishModal: React.FC = () => {
 								Unified Interface can take up to about 25 minutes to show it. To see
 								it sooner, run <strong>Regenerate ribbon metadata</strong> in
 								Command Checker, or hard-refresh the page (Ctrl+F5).
+								{/* The application ribbon's commands follow later still, whatever is refreshed (#306). */}
+								{verifications.some((v) =>
+									v.result.message.includes(APPLICATION_COMMANDS_LAG),
+								) && " The application ribbon's commands take longer: see below."}
 							</MessageBarBody>
 						</MessageBar>
 					)}
