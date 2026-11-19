@@ -31,6 +31,8 @@ import {
 	type RibbonDiffParts,
 } from "@/services/ribbonDiffMerge";
 import { fetchUnmanagedRibbonParts } from "@/services/dataverse/ribbonLayerService";
+import { decompressRibbonZip } from "@/utils/decompressRibbonZip";
+import { hasGaps, mergedRibbonGaps } from "@/services/mergedRibbonGaps";
 import { ConnectionChangedError, writeGuard, type WriteGuard } from "@/services/hostConnection";
 import {
 	fetchOrganizationLanguageCode,
@@ -1164,6 +1166,53 @@ export async function verifyPublishedLayer(
 }
 
 /**
+ * After an application-ribbon publish: what the merged application ribbon (the one Unified
+ * Interface draws from) doesn't have yet, said for the publish result, or undefined when it has
+ * everything (#306). A failure to read it is said too, as it can't be told.
+ */
+export async function applicationRibbonPending(
+	layer: RibbonDiffParts,
+): Promise<string | undefined> {
+	let xml: string;
+	try {
+		const result = await dataverseAPI.execute({
+			operationName: "RetrieveApplicationRibbon",
+			operationType: "function",
+		});
+		const compressed = (result as { CompressedApplicationRibbonXml?: unknown } | undefined)
+			?.CompressedApplicationRibbonXml;
+		if (typeof compressed !== "string" || !compressed) throw new Error("no ribbon returned");
+		xml = await decompressRibbonZip(compressed);
+	} catch (err) {
+		return (
+			`Published, but CBS couldn't read the application ribbon Unified Interface uses to check ` +
+			`your buttons' commands reached it (${err instanceof Error ? err.message : String(err)}).`
+		);
+	}
+	const gaps = mergedRibbonGaps(xml, layer);
+	if (!hasGaps(gaps)) return undefined;
+	const sample = (ids: string[]) => ids.slice(0, 3).join(", ") + (ids.length > 3 ? ", …" : "");
+	const parts = [
+		gaps.commands.length ? `${gaps.commands.length} command(s) (${sample(gaps.commands)})` : "",
+		gaps.enableRules.length
+			? `${gaps.enableRules.length} enable rule(s) (${sample(gaps.enableRules)})`
+			: "",
+		gaps.displayRules.length
+			? `${gaps.displayRules.length} display rule(s) (${sample(gaps.displayRules)})`
+			: "",
+	].filter(Boolean);
+	return (
+		`Published, but Dataverse hasn't added ${parts.join(", ")} to the application ribbon Unified ` +
+		`Interface draws from yet. It updates the application ribbon's buttons when you publish, but its ` +
+		`commands and rules later, on its own schedule: ${APPLICATION_COMMANDS_LAG}. Until then, a button ` +
+		`whose command is missing isn't shown. You don't need to publish again.`
+	);
+}
+
+/** How long Dataverse took to add newly published application-ribbon commands (#306, measured live). */
+export const APPLICATION_COMMANDS_LAG = "measuring";
+
+/**
  * The table's ribbon changed in Dataverse while it was being published (#102):
  * other changes to it were published meanwhile (another session, tool or
  * solution import). Nothing more is imported, since the import would replace
@@ -1701,6 +1750,13 @@ async function publishRibbonUnguarded(
 					contentKeys: merged.changedKeys,
 				},
 			);
+			// The application ribbon's commands and rules reach the merged ribbon on Dataverse's own
+			// schedule, not with the publish: until they do, its new buttons aren't drawn (#306).
+			if (verification.ok && isApplication) {
+				onProgress?.("Checking what Unified Interface gets…");
+				const pending = await applicationRibbonPending(merged.parts);
+				if (pending) verification = { ...verification, ok: false, message: pending };
+			}
 			if (verification.ok) logs.logInfo("publish", verification.message);
 			else logs.logWarn("publish", verification.message);
 		}
