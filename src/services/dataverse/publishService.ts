@@ -1209,8 +1209,14 @@ export async function applicationRibbonPending(
 	);
 }
 
-/** How long Dataverse took to add newly published application-ribbon commands (#306, measured live). */
-export const APPLICATION_COMMANDS_LAG = "measuring";
+/**
+ * How long Dataverse took to add newly published application-ribbon commands (#306). Measured on
+ * CRM279420, 2026-11-19, reading RetrieveApplicationRibbon every 5 minutes: about 18 and 40
+ * minutes after two publishes, and reads in between returned older command sets in turn (each of
+ * Dataverse's servers caches them).
+ */
+export const APPLICATION_COMMANDS_LAG =
+	"in a live check, 20 to 40 minutes after publishing, with reads in between still returning older commands";
 
 /**
  * The table's ribbon changed in Dataverse while it was being published (#102):

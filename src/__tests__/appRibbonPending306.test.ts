@@ -92,6 +92,8 @@ describe("#306 the publish result says so", () => {
 		);
 		expect(message).toContain("a button whose command is missing isn't shown");
 		expect(message).toContain("You don't need to publish again.");
+		// How long it took, as measured live.
+		expect(message).toContain("20 to 40 minutes after publishing");
 		expect(message).not.toContain("enable rule");
 	});
 
